@@ -37,7 +37,7 @@ REPORT_PATCH_CSS = """
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # FINAL_PATCH_2026_05_13_BRAND_HERO_GDN_RISING10
-FINAL_PATCH_VERSION = "2026-05-13-real-commit-brand-hero-gdn-rising10"
+FINAL_PATCH_VERSION = "2026-05-13-real-commit-brand-hero-gdn-rising-tabs-bestseller10"
 """
 Columbia Daily Digest live report builder.
 
@@ -2748,7 +2748,7 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
     cand["image_url"] = cand["itemId"].map(lambda s: image_map.get(normalize_sku_key(s), ""))
     with_img = cand[cand["image_url"].astype(str).str.strip() != ""].copy().sort_values("qty", ascending=False)
     no_img = cand[cand["image_url"].astype(str).str.strip() == ""].copy().sort_values("qty", ascending=False)
-    top = pd.concat([with_img.head(5), no_img.head(max(0, 5 - len(with_img.head(5))))], ignore_index=True).head(5).copy()
+    top = pd.concat([with_img.head(10), no_img.head(max(0, 10 - len(with_img.head(10))))], ignore_index=True).head(10).copy()
     top["qty"] = pd.to_numeric(top.get("qty"), errors="coerce").fillna(0.0)
     skus = [str(s).strip() for s in top["itemId"].tolist() if str(s).strip()]
 
@@ -2871,19 +2871,22 @@ def _get_item_revenue_best_effort(
             continue
     return pd.DataFrame(columns=["itemId", "itemName", "revenue"])
 
-def get_rising_products(
+def get_rising_products_period(
     client: BetaAnalyticsDataClient,
-    w: DigestWindow,
+    period_start: dt.date,
+    period_end: dt.date,
+    compare_start: dt.date,
+    compare_end: dt.date,
     top_n: int = 10,
     exclude_skus: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
-    Rising products are items with positive quantity growth vs the previous period.
-    Items with prev == 0 are excluded, and Best Sellers SKUs are also excluded.
+    Views Top products for a requested 7-day period, with delta vs the immediately previous 7-day period.
+    This powers the Rising Products tabs: current 7D and previous 7D.
     """
     exclude = set([str(x).strip() for x in (exclude_skus or []) if str(x).strip()])
-    cur_start, cur_end = (w.cur_end, w.cur_end) if w.mode == "daily" else (w.cur_start, w.cur_end)
-    prev_start, prev_end = (w.prev_end, w.prev_end) if w.mode == "daily" else (w.prev_start, w.prev_end)
+    cur_start, cur_end = period_start, period_end
+    prev_start, prev_end = compare_start, compare_end
 
     d1_qty = _get_item_order_product_best_effort(cur_start, cur_end, limit=10000)
     d0_qty = _get_item_order_product_best_effort(prev_start, prev_end, limit=10000)
@@ -2963,6 +2966,26 @@ def get_rising_products(
         m = m.sort_values(["qty", "delta"], ascending=[False, False]).head(top_n).copy()
     m["image_url"] = ""  # Filled later by attach_image_urls().
     return m[["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"]]
+
+
+def get_rising_products(
+    client: BetaAnalyticsDataClient,
+    w: DigestWindow,
+    top_n: int = 10,
+    exclude_skus: Optional[List[str]] = None,
+) -> pd.DataFrame:
+    """Current-period Views Top products with delta vs previous period."""
+    period_start, period_end = (w.cur_end - dt.timedelta(days=6), w.cur_end) if w.mode == "daily" else (w.cur_start, w.cur_end)
+    compare_start, compare_end = (period_start - dt.timedelta(days=7), period_start - dt.timedelta(days=1))
+    return get_rising_products_period(
+        client,
+        period_start=period_start,
+        period_end=period_end,
+        compare_start=compare_start,
+        compare_end=compare_end,
+        top_n=top_n,
+        exclude_skus=exclude_skus,
+    )
 
 
 # =========================
@@ -3547,6 +3570,7 @@ def build_bundle(
     best_sellers_df: pd.DataFrame,
     best_sellers_series: dict,
     rising_df: pd.DataFrame,
+    rising_prev_df: Optional[pd.DataFrame],
     pdp_series: dict,
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
@@ -3629,7 +3653,8 @@ def build_bundle(
         "best_sellers": to_records(best_sellers_df.drop(columns=["trend_svg"], errors="ignore")),
         "best_sellers_series": best_sellers_series,
         "rising": to_records(rising_df),
-        "pdp_series": pdp_series,
+        "rising_prev_7d": to_records(rising_prev_df if rising_prev_df is not None else pd.DataFrame()),
+        "pdp_series": pdp_series or {},
         "search_new": to_records(search_new),
         "search_rising": to_records(search_rising),
         "channel_detail_map": {k: to_records(v) for k, v in (channel_detail_map or {}).items()},
@@ -3763,6 +3788,11 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
     if PLACEHOLDER_IMG and (not rising.empty) and ("image_url" in rising.columns):
         rising.loc[rising["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
 
+    rising_prev = pd.DataFrame(bundle.get("rising_prev_7d", []))
+    rising_prev = attach_image_urls(rising_prev, image_map)
+    if PLACEHOLDER_IMG and (not rising_prev.empty) and ("image_url" in rising_prev.columns):
+        rising_prev.loc[rising_prev["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
+
     pdp_series = bundle.get("pdp_series", {"x": [], "rows": []})
     pdp_rows = []
     for row in pdp_series.get("rows", []):
@@ -3800,6 +3830,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
         "trend_svgs": page_trend_svgs,
         "best_sellers": bs_base,
         "rising": rising,
+        "rising_prev": rising_prev,
         "category_pdp_trend": category_pdp_trend,
         "search_new": search_new,
         "search_rising": search_rising,
@@ -3826,6 +3857,7 @@ def render_page_html(
     trend_svgs: Dict[str, str],
     best_sellers: pd.DataFrame,
     rising: pd.DataFrame,
+    rising_prev: Optional[pd.DataFrame],
     category_pdp_trend: pd.DataFrame,
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
@@ -4144,21 +4176,26 @@ def render_page_html(
             </div>
             """
 
-    rising_rows = ""
-    if rising is not None and (not rising.empty):
-        for r in rising.itertuples(index=False):
-            delta = float(getattr(r, "delta", 0) or 0.0)
-            cls = "text-blue-600" if delta >= 0 else "text-orange-700"
-            rising_rows += f"""
-            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
-              {product_img(getattr(r, "image_url", ""))}
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
-                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
-              </div>
-              <div class="text-sm font-black {cls}">{esc(getattr(r, "delta_label", "?") or "?")} {('+' if delta>=0 else '')}{fmt_int(delta)}</div>
-            </div>
-            """
+    def _rising_rows_html(df: Optional[pd.DataFrame]) -> str:
+        rows = ""
+        if df is not None and (not df.empty):
+            for r in df.itertuples(index=False):
+                delta = float(getattr(r, "delta", 0) or 0.0)
+                cls = "text-blue-600" if delta >= 0 else "text-orange-700"
+                rows += f"""
+                <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+                  {product_img(getattr(r, "image_url", ""))}
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
+                    <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
+                  </div>
+                  <div class="text-sm font-black {cls}">{esc(getattr(r, "delta_label", "?") or "?")} {('+' if delta>=0 else '')}{fmt_int(delta)}</div>
+                </div>
+                """
+        return rows or "<div class='text-sm text-slate-500'>No data</div>"
+
+    rising_rows = _rising_rows_html(rising)
+    rising_prev_rows = _rising_rows_html(rising_prev)
 
     pdp_rows = ""
     if category_pdp_trend is not None and (not category_pdp_trend.empty):
@@ -4386,6 +4423,31 @@ def render_page_html(
   });
   if(trendBtns.length){
     setTrend(trendBtns[0].getAttribute('data-trend-tab'));
+  }
+
+  const risingBtns = Array.from(document.querySelectorAll('[data-rising-tab]'));
+  const risingPanels = Array.from(document.querySelectorAll('[data-rising-panel]'));
+  function setRisingTab(target){
+    risingBtns.forEach(el=>{
+      const active = el.getAttribute('data-rising-tab') === target;
+      el.classList.toggle('border-slate-900', active);
+      el.classList.toggle('bg-slate-900', active);
+      el.classList.toggle('text-white', active);
+      el.classList.toggle('border-slate-200', !active);
+      el.classList.toggle('bg-white', !active);
+      el.classList.toggle('text-slate-500', !active);
+    });
+    risingPanels.forEach(el=>{
+      const active = el.getAttribute('data-rising-panel') === target;
+      if(active) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    });
+  }
+  risingBtns.forEach(el=>{
+    el.addEventListener('click', ()=> setRisingTab(el.getAttribute('data-rising-tab')));
+  });
+  if(risingBtns.length){
+    setRisingTab(risingBtns[0].getAttribute('data-rising-tab'));
   }
 
   const detailRows = Array.from(document.querySelectorAll('.bucket-summary-row'));
@@ -4700,13 +4762,20 @@ def render_page_html(
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Best Sellers (Top 5)</div>
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Best Sellers (Top 10)</div>
         <div class="mt-3 space-y-2">{bs_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
       </div>
 
       <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Rising Products · Views Top 10</div>
-        <div class="mt-3 space-y-2">{rising_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Rising Products · Views Top 10</div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" data-rising-tab="current" class="rounded-full border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-extrabold text-white transition">직전 7일</button>
+            <button type="button" data-rising-tab="previous" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-500 transition hover:bg-slate-50">그 전주 7일</button>
+          </div>
+        </div>
+        <div data-rising-panel="current" class="mt-3 space-y-2">{rising_rows}</div>
+        <div data-rising-panel="previous" class="mt-3 hidden space-y-2">{rising_prev_rows}</div>
       </div>
     </div>
 
@@ -5634,6 +5703,7 @@ def build_one(
                 trend_svgs=rt["trend_svgs"],
                 best_sellers=rt["best_sellers"],
                 rising=rt["rising"],
+                rising_prev=rt.get("rising_prev", pd.DataFrame()),
                 category_pdp_trend=rt["category_pdp_trend"],
                 search_new=rt["search_new"],
                 search_rising=rt["search_rising"],
@@ -5688,11 +5758,27 @@ def build_one(
     if PLACEHOLDER_IMG and (not rising.empty) and ("image_url" in rising.columns):
         rising.loc[rising["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
 
+    # FINAL PATCH 2026-05-13: Rising Products 우측 상단 탭용 전주 7일 Top 10.
+    rising_prev = get_rising_products_period(
+        client,
+        period_start=w.prev_start,
+        period_end=w.prev_end,
+        compare_start=w.prev_start - dt.timedelta(days=7),
+        compare_end=w.prev_start - dt.timedelta(days=1),
+        top_n=10,
+        exclude_skus=exclude,
+    )
+    rising_prev = attach_image_urls(rising_prev, image_map)
+    if PLACEHOLDER_IMG and (not rising_prev.empty) and ("image_url" in rising_prev.columns):
+        rising_prev.loc[rising_prev["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
+
     missing = []
     if not best_sellers.empty and 'itemId' in best_sellers.columns:
         missing += [sku for sku in best_sellers['itemId'].tolist() if str(sku).strip() not in image_map]
     if not rising.empty and 'itemId' in rising.columns:
         missing += [sku for sku in rising['itemId'].tolist() if str(sku).strip() not in image_map]
+    if 'rising_prev' in locals() and not rising_prev.empty and 'itemId' in rising_prev.columns:
+        missing += [sku for sku in rising_prev['itemId'].tolist() if str(sku).strip() not in image_map]
     if missing:
         write_missing_image_skus(MISSING_SKU_OUT, missing)
 
@@ -5714,6 +5800,7 @@ def build_one(
         best_sellers_df=best_sellers,
         best_sellers_series=best_sellers_series,
         rising_df=rising,
+        rising_prev_df=rising_prev,
         pdp_series=pdp_series,
         search_new=search["new"],
         search_rising=search["rising"],
@@ -5740,6 +5827,7 @@ def build_one(
         trend_svgs=trend_svgs,
         best_sellers=best_sellers,
         rising=rising,
+        rising_prev=rising_prev,
         category_pdp_trend=category_pdp_trend,
         search_new=search["new"],
         search_rising=search["rising"],
