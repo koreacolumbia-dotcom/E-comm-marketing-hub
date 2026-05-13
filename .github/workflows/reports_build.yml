@@ -3,8 +3,8 @@ name: Reports Build
 on:
   workflow_dispatch:
     inputs:
-      run_search_volume_only:
-        description: "Run Search Volume dashboard only"
+      run_product_keyword_only:
+        description: "Run Product Keyword Performance dashboard only"
         required: false
         default: "false"
         type: choice
@@ -79,8 +79,8 @@ on:
           - "false"
           - "true"
 
-      search_volume_only:
-        description: "Run Search Volume dashboard only?"
+      product_keyword_only:
+        description: "Run Product Keyword Performance dashboard only?"
         required: true
         default: "false"
         type: choice
@@ -148,9 +148,9 @@ on:
   schedule:
     # Competitor Product dashboard only → 01:00 KST daily (16:00 UTC previous day)
     - cron: "0 16 * * *"
-    # All other regular dashboards except Competitor/Summary/Search Volume → 04:00 KST daily (19:00 UTC previous day)
+    # All other regular dashboards except Competitor/Summary/Product Keyword → 04:00 KST daily (19:00 UTC previous day)
     - cron: "0 19 * * *"
-    # Search Volume dashboard only → 07:00 KST daily (22:00 UTC previous day)
+    # Product Keyword Performance dashboard only → 07:00 KST daily (22:00 UTC previous day)
     # 로컬 SQL Server → BigQuery ETL이 06:10 KST에 먼저 끝난 뒤 실행하는 용도
     - cron: "0 22 * * *"
     # Summary Dashboard only → 08:00 KST daily (23:00 UTC previous day)
@@ -201,7 +201,7 @@ jobs:
           OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
           FUNNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.funnel_only == 'true' }}"
           MEMBER_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.member_only == 'true' }}"
-          SEARCH_VOLUME_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.search_volume_only == 'true' }}"
+          SEARCH_VOLUME_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.product_keyword_only == 'true' }}"
           UTM_CHANNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.utm_channel_only == 'true' }}"
           OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
           EXTSIG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.extsig_only == 'true' }}"
@@ -222,7 +222,7 @@ jobs:
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of voc_only/blog_only/hero_only/competitor_only/owned_only/funnel_only/member_only/search_volume_only/utm_channel_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of voc_only/blog_only/hero_only/competitor_only/owned_only/funnel_only/member_only/product_keyword_only/utm_channel_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -237,7 +237,7 @@ jobs:
           RUN_OWNED=true
           RUN_FUNNEL=false
           RUN_MEMBER=false
-          RUN_SEARCH_VOLUME=true
+          RUN_PRODUCT_KEYWORD=true
           RUN_UTM_CHANNEL=true
 
           if [ "$EVENT" = "schedule" ]; then
@@ -252,7 +252,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
 
             case "$SCHEDULE_RAW" in
@@ -265,22 +265,22 @@ jobs:
                 RUN_SUMMARY=true
                 ;;
               "0 19 * * *")
-                echo "[INFO] Scheduled run: regular 04:00 KST batch (excluding Competitor/Summary/Search Volume)"
+                echo "[INFO] Scheduled run: regular 04:00 KST batch (excluding Competitor/Summary/Product Keyword)"
                 RUN_PRICE=true
                 RUN_HERO=true
                 RUN_EXTSIG=true
                 RUN_CREMA=true
                 RUN_BLOG=true
                 RUN_OWNED=true
-                RUN_SEARCH_VOLUME=false
+                RUN_PRODUCT_KEYWORD=false
                 RUN_UTM_CHANNEL=true
                 ;;
               "0 22 * * *")
-                echo "[INFO] Scheduled run: Search Volume dashboard only (07:00 KST, after local SQL ETL)"
-                RUN_SEARCH_VOLUME=true
+                echo "[INFO] Scheduled run: Product Keyword Performance dashboard only (07:00 KST, after local SQL ETL)"
+                RUN_PRODUCT_KEYWORD=true
                 ;;
-              search_volume_only)
-                echo "[INFO] Manual mode: Search Volume dashboard only"
+              product_keyword_only)
+                echo "[INFO] Manual mode: Product Keyword Performance dashboard only"
                 RUN_DAILY=false
                 RUN_PRICE=false
                 RUN_HERO=false
@@ -290,7 +290,7 @@ jobs:
                 RUN_OWNED=false
                 RUN_SUMMARY=false
                 RUN_COMPETITOR=false
-                RUN_SEARCH_VOLUME=true
+                RUN_PRODUCT_KEYWORD=true
                 RUN_UTM_CHANNEL=false
                 ;;
               *)
@@ -310,7 +310,7 @@ jobs:
             RUN_OWNED=true
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -324,7 +324,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=true
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -338,7 +338,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=true
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -352,7 +352,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=true
+            RUN_PRODUCT_KEYWORD=true
             RUN_UTM_CHANNEL=false
           fi
 
@@ -366,7 +366,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=true
           fi
 
@@ -380,7 +380,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -394,7 +394,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -408,7 +408,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -422,7 +422,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -436,7 +436,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -451,7 +451,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_MEMBER=false
-            RUN_SEARCH_VOLUME=false
+            RUN_PRODUCT_KEYWORD=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -465,7 +465,7 @@ jobs:
           echo "run_owned=$RUN_OWNED" >> "$GITHUB_OUTPUT"
           echo "run_funnel=$RUN_FUNNEL" >> "$GITHUB_OUTPUT"
           echo "run_member=$RUN_MEMBER" >> "$GITHUB_OUTPUT"
-          echo "run_search_volume=$RUN_SEARCH_VOLUME" >> "$GITHUB_OUTPUT"
+          echo "run_product_keyword=$RUN_PRODUCT_KEYWORD" >> "$GITHUB_OUTPUT"
           echo "run_utm_channel=$RUN_UTM_CHANNEL" >> "$GITHUB_OUTPUT"
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
 
@@ -539,7 +539,7 @@ jobs:
           set -euo pipefail
           mkdir -p \
             reports \
-            reports/search_volume/data \
+            reports/product_keyword/data \
             reports/member_funnel \
             reports/member_funnel/data \
             site/data \
@@ -1171,8 +1171,8 @@ jobs:
               exit 1
             fi
           done
-      - name: Build Search Volume dashboard
-        if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
+      - name: Build Product Keyword Performance dashboard
+        if: ${{ steps.modes.outputs.run_product_keyword == 'true' }}
         continue-on-error: false
         shell: bash
         env:
@@ -1182,14 +1182,14 @@ jobs:
           GA4_EVENTS_TABLE: columbia-ga4.analytics_358593394.events_*
           BQ_ORDER_PRODUCT_TABLE: columbia-ga4.crm_raw.tb_order_product_search_mart
           SEARCH_EVENT_NAME: view_search_results
-          SEARCH_VOLUME_DAYS: "30"
+          PRODUCT_KEYWORD_DAYS: "30"
           SEARCH_TO_ORDER_LOOKBACK_DAYS: "7"
-          SEARCH_VOLUME_END_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
-          SEARCH_VOLUME_OUT_DIR: reports/search_volume
+          PRODUCT_KEYWORD_END_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
+          PRODUCT_KEYWORD_OUT_DIR: reports/product_keyword
         run: |
           set -euo pipefail
 
-          SCRIPT="columbia_search_volume_hub.py"
+          SCRIPT="columbia_product_keyword_performance.py"
           [ -f "$SCRIPT" ] || { echo "[ERROR] $SCRIPT not found."; exit 1; }
 
           if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
@@ -1197,37 +1197,37 @@ jobs:
             exit 1
           fi
 
-          mkdir -p reports/search_volume/data
+          mkdir -p reports/product_keyword/data
 
-          echo "[INFO] Build Search Volume dashboard"
+          echo "[INFO] Build Product Keyword Performance dashboard"
           echo "[INFO] GA4_EVENTS_TABLE=${GA4_EVENTS_TABLE}"
           echo "[INFO] BQ_ORDER_PRODUCT_TABLE=${BQ_ORDER_PRODUCT_TABLE}"
-          echo "[INFO] SEARCH_VOLUME_DAYS=${SEARCH_VOLUME_DAYS}"
+          echo "[INFO] PRODUCT_KEYWORD_DAYS=${PRODUCT_KEYWORD_DAYS}"
           echo "[INFO] SEARCH_TO_ORDER_LOOKBACK_DAYS=${SEARCH_TO_ORDER_LOOKBACK_DAYS}"
 
           python -u "$SCRIPT"
 
-      - name: Validate Search Volume build
-        if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
+      - name: Validate Product Keyword build
+        if: ${{ steps.modes.outputs.run_product_keyword == 'true' }}
         continue-on-error: false
         shell: bash
         run: |
           set -euo pipefail
-          [ -f "reports/search_volume/index.html" ] || { echo "[ERROR] Search Volume HTML missing"; exit 1; }
-          if grep -q "__DATA_JSON__" "reports/search_volume/index.html"; then echo "[ERROR] Placeholder __DATA_JSON__ still exists in built HTML"; exit 1; fi
-          [ -f "reports/search_volume/data/search_volume.json" ] || { echo "[ERROR] search_volume.json missing"; exit 1; }
-          [ -f "reports/search_volume/data/meta.json" ] || { echo "[ERROR] Search Volume meta.json missing"; exit 1; }
+          [ -f "reports/product_keyword/index.html" ] || { echo "[ERROR] Product Keyword HTML missing"; exit 1; }
+          if grep -q "__DATA_JSON__" "reports/product_keyword/index.html"; then echo "[ERROR] Placeholder __DATA_JSON__ still exists in built HTML"; exit 1; fi
+          [ -f "reports/product_keyword/data/product_keyword.json" ] || { echo "[ERROR] product_keyword.json missing"; exit 1; }
+          [ -f "reports/product_keyword/data/meta.json" ] || { echo "[ERROR] Product Keyword meta.json missing"; exit 1; }
 
-      - name: Publish Search Volume dashboard to site/
-        if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
+      - name: Publish Product Keyword Performance dashboard to site/
+        if: ${{ steps.modes.outputs.run_product_keyword == 'true' }}
         continue-on-error: false
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p site/search_volume site/data/search_volume
-          cp -f reports/search_volume/index.html site/search_volume/index.html
-          [ -f "reports/search_volume/data/search_volume.json" ] && cp -f reports/search_volume/data/search_volume.json site/data/search_volume/search_volume.json
-          [ -f "reports/search_volume/data/meta.json" ] && cp -f reports/search_volume/data/meta.json site/data/search_volume/meta.json
+          cp -f reports/product_keyword/index.html site/search_volume/index.html
+          [ -f "reports/product_keyword/data/product_keyword.json" ] && cp -f reports/product_keyword/data/product_keyword.json site/data/search_volume/product_keyword.json
+          [ -f "reports/product_keyword/data/meta.json" ] && cp -f reports/product_keyword/data/meta.json site/data/search_volume/meta.json
           test -f site/search_volume/index.html || { echo "[ERROR] site/search_volume/index.html missing after publish"; exit 1; }
 
       - name: Build Summary (reports/index.html + meta.json)
@@ -1378,7 +1378,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -A reports site .naver_cache scripts sql columbia_search_volume_hub.py || true
+          git add -A reports site .naver_cache scripts sql columbia_product_keyword_performance.py || true
           [ -f .gitignore ] && git add .gitignore || true
 
           if git diff --cached --quiet; then
@@ -1389,7 +1389,7 @@ jobs:
           git fetch origin main
           git pull --rebase --autostash origin main
 
-          git add -A reports site .naver_cache scripts sql columbia_search_volume_hub.py || true
+          git add -A reports site .naver_cache scripts sql columbia_product_keyword_performance.py || true
           [ -f .gitignore ] && git add .gitignore || true
 
           if git diff --cached --quiet; then
