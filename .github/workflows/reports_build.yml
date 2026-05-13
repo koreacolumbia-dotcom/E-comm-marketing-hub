@@ -3,6 +3,14 @@ name: Reports Build
 on:
   workflow_dispatch:
     inputs:
+      run_search_volume_only:
+        description: "Run Search Volume dashboard only"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
       reason:
         description: "Manual run reason (optional)"
         required: false
@@ -270,6 +278,20 @@ jobs:
               "0 22 * * *")
                 echo "[INFO] Scheduled run: Search Volume dashboard only (07:00 KST, after local SQL ETL)"
                 RUN_SEARCH_VOLUME=true
+                ;;
+              search_volume_only)
+                echo "[INFO] Manual mode: Search Volume dashboard only"
+                RUN_DAILY=false
+                RUN_PRICE=false
+                RUN_HERO=false
+                RUN_EXTSIG=false
+                RUN_CREMA=false
+                RUN_BLOG=false
+                RUN_OWNED=false
+                RUN_SUMMARY=false
+                RUN_COMPETITOR=false
+                RUN_SEARCH_VOLUME=true
+                RUN_UTM_CHANNEL=false
                 ;;
               *)
                 echo "[ERROR] Unknown schedule: $SCHEDULE_RAW"
@@ -1389,3 +1411,5 @@ jobs:
 
           echo "[ERROR] failed to push after retries"
           exit 1
+
+# Search volume only handling was not inserted automatically.
