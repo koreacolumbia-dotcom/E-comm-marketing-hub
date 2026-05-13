@@ -1,0 +1,130 @@
+{
+  "report_key": "utm_channel",
+  "title": "UTM / Source-Medium Numeric Alerts",
+  "updated_at": "2026-05-13 10:22 KST",
+  "period_start": "2025-05-13",
+  "period_end": "2026-05-12",
+  "query_start": "2025-05-13",
+  "query_end": "2026-05-12",
+  "build_mode": "full",
+  "lookback_days": 365,
+  "ga4_property_id": "358593394",
+  "source": "GA4 BigQuery Export",
+  "events_table": "columbia-ga4.analytics_358593394.events_*",
+  "summary": {
+    "sessions": 3734400.0,
+    "users": 3407391.0,
+    "signups": 25452.0,
+    "signup_cvr": 0.7,
+    "avg_signup_user_pv": 25.9,
+    "signup_to_buyers": 10270.0,
+    "buyers": 36998.0,
+    "buy_cvr": 1.0,
+    "purchase": 38661.0,
+    "revenue": 4461773982.0,
+    "aov_per_buyer": 120595.0,
+    "pv_per_user": 4.9,
+    "period": "2025-05-13 ~ 2026-05-12",
+    "rows": 163415,
+    "top_channel": "2. Paid Ad"
+  },
+  "alert_count": 46,
+  "alert_rules": {
+    "sessions": {
+      "type": "rate",
+      "rate": 10.0,
+      "abs": 300,
+      "min_prev": 300,
+      "direction": "both"
+    },
+    "users": {
+      "type": "rate",
+      "rate": 10.0,
+      "abs": 300,
+      "min_prev": 300,
+      "direction": "both"
+    },
+    "signups": {
+      "type": "rate",
+      "rate": 15.0,
+      "abs": 20,
+      "min_prev": 20,
+      "direction": "both"
+    },
+    "signup_to_buyers": {
+      "type": "rate",
+      "rate": 20.0,
+      "abs": 10,
+      "min_prev": 10,
+      "direction": "both"
+    },
+    "buyers": {
+      "type": "rate",
+      "rate": 15.0,
+      "abs": 10,
+      "min_prev": 10,
+      "direction": "both"
+    },
+    "purchase": {
+      "type": "rate",
+      "rate": 15.0,
+      "abs": 10,
+      "min_prev": 10,
+      "direction": "both"
+    },
+    "revenue": {
+      "type": "rate",
+      "rate": 10.0,
+      "abs": 1000000,
+      "min_prev": 1000000,
+      "direction": "both"
+    },
+    "signup_cvr": {
+      "type": "point",
+      "point": 0.3,
+      "min_sessions": 300,
+      "direction": "both"
+    },
+    "buy_cvr": {
+      "type": "point",
+      "point": 0.3,
+      "min_sessions": 300,
+      "direction": "both"
+    },
+    "avg_signup_user_pv": {
+      "type": "rate",
+      "rate": 15.0,
+      "abs": 0.5,
+      "min_prev": 1,
+      "min_base_metric": "signups",
+      "min_base": 10,
+      "direction": "both"
+    },
+    "aov_per_buyer": {
+      "type": "rate",
+      "rate": 15.0,
+      "abs": 10000,
+      "min_prev": 10000,
+      "min_base_metric": "buyers",
+      "min_base": 10,
+      "direction": "both"
+    },
+    "pv_per_user": {
+      "type": "rate",
+      "rate": 15.0,
+      "abs": 0.5,
+      "min_prev": 1,
+      "min_base_metric": "users",
+      "min_base": 300,
+      "direction": "both"
+    }
+  },
+  "outputs": {
+    "html": "reports/utm_channel/index.html",
+    "json": "reports/utm_channel/data/utm_channel_daily.json",
+    "csv": "reports/utm_channel/data/utm_channel_daily.csv",
+    "alerts_json": "reports/utm_channel/data/utm_channel_alerts.json",
+    "alerts_csv": "reports/utm_channel/data/utm_channel_alerts.csv",
+    "meta": "reports/utm_channel/data/meta.json"
+  }
+}
