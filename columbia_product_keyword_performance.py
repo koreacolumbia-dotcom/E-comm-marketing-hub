@@ -29,7 +29,7 @@ KST = dt.timezone(dt.timedelta(hours=9))
 
 
 def log(msg: str) -> None:
-    print(f"[SEARCH_VOLUME] {msg}", flush=True)
+    print(f"[PRODUCT_KEYWORD] {msg}", flush=True)
 
 
 def getenv(name: str, default: str = "") -> str:
@@ -88,8 +88,8 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
     search_event = getenv("SEARCH_EVENT_NAME", "view_search_results")
     location = getenv("BQ_LOCATION", "asia-northeast3")
 
-    # GA 키워드 이벤트 이후 N일 내 SQL 주문을 user_id/member_id로 매칭
-    # search_term은 event_params.search_term 우선, 없으면 page_location의 q/query/keyword/searchKeyword에서 추출
+    # GA4 purchase.transaction_id = SQL order_no 매칭 추가.
+    # 기존 user_id/member_id 매칭이 0이어도 transaction_id가 맞으면 주문수/수량/매출이 들어옵니다.
     sql = f"""
     DECLARE start_date DATE DEFAULT @start_date;
     DECLARE end_date DATE DEFAULT @end_date;
@@ -142,40 +142,84 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
       WHERE search_term IS NOT NULL
       GROUP BY 1, 2
     ),
+    ga_purchase AS (
+      SELECT
+        TIMESTAMP_MICROS(event_timestamp) AS purchase_ts,
+        user_pseudo_id,
+        COALESCE(NULLIF(TRIM(user_id), ''), NULL) AS member_id,
+        NULLIF(TRIM(COALESCE(
+          ecommerce.transaction_id,
+          (SELECT value.string_value FROM UNNEST(event_params) WHERE key='transaction_id'),
+          (SELECT value.string_value FROM UNNEST(event_params) WHERE key='order_no'),
+          (SELECT value.string_value FROM UNNEST(event_params) WHERE key='orderNo')
+        )), '') AS transaction_id
+      FROM `{events_table}`
+      WHERE _TABLE_SUFFIX BETWEEN FORMAT_DATE('%Y%m%d', start_date)
+                              AND FORMAT_DATE('%Y%m%d', DATE_ADD(end_date, INTERVAL lookback_days DAY))
+        AND event_name = 'purchase'
+    ),
     order_lines AS (
       SELECT
-        DATE(order_datetime, 'Asia/Seoul') AS order_date,
+        order_date,
         TIMESTAMP(order_datetime) AS order_ts,
-        member_id,
-        order_no,
-        order_product_no,
-        product_code,
-        brand_code,
-        purchase_qty,
-        erp_revenue,
-        net_erp_revenue
+        CAST(member_id AS STRING) AS member_id,
+        CAST(order_no AS STRING) AS order_no,
+        CAST(order_product_no AS STRING) AS order_product_no,
+        CAST(product_code AS STRING) AS product_code,
+        CAST(brand_code AS STRING) AS brand_code,
+        CAST(purchase_qty AS INT64) AS purchase_qty,
+        CAST(erp_revenue AS INT64) AS erp_revenue,
+        CAST(net_erp_revenue AS INT64) AS net_erp_revenue
       FROM `{order_table}`
       WHERE order_date BETWEEN start_date AND DATE_ADD(end_date, INTERVAL lookback_days DAY)
-        AND member_id IS NOT NULL
-        AND member_id != ''
     ),
-    joined AS (
+    joined_by_transaction AS (
       SELECT
-        s.search_date,
-        s.search_term,
-        o.order_no,
-        o.order_product_no,
-        o.product_code,
-        o.brand_code,
-        o.purchase_qty,
-        o.erp_revenue,
-        o.net_erp_revenue
+        s.search_date, s.search_term,
+        o.order_no, o.order_product_no, o.product_code, o.brand_code,
+        o.purchase_qty, o.erp_revenue, o.net_erp_revenue,
+        'transaction_id' AS match_type
+      FROM clean_search s
+      INNER JOIN ga_purchase p
+        ON s.user_pseudo_id = p.user_pseudo_id
+       AND p.purchase_ts >= s.search_ts
+       AND p.purchase_ts < TIMESTAMP_ADD(s.search_ts, INTERVAL lookback_days DAY)
+       AND p.transaction_id IS NOT NULL
+      INNER JOIN order_lines o
+        ON p.transaction_id = o.order_no
+      WHERE s.search_term IS NOT NULL
+    ),
+    joined_by_member AS (
+      SELECT
+        s.search_date, s.search_term,
+        o.order_no, o.order_product_no, o.product_code, o.brand_code,
+        o.purchase_qty, o.erp_revenue, o.net_erp_revenue,
+        'member_id' AS match_type
       FROM clean_search s
       INNER JOIN order_lines o
         ON s.member_id = o.member_id
+       AND s.member_id IS NOT NULL
        AND o.order_ts >= s.search_ts
        AND o.order_ts < TIMESTAMP_ADD(s.search_ts, INTERVAL lookback_days DAY)
       WHERE s.search_term IS NOT NULL
+    ),
+    joined_union AS (
+      SELECT * FROM joined_by_transaction
+      UNION ALL
+      SELECT * FROM joined_by_member
+    ),
+    joined_dedup AS (
+      SELECT * EXCEPT(rn)
+      FROM (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (
+            PARTITION BY search_date, search_term, order_product_no
+            ORDER BY IF(match_type='transaction_id', 0, 1)
+          ) AS rn
+        FROM joined_union
+      )
+      WHERE rn = 1
     ),
     order_agg AS (
       SELECT
@@ -183,10 +227,12 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
         search_term,
         COUNT(DISTINCT order_no) AS orders,
         COUNT(DISTINCT product_code) AS purchased_products,
-        SUM(CAST(purchase_qty AS INT64)) AS purchase_qty,
-        SUM(CAST(erp_revenue AS INT64)) AS erp_revenue,
-        SUM(CAST(net_erp_revenue AS INT64)) AS net_erp_revenue
-      FROM joined
+        SUM(purchase_qty) AS purchase_qty,
+        SUM(erp_revenue) AS erp_revenue,
+        SUM(net_erp_revenue) AS net_erp_revenue,
+        COUNTIF(match_type = 'transaction_id') AS matched_by_transaction_rows,
+        COUNTIF(match_type = 'member_id') AS matched_by_member_rows
+      FROM joined_dedup
       GROUP BY 1, 2
     )
     SELECT
@@ -201,13 +247,13 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
       IFNULL(o.purchase_qty, 0) AS purchase_qty,
       IFNULL(o.erp_revenue, 0) AS erp_revenue,
       IFNULL(o.net_erp_revenue, 0) AS net_erp_revenue,
+      IFNULL(o.matched_by_transaction_rows, 0) AS matched_by_transaction_rows,
+      IFNULL(o.matched_by_member_rows, 0) AS matched_by_member_rows,
       SAFE_DIVIDE(IFNULL(o.orders, 0), a.search_sessions) AS order_cvr
     FROM search_agg a
-    LEFT JOIN order_agg o
-      USING(search_date, search_term)
+    LEFT JOIN order_agg o USING(search_date, search_term)
     ORDER BY search_date DESC, searches DESC
     """
-
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
             bigquery.ScalarQueryParameter("start_date", "DATE", start_date.isoformat()),
@@ -216,9 +262,8 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
             bigquery.ScalarQueryParameter("search_event", "STRING", search_event),
         ]
     )
-    log(f"Querying GA4 + SQL mart. {start_date}~{end_date}, lookback={lookback_days}d")
+    log(f"Querying GA4 keyword + SQL order product mart. {start_date}~{end_date}, lookback={lookback_days}d")
     return client.query(sql, job_config=job_config, location=location).to_dataframe()
-
 
 def make_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookback_days: int) -> dict:
     """
@@ -317,6 +362,8 @@ def make_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookb
         "purchase_qty": int(df["purchase_qty"].sum()) if not df.empty else 0,
         "erp_revenue": int(df["erp_revenue"].sum()) if not df.empty else 0,
         "net_erp_revenue": int(df["net_erp_revenue"].sum()) if not df.empty else 0,
+        "matched_by_transaction_rows": int(df["matched_by_transaction_rows"].sum()) if not df.empty and "matched_by_transaction_rows" in df.columns else 0,
+        "matched_by_member_rows": int(df["matched_by_member_rows"].sum()) if not df.empty and "matched_by_member_rows" in df.columns else 0,
     }
     totals["order_cvr"] = (totals["orders"] / totals["search_sessions"]) if totals["search_sessions"] else 0
 
@@ -340,391 +387,38 @@ def make_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookb
 SEARCH_VOLUME_HTML_TEMPLATE = r"""<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>상품 키워드 성과 | Columbia E-COMM</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800;900&family=Noto+Sans+KR:wght@300;400;600;700;900&display=swap');
-    :root{
-      --brand:#002d72;
-      --ink:#0f172a;
-      --muted:#64748b;
-      --line:rgba(148,163,184,.25);
-      --motion:cubic-bezier(.2,.8,.2,1);
-      --peach:#fde7db;
-      --sky:#d7eef8;
-      --yellow:#fff200;
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      min-height:100vh;
-      background:
-        radial-gradient(circle at 8% 0%, rgba(37,99,235,.12), transparent 26%),
-        radial-gradient(circle at 92% 8%, rgba(14,165,233,.12), transparent 24%),
-        linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);
-      color:var(--ink);
-      font-family:'Plus Jakarta Sans','Noto Sans KR',system-ui,sans-serif;
-    }
-    .shell{width:100%;max-width:1480px;margin:0 auto;padding:24px;}
-    .report-card{
-      background:rgba(255,255,255,.78);
-      border:1px solid rgba(255,255,255,.88);
-      box-shadow:0 20px 50px rgba(15,23,42,.06);
-      backdrop-filter:blur(18px);
-      border-radius:28px;
-      animation:rise .7s var(--motion) both;
-    }
-    .grid-board{
-      border-radius:26px;
-      overflow:hidden;
-      border:1px solid rgba(15,23,42,.08);
-      background:
-        linear-gradient(rgba(15,23,42,.08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(15,23,42,.08) 1px, transparent 1px),
-        #ffffff;
-      background-size:100px 28px,100px 28px;
-    }
-    .top-row{
-      display:grid;
-      grid-template-columns:110px 1fr 100px 100px 100px;
-      align-items:stretch;
-      min-height:58px;
-    }
-    .search-cell{
-      background:var(--yellow);
-      color:#111827;
-      font-weight:950;
-      font-size:18px;
-      line-height:1.2;
-      padding:6px 10px;
-      border-right:1px solid rgba(15,23,42,.18);
-      border-bottom:1px solid rgba(15,23,42,.16);
-    }
-    .search-cell input{
-      width:100%;
-      background:transparent;
-      border:0;
-      outline:0;
-      font-weight:950;
-      color:#111827;
-      font-size:18px;
-      padding:0;
-    }
-    .blank-cell{border-bottom:1px solid rgba(15,23,42,.12)}
-    .toggle-wrap{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:#d8f0fa;
-      border-left:1px solid rgba(15,23,42,.18);
-      border-right:1px solid rgba(15,23,42,.18);
-      border-bottom:1px solid rgba(15,23,42,.16);
-    }
-    .period-btn{
-      height:100%;
-      min-width:92px;
-      border:0;
-      background:transparent;
-      color:#0f172a;
-      font-size:18px;
-      font-weight:950;
-      cursor:pointer;
-      transition:.2s var(--motion);
-    }
-    .period-btn.active{background:#0f172a;color:#fff}
-    .chart-panel{
-      margin:20px;
-      min-height:500px;
-      border-radius:18px;
-      background:var(--peach);
-      border:3px solid rgba(7,89,133,.85);
-      padding:42px 48px 34px;
-      position:relative;
-    }
-    .chart-title{
-      font-size:24px;
-      line-height:1.7;
-      font-weight:900;
-      color:#000;
-      margin-bottom:18px;
-    }
-    .chart-box{
-      margin-top:24px;
-      background:rgba(255,255,255,.62);
-      border:1px solid rgba(255,255,255,.78);
-      border-radius:22px;
-      padding:22px;
-      box-shadow:0 18px 36px rgba(15,23,42,.06);
-    }
-    .summary-row{
-      display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
-      gap:12px;
-      margin-top:18px;
-    }
-    .mini-card{
-      background:rgba(255,255,255,.72);
-      border:1px solid rgba(255,255,255,.85);
-      border-radius:18px;
-      padding:16px;
-    }
-    .mini-label{font-size:11px;font-weight:950;letter-spacing:.14em;text-transform:uppercase;color:#64748b}
-    .mini-value{font-size:26px;font-weight:950;margin-top:8px;color:#0f172a}
-    .detail-card{margin-top:18px;padding:20px}
-    .table-wrap{overflow:auto;border-radius:20px;border:1px solid rgba(226,232,240,.9)}
-    table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;background:white}
-    th{background:#f8fafc;color:#64748b;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:13px 14px;text-align:right;border-bottom:1px solid #e2e8f0;font-weight:950}
-    th:first-child,td:first-child{text-align:left}
-    td{padding:13px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:850;text-align:right;white-space:nowrap}
-    tr:hover td{background:#f8fafc}
-    .rank{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9px;background:#eff6ff;color:#1d4ed8;font-weight:950;margin-right:10px}
-    .term{font-weight:950;color:#0f172a}
-    @keyframes rise{from{opacity:0;transform:translateY(22px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
-    @media(max-width:900px){
-      .shell{padding:14px}
-      .top-row{grid-template-columns:90px 1fr 80px 80px}
-      .top-row .blank-cell.extra{display:none}
-      .period-btn{font-size:14px;min-width:72px}
-      .search-cell,.search-cell input{font-size:15px}
-      .chart-panel{margin:12px;padding:24px 16px;min-height:420px}
-      .chart-title{font-size:20px}
-      .summary-row{grid-template-columns:repeat(2,minmax(0,1fr))}
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>상품 키워드 성과 | Columbia E-COMM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800;900&family=Noto+Sans+KR:wght@300;400;600;700;900&display=swap');
+*{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#f8fafc,#eef2f7);font-family:'Plus Jakarta Sans','Noto Sans KR',system-ui,sans-serif;color:#0f172a}
+.shell{max-width:1480px;margin:0 auto;padding:8px 12px 28px}.card{background:rgba(255,255,255,.94);border:1px solid #e2e8f0;box-shadow:0 16px 42px rgba(15,23,42,.05);border-radius:26px}.chart-card{padding:24px;margin-bottom:18px}.topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.eyebrow{font-size:12px;font-weight:950;letter-spacing:.16em;text-transform:uppercase;color:#94a3b8}h1{font-size:26px;line-height:1.25;margin:5px 0 0;font-weight:950;letter-spacing:-.03em}.meta{font-size:12px;font-weight:850;color:#64748b;margin-top:8px}.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.keyword-wrap{display:flex;align-items:center;gap:8px;background:#fff200;border:1px solid rgba(15,23,42,.08);box-shadow:0 10px 28px rgba(15,23,42,.05);border-radius:18px;padding:9px 12px;min-width:300px}.keyword-label{font-size:13px;font-weight:950;color:#111827;white-space:nowrap}#keywordFilterTop{width:100%;border:0;outline:0;background:transparent;font-size:14px;font-weight:900;color:#0f172a}.periods{display:flex;border:1px solid #bfdbfe;border-radius:18px;overflow:hidden;background:#d7eef8}.period-btn{border:0;min-width:92px;padding:13px 18px;background:transparent;font-size:14px;font-weight:950;color:#0f172a;cursor:pointer}.period-btn.active{background:#0f172a;color:#fff}.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:18px;padding:16px 18px;min-height:92px}.kpi-label{font-size:11px;font-weight:950;letter-spacing:.12em;text-transform:uppercase;color:#64748b}.kpi-value{font-size:30px;font-weight:950;margin-top:8px;letter-spacing:-.03em}.mixed-panel{background:#fff;border:1px solid #e2e8f0;border-radius:22px;padding:22px;min-height:410px}.panel-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px}.panel-title{font-size:18px;font-weight:950}.panel-sub{font-size:12px;font-weight:800;color:#64748b}.table-card{padding:20px 22px}.table-wrap{overflow:auto;border-radius:20px;border:1px solid #e2e8f0}table{width:100%;min-width:960px;border-collapse:separate;border-spacing:0;background:white}th{background:#f8fafc;color:#64748b;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:13px 14px;text-align:right;border-bottom:1px solid #e2e8f0;font-weight:950}th:first-child,td:first-child{text-align:left}td{padding:14px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:850;text-align:right;white-space:nowrap}tr:hover td{background:#f8fafc}.rank{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9px;background:#eff6ff;color:#1d4ed8;font-weight:950;margin-right:10px}.term{font-weight:950;color:#0f172a}.notice{display:none;margin:12px 0 0;padding:12px 14px;border-radius:16px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:12px;font-weight:850}@media(max-width:900px){.topbar{flex-direction:column}.controls{width:100%}.keyword-wrap{min-width:0;width:100%}.periods{width:100%}.period-btn{flex:1}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi-value{font-size:24px}}
+</style>
 </head>
 <body>
-  <div class="shell">
-    <section class="report-card p-4">
-      <div class="grid-board">
-        <div class="top-row">
-          <div class="blank-cell"></div>
-          <div class="search-cell">
-            <div>검색</div>
-            <input id="keywordFilterTop" placeholder="검색" />
-          </div>
-          <div class="blank-cell"></div>
-          <div class="toggle-wrap"><button class="period-btn active" data-view="daily">DAILY</button></div>
-          <div class="toggle-wrap"><button class="period-btn" data-view="week">WEEK</button></div>
-        </div>
-
-        <div class="chart-panel">
-          <div class="chart-title">
-            그래프 혼합<br/>
-            구매수량 : 막대그래프<br/>
-            구매금액 : 꺾은선 그래프
-          </div>
-
-          <div class="summary-row">
-            <div class="mini-card">
-              <div class="mini-label">검색수</div>
-              <div class="mini-value" id="kpi키워드 검색수">-</div>
-            </div>
-            <div class="mini-card">
-              <div class="mini-label">주문수</div>
-              <div class="mini-value" id="kpi주문수">-</div>
-            </div>
-            <div class="mini-card">
-              <div class="mini-label">구매수량</div>
-              <div class="mini-value" id="kpiQty">-</div>
-            </div>
-            <div class="mini-card">
-              <div class="mini-label">구매금액</div>
-              <div class="mini-value" id="kpiRevenue">-</div>
-            </div>
-          </div>
-
-          <div class="chart-box">
-            <canvas id="mixedChart" height="112"></canvas>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="report-card detail-card">
-      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-4">
-        <div>
-          <div class="text-xs font-black text-slate-400 uppercase tracking-widest">Detail</div>
-          <h2 class="text-xl font-black mt-1">키워드별 구매상품 성과</h2>
-        </div>
-        <div class="text-xs font-bold text-slate-500" id="metaText">-</div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>키워드</th>
-              <th>검색수</th>
-              <th>검색 세션</th>
-              <th>주문수</th>
-              <th>구매수량</th>
-              <th>구매금액</th>
-              <th>순구매금액</th>
-              <th>구매 CVR</th>
-            </tr>
-          </thead>
-          <tbody id="termRows"></tbody>
-        </table>
-      </div>
-    </section>
-  </div>
-
+<div class="shell">
+<section class="card chart-card">
+<div class="topbar"><div><div class="eyebrow">DETAIL</div><h1>키워드별 구매상품 성과</h1><div class="meta" id="metaText">-</div></div><div class="controls"><label class="keyword-wrap"><span class="keyword-label">검색</span><input id="keywordFilterTop" placeholder="키워드 입력" /></label><div class="periods"><button class="period-btn active" data-view="daily">DAILY</button><button class="period-btn" data-view="week">WEEK</button></div></div></div>
+<div class="kpis"><div class="kpi"><div class="kpi-label">키워드 검색수</div><div class="kpi-value" id="kpiSearches">-</div></div><div class="kpi"><div class="kpi-label">주문수</div><div class="kpi-value" id="kpiOrders">-</div></div><div class="kpi"><div class="kpi-label">구매수량</div><div class="kpi-value" id="kpiQty">-</div></div><div class="kpi"><div class="kpi-label">구매금액</div><div class="kpi-value" id="kpiRevenue">-</div></div></div>
+<div class="mixed-panel"><div class="panel-head"><div><div class="panel-title">그래프 혼합</div><div class="panel-sub">구매수량 = 막대그래프 · 구매금액 = 꺾은선 그래프</div></div><div class="panel-sub" id="matchText">-</div></div><canvas id="mixedChart" height="108"></canvas><div class="notice" id="zeroNotice">구매 데이터가 0이면 GA4 purchase의 transaction_id와 SQL order_no 매칭 여부를 확인해야 합니다. 이번 패치에는 user_id/member_id 매칭과 transaction_id/order_no 매칭을 모두 포함했습니다.</div></div>
+</section>
+<section class="card table-card"><div class="topbar" style="margin-bottom:14px;"><div><div class="eyebrow">DETAIL</div><h1 style="font-size:22px;">키워드별 구매상품 성과</h1></div></div><div class="table-wrap"><table><thead><tr><th>키워드</th><th>검색수</th><th>검색 세션</th><th>주문수</th><th>구매수량</th><th>구매금액</th><th>순구매금액</th><th>구매 CVR</th></tr></thead><tbody id="termRows"></tbody></table></div></section>
+</div>
 <script>
-const DATA = __DATA_JSON__;
-const fmtInt = (v) => Number(v || 0).toLocaleString('ko-KR');
-const fmtKrw = (v) => '₩' + Number(v || 0).toLocaleString('ko-KR');
-const fmtPct = (v) => `${(Number(v || 0) * 100).toFixed(1)}%`;
-
-let currentView = 'daily';
-let chart = null;
-
-function groupWeekly(rows){
-  const map = new Map();
-  rows.forEach(r => {
-    const d = new Date(r.date + 'T00:00:00');
-    const day = d.getDay();
-    const monday = new Date(d);
-    monday.setDate(d.getDate() - ((day + 6) % 7));
-    const key = monday.toISOString().slice(0,10);
-    if(!map.has(key)) map.set(key, {date:key, searches:0, orders:0, purchase_qty:0, erp_revenue:0, net_erp_revenue:0});
-    const x = map.get(key);
-    x.searches += Number(r.searches || 0);
-    x.orders += Number(r.orders || 0);
-    x.purchase_qty += Number(r.purchase_qty || 0);
-    x.erp_revenue += Number(r.erp_revenue || 0);
-    x.net_erp_revenue += Number(r.net_erp_revenue || 0);
-  });
-  return Array.from(map.values()).sort((a,b)=>a.date.localeCompare(b.date));
-}
-
-function filteredTerms(){
-  const q = (document.getElementById('keywordFilterTop').value || '').trim().toLowerCase();
-  const rows = DATA.top_terms || [];
-  if(!q) return rows;
-  return rows.filter(r => String(r.search_term || '').toLowerCase().includes(q));
-}
-
-function trendRows(){
-  const q = (document.getElementById('keywordFilterTop').value || '').trim().toLowerCase();
-  let rows = DATA.daily || [];
-  if(q && DATA.raw_daily_by_term){
-    rows = DATA.raw_daily_by_term.filter(r => String(r.search_term || '').toLowerCase().includes(q));
-  }
-  return currentView === 'week' ? groupWeekly(rows) : rows;
-}
-
-function renderHeader(){
-  const t = DATA.totals || {};
-  document.getElementById('kpi키워드 검색수').textContent = fmtInt(t.searches);
-  document.getElementById('kpi주문수').textContent = fmtInt(t.orders);
-  document.getElementById('kpiQty').textContent = fmtInt(t.purchase_qty);
-  document.getElementById('kpiRevenue').textContent = fmtKrw(t.erp_revenue);
-  document.getElementById('metaText').textContent = `${DATA.meta.period_text || '-'} · ${DATA.meta.updated_at_kst || '-'}`;
-}
-
-function renderChart(){
-  const rows = trendRows();
-  const labels = rows.map(r => r.date);
-  const qty = rows.map(r => Number(r.purchase_qty || 0));
-  const revenue = rows.map(r => Number(r.erp_revenue || 0));
-
-  const ctx = document.getElementById('mixedChart');
-  if(chart) chart.destroy();
-
-  chart = new Chart(ctx, {
-    data: {
-      labels,
-      datasets: [
-        {
-          type:'bar',
-          label:'구매수량',
-          data: qty,
-          borderWidth:0,
-          borderRadius:10,
-          yAxisID:'y'
-        },
-        {
-          type:'line',
-          label:'구매금액',
-          data: revenue,
-          tension:.35,
-          borderWidth:3,
-          pointRadius:3,
-          yAxisID:'y1'
-        }
-      ]
-    },
-    options: {
-      responsive:true,
-      maintainAspectRatio:true,
-      interaction:{mode:'index',intersect:false},
-      plugins:{
-        legend:{position:'top',labels:{font:{weight:'bold'}}},
-        tooltip:{
-          callbacks:{
-            label:(ctx)=>{
-              if(ctx.dataset.label === '구매금액') return `${ctx.dataset.label}: ${fmtKrw(ctx.raw)}`;
-              return `${ctx.dataset.label}: ${fmtInt(ctx.raw)}`;
-            }
-          }
-        }
-      },
-      scales:{
-        x:{grid:{display:false},ticks:{font:{weight:'bold'},maxRotation:0,autoSkip:true}},
-        y:{beginAtZero:true,grid:{color:'rgba(148,163,184,.22)'},ticks:{callback:v=>fmtInt(v)}},
-        y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>fmtKrw(v)}}
-      }
-    }
-  });
-}
-
-function renderTable(){
-  const rows = filteredTerms();
-  const tbody = document.getElementById('termRows');
-  tbody.innerHTML = rows.map((r, idx)=>`
-    <tr>
-      <td><span class="rank">${idx+1}</span><span class="term">${r.search_term || '-'}</span></td>
-      <td>${fmtInt(r.searches)}</td>
-      <td>${fmtInt(r.search_sessions)}</td>
-      <td>${fmtInt(r.orders)}</td>
-      <td>${fmtInt(r.purchase_qty)}</td>
-      <td>${fmtKrw(r.erp_revenue)}</td>
-      <td>${fmtKrw(r.net_erp_revenue)}</td>
-      <td>${fmtPct(r.order_cvr)}</td>
-    </tr>
-  `).join('');
-}
-
-function renderAll(){
-  renderHeader();
-  renderChart();
-  renderTable();
-  try {
-    parent.postMessage({ type: 'dailyDigestResize', height: document.documentElement.scrollHeight }, '*');
-  } catch(e) {}
-}
-
-document.querySelectorAll('.period-btn[data-view]').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.period-btn[data-view]').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    currentView = btn.dataset.view;
-    renderChart();
-  });
-});
-
-document.getElementById('keywordFilterTop').addEventListener('input', ()=>{
-  renderChart();
-  renderTable();
-});
-
-renderAll();
+const DATA=__DATA_JSON__; const fmtInt=v=>Number(v||0).toLocaleString('ko-KR'); const fmtKrw=v=>'₩'+Number(v||0).toLocaleString('ko-KR'); const fmtPct=v=>`${(Number(v||0)*100).toFixed(1)}%`; let currentView='daily'; let chart=null;
+function groupWeekly(rows){const map=new Map();rows.forEach(r=>{const d=new Date(r.date+'T00:00:00');const day=d.getDay();const monday=new Date(d);monday.setDate(d.getDate()-((day+6)%7));const key=monday.toISOString().slice(0,10);if(!map.has(key))map.set(key,{date:key,searches:0,orders:0,purchase_qty:0,erp_revenue:0,net_erp_revenue:0});const x=map.get(key);x.searches+=Number(r.searches||0);x.orders+=Number(r.orders||0);x.purchase_qty+=Number(r.purchase_qty||0);x.erp_revenue+=Number(r.erp_revenue||0);x.net_erp_revenue+=Number(r.net_erp_revenue||0);});return Array.from(map.values()).sort((a,b)=>a.date.localeCompare(b.date));}
+function getQuery(){return(document.getElementById('keywordFilterTop').value||'').trim().toLowerCase();} function filteredTerms(){const q=getQuery();const rows=DATA.top_terms||[];return q?rows.filter(r=>String(r.search_term||'').toLowerCase().includes(q)):rows;} function trendRows(){const q=getQuery();let rows=DATA.daily||[];if(q&&DATA.raw_daily_by_term){rows=DATA.raw_daily_by_term.filter(r=>String(r.search_term||'').toLowerCase().includes(q));}return currentView==='week'?groupWeekly(rows):rows;}
+function filteredTotals(){const q=getQuery();if(!q)return DATA.totals||{};const rows=filteredTerms();const t={searches:0,search_sessions:0,orders:0,purchase_qty:0,erp_revenue:0,net_erp_revenue:0};rows.forEach(r=>{t.searches+=Number(r.searches||0);t.search_sessions+=Number(r.search_sessions||0);t.orders+=Number(r.orders||0);t.purchase_qty+=Number(r.purchase_qty||0);t.erp_revenue+=Number(r.erp_revenue||0);t.net_erp_revenue+=Number(r.net_erp_revenue||0);});return t;}
+function renderHeader(){const t=filteredTotals();document.getElementById('kpiSearches').textContent=fmtInt(t.searches);document.getElementById('kpiOrders').textContent=fmtInt(t.orders);document.getElementById('kpiQty').textContent=fmtInt(t.purchase_qty);document.getElementById('kpiRevenue').textContent=fmtKrw(t.erp_revenue);document.getElementById('metaText').textContent=`${DATA.meta.period_text||'-'} · ${DATA.meta.updated_at_kst||'-'}`;const all=DATA.totals||{};document.getElementById('matchText').textContent=`transaction rows ${fmtInt(all.matched_by_transaction_rows||0)} · member rows ${fmtInt(all.matched_by_member_rows||0)}`;document.getElementById('zeroNotice').style.display=Number(all.searches||0)>0&&Number(all.orders||0)===0?'block':'none';}
+function renderChart(){const rows=trendRows();const labels=rows.map(r=>r.date);const qty=rows.map(r=>Number(r.purchase_qty||0));const revenue=rows.map(r=>Number(r.erp_revenue||0));const ctx=document.getElementById('mixedChart');if(chart)chart.destroy();chart=new Chart(ctx,{data:{labels,datasets:[{type:'bar',label:'구매수량',data:qty,borderWidth:0,borderRadius:8,backgroundColor:'rgba(96,165,250,.55)',yAxisID:'y'},{type:'line',label:'구매금액',data:revenue,tension:.35,borderWidth:3,pointRadius:3,borderColor:'rgba(244,63,94,.9)',backgroundColor:'rgba(244,63,94,.15)',yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{weight:'bold'}}},tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='구매금액'?`${ctx.dataset.label}: ${fmtKrw(ctx.raw)}`:`${ctx.dataset.label}: ${fmtInt(ctx.raw)}`}}},scales:{x:{grid:{display:false},ticks:{font:{weight:'bold'},maxRotation:0,autoSkip:true}},y:{beginAtZero:true,grid:{color:'rgba(226,232,240,.9)'},ticks:{callback:v=>fmtInt(v)}},y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>fmtKrw(v)}}}}});}
+function renderTable(){const rows=filteredTerms();const tbody=document.getElementById('termRows');tbody.innerHTML=rows.map((r,idx)=>`<tr><td><span class="rank">${idx+1}</span><span class="term">${r.search_term||'-'}</span></td><td>${fmtInt(r.searches)}</td><td>${fmtInt(r.search_sessions)}</td><td>${fmtInt(r.orders)}</td><td>${fmtInt(r.purchase_qty)}</td><td>${fmtKrw(r.erp_revenue)}</td><td>${fmtKrw(r.net_erp_revenue)}</td><td>${fmtPct(r.order_cvr)}</td></tr>`).join('');}
+function renderAll(){renderHeader();renderChart();renderTable();try{parent.postMessage({type:'dailyDigestResize',height:document.documentElement.scrollHeight},'*');}catch(e){}} document.querySelectorAll('.period-btn[data-view]').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.period-btn[data-view]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');currentView=btn.dataset.view;renderChart();});}); document.getElementById('keywordFilterTop').addEventListener('input',()=>{renderHeader();renderChart();renderTable();}); renderAll();
 </script>
 </body>
 </html>"""
-
 
 def render_html(payload: dict) -> str:
     """
