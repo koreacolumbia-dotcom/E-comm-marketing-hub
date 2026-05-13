@@ -301,6 +301,12 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
         CAST(order_product_no AS STRING) AS order_product_no,
         UPPER(TRIM(CAST(product_code AS STRING))) AS product_code,
         CAST(brand_code AS STRING) AS brand_code,
+        CAST(product_style AS STRING) AS product_style,
+        CAST(product_name_kor AS STRING) AS product_name_kor,
+        CAST(product_name AS STRING) AS product_name,
+        CAST(relation_category AS STRING) AS relation_category,
+        CAST(category_manager_no AS INT64) AS category_manager_no,
+        CAST(mdpick_depth2 AS INT64) AS mdpick_depth2,
         CAST(purchase_qty AS INT64) AS purchase_qty,
         CAST(erp_revenue AS INT64) AS erp_revenue,
         CAST(net_erp_revenue AS INT64) AS net_erp_revenue
@@ -315,6 +321,12 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
         o.order_product_no,
         o.product_code,
         o.brand_code,
+        o.product_style,
+        o.product_name_kor,
+        o.product_name,
+        o.relation_category,
+        o.category_manager_no,
+        o.mdpick_depth2,
         o.purchase_qty,
         o.erp_revenue,
         o.net_erp_revenue,
@@ -337,6 +349,12 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
         o.order_product_no,
         o.product_code,
         o.brand_code,
+        o.product_style,
+        o.product_name_kor,
+        o.product_name,
+        o.relation_category,
+        o.category_manager_no,
+        o.mdpick_depth2,
         o.purchase_qty,
         o.erp_revenue,
         o.net_erp_revenue,
@@ -372,6 +390,12 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
         search_date,
         search_term,
         product_code,
+        ANY_VALUE(product_style) AS product_style,
+        ANY_VALUE(product_name_kor) AS product_name_kor,
+        ANY_VALUE(product_name) AS product_name,
+        ANY_VALUE(relation_category) AS relation_category,
+        ANY_VALUE(category_manager_no) AS category_manager_no,
+        ANY_VALUE(mdpick_depth2) AS mdpick_depth2,
         COUNT(DISTINCT order_no) AS orders,
         COUNT(DISTINCT product_code) AS purchased_products,
         SUM(purchase_qty) AS purchase_qty,
@@ -386,6 +410,12 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
       a.search_date,
       a.search_term,
       o.product_code,
+      o.product_style,
+      o.product_name_kor,
+      o.product_name,
+      o.relation_category,
+      o.category_manager_no,
+      o.mdpick_depth2,
       a.searches,
       a.search_users,
       a.search_sessions,
@@ -517,6 +547,8 @@ def make_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookb
             raw_daily_by_product_df = (
                 order_rows.groupby(["search_date", "search_term", "product_code"], as_index=False)
                 .agg(
+                    product_name_kor=("product_name_kor", "first"),
+                    relation_category=("relation_category", "first"),
                     orders=("orders", "sum"),
                     purchase_qty=("purchase_qty", "sum"),
                     erp_revenue=("erp_revenue", "sum"),
@@ -530,6 +562,12 @@ def make_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookb
             product_rows_df = (
                 order_rows.groupby(["search_term", "product_code"], as_index=False)
                 .agg(
+                    product_style=("product_style", "first"),
+                    product_name_kor=("product_name_kor", "first"),
+                    product_name=("product_name", "first"),
+                    relation_category=("relation_category", "first"),
+                    category_manager_no=("category_manager_no", "first"),
+                    mdpick_depth2=("mdpick_depth2", "first"),
                     orders=("orders", "sum"),
                     purchase_qty=("purchase_qty", "sum"),
                     erp_revenue=("erp_revenue", "sum"),
@@ -625,7 +663,7 @@ SEARCH_VOLUME_HTML_TEMPLATE = r"""<!doctype html>
 
 <section class="card table-card">
 <div class="topbar" style="margin-bottom:14px;"><div><div class="eyebrow">DETAIL</div><h1 style="font-size:22px;">키워드 × 상품코드 성과</h1></div></div>
-<div class="table-wrap"><table><thead><tr><th>키워드</th><th>상품코드</th><th>검색수</th><th>검색 세션</th><th>주문수</th><th>구매수량</th><th>구매금액</th><th>순구매금액</th><th>구매 CVR</th></tr></thead><tbody id="termRows"></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>키워드</th><th>상품코드</th><th>상품명</th><th>카테고리</th><th>검색수</th><th>검색 세션</th><th>주문수</th><th>구매수량</th><th>구매금액</th><th>순구매금액</th><th>구매 CVR</th></tr></thead><tbody id="termRows"></tbody></table></div>
 </section>
 </div>
 
@@ -690,7 +728,7 @@ function filteredTotals(){
 }
 function renderHeader(){const t=filteredTotals();document.getElementById('kpiSearches').textContent=fmtInt(t.searches);document.getElementById('kpiOrders').textContent=fmtInt(t.orders);document.getElementById('kpiQty').textContent=fmtInt(t.purchase_qty);document.getElementById('kpiRevenue').textContent=fmtKrw(t.erp_revenue);document.getElementById('metaText').textContent=`${DATA.meta.period_text||'-'} · ${DATA.meta.updated_at_kst||'-'}`;const all=DATA.totals||{};document.getElementById('matchText').textContent=`transaction rows ${fmtInt(all.matched_by_transaction_rows||0)} · member rows ${fmtInt(all.matched_by_member_rows||0)}`;document.getElementById('zeroNotice').style.display=Number(all.searches||0)>0&&Number(all.orders||0)===0?'block':'none';}
 function renderChart(){const rows=trendRows();const labels=rows.map(r=>r.date);const qty=rows.map(r=>Number(r.purchase_qty||0));const revenue=rows.map(r=>Number(r.erp_revenue||0));const ctx=document.getElementById('mixedChart');if(chart)chart.destroy();chart=new Chart(ctx,{data:{labels,datasets:[{type:'bar',label:'구매수량',data:qty,borderWidth:0,borderRadius:8,backgroundColor:'rgba(96,165,250,.55)',yAxisID:'y'},{type:'line',label:'구매금액',data:revenue,tension:.35,borderWidth:3,pointRadius:3,borderColor:'rgba(244,63,94,.9)',backgroundColor:'rgba(244,63,94,.15)',yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{weight:'bold'}}},tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='구매금액'?`${ctx.dataset.label}: ${fmtKrw(ctx.raw)}`:`${ctx.dataset.label}: ${fmtInt(ctx.raw)}`}}},scales:{x:{grid:{display:false},ticks:{font:{weight:'bold'},maxRotation:0,autoSkip:true}},y:{beginAtZero:true,grid:{color:'rgba(226,232,240,.9)'},ticks:{callback:v=>fmtInt(v)}},y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>fmtKrw(v)}}}}});}
-function renderTable(){const rows=termRowsFiltered();const tbody=document.getElementById('termRows');tbody.innerHTML=rows.map((r,idx)=>`<tr><td><span class="rank">${idx+1}</span><span class="term">${r.search_term||'-'}</span></td><td>${r.product_code||'-'}</td><td>${fmtInt(r.searches)}</td><td>${fmtInt(r.search_sessions)}</td><td>${fmtInt(r.orders)}</td><td>${fmtInt(r.purchase_qty)}</td><td>${fmtKrw(r.erp_revenue)}</td><td>${fmtKrw(r.net_erp_revenue)}</td><td>${fmtPct(r.order_cvr)}</td></tr>`).join('');}
+function renderTable(){const rows=termRowsFiltered();const tbody=document.getElementById('termRows');tbody.innerHTML=rows.map((r,idx)=>`<tr><td><span class="rank">${idx+1}</span><span class="term">${r.search_term||'-'}</span></td><td>${r.product_code||'-'}</td><td>${r.product_name_kor||r.product_name||'-'}</td><td>${r.relation_category||'-'}</td><td>${fmtInt(r.searches)}</td><td>${fmtInt(r.search_sessions)}</td><td>${fmtInt(r.orders)}</td><td>${fmtInt(r.purchase_qty)}</td><td>${fmtKrw(r.erp_revenue)}</td><td>${fmtKrw(r.net_erp_revenue)}</td><td>${fmtPct(r.order_cvr)}</td></tr>`).join('');}
 function renderAll(){renderHeader();renderChart();renderTable();try{parent.postMessage({type:'dailyDigestResize',height:document.documentElement.scrollHeight},'*');}catch(e){}}
 document.querySelectorAll('.period-btn[data-view]').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.period-btn[data-view]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');currentView=btn.dataset.view;renderChart();});});
 document.getElementById('keywordFilterTop').addEventListener('input',renderAll);
