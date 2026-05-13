@@ -140,8 +140,11 @@ on:
   schedule:
     # Competitor Product dashboard only → 01:00 KST daily (16:00 UTC previous day)
     - cron: "0 16 * * *"
-    # All other regular dashboards except Competitor/Summary → 04:00 KST daily (19:00 UTC previous day)
+    # All other regular dashboards except Competitor/Summary/Search Volume → 04:00 KST daily (19:00 UTC previous day)
     - cron: "0 19 * * *"
+    # Search Volume dashboard only → 07:00 KST daily (22:00 UTC previous day)
+    # 로컬 SQL Server → BigQuery ETL이 06:10 KST에 먼저 끝난 뒤 실행하는 용도
+    - cron: "0 22 * * *"
     # Summary Dashboard only → 08:00 KST daily (23:00 UTC previous day)
     - cron: "0 23 * * *"
     # Summary Dashboard only → 14:00 KST daily (05:00 UTC same day)
@@ -254,15 +257,19 @@ jobs:
                 RUN_SUMMARY=true
                 ;;
               "0 19 * * *")
-                echo "[INFO] Scheduled run: regular 04:00 KST batch (excluding Competitor/Summary)"
+                echo "[INFO] Scheduled run: regular 04:00 KST batch (excluding Competitor/Summary/Search Volume)"
                 RUN_PRICE=true
                 RUN_HERO=true
                 RUN_EXTSIG=true
                 RUN_CREMA=true
                 RUN_BLOG=true
                 RUN_OWNED=true
-                RUN_SEARCH_VOLUME=true
+                RUN_SEARCH_VOLUME=false
                 RUN_UTM_CHANNEL=true
+                ;;
+              "0 22 * * *")
+                echo "[INFO] Scheduled run: Search Volume dashboard only (07:00 KST, after local SQL ETL)"
+                RUN_SEARCH_VOLUME=true
                 ;;
               *)
                 echo "[ERROR] Unknown schedule: $SCHEDULE_RAW"
@@ -1147,34 +1154,36 @@ jobs:
         continue-on-error: false
         shell: bash
         env:
-          NAVER_AD_API_KEY: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
-          NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
-          NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
-          GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
-          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
-          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
-          GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
-          GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
-          GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
-          GOOGLE_ADS_LANGUAGE_RESOURCE: ${{ secrets.GOOGLE_ADS_LANGUAGE_RESOURCE }}
-          GOOGLE_ADS_GEO_TARGET_RESOURCE: ${{ secrets.GOOGLE_ADS_GEO_TARGET_RESOURCE }}
-          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          BQ_PROJECT: columbia-ga4
+          BQ_LOCATION: asia-northeast3
+          GA4_EVENTS_TABLE: columbia-ga4.analytics_358593394.events_*
+          BQ_ORDER_PRODUCT_TABLE: columbia-ga4.crm_raw.tb_order_product_search_mart
+          SEARCH_EVENT_NAME: view_search_results
+          SEARCH_VOLUME_DAYS: "30"
+          SEARCH_TO_ORDER_LOOKBACK_DAYS: "7"
+          SEARCH_VOLUME_END_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
+          SEARCH_VOLUME_OUT_DIR: reports/search_volume
         run: |
           set -euo pipefail
-          if [ -z "${NAVER_AD_API_KEY:-}" ] || [ -z "${NAVER_AD_SECRET_KEY:-}" ] || [ -z "${NAVER_AD_CUSTOMER_ID:-}" ]; then
-            echo "[ERROR] NAVER_AD_API_KEY or NAVER_AD_SECRET_KEY or NAVER_AD_CUSTOMER_ID empty"
+
+          SCRIPT="columbia_search_volume_hub.py"
+          [ -f "$SCRIPT" ] || { echo "[ERROR] $SCRIPT not found."; exit 1; }
+
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
+            echo "[ERROR] GOOGLE_SA_JSON_B64 is empty."
             exit 1
           fi
-          SCRIPT="columbia_search_volume_hub.py"
-          TEMPLATE="columbia_search_volume_hub_template.html"
-          [ -f "$SCRIPT" ] || { echo "[ERROR] $SCRIPT not found."; exit 1; }
-          [ -f "$TEMPLATE" ] || { echo "[ERROR] $TEMPLATE not found."; exit 1; }
-          START_DATE="$(TZ=Asia/Seoul date -d "${YMD} -3 months" '+%Y-%m-%d')"
-          OUT_JSON="reports/search_volume/data/search_volume_data.json"
-          OUT_HTML="reports/search_volume/index.html"
-          META_JSON="reports/search_volume/data/meta.json"
+
           mkdir -p reports/search_volume/data
-          python -u "$SCRIPT" --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화" --start-date "$START_DATE" --end-date "$YMD" --geo KR --template "$TEMPLATE" --output-json "$OUT_JSON" --output-html "$OUT_HTML" --meta-json "$META_JSON"
+
+          echo "[INFO] Build Search Volume dashboard"
+          echo "[INFO] GA4_EVENTS_TABLE=${GA4_EVENTS_TABLE}"
+          echo "[INFO] BQ_ORDER_PRODUCT_TABLE=${BQ_ORDER_PRODUCT_TABLE}"
+          echo "[INFO] SEARCH_VOLUME_DAYS=${SEARCH_VOLUME_DAYS}"
+          echo "[INFO] SEARCH_TO_ORDER_LOOKBACK_DAYS=${SEARCH_TO_ORDER_LOOKBACK_DAYS}"
+
+          python -u "$SCRIPT"
 
       - name: Validate Search Volume build
         if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
@@ -1183,8 +1192,9 @@ jobs:
         run: |
           set -euo pipefail
           [ -f "reports/search_volume/index.html" ] || { echo "[ERROR] Search Volume HTML missing"; exit 1; }
-          if grep -q "__DASHBOARD_DATA__" "reports/search_volume/index.html"; then echo "[ERROR] Placeholder __DASHBOARD_DATA__ still exists in built HTML"; exit 1; fi
-          [ -f "reports/search_volume/data/search_volume_data.json" ] || { echo "[ERROR] search_volume_data.json missing"; exit 1; }
+          if grep -q "__DATA_JSON__" "reports/search_volume/index.html"; then echo "[ERROR] Placeholder __DATA_JSON__ still exists in built HTML"; exit 1; fi
+          [ -f "reports/search_volume/data/search_volume.json" ] || { echo "[ERROR] search_volume.json missing"; exit 1; }
+          [ -f "reports/search_volume/data/meta.json" ] || { echo "[ERROR] Search Volume meta.json missing"; exit 1; }
 
       - name: Publish Search Volume dashboard to site/
         if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
@@ -1194,8 +1204,9 @@ jobs:
           set -euo pipefail
           mkdir -p site/search_volume site/data/search_volume
           cp -f reports/search_volume/index.html site/search_volume/index.html
-          [ -f "reports/search_volume/data/search_volume_data.json" ] && cp -f reports/search_volume/data/search_volume_data.json site/data/search_volume/search_volume_data.json
+          [ -f "reports/search_volume/data/search_volume.json" ] && cp -f reports/search_volume/data/search_volume.json site/data/search_volume/search_volume.json
           [ -f "reports/search_volume/data/meta.json" ] && cp -f reports/search_volume/data/meta.json site/data/search_volume/meta.json
+          test -f site/search_volume/index.html || { echo "[ERROR] site/search_volume/index.html missing after publish"; exit 1; }
 
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ steps.modes.outputs.run_summary == 'true' }}
@@ -1345,7 +1356,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -A reports site .naver_cache scripts sql || true
+          git add -A reports site .naver_cache scripts sql columbia_search_volume_hub.py || true
           [ -f .gitignore ] && git add .gitignore || true
 
           if git diff --cached --quiet; then
@@ -1356,7 +1367,7 @@ jobs:
           git fetch origin main
           git pull --rebase --autostash origin main
 
-          git add -A reports site .naver_cache scripts sql || true
+          git add -A reports site .naver_cache scripts sql columbia_search_volume_hub.py || true
           [ -f .gitignore ] && git add .gitignore || true
 
           if git diff --cached --quiet; then
