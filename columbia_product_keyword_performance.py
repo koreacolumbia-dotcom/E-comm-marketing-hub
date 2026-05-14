@@ -377,92 +377,7 @@ def run_query(client: bigquery.Client, start_date: dt.date, end_date: dt.date, l
     return client.query(sql, job_config=job_config, location=location).to_dataframe()
 
 
-
-def run_direct_product_query(client: bigquery.Client, start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
-    """
-    Product-code direct sales query from SQL order-product mart.
-    This is used when users type product code/prefix such as C7 or C72YL3596774.
-    It does NOT require a GA4 search event match.
-    """
-    order_table = getenv("BQ_ORDER_PRODUCT_TABLE", "columbia-ga4.crm_raw.tb_order_product_search_mart")
-    location = getenv("BQ_LOCATION", "asia-northeast3")
-    order_cols = get_bq_columns(client, order_table)
-
-    product_style_expr = col_expr(order_cols, "product_style", "STRING")
-    product_name_kor_expr = col_expr(order_cols, "product_name_kor", "STRING")
-    product_name_expr = col_expr(order_cols, "product_name", "STRING")
-    relation_category_expr = col_expr(order_cols, "relation_category", "STRING")
-    category_manager_no_expr = col_expr(order_cols, "category_manager_no", "INT64")
-    mdpick_depth2_expr = col_expr(order_cols, "mdpick_depth2", "INT64")
-
-    sql = f"""
-    DECLARE start_date DATE DEFAULT @start_date;
-    DECLARE end_date DATE DEFAULT @end_date;
-    DECLARE ly_start DATE DEFAULT DATE_SUB(start_date, INTERVAL 1 YEAR);
-    DECLARE ly_end DATE DEFAULT DATE_SUB(end_date, INTERVAL 1 YEAR);
-
-    WITH periods AS (
-      SELECT 'TY' AS period, start_date AS s, end_date AS e
-      UNION ALL
-      SELECT 'LY' AS period, ly_start AS s, ly_end AS e
-    ),
-    order_lines AS (
-      SELECT
-        p.period,
-        o.order_date,
-        CAST(o.order_no AS STRING) AS order_no,
-        CAST(o.order_product_no AS STRING) AS order_product_no,
-        UPPER(TRIM(CAST(o.product_code AS STRING))) AS product_code,
-        CAST(o.brand_code AS STRING) AS brand_code,
-        {product_style_expr},
-        {product_name_kor_expr},
-        {product_name_expr},
-        {relation_category_expr},
-        {category_manager_no_expr},
-        {mdpick_depth2_expr},
-        CAST(o.purchase_qty AS INT64) AS purchase_qty,
-        CAST(o.erp_revenue AS INT64) AS erp_revenue
-      FROM `{order_table}` o
-      JOIN periods p
-        ON o.order_date BETWEEN p.s AND p.e
-      WHERE UPPER(TRIM(CAST(o.product_code AS STRING))) <> ''
-    )
-    SELECT
-      period,
-      order_date AS search_date,
-      '(상품코드 직접검색)' AS search_term,
-      product_code,
-      ANY_VALUE(product_style) AS product_style,
-      ANY_VALUE(product_name_kor) AS product_name_kor,
-      ANY_VALUE(product_name) AS product_name,
-      ANY_VALUE(relation_category) AS relation_category,
-      ANY_VALUE(category_manager_no) AS category_manager_no,
-      ANY_VALUE(mdpick_depth2) AS mdpick_depth2,
-      0 AS searches,
-      0 AS search_users,
-      0 AS search_sessions,
-      0 AS login_search_users,
-      COUNT(DISTINCT order_no) AS orders,
-      COUNT(DISTINCT product_code) AS purchased_products,
-      SUM(purchase_qty) AS purchase_qty,
-      SUM(erp_revenue) AS erp_revenue,
-      0 AS matched_by_transaction_rows,
-      0 AS matched_by_member_rows,
-      0 AS order_cvr
-    FROM order_lines
-    GROUP BY 1, 2, 4
-    ORDER BY period, search_date DESC, erp_revenue DESC
-    """
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("start_date", "DATE", start_date.isoformat()),
-            bigquery.ScalarQueryParameter("end_date", "DATE", end_date.isoformat()),
-        ]
-    )
-    log(f"Querying direct SQL product sales. TY={start_date}~{end_date}")
-    return client.query(sql, job_config=job_config, location=location).to_dataframe()
-
-def build_payload(df: pd.DataFrame, direct_df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookback_days: int) -> dict:
+def build_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookback_days: int) -> dict:
     if df.empty:
         df = pd.DataFrame(columns=[
             "period", "search_date", "search_term", "product_code", "product_name_kor", "product_name", "relation_category",
@@ -473,17 +388,6 @@ def build_payload(df: pd.DataFrame, direct_df: pd.DataFrame, start_date: dt.date
         df = df.copy()
         df["search_date"] = pd.to_datetime(df["search_date"]).dt.date
         df["product_code"] = df["product_code"].fillna("").astype(str).str.upper().str.strip()
-
-    if direct_df is None or direct_df.empty:
-        direct_df = pd.DataFrame(columns=[
-            "period", "search_date", "search_term", "product_code", "product_name_kor", "product_name", "relation_category",
-            "searches", "search_users", "search_sessions", "login_search_users", "orders", "purchased_products",
-            "purchase_qty", "erp_revenue", "matched_by_transaction_rows", "matched_by_member_rows", "order_cvr"
-        ])
-    else:
-        direct_df = direct_df.copy()
-        direct_df["search_date"] = pd.to_datetime(direct_df["search_date"]).dt.date
-        direct_df["product_code"] = direct_df["product_code"].fillna("").astype(str).str.upper().str.strip()
 
     search_base = df[["period", "search_date", "search_term", "searches", "search_users", "search_sessions", "login_search_users"]].drop_duplicates(["period", "search_date", "search_term"]) if not df.empty else df
     order_rows = df[df["product_code"] != ""].copy() if not df.empty else df
@@ -578,35 +482,6 @@ def build_payload(df: pd.DataFrame, direct_df: pd.DataFrame, start_date: dt.date
         "searches": (ty["searches"] / ly["searches"] - 1) if ly["searches"] else None,
     }
 
-    direct_daily_product = (
-        direct_df.groupby(["period", "search_date", "search_term", "product_code"], as_index=False).agg(
-            product_name_kor=("product_name_kor", "first"),
-            product_name=("product_name", "first"),
-            relation_category=("relation_category", "first"),
-            product_style=("product_style", "first"),
-            orders=("orders", "sum"),
-            purchase_qty=("purchase_qty", "sum"),
-            erp_revenue=("erp_revenue", "sum"),
-        ) if not direct_df.empty else pd.DataFrame(columns=["period", "search_date", "search_term", "product_code", "product_name_kor", "product_name", "relation_category", "product_style", "orders", "purchase_qty", "erp_revenue"])
-    )
-    if not direct_daily_product.empty:
-        direct_daily_product["date"] = direct_daily_product["search_date"].astype(str)
-
-    direct_product_rows = (
-        direct_df.groupby(["period", "search_term", "product_code"], as_index=False).agg(
-            product_style=("product_style", "first"),
-            product_name_kor=("product_name_kor", "first"),
-            product_name=("product_name", "first"),
-            relation_category=("relation_category", "first"),
-            category_manager_no=("category_manager_no", "first"),
-            mdpick_depth2=("mdpick_depth2", "first"),
-            orders=("orders", "sum"),
-            purchase_qty=("purchase_qty", "sum"),
-            erp_revenue=("erp_revenue", "sum"),
-        ).sort_values(["period", "erp_revenue", "purchase_qty"], ascending=[True, False, False]).head(2000)
-        if not direct_df.empty else pd.DataFrame(columns=["period", "search_term", "product_code", "product_name_kor", "product_name", "relation_category", "orders", "purchase_qty", "erp_revenue"])
-    )
-
     return {
         "meta": {
             "title": "상품 키워드 성과",
@@ -623,10 +498,8 @@ def build_payload(df: pd.DataFrame, direct_df: pd.DataFrame, start_date: dt.date
         "daily": daily.drop(columns=["search_date"], errors="ignore").to_dict("records"),
         "raw_daily_by_term": daily_term.drop(columns=["search_date"], errors="ignore").to_dict("records"),
         "raw_daily_by_product": daily_product.drop(columns=["search_date"], errors="ignore").to_dict("records"),
-        "direct_daily_by_product": direct_daily_product.drop(columns=["search_date"], errors="ignore").to_dict("records"),
         "top_terms": top_terms.to_dict("records"),
         "product_rows": product_rows.to_dict("records"),
-        "direct_product_rows": direct_product_rows.to_dict("records"),
         "spc_groups": SPC_GROUPS,
     }
 
@@ -739,20 +612,13 @@ function rowMatches(r){
   return keywordOk && codeOk;
 }
 function filterRows(rows){return (rows||[]).filter(rowMatches)}
-function productSourceRows(){
-  // 상품코드만 입력한 경우에는 GA4 검색매칭 rows가 아니라 SQL 상품코드 직접 매출 rows를 사용합니다.
-  // 키워드가 함께 있으면 검색매칭 rows를 우선 사용하고, 없을 때만 direct rows로 fallback합니다.
-  const hasCode=codes().length>0;
-  const hasKeyword=!!q();
-  if(hasCode && !hasKeyword) return filterRows(DATA.direct_daily_by_product||[]);
-  let rows=filterRows(DATA.raw_daily_by_product||[]);
-  if(!rows.length && hasCode) rows=filterRows(DATA.direct_daily_by_product||[]);
-  return rows;
-}
 function trendRows(){
+  // When keyword/SPC or product-code filter is active, use product-grain rows so KPI matches Detail.
+  // Without filters, use total daily rows.
   let rows;
   if(q() || codes().length){
-    rows=productSourceRows();
+    rows=filterRows(DATA.raw_daily_by_product||[]);
+    // fallback: if product-grain has no row for a pure search keyword, use term-grain.
     if(!rows.length && q() && !codes().length) rows=filterRows(DATA.raw_daily_by_term||[]);
   } else {
     rows=DATA.daily||[];
@@ -788,7 +654,7 @@ function currentTotals(){
 function renderHeader(){const t=currentTotals();const ty=t.TY||{};const ly=t.LY||{};const yy=t.YOY||{};document.getElementById('kpiSearches').textContent=fmtInt(ty.searches);document.getElementById('kpiOrders').textContent=fmtInt(ty.orders);document.getElementById('kpiQty').textContent=fmtInt(ty.purchase_qty);document.getElementById('kpiRevenue').textContent=fmtKrw(ty.erp_revenue);document.getElementById('yoySearches').textContent=`LY ${fmtInt(ly.searches)} · YoY ${fmtPct(yy.searches)}`;document.getElementById('yoyOrders').textContent=`LY ${fmtInt(ly.orders)} · YoY ${fmtPct(yy.orders)}`;document.getElementById('yoyQty').textContent=`LY ${fmtInt(ly.purchase_qty)} · YoY ${fmtPct(yy.purchase_qty)}`;document.getElementById('yoyRevenue').textContent=`LY ${fmtKrw(ly.erp_revenue)} · YoY ${fmtPct(yy.erp_revenue)}`;document.getElementById('metaText').textContent=`${currentView==='daily'?'DAILY 최근 1일':'WEEK 최근 주차'} · TY ${DATA.meta.period_text||'-'} · LY ${DATA.meta.ly_start_date||'-'} ~ ${DATA.meta.ly_end_date||'-'} · ${DATA.meta.updated_at_kst||'-'}`;const all=DATA.totals?.TY||{};document.getElementById('matchText').textContent=`transaction rows ${fmtInt(all.matched_by_transaction_rows||0)} · member rows ${fmtInt(all.matched_by_member_rows||0)}`;document.getElementById('zeroNotice').style.display=Number(all.searches||0)>0&&Number(all.orders||0)===0?'block':'none'}
 function renderChart(){const rows=trendRows();const labels=[...new Set(rows.map(r=>r.date))].sort();const val=(p,k)=>labels.map(d=>rows.filter(r=>r.date===d&&(r.period||'TY')===p).reduce((s,r)=>s+Number(r[k]||0),0));const ctx=document.getElementById('mixedChart');if(chart)chart.destroy();chart=new Chart(ctx,{data:{labels,datasets:[{type:'bar',label:'TY 구매수량',data:val('TY','purchase_qty'),backgroundColor:'rgba(96,165,250,.6)',borderWidth:0,borderRadius:8,yAxisID:'y'},{type:'bar',label:'LY 구매수량',data:val('LY','purchase_qty'),backgroundColor:'rgba(148,163,184,.35)',borderWidth:0,borderRadius:8,yAxisID:'y'},{type:'line',label:'TY 구매금액',data:val('TY','erp_revenue'),borderColor:'rgba(244,63,94,.9)',backgroundColor:'rgba(244,63,94,.12)',borderWidth:3,pointRadius:3,tension:.35,yAxisID:'y1'},{type:'line',label:'LY 구매금액',data:val('LY','erp_revenue'),borderColor:'rgba(100,116,139,.85)',backgroundColor:'rgba(100,116,139,.1)',borderWidth:2,pointRadius:2,tension:.35,borderDash:[6,4],yAxisID:'y1'}]},options:{responsive:true,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{weight:'bold'}}}},scales:{x:{grid:{display:false},ticks:{font:{weight:'bold'},maxRotation:0,autoSkip:true}},y:{beginAtZero:true,grid:{color:'rgba(226,232,240,.9)'},ticks:{callback:v=>fmtInt(v)}},y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>fmtKrw(v)}}}}})}
 function scopedProductRows(){
-  let base=productSourceRows();
+  let base=filterRows(DATA.raw_daily_by_product||[]);
   if(currentView==='week') base=groupWeekly(base);
   const ty=latestRowsByPeriod(base,'TY');
   const ly=latestRowsByPeriod(base,'LY');
@@ -864,8 +730,7 @@ def main() -> int:
     data_dir.mkdir(parents=True, exist_ok=True)
 
     df = run_query(client, start_date, end_date, lookback_days)
-    direct_df = run_direct_product_query(client, start_date, end_date)
-    payload = build_payload(df, direct_df, start_date, end_date, lookback_days)
+    payload = build_payload(df, start_date, end_date, lookback_days)
 
     (data_dir / "product_keyword.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     (data_dir / "meta.json").write_text(json.dumps(payload["meta"], ensure_ascii=False, indent=2), encoding="utf-8")
