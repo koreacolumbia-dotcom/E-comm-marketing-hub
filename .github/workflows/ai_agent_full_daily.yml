@@ -1,0 +1,238 @@
+name: AI Agent Full Daily Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "YYYY-MM-DD. empty = KST yesterday"
+        required: false
+        default: ""
+      run_etl:
+        description: "Run MSSQL -> BigQuery ETL before report"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      etl_mode:
+        description: "ETL mode when run_etl=true"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - order_mart
+          - crm_raw
+          - admin_daily
+          - all
+      days_back:
+        description: "Order mart lookback days"
+        required: true
+        default: "760"
+      include_product_status:
+        description: "TB_OrderProduct.CodeOrderStatusNo filter"
+        required: true
+        default: "4,5"
+      cart_days_back:
+        description: "TB_Cart signal lookback days"
+        required: true
+        default: "180"
+      sync_start_date:
+        description: "CRM raw sync start date"
+        required: true
+        default: "2026-02-01"
+      write_disposition:
+        description: "BigQuery write disposition"
+        required: true
+        default: "WRITE_TRUNCATE"
+        type: choice
+        options:
+          - WRITE_TRUNCATE
+          - WRITE_APPEND
+  schedule:
+    # 07:10 KST daily = 22:10 UTC previous day
+    # Use only when MSSQL is accessible from GitHub Actions. Otherwise set run_etl=false manually or run ETL locally first.
+    - cron: "10 22 * * *"
+
+concurrency:
+  group: ai-agent-full-daily-report
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-ai-agent-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    env:
+      BQ_PROJECT: ${{ vars.BQ_PROJECT || 'columbia-ga4' }}
+      BQ_LOCATION: ${{ vars.BQ_LOCATION || 'asia-northeast3' }}
+      BQ_RAW_DATASET: ${{ vars.BQ_RAW_DATASET || 'crm_raw' }}
+      BQ_MART_DATASET: ${{ vars.BQ_MART_DATASET || 'crm_mart' }}
+
+      BQ_MEMBER_STAGING_TABLE: ${{ vars.BQ_MEMBER_STAGING_TABLE || 'tb_member_staging' }}
+      BQ_ORDER_HEADER_STAGING_TABLE: ${{ vars.BQ_ORDER_HEADER_STAGING_TABLE || 'tb_order_staging' }}
+      BQ_PRODUCT_STAGING_TABLE: ${{ vars.BQ_PRODUCT_STAGING_TABLE || 'tb_product_staging' }}
+      BQ_TRAFFIC_DAILY_STAGING_TABLE: ${{ vars.BQ_TRAFFIC_DAILY_STAGING_TABLE || 'tb_statistics_google_staging' }}
+      BQ_ORDER_PRODUCT_TABLE: ${{ vars.BQ_ORDER_PRODUCT_TABLE || 'tb_order_product_search_mart' }}
+      BQ_ADMIN_DAILY_TABLE: ${{ vars.BQ_ADMIN_DAILY_TABLE || 'member_funnel_admin_daily' }}
+      AI_AGENT_REPORT_DIR: ${{ vars.AI_AGENT_REPORT_DIR || 'reports/ai_agent' }}
+
+      MSSQL_DRIVER: "ODBC Driver 18 for SQL Server"
+      MSSQL_SERVER: ${{ secrets.MSSQL_SERVER }}
+      MSSQL_HOST: ${{ secrets.MSSQL_HOST }}
+      MSSQL_PORT: ${{ secrets.MSSQL_PORT || '1433' }}
+      MSSQL_DATABASE: ${{ secrets.MSSQL_DATABASE }}
+      MSSQL_USERNAME: ${{ secrets.MSSQL_USERNAME }}
+      MSSQL_PASSWORD: ${{ secrets.MSSQL_PASSWORD }}
+      MSSQL_TRUSTED_CONNECTION: ${{ secrets.MSSQL_TRUSTED_CONNECTION || 'no' }}
+      MSSQL_TIMEOUT_SEC: ${{ vars.MSSQL_TIMEOUT_SEC || '30' }}
+
+      GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+
+      LLM_PROVIDER_ORDER: ${{ vars.LLM_PROVIDER_ORDER || 'gemini,groq,openrouter' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash-lite' }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'llama-3.1-8b-instant' }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openrouter/free' }}
+      OPENROUTER_SITE_URL: ${{ vars.OPENROUTER_SITE_URL || 'https://github.com' }}
+      OPENROUTER_APP_NAME: ${{ vars.OPENROUTER_APP_NAME || 'Columbia AI Agent Report' }}
+
+      ORDER_ETL_SUMMARY_PATH: logs/order_product_ai_agent_etl_summary.json
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Pull latest main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main || true
+
+      - name: Install Microsoft ODBC Driver 18
+        if: ${{ github.event_name == 'schedule' || inputs.run_etl == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl gnupg apt-transport-https unixodbc-dev
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+          odbcinst -q -d || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate Google credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ] && [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
+            echo "[ERROR] Set GOOGLE_SA_JSON_B64 secret or GOOGLE_APPLICATION_CREDENTIALS."
+            exit 1
+          fi
+
+      - name: Validate MSSQL secrets when ETL runs
+        if: ${{ github.event_name == 'schedule' || inputs.run_etl == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${MSSQL_SERVER:-}" ] && [ -z "${MSSQL_HOST:-}" ]; then
+            echo "[ERROR] Set MSSQL_SERVER or MSSQL_HOST secret."
+            exit 1
+          fi
+          if [ -z "${MSSQL_DATABASE:-}" ]; then
+            echo "[ERROR] Set MSSQL_DATABASE secret."
+            exit 1
+          fi
+          if [ "${MSSQL_TRUSTED_CONNECTION:-no}" != "yes" ]; then
+            if [ -z "${MSSQL_USERNAME:-}" ] || [ -z "${MSSQL_PASSWORD:-}" ]; then
+              echo "[ERROR] Set MSSQL_USERNAME and MSSQL_PASSWORD secrets."
+              exit 1
+            fi
+          fi
+
+      - name: Run MSSQL to BigQuery ETL
+        if: ${{ github.event_name == 'schedule' || inputs.run_etl == 'true' }}
+        shell: bash
+        env:
+          ETL_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.etl_mode || 'all' }}
+          ORDER_ETL_DAYS_BACK: ${{ github.event_name == 'workflow_dispatch' && inputs.days_back || '760' }}
+          ORDER_ETL_INCLUDE_PRODUCT_STATUS: ${{ github.event_name == 'workflow_dispatch' && inputs.include_product_status || '4,5' }}
+          CART_SIGNAL_DAYS_BACK: ${{ github.event_name == 'workflow_dispatch' && inputs.cart_days_back || '180' }}
+          SYNC_START_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_start_date || '2026-02-01' }}
+          BQ_WRITE_DISPOSITION: ${{ github.event_name == 'workflow_dispatch' && inputs.write_disposition || 'WRITE_TRUNCATE' }}
+        run: |
+          set -euo pipefail
+          mkdir -p logs
+          python -u scripts/columbia_ai_agent_crm_order_etl_final.py \
+            --mode "${ETL_MODE}" \
+            --days-back "${ORDER_ETL_DAYS_BACK}" \
+            --include-product-status "${ORDER_ETL_INCLUDE_PRODUCT_STATUS}" \
+            --cart-days-back "${CART_SIGNAL_DAYS_BACK}" \
+            --sync-start-date "${SYNC_START_DATE}" \
+            --write-disposition "${BQ_WRITE_DISPOSITION}"
+
+      - name: Build AI Agent HTML report
+        shell: bash
+        env:
+          TARGET_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_date || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports/ai_agent/daily reports/ai_agent/data logs
+          if [ -n "${TARGET_DATE:-}" ]; then
+            python -u scripts/build_ai_agent_html_report.py --target-date "${TARGET_DATE}"
+          else
+            python -u scripts/build_ai_agent_html_report.py
+          fi
+
+      - name: Upload report artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-agent-report-and-logs
+          path: |
+            reports/ai_agent/**
+            logs/*.json
+            logs/*.log
+          if-no-files-found: ignore
+
+      - name: Commit report outputs
+        if: ${{ always() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add reports/ai_agent logs/*.json 2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No AI Agent report changes to commit"
+            exit 0
+          fi
+
+          git commit -m "Update AI agent daily report" || true
+          git pull --rebase --autostash origin main || true
+          git push origin HEAD:main || true
