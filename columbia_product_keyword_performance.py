@@ -539,7 +539,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 </div>
 <div class="mixed-panel"><div class="panel-head"><div><div class="panel-title">그래프 혼합</div><div class="panel-sub">구매수량 = 막대그래프 · 구매금액 = 꺾은선 그래프 · TY/LY 비교</div></div><div class="panel-sub" id="matchText">-</div></div><canvas id="mixedChart" height="108"></canvas><div class="notice" id="zeroNotice">구매 데이터가 0이면 SQL 주문상품 mart의 기간 범위 또는 GA4 transaction_id/order_no 매칭을 확인해야 합니다.</div></div>
 </section>
-<section class="card table-card"><div class="topbar" style="margin-bottom:14px;"><div><div class="eyebrow">DETAIL</div><h1 style="font-size:22px;">키워드 × 상품코드 성과</h1></div></div><div class="table-wrap"><table><thead><tr><th>키워드</th><th>상품코드</th><th>상품명</th><th>카테고리</th><th>TY 주문</th><th>LY 주문</th><th>TY 수량</th><th>LY 수량</th><th>TY 구매금액</th><th>LY 구매금액</th><th>매출 YoY</th></tr></thead><tbody id="termRows"></tbody></table></div></section>
+<section class="card table-card"><div class="topbar" style="margin-bottom:14px;"><div><div class="eyebrow">DETAIL</div><h1 style="font-size:22px;">키워드 × 상품코드 성과</h1><div class="meta" id="detailPeriodText">-</div></div></div><div class="table-wrap"><table><thead><tr><th>키워드</th><th>상품코드</th><th>상품명</th><th>카테고리</th><th>TY 주문</th><th>LY 주문</th><th>TY 수량</th><th>LY 수량</th><th>TY 구매금액</th><th>LY 구매금액</th><th>매출 YoY</th></tr></thead><tbody id="termRows"></tbody></table></div></section>
 </div>
 <script>
 const DATA=__DATA_JSON__; const SPC=DATA.spc_groups||{}; const fmtInt=v=>Number(v||0).toLocaleString('ko-KR'); const fmtKrw=v=>'₩'+Number(v||0).toLocaleString('ko-KR'); const fmtPct=v=>v===null||v===undefined?'-':`${(Number(v)*100).toFixed(1)}%`; let currentView='daily'; let chart=null;
@@ -549,13 +549,113 @@ function groupWeekly(rows){const map=new Map();rows.forEach(r=>{const d=new Date
 function filterRows(rows){const qq=q();const cc=codes();let out=rows||[];if(qq)out=out.filter(r=>String(r.search_term||'').toLowerCase().includes(qq));if(cc.length)out=out.filter(r=>cc.includes(String(r.product_code||'').toUpperCase()));return out}
 function trendRows(){let rows;if(codes().length){rows=filterRows(DATA.raw_daily_by_product||[])}else if(q()){rows=filterRows(DATA.raw_daily_by_term||[])}else{rows=DATA.daily||[]}return currentView==='week'?groupWeekly(rows):rows}
 function totalsFromRows(rows, period){const rr=rows.filter(r=>(r.period||'TY')===period);return rr.reduce((t,r)=>{t.searches+=Number(r.searches||0);t.orders+=Number(r.orders||0);t.purchase_qty+=Number(r.purchase_qty||0);t.erp_revenue+=Number(r.erp_revenue||0);return t},{searches:0,orders:0,purchase_qty:0,erp_revenue:0})}
-function currentTotals(){if(!q()&&!codes().length)return DATA.totals||{};const rows=trendRows();const TY=totalsFromRows(rows,'TY');const LY=totalsFromRows(rows,'LY');return{TY,LY,YOY:{searches:LY.searches?TY.searches/LY.searches-1:null,orders:LY.orders?TY.orders/LY.orders-1:null,purchase_qty:LY.purchase_qty?TY.purchase_qty/LY.purchase_qty-1:null,erp_revenue:LY.erp_revenue?TY.erp_revenue/LY.erp_revenue-1:null}}}
-function renderHeader(){const t=currentTotals();const ty=t.TY||{};const ly=t.LY||{};const yy=t.YOY||{};document.getElementById('kpiSearches').textContent=fmtInt(ty.searches);document.getElementById('kpiOrders').textContent=fmtInt(ty.orders);document.getElementById('kpiQty').textContent=fmtInt(ty.purchase_qty);document.getElementById('kpiRevenue').textContent=fmtKrw(ty.erp_revenue);document.getElementById('yoySearches').textContent=`LY ${fmtInt(ly.searches)} · YoY ${fmtPct(yy.searches)}`;document.getElementById('yoyOrders').textContent=`LY ${fmtInt(ly.orders)} · YoY ${fmtPct(yy.orders)}`;document.getElementById('yoyQty').textContent=`LY ${fmtInt(ly.purchase_qty)} · YoY ${fmtPct(yy.purchase_qty)}`;document.getElementById('yoyRevenue').textContent=`LY ${fmtKrw(ly.erp_revenue)} · YoY ${fmtPct(yy.erp_revenue)}`;document.getElementById('metaText').textContent=`TY ${DATA.meta.period_text||'-'} · LY ${DATA.meta.ly_start_date||'-'} ~ ${DATA.meta.ly_end_date||'-'} · ${DATA.meta.updated_at_kst||'-'}`;const all=DATA.totals?.TY||{};document.getElementById('matchText').textContent=`transaction rows ${fmtInt(all.matched_by_transaction_rows||0)} · member rows ${fmtInt(all.matched_by_member_rows||0)}`;document.getElementById('zeroNotice').style.display=Number(all.searches||0)>0&&Number(all.orders||0)===0?'block':'none'}
+function latestPeriodRows(rows, period){
+  const rr=rows.filter(r=>(r.period||'TY')===period);
+  if(!rr.length)return [];
+  const latest=rr.map(r=>r.date).sort().slice(-1)[0];
+  return rr.filter(r=>r.date===latest);
+}
+function currentTotals(){
+  // DAILY/WEEK 버튼은 차트뿐 아니라 KPI 기준 기간도 바꿉니다.
+  // DAILY = 선택 조건 내 가장 최근 1일
+  // WEEK  = 선택 조건 내 가장 최근 주차 합계
+  const rows=trendRows();
+  const tyRows=latestPeriodRows(rows,'TY');
+  const lyRows=latestPeriodRows(rows,'LY');
+  const TY=totalsFromRows(tyRows,'TY');
+  const LY=totalsFromRows(lyRows,'LY');
+  return {
+    TY, LY,
+    YOY:{
+      searches:LY.searches?TY.searches/LY.searches-1:null,
+      orders:LY.orders?TY.orders/LY.orders-1:null,
+      purchase_qty:LY.purchase_qty?TY.purchase_qty/LY.purchase_qty-1:null,
+      erp_revenue:LY.erp_revenue?TY.erp_revenue/LY.erp_revenue-1:null
+    }
+  }
+}
+function renderHeader(){const t=currentTotals();const ty=t.TY||{};const ly=t.LY||{};const yy=t.YOY||{};document.getElementById('kpiSearches').textContent=fmtInt(ty.searches);document.getElementById('kpiOrders').textContent=fmtInt(ty.orders);document.getElementById('kpiQty').textContent=fmtInt(ty.purchase_qty);document.getElementById('kpiRevenue').textContent=fmtKrw(ty.erp_revenue);document.getElementById('yoySearches').textContent=`LY ${fmtInt(ly.searches)} · YoY ${fmtPct(yy.searches)}`;document.getElementById('yoyOrders').textContent=`LY ${fmtInt(ly.orders)} · YoY ${fmtPct(yy.orders)}`;document.getElementById('yoyQty').textContent=`LY ${fmtInt(ly.purchase_qty)} · YoY ${fmtPct(yy.purchase_qty)}`;document.getElementById('yoyRevenue').textContent=`LY ${fmtKrw(ly.erp_revenue)} · YoY ${fmtPct(yy.erp_revenue)}`;document.getElementById('metaText').textContent=`${currentView==='daily'?'DAILY 최근 1일':'WEEK 최근 주차'} · TY ${DATA.meta.period_text||'-'} · LY ${DATA.meta.ly_start_date||'-'} ~ ${DATA.meta.ly_end_date||'-'} · ${DATA.meta.updated_at_kst||'-'}`;const all=DATA.totals?.TY||{};document.getElementById('matchText').textContent=`transaction rows ${fmtInt(all.matched_by_transaction_rows||0)} · member rows ${fmtInt(all.matched_by_member_rows||0)}`;document.getElementById('zeroNotice').style.display=Number(all.searches||0)>0&&Number(all.orders||0)===0?'block':'none'}
 function renderChart(){const rows=trendRows();const labels=[...new Set(rows.map(r=>r.date))].sort();const val=(p,k)=>labels.map(d=>rows.filter(r=>r.date===d&&(r.period||'TY')===p).reduce((s,r)=>s+Number(r[k]||0),0));const ctx=document.getElementById('mixedChart');if(chart)chart.destroy();chart=new Chart(ctx,{data:{labels,datasets:[{type:'bar',label:'TY 구매수량',data:val('TY','purchase_qty'),backgroundColor:'rgba(96,165,250,.6)',borderWidth:0,borderRadius:8,yAxisID:'y'},{type:'bar',label:'LY 구매수량',data:val('LY','purchase_qty'),backgroundColor:'rgba(148,163,184,.35)',borderWidth:0,borderRadius:8,yAxisID:'y'},{type:'line',label:'TY 구매금액',data:val('TY','erp_revenue'),borderColor:'rgba(244,63,94,.9)',backgroundColor:'rgba(244,63,94,.12)',borderWidth:3,pointRadius:3,tension:.35,yAxisID:'y1'},{type:'line',label:'LY 구매금액',data:val('LY','erp_revenue'),borderColor:'rgba(100,116,139,.85)',backgroundColor:'rgba(100,116,139,.1)',borderWidth:2,pointRadius:2,tension:.35,borderDash:[6,4],yAxisID:'y1'}]},options:{responsive:true,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{weight:'bold'}}}},scales:{x:{grid:{display:false},ticks:{font:{weight:'bold'},maxRotation:0,autoSkip:true}},y:{beginAtZero:true,grid:{color:'rgba(226,232,240,.9)'},ticks:{callback:v=>fmtInt(v)}},y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{callback:v=>fmtKrw(v)}}}}})}
-function mergedTableRows(){const base=filterRows(DATA.product_rows||[]);const map=new Map();base.forEach(r=>{const key=`${r.search_term}||${r.product_code}`;if(!map.has(key))map.set(key,{search_term:r.search_term,product_code:r.product_code,product_name_kor:r.product_name_kor,product_name:r.product_name,relation_category:r.relation_category,TY:{},LY:{}});map.get(key)[r.period||'TY']=r});return Array.from(map.values()).sort((a,b)=>Number(b.TY.erp_revenue||0)-Number(a.TY.erp_revenue||0)).slice(0,300)}
-function renderTable(){const rows=mergedTableRows();const tbody=document.getElementById('termRows');tbody.innerHTML=rows.map((r,idx)=>{const ty=r.TY||{},ly=r.LY||{};const yoy=Number(ly.erp_revenue||0)?Number(ty.erp_revenue||0)/Number(ly.erp_revenue||0)-1:null;return`<tr><td><span class="rank">${idx+1}</span><span class="term">${r.search_term||'-'}</span></td><td>${r.product_code||'-'}</td><td>${r.product_name_kor||r.product_name||'-'}</td><td>${r.relation_category||'-'}</td><td>${fmtInt(ty.orders)}</td><td>${fmtInt(ly.orders)}</td><td>${fmtInt(ty.purchase_qty)}</td><td>${fmtInt(ly.purchase_qty)}</td><td>${fmtKrw(ty.erp_revenue)}</td><td>${fmtKrw(ly.erp_revenue)}</td><td>${fmtPct(yoy)}</td></tr>`}).join('')}
+function groupWeeklyProduct(rows){
+  const map=new Map();
+  rows.forEach(r=>{
+    const d=new Date(r.date+'T00:00:00');
+    const day=d.getDay();
+    const monday=new Date(d);
+    monday.setDate(d.getDate()-((day+6)%7));
+    const wk=monday.toISOString().slice(0,10);
+    const p=r.period||'TY';
+    const key=[p,wk,r.search_term||'',String(r.product_code||'').toUpperCase()].join('||');
+    if(!map.has(key)){
+      map.set(key,{
+        period:p,
+        date:wk,
+        search_term:r.search_term,
+        product_code:String(r.product_code||'').toUpperCase(),
+        product_name_kor:r.product_name_kor,
+        product_name:r.product_name,
+        relation_category:r.relation_category,
+        orders:0,
+        purchase_qty:0,
+        erp_revenue:0
+      });
+    }
+    const x=map.get(key);
+    x.orders+=Number(r.orders||0);
+    x.purchase_qty+=Number(r.purchase_qty||0);
+    x.erp_revenue+=Number(r.erp_revenue||0);
+  });
+  return Array.from(map.values()).sort((a,b)=>a.date.localeCompare(b.date)||a.period.localeCompare(b.period));
+}
+function latestRowsByPeriod(rows, period){
+  const rr=rows.filter(r=>(r.period||'TY')===period);
+  if(!rr.length)return [];
+  const latest=rr.map(r=>r.date).sort().slice(-1)[0];
+  return rr.filter(r=>r.date===latest);
+}
+function mergedTableRows(){
+  // DETAIL 테이블도 DAILY/WEEK 선택에 맞춰 변경합니다.
+  // DAILY = 선택 조건 내 가장 최근 1일의 상품코드 성과
+  // WEEK  = 선택 조건 내 가장 최근 주차의 상품코드 성과
+  let base=filterRows(DATA.raw_daily_by_product||[]);
+  base=currentView==='week'?groupWeeklyProduct(base):base;
+  const scoped=[...latestRowsByPeriod(base,'TY'),...latestRowsByPeriod(base,'LY')];
+  const map=new Map();
+  scoped.forEach(r=>{
+    const key=`${r.search_term}||${String(r.product_code||'').toUpperCase()}`;
+    if(!map.has(key)){
+      map.set(key,{
+        search_term:r.search_term,
+        product_code:String(r.product_code||'').toUpperCase(),
+        product_name_kor:r.product_name_kor,
+        product_name:r.product_name,
+        relation_category:r.relation_category,
+        TY:{},
+        LY:{}
+      });
+    }
+    const target=map.get(key);
+    target[r.period||'TY']=r;
+    if(!target.product_name_kor) target.product_name_kor=r.product_name_kor;
+    if(!target.product_name) target.product_name=r.product_name;
+    if(!target.relation_category) target.relation_category=r.relation_category;
+  });
+  return Array.from(map.values()).sort((a,b)=>Number(b.TY.erp_revenue||0)-Number(a.TY.erp_revenue||0)).slice(0,300);
+}
+function renderTable(){
+  const rows=mergedTableRows();
+  const tbody=document.getElementById('termRows');
+  const label=currentView==='daily'?'DAILY 최근 1일 기준':'WEEK 최근 주차 기준';
+  const dpt=document.getElementById('detailPeriodText');
+  if(dpt)dpt.textContent=label;
+  tbody.innerHTML=rows.map((r,idx)=>{
+    const ty=r.TY||{},ly=r.LY||{};
+    const yoy=Number(ly.erp_revenue||0)?Number(ty.erp_revenue||0)/Number(ly.erp_revenue||0)-1:null;
+    return`<tr><td><span class="rank">${idx+1}</span><span class="term">${r.search_term||'-'}</span></td><td>${r.product_code||'-'}</td><td>${r.product_name_kor||r.product_name||'-'}</td><td>${r.relation_category||'-'}</td><td>${fmtInt(ty.orders)}</td><td>${fmtInt(ly.orders)}</td><td>${fmtInt(ty.purchase_qty)}</td><td>${fmtInt(ly.purchase_qty)}</td><td>${fmtKrw(ty.erp_revenue)}</td><td>${fmtKrw(ly.erp_revenue)}</td><td>${fmtPct(yoy)}</td></tr>`
+  }).join('');
+}
 function renderAll(){renderHeader();renderChart();renderTable();try{parent.postMessage({type:'dailyDigestResize',height:document.documentElement.scrollHeight},'*')}catch(e){}}
-document.querySelectorAll('.period-btn[data-view]').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.period-btn[data-view]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');currentView=btn.dataset.view;renderChart()}));document.getElementById('keywordFilterTop').addEventListener('input',renderAll);document.getElementById('productCodeFilter').addEventListener('input',renderAll);populateSpc();renderAll();
+document.querySelectorAll('.period-btn[data-view]').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.period-btn[data-view]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');currentView=btn.dataset.view;renderAll()}));document.getElementById('keywordFilterTop').addEventListener('input',renderAll);document.getElementById('productCodeFilter').addEventListener('input',renderAll);populateSpc();renderAll();
 </script></body></html>"""
 
 
