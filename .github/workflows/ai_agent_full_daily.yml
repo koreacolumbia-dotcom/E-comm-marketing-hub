@@ -3,12 +3,8 @@ name: AI Agent Full Daily Report
 on:
   workflow_dispatch:
     inputs:
-      target_date:
-        description: "YYYY-MM-DD. empty = KST yesterday"
-        required: false
-        default: ""
       run_etl:
-        description: "Run MSSQL -> BigQuery ETL before report"
+        description: "Run MSSQL -> BigQuery ETL first?"
         required: true
         default: "true"
         type: choice
@@ -16,7 +12,7 @@ on:
           - "true"
           - "false"
       etl_mode:
-        description: "ETL mode when run_etl=true"
+        description: "ETL mode"
         required: true
         default: "all"
         type: choice
@@ -49,22 +45,25 @@ on:
         options:
           - WRITE_TRUNCATE
           - WRITE_APPEND
+      report_date:
+        description: "Report date YYYY-MM-DD. Empty = KST yesterday"
+        required: false
+        default: ""
   schedule:
-    # 07:10 KST daily = 22:10 UTC previous day
-    # Use only when MSSQL is accessible from GitHub Actions. Otherwise set run_etl=false manually or run ETL locally first.
-    - cron: "10 22 * * *"
+    # 07:00 KST daily = 22:00 UTC previous day
+    - cron: "0 22 * * *"
 
 concurrency:
-  group: ai-agent-full-daily-report
+  group: ai-agent-full-daily
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  build-ai-agent-report:
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
+  ai-agent-full:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
 
     env:
       BQ_PROJECT: ${{ vars.BQ_PROJECT || 'columbia-ga4' }}
@@ -78,8 +77,8 @@ jobs:
       BQ_TRAFFIC_DAILY_STAGING_TABLE: ${{ vars.BQ_TRAFFIC_DAILY_STAGING_TABLE || 'tb_statistics_google_staging' }}
       BQ_ORDER_PRODUCT_TABLE: ${{ vars.BQ_ORDER_PRODUCT_TABLE || 'tb_order_product_search_mart' }}
       BQ_ADMIN_DAILY_TABLE: ${{ vars.BQ_ADMIN_DAILY_TABLE || 'member_funnel_admin_daily' }}
-      AI_AGENT_REPORT_DIR: ${{ vars.AI_AGENT_REPORT_DIR || 'reports/ai_agent' }}
 
+      # Ubuntu runner uses ODBC Driver 18.
       MSSQL_DRIVER: "ODBC Driver 18 for SQL Server"
       MSSQL_SERVER: ${{ secrets.MSSQL_SERVER }}
       MSSQL_HOST: ${{ secrets.MSSQL_HOST }}
@@ -93,21 +92,21 @@ jobs:
       GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
       GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
 
-      LLM_PROVIDER_ORDER: ${{ vars.LLM_PROVIDER_ORDER || 'gemini,groq,openrouter' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash-lite' }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_MODEL: ${{ vars.GROQ_MODEL || 'llama-3.1-8b-instant' }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openrouter/free' }}
-      OPENROUTER_SITE_URL: ${{ vars.OPENROUTER_SITE_URL || 'https://github.com' }}
-      OPENROUTER_APP_NAME: ${{ vars.OPENROUTER_APP_NAME || 'Columbia AI Agent Report' }}
+      LLM_PROVIDER_ORDER: ${{ vars.LLM_PROVIDER_ORDER || 'gemini,groq,openrouter' }}
 
       ORDER_ETL_SUMMARY_PATH: logs/order_product_ai_agent_etl_summary.json
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Pull latest main
         shell: bash
@@ -118,14 +117,21 @@ jobs:
           git pull --rebase origin main || true
 
       - name: Install Microsoft ODBC Driver 18
-        if: ${{ github.event_name == 'schedule' || inputs.run_etl == 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_etl == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
+
           sudo apt-get update
-          sudo apt-get install -y curl gnupg apt-transport-https unixodbc-dev
-          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-          echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get install -y curl gnupg apt-transport-https unixodbc-dev ca-certificates
+
+          # Non-interactive key install. Fixes: gpg cannot open /dev/tty.
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+            | sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/microsoft-prod.gpg
+
+          echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
+
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
           odbcinst -q -d || true
@@ -143,28 +149,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Validate Google credentials
+      - name: Validate scripts syntax
         shell: bash
         run: |
           set -euo pipefail
+          python -m py_compile scripts/columbia_ai_agent_crm_order_etl_final.py
+          python -m py_compile scripts/build_ai_agent_html_report.py
+          python -m py_compile scripts/app_ai_agent_chat.py
+
+      - name: Validate secrets for ETL
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_etl == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
           if [ -z "${GOOGLE_SA_JSON_B64:-}" ] && [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
             echo "[ERROR] Set GOOGLE_SA_JSON_B64 secret or GOOGLE_APPLICATION_CREDENTIALS."
             exit 1
           fi
 
-      - name: Validate MSSQL secrets when ETL runs
-        if: ${{ github.event_name == 'schedule' || inputs.run_etl == 'true' }}
-        shell: bash
-        run: |
-          set -euo pipefail
           if [ -z "${MSSQL_SERVER:-}" ] && [ -z "${MSSQL_HOST:-}" ]; then
             echo "[ERROR] Set MSSQL_SERVER or MSSQL_HOST secret."
             exit 1
           fi
+
           if [ -z "${MSSQL_DATABASE:-}" ]; then
             echo "[ERROR] Set MSSQL_DATABASE secret."
             exit 1
           fi
+
           if [ "${MSSQL_TRUSTED_CONNECTION:-no}" != "yes" ]; then
             if [ -z "${MSSQL_USERNAME:-}" ] || [ -z "${MSSQL_PASSWORD:-}" ]; then
               echo "[ERROR] Set MSSQL_USERNAME and MSSQL_PASSWORD secrets."
@@ -173,7 +186,7 @@ jobs:
           fi
 
       - name: Run MSSQL to BigQuery ETL
-        if: ${{ github.event_name == 'schedule' || inputs.run_etl == 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_etl == 'true' }}
         shell: bash
         env:
           ETL_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.etl_mode || 'all' }}
@@ -185,6 +198,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p logs
+
           python -u scripts/columbia_ai_agent_crm_order_etl_final.py \
             --mode "${ETL_MODE}" \
             --days-back "${ORDER_ETL_DAYS_BACK}" \
@@ -196,28 +210,51 @@ jobs:
       - name: Build AI Agent HTML report
         shell: bash
         env:
-          TARGET_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_date || '' }}
+          REPORT_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.report_date || '' }}
         run: |
           set -euo pipefail
-          mkdir -p reports/ai_agent/daily reports/ai_agent/data logs
-          if [ -n "${TARGET_DATE:-}" ]; then
-            python -u scripts/build_ai_agent_html_report.py --target-date "${TARGET_DATE}"
+          mkdir -p reports/ai_agent reports/ai_agent/daily reports/ai_agent/data site/ai_agent site/data/ai_agent
+
+          if [ -n "${REPORT_DATE:-}" ]; then
+            python -u scripts/build_ai_agent_html_report.py --target-date "${REPORT_DATE}"
           else
             python -u scripts/build_ai_agent_html_report.py
           fi
 
-      - name: Upload report artifact
+      - name: Publish AI Agent report to site
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/ai_agent site/data/ai_agent
+
+          if [ -f "reports/ai_agent/index.html" ]; then
+            cp -f reports/ai_agent/index.html site/ai_agent/index.html
+          fi
+
+          if [ -d "reports/ai_agent/daily" ]; then
+            rsync -a --delete reports/ai_agent/daily/ site/ai_agent/daily/
+          fi
+
+          if [ -d "reports/ai_agent/data" ]; then
+            rsync -a --delete reports/ai_agent/data/ site/data/ai_agent/
+          fi
+
+          test -f site/ai_agent/index.html || { echo "[ERROR] site/ai_agent/index.html missing"; exit 1; }
+
+      - name: Upload logs and reports artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: ai-agent-report-and-logs
+          name: ai-agent-full-logs-and-report
           path: |
-            reports/ai_agent/**
             logs/*.json
             logs/*.log
+            reports/ai_agent/**
+            site/ai_agent/**
+            site/data/ai_agent/**
           if-no-files-found: ignore
 
-      - name: Commit report outputs
+      - name: Commit AI Agent outputs
         if: ${{ always() }}
         continue-on-error: true
         shell: bash
@@ -226,13 +263,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add reports/ai_agent logs/*.json 2>/dev/null || true
+          git add reports/ai_agent site/ai_agent site/data/ai_agent logs/*.json 2>/dev/null || true
 
           if git diff --cached --quiet; then
-            echo "No AI Agent report changes to commit"
+            echo "No AI Agent changes to commit"
             exit 0
           fi
 
-          git commit -m "Update AI agent daily report" || true
+          git commit -m "Update AI Agent report" || true
           git pull --rebase --autostash origin main || true
           git push origin HEAD:main || true
