@@ -1091,11 +1091,31 @@ def render_html(df: pd.DataFrame, alerts: pd.DataFrame, channel_df: pd.DataFrame
   .pager-current{min-width:30px;height:30px;border-radius:10px;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 10px;font-weight:950}
   .rows-select{height:32px;padding:0 8px;border:1px solid rgba(148,163,184,.25);border-radius:10px;background:#fff;color:#64748b;font-size:12px;font-weight:850}
 
+
+  /* UTM media delta + alert split patch · 2026-05-18 */
+  .alerts-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%}
+  .alert-lane{border:1px solid rgba(148,163,184,.20);border-radius:22px;background:rgba(255,255,255,.64);padding:14px;min-height:154px}
+  .alert-lane-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+  .alert-lane-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:950;color:#0f172a;letter-spacing:-.02em}
+  .alert-lane-count{height:24px;min-width:24px;padding:0 8px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:950;background:#f8fafc;color:#64748b;border:1px solid rgba(148,163,184,.22)}
+  .alert-lane.up{border-color:rgba(16,185,129,.24);background:linear-gradient(180deg,rgba(236,253,245,.62),rgba(255,255,255,.74))}
+  .alert-lane.down{border-color:rgba(239,68,68,.24);background:linear-gradient(180deg,rgba(255,241,242,.62),rgba(255,255,255,.74))}
+  .alert-lane.up .alert-lane-title{color:#047857}.alert-lane.down .alert-lane-title{color:#be123c}
+  .alert-list{display:grid;grid-template-columns:1fr;gap:10px}
+  .alert-list .alert-card{min-height:0;padding:14px;border-radius:18px}
+  .alert-list .alert-title{margin-top:10px}.alert-list .value-main{font-size:22px;margin-top:10px}.alert-list .alert-desc{min-height:auto}
+  .media-growth{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+  .media-growth.up{color:#047857;background:rgba(16,185,129,.11)}
+  .media-growth.down{color:#be123c;background:rgba(239,68,68,.10)}
+  .media-growth.flat{color:#64748b;background:#f1f5f9}
+  .media-delta-sub{margin-top:5px;font-size:11px;font-weight:850;color:#94a3b8}
+
   @keyframes cardRise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
   @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
   @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
 
   @media (max-width:1360px){.main{padding:24px 18px 34px}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.alerts-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.media-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-grid{grid-template-columns:1fr}}
+  @media (max-width:900px){.alerts-wrap{grid-template-columns:1fr}}
   @media (max-width:760px){.main{padding:18px 12px 26px}.page-title{font-size:32px}.topbar{flex-direction:column}.kpi-grid,.alerts-grid,.media-grid{grid-template-columns:1fr}.panel{border-radius:22px}}
 
   /* ================================================================
@@ -1140,6 +1160,7 @@ def render_html(df: pd.DataFrame, alerts: pd.DataFrame, channel_df: pd.DataFrame
   .badge,.legend-chip{height:28px;font-size:10px;font-weight:900;box-shadow:0 6px 18px rgba(15,23,42,.035),inset 0 1px 0 rgba(255,255,255,.7)}
   .table-footer{padding:12px 2px 0;color:#94a3b8;font-size:12px;font-weight:800}.pager-btn,.pager-current,.rows-select{border-color:#e2e8f0;background:#fff;color:#64748b}
   @media (max-width:1360px){.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.alerts-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.media-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:900px){.alerts-wrap{grid-template-columns:1fr}}
   @media (max-width:760px){.main{padding:18px 12px 28px}.topbar{align-items:flex-start}.page-title{font-size:26px}.kpi-grid,.alerts-grid,.media-grid{grid-template-columns:1fr}.panel{border-radius:20px}.filter-row,.table-tools,.section-head{align-items:flex-start}.right-controls,.left-controls{width:100%}.control[type="search"]{width:100%!important}}
 
 </style>
@@ -1217,8 +1238,65 @@ function renderKpis(arr){
     return `<div class="kpi-card"><div class="kpi-label">${esc(label)}</div><div class="kpi-value">${value}</div><div class="kpi-sub">${esc(sub)}</div><div class="kpi-delta ${hasPrev?info.cls:'flat'}">${hasPrev?deltaText(metric,info):'비교 데이터 없음'}</div></div>`;
   }).join('');
 }
-function renderAlerts(arr){const mount=document.getElementById('alertGrid'); if(!mount) return; const alerts=buildAlerts(arr, previousRows()); if(!alerts.length){mount.innerHTML=`<div class="alert-card neutral"><div class="alert-head"><span class="state-chip neutral">알림 없음</span></div><div class="alert-title">선택 기간 기준 유의미한 수치 변동이 없습니다.</div><div class="alert-desc">비교 기간이 없거나 변동 폭이 작은 경우 알림이 생성되지 않습니다.</div></div>`; return;} mount.innerHTML=alerts.map(a=>{const cls=a.direction==='UP'?'up':'down'; const arrow=a.direction==='UP'?'▲':'▼'; const diffTxt=(a.metric==='signup_cvr'||a.metric==='buy_cvr')?`${arrow} ${Math.abs(n(a.delta)).toFixed(1)}%p`:`${arrow} ${Math.abs(n(a.delta_rate)).toFixed(1)}%`; const t=tone(`${a.scope_label} ${a.scope}`); return `<div class="alert-card ${cls}" style="--tone-bg:${t.bg};--tone-fg:${t.fg};--tone-border:${t.border};--tone-dot:${t.dot}"><div class="alert-head"><span class="state-chip ${cls}">${diffTxt}</span><span class="badge-wrap">${badge(a.scope,a.scope_label)}</span></div><div class="alert-title">${esc(a.metric_label)}</div><div class="alert-desc">${esc(a.scope_label)}</div><div class="alert-values"><div class="value-main">${formatMetricValue(a.metric,a.current)}</div><div class="value-sub">이전 ${formatMetricValue(a.metric,a.previous)} · 증감 ${formatMetricDelta(a.metric,a.delta)}</div></div></div>`;}).join('');}
-function renderMediaGrid(arr){const dailyByMedia = groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ['media_name','event_dt']); const trendMap = {}; dailyByMedia.forEach(r=>{const k=r.media_name; if(!trendMap[k]) trendMap[k]=[]; trendMap[k].push({date:r.event_dt,revenue:r.revenue,sessions:r.sessions});}); Object.keys(trendMap).forEach(k=>trendMap[k].sort((a,b)=>String(a.date).localeCompare(String(b.date)))); const grouped = groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ['media_name']).sort((a,b)=>n(b.revenue)-n(a.revenue)); document.getElementById('mediaGrid').innerHTML = grouped.slice(0,8).map(r=>{const name=r.media_name; const t=tone(name); const prev=(trendMap[name]||[]).slice(-14,-7).reduce((a,x)=>a+n(x.revenue),0); const curr=(trendMap[name]||[]).slice(-7).reduce((a,x)=>a+n(x.revenue),0); const change=prev?((curr-prev)/prev*100):0; return `<div class="media-card" style="--tone-bg:${t.bg};--tone-fg:${t.fg};--tone-border:${t.border};--tone-dot:${t.dot}"><div class="media-head"><div class="media-brand"><div class="media-logo">${logoMarkup(name)}</div><div>${esc(name)}</div></div><div class="media-growth">${change>=0?'▲':'▼'} ${Math.abs(change).toFixed(1)}%</div></div><div class="media-metric-label">매출</div><div class="media-metric-value">${money(r.revenue)}</div><div class="media-stats"><div><div class="media-stat-label">세션</div><div class="media-stat-value">${num(r.sessions)}</div></div><div><div class="media-stat-label">구매 전환율</div><div class="media-stat-value">${pct(r.buy_cvr)}</div></div></div><div class="spark-wrap">${makeSparkSvg((trendMap[name]||[]).slice(-14).map(x=>n(x.revenue)), t.dot)}</div></div>`;}).join('');}
+function renderAlerts(arr){
+  const mount=document.getElementById('alertGrid');
+  if(!mount) return;
+  const alerts=buildAlerts(arr, previousRows());
+  const cardHtml=(a)=>{
+    const cls=a.direction==='UP'?'up':'down';
+    const arrow=a.direction==='UP'?'▲':'▼';
+    const diffTxt=(a.metric==='signup_cvr'||a.metric==='buy_cvr')?`${arrow} ${Math.abs(n(a.delta)).toFixed(1)}%p`:`${arrow} ${Math.abs(n(a.delta_rate)).toFixed(1)}%`;
+    const t=tone(`${a.scope_label} ${a.scope}`);
+    return `<div class="alert-card ${cls}" style="--tone-bg:${t.bg};--tone-fg:${t.fg};--tone-border:${t.border};--tone-dot:${t.dot}">
+      <div class="alert-head"><span class="state-chip ${cls}">${diffTxt}</span><span class="badge-wrap">${badge(a.scope,a.scope_label)}</span></div>
+      <div class="alert-title">${esc(a.metric_label)}</div>
+      <div class="alert-desc">${esc(a.scope_label)}</div>
+      <div class="alert-values"><div class="value-main">${formatMetricValue(a.metric,a.current)}</div><div class="value-sub">이전 ${formatMetricValue(a.metric,a.previous)} · 증감 ${formatMetricDelta(a.metric,a.delta)}</div></div>
+    </div>`;
+  };
+  if(!alerts.length){
+    mount.innerHTML=`<div class="alert-card neutral"><div class="alert-head"><span class="state-chip neutral">알림 없음</span></div><div class="alert-title">선택 기간 기준 유의미한 수치 변동이 없습니다.</div><div class="alert-desc">비교 기간이 없거나 변동 폭이 작은 경우 알림이 생성되지 않습니다.</div></div>`;
+    return;
+  }
+  const ups=alerts.filter(a=>a.direction==='UP').sort((a,b)=>b.score-a.score).slice(0,4);
+  const downs=alerts.filter(a=>a.direction==='DOWN').sort((a,b)=>b.score-a.score).slice(0,4);
+  const emptyUp=`<div class="alert-card neutral"><div class="alert-head"><span class="state-chip neutral">급등 없음</span></div><div class="alert-title">유의미한 상승 항목이 없습니다.</div><div class="alert-desc">비교 기간 대비 기준값 이상 상승한 지표만 노출합니다.</div></div>`;
+  const emptyDown=`<div class="alert-card neutral"><div class="alert-head"><span class="state-chip neutral">급락 없음</span></div><div class="alert-title">유의미한 하락 항목이 없습니다.</div><div class="alert-desc">비교 기간 대비 기준값 이상 하락한 지표만 노출합니다.</div></div>`;
+  mount.innerHTML=`<div class="alerts-wrap">
+    <div class="alert-lane up"><div class="alert-lane-head"><div class="alert-lane-title">▲ 급등 TOP</div><div class="alert-lane-count">${ups.length}</div></div><div class="alert-list">${ups.length?ups.map(cardHtml).join(''):emptyUp}</div></div>
+    <div class="alert-lane down"><div class="alert-lane-head"><div class="alert-lane-title">▼ 급락 TOP</div><div class="alert-lane-count">${downs.length}</div></div><div class="alert-list">${downs.length?downs.map(cardHtml).join(''):emptyDown}</div></div>
+  </div>`;
+}
+function renderMediaGrid(arr){
+  const curNorm=arr.map(r=>({...r, media_name:preferredMediaName(r)}));
+  const prevNorm=previousRows().map(r=>({...r, media_name:preferredMediaName(r)}));
+  const dailyByMedia = groupBy(curNorm, ['media_name','event_dt']);
+  const trendMap = {};
+  dailyByMedia.forEach(r=>{const k=r.media_name; if(!trendMap[k]) trendMap[k]=[]; trendMap[k].push({date:r.event_dt,revenue:r.revenue,sessions:r.sessions});});
+  Object.keys(trendMap).forEach(k=>trendMap[k].sort((a,b)=>String(a.date).localeCompare(String(b.date))));
+  const grouped = groupBy(curNorm, ['media_name']).sort((a,b)=>n(b.revenue)-n(a.revenue));
+  const prevMap = new Map(groupBy(prevNorm, ['media_name']).map(r=>[String(r.media_name), r]));
+  const mount=document.getElementById('mediaGrid');
+  if(!mount) return;
+  if(!grouped.length){mount.innerHTML='<div class="empty">조건에 맞는 매체 데이터가 없습니다.</div>'; return;}
+  mount.innerHTML = grouped.slice(0,8).map(r=>{
+    const name=r.media_name;
+    const t=tone(name);
+    const prev=prevMap.get(String(name));
+    const prevRevenue=prev?n(prev.revenue):0;
+    const change=prevRevenue?((n(r.revenue)-prevRevenue)/prevRevenue*100):null;
+    const cls=change===null?'flat':(change>0?'up':(change<0?'down':'flat'));
+    const arrow=change===null?'–':(change>0?'▲':(change<0?'▼':'–'));
+    const changeTxt=change===null?'비교 없음':`${arrow} ${Math.abs(change).toFixed(1)}%`;
+    const deltaTxt=change===null?'이전 기간 데이터 없음':`이전 ${money(prevRevenue)} · 증감 ${money(n(r.revenue)-prevRevenue)}`;
+    return `<div class="media-card" style="--tone-bg:${t.bg};--tone-fg:${t.fg};--tone-border:${t.border};--tone-dot:${t.dot}">
+      <div class="media-head"><div class="media-brand"><div class="media-logo">${logoMarkup(name)}</div><div>${esc(name)}</div></div><div><div class="media-growth ${cls}">${changeTxt}</div><div class="media-delta-sub">${esc(deltaTxt)}</div></div></div>
+      <div class="media-metric-label">매출</div><div class="media-metric-value">${money(r.revenue)}</div>
+      <div class="media-stats"><div><div class="media-stat-label">세션</div><div class="media-stat-value">${num(r.sessions)}</div></div><div><div class="media-stat-label">구매 전환율</div><div class="media-stat-value">${pct(r.buy_cvr)}</div></div></div>
+      <div class="spark-wrap">${makeSparkSvg((trendMap[name]||[]).slice(-14).map(x=>n(x.revenue)), t.dot)}</div>
+    </div>`;
+  }).join('');
+}
 function buildPeriodRows(arr){return groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ['media_name','source','medium','campaign']).sort((a,b)=>n(b.revenue)-n(a.revenue)||n(b.sessions)-n(a.sessions));} function buildPeriodTable(grouped){return `<table><thead><tr><th class="rank">#</th><th>채널 + 매체</th><th>소스 / 매체</th><th>캠페인</th><th class="num">세션</th><th class="num">매출</th><th class="num">구매 전환율</th><th class="num">AOV</th><th class="num">구매수</th><th class="num">회원가입 CVR</th></tr></thead><tbody>${grouped.length?grouped.map((r,i)=>`<tr><td class="rank">${i+1}</td><td>${badge(r.media_name,r.media_name)}</td><td>${esc(r.source)} / ${esc(r.medium)}</td><td class="wide">${esc(r.campaign)}</td><td class="num">${num(r.sessions)}</td><td class="num strong">${money(r.revenue)}</td><td class="num">${pct(r.buy_cvr)}</td><td class="num">${money(r.aov_per_buyer)}</td><td class="num">${num(r.buyers)}</td><td class="num">${pct(r.signup_cvr)}</td></tr>`).join(''):`<tr><td colspan="10" class="empty">조건에 맞는 데이터가 없습니다.</td></tr>`}</tbody></table>`;} function buildDailyRows(arr){return groupBy(arr,['event_dt','channel_group']).sort((a,b)=>String(b.event_dt).localeCompare(String(a.event_dt))||n(b.revenue)-n(a.revenue));} function buildDailyTable(grouped){return `<table><thead><tr><th>일자</th><th>채널</th><th class="num">세션</th><th class="num">사용자</th><th class="num">회원가입</th><th class="num">회원가입 CVR</th><th class="num">구매수</th><th class="num">구매 전환율</th><th class="num">매출</th><th class="num">AOV</th></tr></thead><tbody>${grouped.length?grouped.map(r=>`<tr><td>${esc(r.event_dt)}</td><td>${badge(r.channel_group,r.channel_group)}</td><td class="num">${num(r.sessions)}</td><td class="num">${num(r.users)}</td><td class="num">${num(r.signups)}</td><td class="num">${pct(r.signup_cvr)}</td><td class="num">${num(r.buyers)}</td><td class="num">${pct(r.buy_cvr)}</td><td class="num strong">${money(r.revenue)}</td><td class="num">${money(r.aov_per_buyer)}</td></tr>`).join(''):`<tr><td colspan="10" class="empty">조건에 맞는 데이터가 없습니다.</td></tr>`}</tbody></table>`;} function buildDetailRows(arr){return [...arr].sort((a,b)=>n(b.revenue)-n(a.revenue)||n(b.sessions)-n(a.sessions));} function buildDetailTable(sorted){return `<table><thead><tr><th class="rank">#</th><th>채널 + 매체</th><th>소스 / 매체</th><th>캠페인</th><th class="num">세션</th><th class="num">매출</th><th class="num">구매 전환율</th><th class="num">AOV</th><th class="num">구매수</th><th class="num">회원가입 CVR</th><th class="num">사용자</th><th class="num">회원가입</th><th class="num">구매건수</th><th class="num">가입자 평균 PV</th><th class="num">PV/사용자</th></tr></thead><tbody>${sorted.length?sorted.map((r,i)=>`<tr><td class="rank">${i+1}</td><td>${badge(preferredMediaName(r),preferredMediaName(r))}</td><td>${esc(r.source)} / ${esc(r.medium)}</td><td class="wide">${esc(r.campaign)}</td><td class="num">${num(r.sessions)}</td><td class="num strong">${money(r.revenue)}</td><td class="num">${pct(r.buy_cvr)}</td><td class="num">${money(r.aov_per_buyer)}</td><td class="num">${num(r.buyers)}</td><td class="num">${pct(r.signup_cvr)}</td><td class="num">${num(r.users)}</td><td class="num">${num(r.signups)}</td><td class="num">${num(r.purchase)}</td><td class="num">${one(r.avg_signup_user_pv)}</td><td class="num">${one(r.pv_per_user)}</td></tr>`).join(''):`<tr><td colspan="15" class="empty">조건에 맞는 데이터가 없습니다.</td></tr>`}</tbody></table>`;}
 function renderTableSection(arr){const mode=document.getElementById('viewMode').value; const mount=document.getElementById('tableMount'); let count=0; let pages=1; if(mode==='daily'){const grouped=buildDailyRows(arr); count=grouped.length; mount.innerHTML=buildDailyTable(grouped);} else if(mode==='detail'){const sorted=buildDetailRows(arr); count=sorted.length; mount.innerHTML=buildDetailTable(sorted);} else {const grouped=buildPeriodRows(arr); count=grouped.length; mount.innerHTML=buildPeriodTable(grouped);} pages=Math.max(1, Math.ceil(count/20)); document.getElementById('tableCount').textContent=`전체 ${num(count)}건`; document.getElementById('pageCount').textContent=num(pages);}
 function renderCharts(arr){if(typeof Chart==='undefined'){const rc=document.getElementById('revenueChart'); const lc=document.getElementById('lineChart'); if(rc&&rc.parentElement) rc.parentElement.innerHTML='<div class="empty">Chart.js 로딩 전입니다. 데이터 표는 정상 렌더링됩니다.</div>'; if(lc&&lc.parentElement) lc.parentElement.innerHTML='<div class="empty">Chart.js 로딩 전입니다. 데이터 표는 정상 렌더링됩니다.</div>'; return;} const grouped = groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ['media_name']).sort((a,b)=>n(b[barMetric])-n(a[barMetric])); const labels = grouped.map(r=>r.media_name); const barData = grouped.map(r=>n(r[barMetric])); const barColors = labels.map(l=>tone(l).dot); if(revenueChart) revenueChart.destroy(); revenueChart = new Chart(document.getElementById('revenueChart'), {type:'bar', data:{labels, datasets:[{data:barData, backgroundColor:barColors, borderRadius:8, maxBarThickness:34}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:(ctx)=>barMetric==='revenue'?'매출 '+money(ctx.raw):'세션 '+num(ctx.raw)}}}, scales:{x:{grid:{display:false}, ticks:{font:{size:11,weight:'700'}, color:'#667085'}}, y:{grid:{color:'#eef2f7'}, ticks:{color:'#98a2b3', callback:(v)=>barMetric==='revenue'? money(v): num(v)}}}}}); const metric = document.getElementById('lineMetricSel').value; const lineGrouped = groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ['media_name']).sort((a,b)=>n(b[metric])-n(a[metric])); const lineLabels = lineGrouped.map(r=>r.media_name); const lineData = lineGrouped.map(r=>n(r[metric])); if(lineChart) lineChart.destroy(); lineChart = new Chart(document.getElementById('lineChart'), {type:'line', data:{labels:lineLabels, datasets:[{data:lineData, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.08)', pointBackgroundColor:'#3b82f6', pointBorderColor:'#fff', pointBorderWidth:2, pointRadius:4, tension:.28, fill:false}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:(ctx)=> (metric==='buy_cvr'?'구매 전환율 ':'회원가입 전환율 ')+pct(ctx.raw)}}}, scales:{x:{grid:{display:false}, ticks:{font:{size:11,weight:'700'}, color:'#667085'}}, y:{grid:{color:'#eef2f7'}, ticks:{color:'#98a2b3', callback:(v)=>pct(v)}}}}});}
