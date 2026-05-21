@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSK E-COMM | Purchase Pattern</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');</style>
+  
+<style>
+  :root{--motion-ease:cubic-bezier(.2,.8,.2,1);}
+  body{font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial;}
+  .report-body{background:linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);}
+  .report-card,.product-card{animation:cardRise .7s var(--motion-ease) both;transform-origin:center bottom;}
+  .report-card:hover,.product-card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(15,23,42,.08);}
+  .kpi-card{position:relative;overflow:hidden;transition:transform .24s var(--motion-ease), box-shadow .24s var(--motion-ease), border-color .24s var(--motion-ease)}
+  .kpi-card:before{content:'';position:absolute;inset:-40% auto auto -20%;width:60%;height:180%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);transform:rotate(14deg);animation:shineSweep 4.2s linear infinite;pointer-events:none}
+  .kpi-card:hover{transform:translateY(-6px) scale(1.01);box-shadow:0 22px 44px rgba(15,23,42,.08);border-color:rgba(59,130,246,.22)}
+  .kpi-value{animation:numberPop .8s var(--motion-ease) both}
+  .table-wrap{overflow-x:auto}.table-wrap table{min-width:920px}
+  .bar-track{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.bar-fill{height:100%;border-radius:999px;background:#0f172a;}
+  .product-img{aspect-ratio:1/1;object-fit:cover;background:#f1f5f9;}
+  @keyframes cardRise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
+</style>
+
+</head>
+<body class="bg-slate-50 text-slate-900 report-body">
+  <div class="w-full max-w-none px-5 py-6 xl:px-8 2xl:px-10">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="text-2xl font-black">Purchase Pattern</div>
+        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">ALL PURCHASE DATA</div>
+        <div class="text-sm font-semibold text-slate-500">ALL ~ ALL · source: columbia-ga4.crm_raw.tb_order_product_search_mart</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="data/summary.json" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">summary.json</a>
+      </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+    <div class="kpi-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Revenue</div>
+      <div class="kpi-value mt-3 text-3xl font-black text-slate-950">₩7,121,142,128</div>
+      <div class="mt-2 text-sm font-semibold text-slate-500">ALL ~ ALL</div>
+    </div>
+    
+    <div class="kpi-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Orders</div>
+      <div class="kpi-value mt-3 text-3xl font-black text-slate-950">66,406</div>
+      <div class="mt-2 text-sm font-semibold text-slate-500">AOV ₩107,236</div>
+    </div>
+    
+    <div class="kpi-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Buyers</div>
+      <div class="kpi-value mt-3 text-3xl font-black text-slate-950">39,487</div>
+      <div class="mt-2 text-sm font-semibold text-slate-500">Revenue / buyer ₩180,341</div>
+    </div>
+    
+    <div class="kpi-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Products</div>
+      <div class="kpi-value mt-3 text-3xl font-black text-slate-950">3,036</div>
+      <div class="mt-2 text-sm font-semibold text-slate-500">Qty / order 1</div>
+    </div>
+    
+    <div class="kpi-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Repeat Revenue Share</div>
+      <div class="kpi-value mt-3 text-3xl font-black text-slate-950">55.4%</div>
+      <div class="mt-2 text-sm font-semibold text-slate-500">재구매자 매출 비중</div>
+    </div>
+    
+    <div class="kpi-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Lines / Order</div>
+      <div class="kpi-value mt-3 text-3xl font-black text-slate-950">1</div>
+      <div class="mt-2 text-sm font-semibold text-slate-500">주문당 라인 수</div>
+    </div>
+    </div>
+
+    <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Executive Summary</div>
+      <ul class="mt-3 list-disc pl-5"><li class='leading-7 text-sm font-bold text-slate-600'>전체 분석 기간은 2024-04-16~2026-05-15이며, 총 매출 ₩7,121,142,128, 주문 66,406건, 구매자 39,487명입니다.</li><li class='leading-7 text-sm font-bold text-slate-600'>객단가는 ₩107,236, 구매자당 매출은 ₩180,341, 재구매자 매출 비중은 55.4%입니다.</li><li class='leading-7 text-sm font-bold text-slate-600'>월별 최고 매출 월은 2025-12이며 매출 ₩582,432,430, 주문 3,865건입니다.</li><li class='leading-7 text-sm font-bold text-slate-600'>매출 1위 상품은 남성 컬럼비아 락 다운 자켓(C64YM3572010)로, 매출 ₩84,186,495, 판매수량 178개입니다.</li><li class='leading-7 text-sm font-bold text-slate-600'>가장 큰 세그먼트는 01_one_time × 04_dormant_180d_plus이며 매출 ₩2,157,637,732입니다.</li><li class='leading-7 text-sm font-bold text-slate-600'>재구매 간격은 03_31_90d 구간이 가장 많고, 해당 구간 재구매 주문은 6,701건입니다.</li></ul>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+        <div class="mb-4 flex items-center justify-between"><div><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Monthly Revenue</div><div class="text-sm text-slate-400">월별 매출 흐름</div></div></div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2024-04</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩104,064,540</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:18.5%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2024-05</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩205,535,220</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:36.6%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2024-06</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩201,083,430</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:35.8%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2024-07</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩186,634,870</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:33.2%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2024-08</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩149,903,160</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:26.7%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2024-09</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩197,351,914</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:35.1%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2024-10</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩248,422,763</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:44.2%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2024-11</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩531,297,885</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:94.6%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2024-12</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩561,903,841</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2025-01</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩415,959,089</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:74.0%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2025-02</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩249,402,519</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:44.4%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2025-03</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩198,001,367</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:35.2%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2025-04</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩202,025,350</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:36.0%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2025-05</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩188,373,050</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:33.5%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2025-06</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩209,873,980</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:37.4%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2025-07</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩260,127,935</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:46.3%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2025-08</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩157,729,490</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:28.1%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">2025-09</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩233,045,836</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:41.5%"></div></div>
+        </div>
+        
+      </div>
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+        <div class="mb-4"><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Top Categories</div><div class="text-sm text-slate-400">카테고리별 매출 TOP</div></div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">남성</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩4,622,161,998</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">여성</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩942,859,415</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:20.4%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">미드/롱다운</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩170,743,469</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:3.7%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">셋업</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩167,248,996</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:3.6%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">등산화</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩162,045,440</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:3.5%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">긴바지</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩156,070,590</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:3.4%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">라운드티</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩152,603,410</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:3.3%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">하이킹</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩103,647,920</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:2.2%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">자켓/ 베스트</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩96,980,360</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:2.1%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">UNKNOWN</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩87,681,055</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:1.9%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">바람막이</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩84,545,833</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:1.8%"></div></div>
+        </div>
+        
+        <div class="py-2">
+          <div class="mb-1 flex items-center justify-between gap-3">
+            <div class="truncate text-sm font-black text-slate-700">가방</div>
+            <div class="whitespace-nowrap text-sm font-black text-slate-900">₩61,967,635</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:1.3%"></div></div>
+        </div>
+        
+      </div>
+    </div>
+
+    <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Top Products</div><div class="text-sm text-slate-400">상품 이미지는 엑셀/BQ/공식몰 크롤링 순으로 매칭</div></div>
+        <div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-500">500 products</div>
+      </div>
+      <div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#1</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="남성 컬럼비아 락 다운 자켓">남성 컬럼비아 락 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C64YM3572010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩84,186,495</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">178</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#2</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="공용 샙랜드3 WP OHI">공용 샙랜드3 WP OHI</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C56YU8517010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩82,377,165</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">636</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#3</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="공용 마운틴 후드 롱 다운 자켓">공용 마운틴 후드 롱 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C54YM3479010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩75,149,163</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">234</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#4</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="남성 마운틴 후드™ 다운 자켓">남성 마운틴 후드™ 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C54YM3472010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩58,514,090</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">171</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#5</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="공용 롤링 콘 롱 다운 자켓">공용 롤링 콘 롱 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C64YM3583010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩53,369,490</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">141</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#6</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="공용 샙랜드3 처카 WP OHI">공용 샙랜드3 처카 WP OHI</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C56YU8549010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩48,265,620</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">424</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#7</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="공용 하이크바운드 인터체인지 자켓">공용 하이크바운드 인터체인지 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C54WE4714010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩42,819,934</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">304</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#8</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="공용 샙랜드4 워터프루프 옴니히트">공용 샙랜드4 워터프루프 옴니히트</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C66YU9626010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩37,724,580</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">235</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#9</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="[공식몰 단독] 공용 코브 투 뷰트™ 30L 백팩 + 파우치">[공식몰 단독] 공용 코브 투 뷰트™ 30L 백팩 + 파우치</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C46YU0204010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩37,452,435</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">513</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#10</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="남성 클라이브 레이크 Ⅱ 다운 자켓">남성 클라이브 레이크 Ⅱ 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C54YM3473010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩35,813,950</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">101</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#11</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="[추영우 착용] 남성 컬럼비아 락 다운 자켓">[추영우 착용] 남성 컬럼비아 락 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C64YM3572287</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩31,330,260</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">66</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#12</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="공용 샙랜드4 처카 워터프루프 옴니히트">공용 샙랜드4 처카 워터프루프 옴니히트</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C66YU9682010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩30,936,270</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">211</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#13</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="여성 패스 대쉬 포레스트Ⅲ 다운 자켓">여성 패스 대쉬 포레스트Ⅲ 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C64YL3583010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩29,745,680</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">71</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#14</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="남성 컬럼비아 락 다운 자켓">남성 컬럼비아 락 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C64YM3572027</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩27,791,525</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">58</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#15</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="여성 패스 대쉬 포레스트 다운 자켓">여성 패스 대쉬 포레스트 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C54YL3483010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩22,694,186</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">68</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#16</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="공용 컬럼비아 락 롱 다운 자켓">공용 컬럼비아 락 롱 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C64YM3579010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩21,743,070</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">36</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#17</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="남성 마운틴 후드™ 다운 파카">남성 마운틴 후드™ 다운 파카</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C54YM3474425</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩21,529,560</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">54</div></div>
+          </div>
+        </div>
+        
+        <div class="product-card rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="relative">
+            <div class='product-img flex w-full items-center justify-center rounded-xl border border-slate-100 text-xs font-black text-slate-300'>NO IMAGE</div>
+            <div class="absolute left-2 top-2 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white">#18</div>
+          </div>
+          <div class="mt-3 truncate text-sm font-black text-slate-900" title="남성 블루 에비뉴 다운 자켓">남성 블루 에비뉴 다운 자켓</div>
+          <div class="mt-1 text-xs font-extrabold text-slate-400">C64YM3584010</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Revenue</div><div class="font-black text-slate-900">₩21,384,740</div></div>
+            <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400 font-black">Qty</div><div class="font-black text-slate-900">77</div></div>
+          </div>
+        </div>
+        </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+        <div class="mb-3 text-xs font-extrabold tracking-widest text-slate-500 uppercase">Member Segments</div>
+        
+    <div class="table-wrap">
+      <table class="w-full border-collapse">
+        <thead><tr><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Frequency</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Recency</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Buyers</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Orders</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Revenue</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Rev/Buyer</th></tr></thead>
+        <tbody><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_one_time</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_recent_30d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>781</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>781</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩85,563,230</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩109,556</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_one_time</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_recent_90d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,756</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,756</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩182,585,599</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩103,978</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_one_time</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_recent_180d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>5,170</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>5,170</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩747,557,691</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩144,595</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_one_time</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_dormant_180d_plus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>20,655</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>20,655</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩2,157,637,732</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩104,461</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_repeat_2_3</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_recent_30d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>863</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,033</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩189,351,677</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩219,411</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_repeat_2_3</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_recent_90d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>912</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,123</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩210,061,865</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩230,331</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_repeat_2_3</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_recent_180d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,752</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>3,987</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩440,100,492</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩251,199</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_repeat_2_3</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_dormant_180d_plus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>4,792</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>10,712</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩1,021,767,283</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩213,224</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_loyal_4_6</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_recent_30d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>445</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,084</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩180,665,792</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩405,991</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_loyal_4_6</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_recent_90d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>318</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,493</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩153,947,582</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩484,112</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_loyal_4_6</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_recent_180d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>498</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,317</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩211,405,048</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩424,508</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_loyal_4_6</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_dormant_180d_plus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>725</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>3,301</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩336,952,206</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩464,762</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_vip_7_plus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_recent_30d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>296</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>4,072</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩411,806,485</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩1,391,238</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_vip_7_plus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_recent_90d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>186</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,310</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩388,859,395</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩2,090,642</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_vip_7_plus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_recent_180d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>195</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,122</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩233,887,807</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩1,199,425</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_vip_7_plus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_dormant_180d_plus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>143</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,490</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩168,992,244</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩1,181,764</td></tr></tbody>
+      </table>
+    </div>
+    
+      </div>
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+        <div class="mb-3 text-xs font-extrabold tracking-widest text-slate-500 uppercase">Basket Size</div>
+        
+    <div class="table-wrap">
+      <table class="w-full border-collapse">
+        <thead><tr><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>SKU Bucket</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Qty Bucket</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Orders</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Buyers</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Qty</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Revenue</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>AOV</th></tr></thead>
+        <tbody><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_1_sku</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_1_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>51,437</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>33,955</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>51,437</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩4,558,490,910</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩88,623</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_1_sku</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_2_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>870</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>805</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,740</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩100,604,264</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩115,637</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_1_sku</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_3_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>148</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>138</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>444</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩16,697,965</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩112,824</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_1_sku</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_4_plus_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>186</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>155</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,553</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩115,722,876</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩622,166</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_2_skus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_2_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>9,079</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>7,132</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>18,158</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩1,163,143,260</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩128,114</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_2_skus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_3_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>337</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>315</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,011</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩45,288,303</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩134,387</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_2_skus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_4_plus_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>203</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>182</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,190</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩114,309,340</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩563,100</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_3_skus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_3_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,444</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,073</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>7,332</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩442,109,059</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩180,896</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_3_skus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_4_plus_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>206</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>199</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,400</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩68,250,130</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩331,311</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_4_plus_skus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_4_plus_qty</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,496</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,129</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>8,313</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩496,526,021</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩331,902</td></tr></tbody>
+      </table>
+    </div>
+    
+      </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+        <div class="mb-3 text-xs font-extrabold tracking-widest text-slate-500 uppercase">Purchase Interval</div>
+        
+    <div class="table-wrap">
+      <table class="w-full border-collapse">
+        <thead><tr><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Interval</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Repeat Orders</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Repeat Buyers</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Avg Days</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Median Days</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Revenue</th></tr></thead>
+        <tbody><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>01_within_7d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>4,707</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>2,591</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>3</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>3</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩584,958,034</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>02_8_30d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>6,046</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>3,498</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>17</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>17</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩583,430,688</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>03_31_90d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>6,701</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>4,232</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>57</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>55</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩593,904,696</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>04_91_180d</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>4,347</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>3,376</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>130</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>130</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩386,514,811</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>05_181d_plus</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>5,118</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>4,752</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>314</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>293</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩444,445,572</td></tr></tbody>
+      </table>
+    </div>
+    
+      </div>
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+        <div class="mb-3 text-xs font-extrabold tracking-widest text-slate-500 uppercase">Coupon / Point / Promo</div>
+        
+    <div class="table-wrap">
+      <table class="w-full border-collapse">
+        <thead><tr><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Coupon</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Point</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Promo</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Orders</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Revenue</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Coupon Amt</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>AOV</th></tr></thead>
+        <tbody><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>coupon_used</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>point_used</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_promotion</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>26,878</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩2,933,841,828</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩443,013,009</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩109,154</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>coupon_used</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_point</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_promotion</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>13,119</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩1,868,223,027</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩496,363,014</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩142,406</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_coupon</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>point_used</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_promotion</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>20,614</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩1,456,567,990</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩0</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩70,659</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_coupon</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_point</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_promotion</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>7,877</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩850,751,963</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩0</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩108,005</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>coupon_used</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_point</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>promotion</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>83</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩11,332,320</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩1,674,680</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩136,534</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_coupon</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>no_point</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>promotion</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>6</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩425,000</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩0</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩70,833</td></tr></tbody>
+      </table>
+    </div>
+    
+      </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+        <div class="mb-3 text-xs font-extrabold tracking-widest text-slate-500 uppercase">Weekday × Hour</div>
+        
+    <div class="table-wrap">
+      <table class="w-full border-collapse">
+        <thead><tr><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Weekday</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Hour</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Orders</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Buyers</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Qty</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Revenue</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>AOV</th></tr></thead>
+        <tbody><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Fri</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>10</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>832</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>791</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,210</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩106,559,952</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩128,077</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Sun</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>22</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>930</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>900</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,275</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩94,167,818</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩101,256</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Sun</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>21</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>965</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>926</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,274</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩93,063,145</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩96,438</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Sun</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>20</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>880</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>853</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,214</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩92,651,976</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩105,286</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Thu</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>13</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>653</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>625</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,261</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩91,064,759</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩139,456</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Fri</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>11</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>758</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>729</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,220</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩89,872,018</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩118,565</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Sun</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>23</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>879</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>836</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,241</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩88,467,662</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩100,646</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Sun</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>19</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>794</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>772</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,047</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩78,793,830</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩99,237</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Thu</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>12</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>704</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>683</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>983</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩77,765,380</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩110,462</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Sun</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>18</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>770</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>764</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,009</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩77,752,344</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩100,977</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Mon</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>11</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>672</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>644</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>995</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩75,837,617</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩112,854</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Sun</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>17</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>791</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>779</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,030</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩75,708,956</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩95,713</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Sun</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>15</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>763</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>745</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,079</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩74,067,011</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩97,073</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Thu</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>11</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>688</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>656</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>958</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩73,097,889</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩106,247</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Tue</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>15</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>644</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>621</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>999</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩72,540,422</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩112,640</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Thu</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>16</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>539</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>530</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>818</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩71,327,012</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩132,332</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Mon</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>13</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>617</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>597</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>872</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩70,924,461</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩114,951</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Sun</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>16</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>827</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>817</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>1,091</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩70,202,533</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩84,888</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Tue</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>13</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>483</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>465</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>929</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩69,734,381</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩144,378</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>Wed</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>22</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>569</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>552</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>837</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩69,703,227</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩122,501</td></tr></tbody>
+      </table>
+    </div>
+    
+      </div>
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+        <div class="mb-3 text-xs font-extrabold tracking-widest text-slate-500 uppercase">Size / Color</div>
+        
+    <div class="table-wrap">
+      <table class="w-full border-collapse">
+        <thead><tr><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>SKU</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Product</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Size</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Color</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Orders</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Qty</th><th class='whitespace-nowrap px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500'>Revenue</th></tr></thead>
+        <tbody><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C46YU0204010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>[공식몰 단독] 공용 코브 투 뷰트™ 30L 백팩 + 파우치</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>30L</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>490</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>513</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩37,452,435</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C64YM3572010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>남성 컬럼비아 락 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>100</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>63</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>66</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩30,966,995</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C64YM3572010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>남성 컬럼비아 락 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>105</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>52</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>54</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩25,384,855</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C75YU0369010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 본레 포레스트 20L 패커블 경량 백팩</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>20L</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>157</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>402</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩21,345,570</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C54YM3472010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>남성 마운틴 후드™ 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>100</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>60</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>60</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩20,504,800</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C66YU0369010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 본레 포레스트 20L 패커블 경량 백팩</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>20L</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>372</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>372</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩19,622,970</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C54YM3479010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 마운틴 후드 롱 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>100</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>60</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>60</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩19,243,525</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C65YU0369010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 본레 포레스트 20L 패커블 경량 백팩</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>20L</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>179</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>391</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩18,536,980</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C54WE4714010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 하이크바운드 인터체인지 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>L</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>113</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>127</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩17,897,110</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C54YM3479010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 마운틴 후드 롱 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>95</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>52</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>52</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩16,909,730</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C55PU8665010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>[공식몰 단독]공용 패나시아 25L 백팩</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>OS</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>64</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>283</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩16,369,880</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C54YM3479010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 마운틴 후드 롱 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>90</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>51</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>51</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩16,286,918</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C65YU0366010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 레드우드 30L 뉴 플러스 백팩</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>30L</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>127</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>130</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩16,049,680</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C54YM3472010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>남성 마운틴 후드™ 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>105</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>47</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>47</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩15,863,640</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C64YM3572287</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>[추영우 착용] 남성 컬럼비아 락 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>100</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>287</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>33</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>33</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩15,631,280</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C64YM3583010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 롤링 콘 롱 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>105</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>38</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>41</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩15,362,430</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C54YM3479010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 마운틴 후드 롱 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>105</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>47</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>47</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩15,154,670</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C64YM3572010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>남성 컬럼비아 락 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>95</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>30</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>30</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩14,369,680</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C64YM3572010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>남성 컬럼비아 락 다운 자켓</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>110</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>27</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>28</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩13,464,965</td></tr><tr class='border-t border-slate-100 hover:bg-slate-50'><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>C66YU0366010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>공용 레드우드 30L 뉴 플러스 백팩</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>30L</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-left'>010</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>103</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>108</td><td class='whitespace-nowrap px-4 py-3 text-sm font-bold text-slate-700 text-right'>₩13,345,300</td></tr></tbody>
+      </table>
+    </div>
+    
+      </div>
+    </div>
+
+    <div class="mt-8 pb-8 text-xs font-bold text-slate-400">Generated at 2026-05-21 13:51:42 KST</div>
+  </div>
+</body>
+</html>
