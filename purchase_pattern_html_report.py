@@ -50,7 +50,7 @@ DEFAULT_SOURCE_TABLE = "tb_order_product_search_mart"
 DEFAULT_MEMBER_TABLE = "tb_member_staging"
 OFFICIAL_MALL_BASE = "https://www.columbiakorea.co.kr"
 
-SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V9_STYLESHIP_GRADE_READABILITY"
+SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V11_CANCEL_SAFE_7DAY_REPEAT_PRODUCTS"
 PATCH_NOTES = [
     "date_range_controls_for_top_kpis",
     "monthly_chart_full_period_with_2026_check",
@@ -65,6 +65,11 @@ PATCH_NOTES = [
     "grade_split_repeat_product_and_category_cards",
     "monthly_revenue_collapsible_section",
     "styleship_cdn_product_image_fallback",
+    "c7_product_section_for_recent_season_codes",
+    "first_purchase_and_second_purchase_product_cards",
+    "repeat_product_definition_label_second_or_later_not_same_sku",
+    "strict_cancel_refund_exclusion_with_cancel_amounts_and_datetimes",
+    "seven_day_repeat_buyer_product_cards",
 ]
 
 
@@ -363,6 +368,23 @@ def build_base_cte(
     refund_condition = ""
     if "order_refund_status" in columns:
         refund_condition = "AND COALESCE(SAFE_CAST(order_refund_status AS INT64), 0) = 0"
+
+    # V11: stricter cancel/refund exclusion.
+    # The report is meant to analyze net, valid purchases only. In addition to
+    # order_refund_status/is_net_sales_line, exclude rows with explicit cancel/refund timestamps or amounts.
+    cancel_refund_conditions: list[str] = []
+    if "order_refund_price" in columns:
+        cancel_refund_conditions.append("COALESCE(SAFE_CAST(order_refund_price AS INT64), 0) = 0")
+    if "order_cancel_price" in columns:
+        cancel_refund_conditions.append("COALESCE(SAFE_CAST(order_cancel_price AS INT64), 0) = 0")
+    if "erp_cancel_price" in columns:
+        cancel_refund_conditions.append("COALESCE(SAFE_CAST(erp_cancel_price AS INT64), 0) = 0")
+    if "order_cancel_datetime" in columns:
+        cancel_refund_conditions.append("order_cancel_datetime IS NULL")
+    if "erp_cancel_datetime" in columns:
+        cancel_refund_conditions.append("erp_cancel_datetime IS NULL")
+    cancel_refund_condition = "" if not cancel_refund_conditions else "AND " + "\n    AND ".join(cancel_refund_conditions)
+
     net_sales_condition = ""
     if "is_net_sales_line" in columns:
         net_sales_condition = "AND COALESCE(SAFE_CAST(is_net_sales_line AS INT64), 1) = 1"
@@ -381,6 +403,7 @@ WITH src AS (
     AND COALESCE(SAFE_CAST({qty_col} AS INT64), 0) > 0
     AND COALESCE(SAFE_CAST({revenue_col} AS INT64), 0) > 0
     {refund_condition}
+    {cancel_refund_condition}
     {net_sales_condition}
     {date_filter_sql(start_date, end_date)}
 ),
@@ -530,6 +553,61 @@ SELECT product_code, ANY_VALUE(product_name_kor) AS product_name_kor, ANY_VALUE(
        SAFE_DIVIDE(SUM(revenue), COUNT(DISTINCT order_no)) AS revenue_per_order
 FROM purchase_lines
 GROUP BY product_code
+ORDER BY revenue DESC
+LIMIT {top_limit}
+""",
+        "c7_products": base + f"""
+SELECT product_code, ANY_VALUE(product_name_kor) AS product_name_kor, ANY_VALUE(product_name) AS product_name,
+       ANY_VALUE(product_style) AS product_style, ANY_VALUE(sex_label) AS sex_label,
+       ANY_VALUE(product_year) AS product_year, ANY_VALUE(product_season) AS product_season,
+       ANY_VALUE(source_image_url) AS source_image_url,
+       COUNT(DISTINCT order_no) AS orders, COUNT(DISTINCT member_id) AS buyers,
+       SUM(purchase_qty) AS quantity, SUM(revenue) AS revenue,
+       SAFE_DIVIDE(SUM(revenue), SUM(purchase_qty)) AS unit_revenue,
+       SAFE_DIVIDE(SUM(revenue), COUNT(DISTINCT order_no)) AS revenue_per_order
+FROM purchase_lines
+WHERE STARTS_WITH(product_code, 'C7')
+GROUP BY product_code
+ORDER BY revenue DESC
+LIMIT {top_limit}
+""",
+        "first_purchase_products": base + f"""
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date
+  FROM purchase_lines GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+)
+SELECT p.product_code, ANY_VALUE(p.product_name_kor) AS product_name_kor, ANY_VALUE(p.product_name) AS product_name,
+       ANY_VALUE(p.source_image_url) AS source_image_url,
+       COUNT(DISTINCT p.order_no) AS first_orders, COUNT(DISTINCT p.member_id) AS first_buyers,
+       SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue,
+       SAFE_DIVIDE(COUNT(DISTINCT p.order_no), COUNT(DISTINCT p.member_id)) AS first_order_rate
+FROM purchase_lines p
+JOIN ranked_orders r ON p.member_id = r.member_id AND p.order_no = r.order_no
+WHERE r.order_rank = 1
+GROUP BY p.product_code
+ORDER BY revenue DESC
+LIMIT {top_limit}
+""",
+        "second_purchase_products": base + f"""
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date
+  FROM purchase_lines GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+)
+SELECT p.product_code, ANY_VALUE(p.product_name_kor) AS product_name_kor, ANY_VALUE(p.product_name) AS product_name,
+       ANY_VALUE(p.source_image_url) AS source_image_url,
+       COUNT(DISTINCT p.order_no) AS second_orders, COUNT(DISTINCT p.member_id) AS second_buyers,
+       SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue,
+       SAFE_DIVIDE(COUNT(DISTINCT p.member_id), NULLIF((SELECT COUNT(DISTINCT member_id) FROM ranked_orders WHERE order_rank = 1), 0)) AS second_purchase_rate
+FROM purchase_lines p
+JOIN ranked_orders r ON p.member_id = r.member_id AND p.order_no = r.order_no
+WHERE r.order_rank = 2
+GROUP BY p.product_code
 ORDER BY revenue DESC
 LIMIT {top_limit}
 """,
@@ -767,6 +845,32 @@ GROUP BY p.product_code
 ORDER BY revenue DESC
 LIMIT {top_limit}
 """,
+        "repeat_7day_products": base + f"""
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date
+  FROM purchase_lines GROUP BY member_id, order_no
+), ordered AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank,
+            LAG(order_date) OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS prev_order_date
+  FROM order_level
+), seven_day_repeat_orders AS (
+  SELECT member_id, order_no, DATE_DIFF(order_date, prev_order_date, DAY) AS days_since_prev_order
+  FROM ordered
+  WHERE order_rank >= 2
+    AND prev_order_date IS NOT NULL
+    AND DATE_DIFF(order_date, prev_order_date, DAY) BETWEEN 0 AND 7
+)
+SELECT p.product_code, ANY_VALUE(p.product_name_kor) AS product_name_kor, ANY_VALUE(p.product_name) AS product_name,
+       ANY_VALUE(p.source_image_url) AS source_image_url,
+       COUNT(DISTINCT p.order_no) AS repeat_orders, COUNT(DISTINCT p.member_id) AS repeat_buyers,
+       AVG(s.days_since_prev_order) AS avg_days_since_prev_order,
+       SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+FROM purchase_lines p
+JOIN seven_day_repeat_orders s ON p.member_id = s.member_id AND p.order_no = s.order_no
+GROUP BY p.product_code
+ORDER BY revenue DESC
+LIMIT {top_limit}
+""",
         "grade_repeat_categories": base + """
 , order_level AS (
   SELECT member_id, order_no, MIN(order_date) AS order_date
@@ -822,6 +926,52 @@ SELECT order_date, product_code, ANY_VALUE(product_name_kor) AS product_name_kor
 FROM purchase_lines
 GROUP BY order_date, product_code
 ORDER BY order_date, revenue DESC
+""",
+        "ui_daily_c7_products": base + """
+SELECT order_date, product_code, ANY_VALUE(product_name_kor) AS product_name_kor, ANY_VALUE(product_name) AS product_name,
+       ANY_VALUE(source_image_url) AS source_image_url,
+       COUNT(DISTINCT order_no) AS orders, COUNT(DISTINCT member_id) AS buyers,
+       SUM(purchase_qty) AS quantity, SUM(revenue) AS revenue
+FROM purchase_lines
+WHERE STARTS_WITH(product_code, 'C7')
+GROUP BY order_date, product_code
+ORDER BY order_date, revenue DESC
+""",
+        "ui_daily_first_purchase_products": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date
+  FROM purchase_lines GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+)
+SELECT p.order_date, p.product_code, ANY_VALUE(p.product_name_kor) AS product_name_kor, ANY_VALUE(p.product_name) AS product_name,
+       ANY_VALUE(p.source_image_url) AS source_image_url,
+       COUNT(DISTINCT p.order_no) AS first_orders, COUNT(DISTINCT p.member_id) AS first_buyers,
+       SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+FROM purchase_lines p
+JOIN ranked_orders r ON p.member_id = r.member_id AND p.order_no = r.order_no
+WHERE r.order_rank = 1
+GROUP BY p.order_date, p.product_code
+ORDER BY p.order_date, revenue DESC
+""",
+        "ui_daily_second_purchase_products": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date
+  FROM purchase_lines GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+)
+SELECT p.order_date, p.product_code, ANY_VALUE(p.product_name_kor) AS product_name_kor, ANY_VALUE(p.product_name) AS product_name,
+       ANY_VALUE(p.source_image_url) AS source_image_url,
+       COUNT(DISTINCT p.order_no) AS second_orders, COUNT(DISTINCT p.member_id) AS second_buyers,
+       SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+FROM purchase_lines p
+JOIN ranked_orders r ON p.member_id = r.member_id AND p.order_no = r.order_no
+WHERE r.order_rank = 2
+GROUP BY p.order_date, p.product_code
+ORDER BY p.order_date, revenue DESC
 """,
         "ui_daily_basket": base + """
 , order_level AS (
@@ -892,6 +1042,31 @@ JOIN ranked_orders r ON p.member_id = r.member_id AND p.order_no = r.order_no
 WHERE r.order_rank >= 2
 GROUP BY p.order_date, p.member_grade_label, category
 ORDER BY p.order_date, p.member_grade_label, revenue DESC
+""",
+        "ui_daily_repeat_7day_products": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date
+  FROM purchase_lines GROUP BY member_id, order_no
+), ordered AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank,
+            LAG(order_date) OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS prev_order_date
+  FROM order_level
+), seven_day_repeat_orders AS (
+  SELECT member_id, order_no, DATE_DIFF(order_date, prev_order_date, DAY) AS days_since_prev_order
+  FROM ordered
+  WHERE order_rank >= 2
+    AND prev_order_date IS NOT NULL
+    AND DATE_DIFF(order_date, prev_order_date, DAY) BETWEEN 0 AND 7
+)
+SELECT p.order_date, p.product_code, ANY_VALUE(p.product_name_kor) AS product_name_kor, ANY_VALUE(p.product_name) AS product_name,
+       ANY_VALUE(p.source_image_url) AS source_image_url,
+       COUNT(DISTINCT p.order_no) AS repeat_orders, COUNT(DISTINCT p.member_id) AS repeat_buyers,
+       AVG(s.days_since_prev_order) AS avg_days_since_prev_order,
+       SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+FROM purchase_lines p
+JOIN seven_day_repeat_orders s ON p.member_id = s.member_id AND p.order_no = s.order_no
+GROUP BY p.order_date, p.product_code
+ORDER BY p.order_date, revenue DESC
 """,
         "ui_daily_grade_repeat_products": base + """
 , order_level AS (
@@ -1636,9 +1811,13 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
         updateHtml('monthly-flow', `<div class="month-strip">${barList(m.sort((a,b)=>String(a.month).localeCompare(String(b.month))),'month','revenue',999)}</div>`);
         updateHtml('category-top', barList(groupBy(rows('ui_daily_categories',start,end), ['category'], ['orders','buyers','products','quantity','revenue']), 'category','revenue',12));
         updateHtml('top-products', productCards(groupBy(rows('ui_daily_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['orders','buyers','quantity','revenue']),18,false));
+        updateHtml('c7-products', productCards(groupBy(rows('ui_daily_c7_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['orders','buyers','quantity','revenue']),18,false));
+        updateHtml('first-purchase-products', productCards(groupBy(rows('ui_daily_first_purchase_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['first_orders','first_buyers','quantity','revenue']),6,false));
+        updateHtml('second-purchase-products', productCards(groupBy(rows('ui_daily_second_purchase_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['second_orders','second_buyers','quantity','revenue']),6,true));
         updateHtml('basket-composition', miniCards(groupBy(rows('ui_daily_basket',start,end), ['sku_bucket'], ['orders','buyers','quantity','revenue']), 'sku_bucket','revenue', [['orders','주문','int'],['buyers','구매자','int'],['quantity','수량','int'],['aov','객단가','krw']],4,'krw'));
         updateHtml('coupon-usage', miniCards(groupBy(rows('ui_daily_coupon',start,end), ['coupon_name'], ['orders','buyers','quantity','revenue','coupon_amount']), 'coupon_name','revenue', [['orders','주문','int'],['buyers','구매자','int'],['coupon_amount','쿠폰액','krw'],['quantity','수량','int']],8,'krw'));
         updateHtml('repeat-categories', barList(groupBy(rows('ui_daily_repeat_categories',start,end), ['category'], ['repeat_orders','repeat_buyers','quantity','revenue']), 'category','revenue',12));
+        updateHtml('repeat-7day-products', productCards(groupBy(rows('ui_daily_repeat_7day_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['repeat_orders','repeat_buyers','quantity','revenue','avg_days_since_prev_order']),18,true));
         updateHtml('grade-repeat-categories', gradeCategoryBlocks(rows('ui_daily_grade_repeat_categories',start,end)));
         updateHtml('grade-repeat-products', gradeProductBlocks(rows('ui_daily_grade_repeat_products',start,end)));
       }
@@ -1671,6 +1850,9 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
     overview = overview_df.iloc[0].to_dict() if not overview_df.empty else {}
     monthly = results.get("monthly", pd.DataFrame())
     top_products = results.get("top_products", pd.DataFrame())
+    c7_products = results.get("c7_products", pd.DataFrame())
+    first_purchase_products = results.get("first_purchase_products", pd.DataFrame())
+    second_purchase_products = results.get("second_purchase_products", pd.DataFrame())
     top_categories = results.get("top_categories", pd.DataFrame())
     segments = results.get("member_segments", pd.DataFrame())
     basket = results.get("basket_size", pd.DataFrame())
@@ -1730,7 +1912,7 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-3">
         <div class="text-2xl font-black">구매 패턴 분석</div>
-        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">PURCHASE DASHBOARD V9</div>
+        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">PURCHASE DASHBOARD V10</div>
         <div id="active-period-label" class="text-sm font-semibold text-slate-500">{escape(period_label)} · source: {escape(source_table)}</div>
       </div>
       <div class="flex items-center gap-2">
@@ -1770,6 +1952,13 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">TOP PRODUCTS</div><div class="text-sm font-bold text-slate-400">엑셀/BQ/공식몰 크롤링 후 StyleShip CDN 패턴으로 이미지 보강 · 실패 내역은 product_image_log.json 확인</div></div><div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-500">{len(top_products)} products</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"><div id="top-products" class="contents">{product_cards(top_products, 18)}</div></div></div>
 
+    <div class="report-card mt-6 rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-blue-600 uppercase">C7 RECENT PRODUCTS</div><div class="text-sm font-bold text-slate-400">상품코드가 C7로 시작하는 최근 시즌 상품만 별도 집계 · TOP PRODUCTS에 안 보여도 여기서 확인</div></div><div class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{len(c7_products)} C7 products</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"><div id="c7-products" class="contents">{product_cards(c7_products, 18)}</div></div></div>
+
+    <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">첫구매 상품 TOP</div><div class="text-sm font-bold text-slate-400">선택 기간 내 회원별 첫 번째 주문에서 많이 산 상품</div></div><div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-500">first order</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3"><div id="first-purchase-products" class="contents">{product_cards(first_purchase_products, 6, False)}</div></div></div>
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">2회차 구매 상품 TOP</div><div class="text-sm font-bold text-slate-400">정확히 두 번째 구매 주문에서 많이 산 상품 · 기존 재구매 TOP과 구분</div></div><div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-500">second order</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3"><div id="second-purchase-products" class="contents">{product_cards(second_purchase_products, 6, True)}</div></div></div>
+    </div>
+
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="mb-4"><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">회원 세그먼트</div><div class="text-sm font-bold text-slate-400">구매 빈도와 최근성 조합을 보기 쉽게 정리</div></div>{mini_visual_cards(segments, 'frequency_segment', 'revenue', [('buyers','구매자','int'),('orders','주문','int'),('revenue_per_buyer','인당 매출','krw'),('orders_per_buyer','인당 주문','int')], 8, 'krw')}</div>
 
     <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -1794,7 +1983,9 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
       <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="mb-4"><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">등급별 재구매 카테고리</div><div class="text-sm font-bold text-slate-400">등급별 재구매 2뎁스 카테고리 TOP</div></div><div id="grade-repeat-categories">{grade_grouped_category_cards(grade_repeat_categories, 8)}</div></div>
     </div>
 
-    <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">재구매 상품 TOP</div><div class="text-sm font-bold text-slate-400">두 번째 구매 이후 매출이 큰 상품</div></div><div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-500">repeat products</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"><div id="repeat-products" class="contents">{product_cards(repeat_products, 18, True)}</div></div></div>
+    <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">재구매 상품 TOP</div><div class="text-sm font-bold text-slate-400">회원별 2회차 이상 주문에서 매출이 큰 상품 · 동일 SKU 중복구매 기준 아님</div></div><div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-500">repeat products</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"><div id="repeat-products" class="contents">{product_cards(repeat_products, 18, True)}</div></div></div>
+
+    <div class="report-card mt-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-blue-600 uppercase">7일 이내 재구매자 구매 상품 TOP</div><div class="text-sm font-bold text-slate-500">이전 주문 후 0~7일 안에 다시 구매한 고객의 재구매 주문에 포함된 상품</div></div><div class="rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-black text-blue-700">≤7 days repeat</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"><div id="repeat-7day-products" class="contents">{product_cards(repeat_7day_products, 18, True)}</div></div></div>
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="mb-4"><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">등급별 재구매 상품 TOP</div><div class="text-sm font-bold text-slate-400">등급별 반복구매 상품 매출</div></div><div id="grade-repeat-products">{grade_grouped_product_cards(grade_repeat_products, 6, True)}</div></div>
 
@@ -1816,6 +2007,9 @@ def build_embedded_payload(results: dict[str, pd.DataFrame], summary: dict[str, 
         "daily": df_to_records(results.get("daily", pd.DataFrame()), 5000),
         "monthly": df_to_records(results.get("monthly", pd.DataFrame()), 500),
         "top_products": df_to_records(results.get("top_products", pd.DataFrame()), 300),
+        "c7_products": df_to_records(results.get("c7_products", pd.DataFrame()), 300),
+        "first_purchase_products": df_to_records(results.get("first_purchase_products", pd.DataFrame()), 300),
+        "second_purchase_products": df_to_records(results.get("second_purchase_products", pd.DataFrame()), 300),
         "top_categories": df_to_records(results.get("top_categories", pd.DataFrame()), 100),
         "member_segments": df_to_records(results.get("member_segments", pd.DataFrame()), 200),
         "grade_overview": df_to_records(results.get("grade_overview", pd.DataFrame()), 100),
@@ -1826,14 +2020,19 @@ def build_embedded_payload(results: dict[str, pd.DataFrame], summary: dict[str, 
         "grade_repeat_overview": df_to_records(results.get("grade_repeat_overview", pd.DataFrame()), 100),
         "repeat_categories": df_to_records(results.get("repeat_categories", pd.DataFrame()), 100),
         "repeat_products": df_to_records(results.get("repeat_products", pd.DataFrame()), 300),
+        "repeat_7day_products": df_to_records(results.get("repeat_7day_products", pd.DataFrame()), 300),
         "grade_repeat_categories": df_to_records(results.get("grade_repeat_categories", pd.DataFrame()), 300),
         "grade_repeat_products": df_to_records(results.get("grade_repeat_products", pd.DataFrame()), 300),
         "ui_daily_categories": df_to_records(results.get("ui_daily_categories", pd.DataFrame()), 10000),
         "ui_daily_products": df_to_records(results.get("ui_daily_products", pd.DataFrame()), 20000),
+        "ui_daily_c7_products": df_to_records(results.get("ui_daily_c7_products", pd.DataFrame()), 20000),
+        "ui_daily_first_purchase_products": df_to_records(results.get("ui_daily_first_purchase_products", pd.DataFrame()), 20000),
+        "ui_daily_second_purchase_products": df_to_records(results.get("ui_daily_second_purchase_products", pd.DataFrame()), 20000),
         "ui_daily_basket": df_to_records(results.get("ui_daily_basket", pd.DataFrame()), 10000),
         "ui_daily_coupon": df_to_records(results.get("ui_daily_coupon", pd.DataFrame()), 10000),
         "ui_daily_grade": df_to_records(results.get("ui_daily_grade", pd.DataFrame()), 10000),
         "ui_daily_repeat_categories": df_to_records(results.get("ui_daily_repeat_categories", pd.DataFrame()), 10000),
+        "ui_daily_repeat_7day_products": df_to_records(results.get("ui_daily_repeat_7day_products", pd.DataFrame()), 20000),
         "ui_daily_grade_repeat_categories": df_to_records(results.get("ui_daily_grade_repeat_categories", pd.DataFrame()), 10000),
         "ui_daily_grade_repeat_products": df_to_records(results.get("ui_daily_grade_repeat_products", pd.DataFrame()), 20000),
     }
@@ -1892,10 +2091,14 @@ def write_outputs(results: dict[str, pd.DataFrame], out_dir: Path, source_table:
         "summary": summary_lines,
         "group_characteristics": group_chars,
         "top_products": df_to_records(results.get("top_products", pd.DataFrame()), 50),
+        "c7_products": df_to_records(results.get("c7_products", pd.DataFrame()), 50),
+        "first_purchase_products": df_to_records(results.get("first_purchase_products", pd.DataFrame()), 50),
+        "second_purchase_products": df_to_records(results.get("second_purchase_products", pd.DataFrame()), 50),
         "top_categories": df_to_records(results.get("top_categories", pd.DataFrame()), 50),
         "grade_overview": df_to_records(results.get("grade_overview", pd.DataFrame()), 50),
         "repeat_categories": df_to_records(results.get("repeat_categories", pd.DataFrame()), 50),
         "repeat_products": df_to_records(results.get("repeat_products", pd.DataFrame()), 50),
+        "repeat_7day_products": df_to_records(results.get("repeat_7day_products", pd.DataFrame()), 50),
         "image_log": image_log,
         "outputs": {
             "html": "index.html",
@@ -1924,12 +2127,17 @@ def write_outputs(results: dict[str, pd.DataFrame], out_dir: Path, source_table:
             "grade_repeat_overview.csv",
             "repeat_categories.csv",
             "repeat_products.csv",
+            "repeat_7day_products.csv",
             "grade_repeat_categories.csv",
             "grade_repeat_products.csv",
             "ui_daily_categories.csv",
             "ui_daily_products.csv",
+            "ui_daily_c7_products.csv",
+            "ui_daily_first_purchase_products.csv",
+            "ui_daily_second_purchase_products.csv",
             "ui_daily_basket.csv",
             "ui_daily_coupon.csv",
+            "ui_daily_repeat_7day_products.csv",
             "ui_daily_grade_repeat_categories.csv",
             "ui_daily_grade_repeat_products.csv",
         ],
@@ -2015,7 +2223,7 @@ def main() -> int:
         # Reuse the same image URLs for repeat product outputs where possible.
         img_map = {str(r.get("product_code")): r.get("image_url", "") for _, r in top_products.iterrows()} if not top_products.empty else {}
         img_src_map = {str(r.get("product_code")): r.get("image_source", "") for _, r in top_products.iterrows()} if not top_products.empty else {}
-        for key in ["repeat_products", "grade_repeat_products", "grade_top_products", "ui_daily_products", "ui_daily_grade_repeat_products"]:
+        for key in ["c7_products", "first_purchase_products", "second_purchase_products", "repeat_products", "repeat_7day_products", "grade_repeat_products", "grade_top_products", "ui_daily_products", "ui_daily_c7_products", "ui_daily_first_purchase_products", "ui_daily_second_purchase_products", "ui_daily_repeat_7day_products", "ui_daily_grade_repeat_products"]:
             if key in results and not results[key].empty:
                 results[key] = results[key].copy()
                 results[key]["image_url"] = results[key]["product_code"].astype(str).map(lambda x: img_map.get(x, "") or styleship_image_url(x))
