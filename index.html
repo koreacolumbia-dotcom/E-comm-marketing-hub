@@ -136,6 +136,15 @@
       cursor:pointer;
       white-space: nowrap;
     }
+    .mo-tab{
+      min-width: 68px;
+    }
+    .mo-tabbar .overflow-x-auto{
+      scrollbar-width: none;
+    }
+    .mo-tabbar .overflow-x-auto::-webkit-scrollbar{
+      display: none;
+    }
     .mo-tab:hover{
       transform: translateY(-1px);
     }
@@ -223,36 +232,56 @@
   <!-- NAV (PC) -->
   <div>
 
-    <!-- OVERVIEW -->
+    <!-- CORE -->
     <div class="nav-section">
-      <div class="nav-section-title">Overview</div>
+      <div class="nav-section-title">Core</div>
       <div class="space-y-3">
         <div class="nav-item active" data-key="summary" data-target="reports/index.html" data-label="Summary">
           <i class="fa-solid fa-chart-simple"></i><span>Summary</span>
         </div>
 
-        <div class="nav-item" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Daily Digest">
+        <div class="nav-item" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Owned.com Report">
           <i class="fa-solid fa-calendar-day"></i><span>Owned.com Report</span>
         </div>
+      </div>
+    </div>
 
-        <div class="nav-item" data-key="funnel" data-target="reports/daily_digest/owned_funnel_tab.html" data-label="Funnel Analysis">
-          <i class="fa-solid fa-filter"></i><span>Funnel 분석</span>
-        </div>
+    <div class="nav-divider"></div>
 
+    <!-- PERFORMANCE ANALYSIS -->
+    <div class="nav-section">
+      <div class="nav-section-title">Performance Analysis</div>
+      <div class="space-y-3">
         <div class="nav-item" data-key="utm_channel" data-target="reports/utm_channel/index.html" data-label="소스/매체 분석">
           <i class="fa-solid fa-chart-line"></i><span>소스/매체 분석</span>
+        </div>
+
+        <div class="nav-item" data-key="funnel" data-target="reports/daily_digest/owned_funnel_tab.html" data-label="Funnel 분석">
+          <i class="fa-solid fa-filter"></i><span>Funnel 분석</span>
         </div>
 
         <div class="nav-item" data-key="product_keyword" data-target="reports/product_keyword/index.html" data-label="상품 성과">
           <i class="fa-solid fa-magnifying-glass-chart"></i><span>상품 성과</span>
         </div>
 
-        <div class="nav-item" data-key="owned" data-target="reports/owned_portal/index.html" data-label="OWNED Portal">
-          <i class="fa-solid fa-envelope"></i><span>OWNED MESSAGE</span>
+        <div class="nav-item" data-key="purchase_pattern" data-target="reports/purchase_pattern/index.html" data-label="구매 패턴 분석">
+          <i class="fa-solid fa-bag-shopping"></i><span>구매 패턴 분석</span>
         </div>
 
         <div class="nav-item" data-key="member" data-target="reports/member_funnel/index.html" data-label="회원 분석">
           <i class="fa-solid fa-users"></i><span>회원 분석</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-divider"></div>
+
+    <!-- CRM / AI -->
+    <div class="nav-section">
+      <div class="nav-section-title">CRM & AI</div>
+      <div class="space-y-3">
+        <div class="nav-item" data-key="owned" data-target="reports/owned_portal/index.html" data-label="OWNED MESSAGE">
+          <i class="fa-solid fa-envelope"></i><span>OWNED MESSAGE</span>
         </div>
 
         <div class="nav-item" data-key="ai_agent" data-target="reports/ai_agent/index.html" data-label="AI Agent">
@@ -270,11 +299,13 @@
         <div class="nav-item" data-key="price" data-target="reports/naver_lowest_price.html" data-label="네이버 최저가">
           <i class="fa-solid fa-won-sign"></i><span>네이버 최저가</span>
         </div>
-        <div class="nav-item" data-key="hero" data-target="reports/hero_main.html" data-label="메인 히어로 배너">
+
+        <div class="nav-item" data-key="hero" data-target="reports/hero_main.html" data-label="경쟁사 기획전 배너">
           <i class="fa-solid fa-image"></i><span>경쟁사 기획전 배너</span>
         </div>
+
         <div class="nav-item" data-key="competitor" data-target="reports/competitor_intel/dashboard.html" data-label="경쟁사 상품 분석">
-          <i class="fa-solid fa-chart-column"></i><span>경쟁사 상품 분석(개발중)</span>
+          <i class="fa-solid fa-chart-column"></i><span>경쟁사 상품 분석</span>
         </div>
       </div>
     </div>
@@ -285,11 +316,11 @@
     <div class="nav-section">
       <div class="nav-section-title">VOC</div>
       <div class="space-y-3">
-        <div class="nav-item" data-key="voc" data-target="reports/external_signal.html" data-label="외부 VOC">
+        <div class="nav-item" data-key="voc" data-target="reports/external_signal.html" data-label="커뮤니티 VOC">
           <i class="fa-solid fa-tower-broadcast"></i><span>커뮤니티</span>
         </div>
 
-        <div class="nav-item" data-key="crema" data-target="reports/voc_crema/index.html" data-label="크리마 VOC">
+        <div class="nav-item" data-key="crema" data-target="reports/voc_crema/index.html" data-label="공식몰 리뷰 VOC">
           <i class="fa-solid fa-comments"></i><span>공식몰 리뷰</span>
         </div>
 
@@ -344,7 +375,7 @@
 
 <!-- ================= Mobile Bottom Tabbar (MO) ================= -->
 <nav class="lg:hidden fixed bottom-0 left-0 right-0 mo-tabbar safe-bottom px-3 py-3">
-  <div class="max-w-2xl mx-auto grid grid-cols-5 sm:grid-cols-12 gap-2">
+  <div class="max-w-full mx-auto flex gap-2 overflow-x-auto pb-1">
     <div class="mo-tab active" data-key="summary" data-target="reports/index.html" data-label="Summary">
       <i class="fa-solid fa-chart-simple text-base"></i>
       <div class="text-[10px]">요약</div>
@@ -368,6 +399,11 @@
     <div class="mo-tab" data-key="product_keyword" data-target="reports/product_keyword/index.html" data-label="상품 키워드 성과">
       <i class="fa-solid fa-magnifying-glass-chart text-base"></i>
       <div class="text-[10px]">상품</div>
+    </div>
+
+    <div class="mo-tab" data-key="purchase_pattern" data-target="reports/purchase_pattern/index.html" data-label="구매 패턴 분석">
+      <i class="fa-solid fa-bag-shopping text-base"></i>
+      <div class="text-[10px]">구매</div>
     </div>
 
     <div class="mo-tab" data-key="owned" data-target="reports/owned_portal/index.html" data-label="OWNED Portal">
@@ -437,6 +473,7 @@
       owned:   "reports/owned_portal/data/meta.json",
       utm_channel: "reports/utm_channel/data/meta.json",
       product_keyword: "reports/product_keyword/data/meta.json",
+      purchase_pattern: "reports/purchase_pattern/data/summary.json",
       price:   "reports/meta.json",
       hero:    "reports/meta.json",
       competitor: "reports/meta.json",
@@ -524,8 +561,8 @@
         const res = await fetch(metaPath + `?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("meta.json not found");
         const meta = await res.json();
-        elUpdated.textContent = meta.updated_at_kst || "-";
-        elPeriod.textContent  = meta.period_text || "-";
+        elUpdated.textContent = meta.updated_at_kst || meta.generated_at_kst || meta.generated_at || "-";
+        elPeriod.textContent  = meta.period_text || meta.period_label || meta.date_range || "-";
       } catch (e) {
         const now = new Date();
         elUpdated.textContent = fmtKST(now);
