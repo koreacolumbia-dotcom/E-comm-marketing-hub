@@ -79,6 +79,15 @@ on:
           - "false"
           - "true"
 
+      purchase_pattern_only:
+        description: "Run Purchase Pattern dashboard only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
       product_keyword_only:
         description: "Run Product Keyword Performance dashboard only?"
         required: true
@@ -202,6 +211,7 @@ jobs:
           FUNNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.funnel_only == 'true' }}"
           MEMBER_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.member_only == 'true' }}"
           SEARCH_VOLUME_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.product_keyword_only == 'true' }}"
+          PURCHASE_PATTERN_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.purchase_pattern_only == 'true' }}"
           UTM_CHANNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.utm_channel_only == 'true' }}"
           OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
           EXTSIG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.extsig_only == 'true' }}"
@@ -217,12 +227,13 @@ jobs:
             [ "$FUNNEL_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$MEMBER_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SEARCH_VOLUME_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$PURCHASE_PATTERN_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$UTM_CHANNEL_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of voc_only/blog_only/hero_only/competitor_only/owned_only/funnel_only/member_only/product_keyword_only/utm_channel_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of voc_only/blog_only/hero_only/competitor_only/owned_only/funnel_only/member_only/product_keyword_only/purchase_pattern_only/utm_channel_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -238,6 +249,7 @@ jobs:
           RUN_FUNNEL=false
           RUN_MEMBER=false
           RUN_PRODUCT_KEYWORD=true
+          RUN_PURCHASE_PATTERN=true
           RUN_UTM_CHANNEL=true
 
           if [ "$EVENT" = "schedule" ]; then
@@ -253,6 +265,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
 
             case "$SCHEDULE_RAW" in
@@ -273,6 +286,7 @@ jobs:
                 RUN_BLOG=true
                 RUN_OWNED=true
                 RUN_PRODUCT_KEYWORD=false
+                RUN_PURCHASE_PATTERN=true
                 RUN_UTM_CHANNEL=true
                 ;;
               "0 22 * * *")
@@ -311,6 +325,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -325,6 +340,7 @@ jobs:
             RUN_FUNNEL=true
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -339,6 +355,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=true
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -353,6 +370,22 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=true
+            RUN_PURCHASE_PATTERN=false
+            RUN_UTM_CHANNEL=false
+          fi
+
+          if [ "$PURCHASE_PATTERN_ONLY" = "true" ]; then
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+            RUN_FUNNEL=false
+            RUN_MEMBER=false
+            RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=true
             RUN_UTM_CHANNEL=false
           fi
 
@@ -367,6 +400,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=true
           fi
 
@@ -381,6 +415,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -395,6 +430,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -409,6 +445,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -423,6 +460,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -437,6 +475,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -452,6 +491,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
             RUN_UTM_CHANNEL=false
           fi
 
@@ -466,6 +506,7 @@ jobs:
           echo "run_funnel=$RUN_FUNNEL" >> "$GITHUB_OUTPUT"
           echo "run_member=$RUN_MEMBER" >> "$GITHUB_OUTPUT"
           echo "run_product_keyword=$RUN_PRODUCT_KEYWORD" >> "$GITHUB_OUTPUT"
+          echo "run_purchase_pattern=$RUN_PURCHASE_PATTERN" >> "$GITHUB_OUTPUT"
           echo "run_utm_channel=$RUN_UTM_CHANNEL" >> "$GITHUB_OUTPUT"
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
 
@@ -524,7 +565,7 @@ jobs:
               matplotlib
           fi
 
-          pip install openpyxl matplotlib pytrends google-cloud-bigquery google-cloud-bigquery-storage db-dtypes pyarrow selenium webdriver-manager lightgbm joblib pyodbc
+          pip install openpyxl matplotlib pytrends google-cloud-bigquery google-cloud-bigquery-storage db-dtypes pyarrow selenium webdriver-manager lightgbm joblib pyodbc beautifulsoup4 requests
 
           if [ "${NEEDS_PLAYWRIGHT}" = "true" ]; then
             echo "[INFO] Browser-based crawler detected -> install Playwright Chromium"
@@ -540,6 +581,8 @@ jobs:
           mkdir -p \
             reports \
             reports/product_keyword/data \
+            reports/purchase_pattern/data \
+            reports/purchase_pattern/assets/product_images \
             reports/member_funnel \
             reports/member_funnel/data \
             site/data \
@@ -1230,6 +1273,70 @@ jobs:
           [ -f "reports/product_keyword/data/meta.json" ] && cp -f reports/product_keyword/data/meta.json site/data/search_volume/meta.json
           test -f site/search_volume/index.html || { echo "[ERROR] site/search_volume/index.html missing after publish"; exit 1; }
 
+      - name: Build Purchase Pattern dashboard
+        if: ${{ steps.modes.outputs.run_purchase_pattern == 'true' }}
+        continue-on-error: false
+        shell: bash
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          BQ_PROJECT: columbia-ga4
+          BQ_LOCATION: asia-northeast3
+          BQ_ORDER_PRODUCT_TABLE: columbia-ga4.crm_raw.tb_order_product_search_mart
+          BQ_MEMBER_TABLE: columbia-ga4.crm_raw.tb_member_staging
+          PURCHASE_PATTERN_OUT_DIR: reports/purchase_pattern
+          PURCHASE_PATTERN_CRAWL_IMAGES: "true"
+          PURCHASE_PATTERN_DOWNLOAD_IMAGES: "true"
+          PURCHASE_PATTERN_MAX_CRAWL: "80"
+          DAILY_DIGEST_IMAGE_XLS_PATH: 상품코드별 이미지.xlsx
+        run: |
+          set -euo pipefail
+
+          SCRIPT="purchase_pattern_html_report.py"
+          [ -f "$SCRIPT" ] || { echo "[ERROR] $SCRIPT not found."; exit 1; }
+
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
+            echo "[ERROR] GOOGLE_SA_JSON_B64 is empty."
+            exit 1
+          fi
+
+          mkdir -p reports/purchase_pattern/data reports/purchase_pattern/assets/product_images
+
+          echo "[INFO] Build Purchase Pattern dashboard"
+          echo "[INFO] BQ_ORDER_PRODUCT_TABLE=${BQ_ORDER_PRODUCT_TABLE}"
+          echo "[INFO] BQ_MEMBER_TABLE=${BQ_MEMBER_TABLE}"
+          python -u "$SCRIPT" --crawl-images --download-images
+
+      - name: Validate Purchase Pattern dashboard
+        if: ${{ steps.modes.outputs.run_purchase_pattern == 'true' }}
+        continue-on-error: false
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f reports/purchase_pattern/index.html
+          test -f reports/purchase_pattern/data/summary.json
+          test -f reports/purchase_pattern/data/purchase_pattern_analysis.xlsx
+          test -f reports/purchase_pattern/data/grade_overview.csv
+          test -f reports/purchase_pattern/data/grade_top_products.csv
+          test -f reports/purchase_pattern/data/product_image_log.json
+          if grep -q "__DATA_JSON__" reports/purchase_pattern/index.html; then
+            echo "[ERROR] Placeholder __DATA_JSON__ still exists in Purchase Pattern HTML"
+            exit 1
+          fi
+
+      - name: Publish Purchase Pattern dashboard to site/
+        if: ${{ steps.modes.outputs.run_purchase_pattern == 'true' }}
+        continue-on-error: false
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/purchase_pattern site/data/purchase_pattern site/assets/purchase_pattern
+          cp -f reports/purchase_pattern/index.html site/purchase_pattern/index.html
+          rsync -a --delete reports/purchase_pattern/data/ site/data/purchase_pattern/
+          if [ -d "reports/purchase_pattern/assets" ]; then
+            rsync -a --delete reports/purchase_pattern/assets/ site/assets/purchase_pattern/
+          fi
+          test -f site/purchase_pattern/index.html || { echo "[ERROR] site/purchase_pattern/index.html missing after publish"; exit 1; }
+
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ steps.modes.outputs.run_summary == 'true' }}
         continue-on-error: true
@@ -1378,7 +1485,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -A reports site .naver_cache scripts sql columbia_product_keyword_performance.py || true
+          git add -A reports site .naver_cache scripts sql columbia_product_keyword_performance.py purchase_pattern_html_report.py index.html || true
           [ -f .gitignore ] && git add .gitignore || true
 
           if git diff --cached --quiet; then
@@ -1389,7 +1496,7 @@ jobs:
           git fetch origin main
           git pull --rebase --autostash origin main
 
-          git add -A reports site .naver_cache scripts sql columbia_product_keyword_performance.py || true
+          git add -A reports site .naver_cache scripts sql columbia_product_keyword_performance.py purchase_pattern_html_report.py index.html || true
           [ -f .gitignore ] && git add .gitignore || true
 
           if git diff --cached --quiet; then
