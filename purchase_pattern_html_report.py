@@ -1864,6 +1864,7 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
     grade_repeat = results.get("grade_repeat_overview", pd.DataFrame())
     repeat_categories = results.get("repeat_categories", pd.DataFrame())
     repeat_products = results.get("repeat_products", pd.DataFrame())
+    repeat_7day_products = results.get("repeat_7day_products", pd.DataFrame())
     grade_repeat_categories = results.get("grade_repeat_categories", pd.DataFrame())
     grade_repeat_products = results.get("grade_repeat_products", pd.DataFrame())
 
@@ -1912,7 +1913,7 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-3">
         <div class="text-2xl font-black">구매 패턴 분석</div>
-        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">PURCHASE DASHBOARD V10</div>
+        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">PURCHASE DASHBOARD V12</div>
         <div id="active-period-label" class="text-sm font-semibold text-slate-500">{escape(period_label)} · source: {escape(source_table)}</div>
       </div>
       <div class="flex items-center gap-2">
