@@ -50,7 +50,7 @@ DEFAULT_SOURCE_TABLE = "tb_order_product_search_mart"
 DEFAULT_MEMBER_TABLE = "tb_member_staging"
 OFFICIAL_MALL_BASE = "https://www.columbiakorea.co.kr"
 
-SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V11_CANCEL_SAFE_7DAY_REPEAT_PRODUCTS"
+SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V13_COUPON_NAME_GRADE_COUPON_PATCH"
 PATCH_NOTES = [
     "date_range_controls_for_top_kpis",
     "monthly_chart_full_period_with_2026_check",
@@ -70,6 +70,9 @@ PATCH_NOTES = [
     "repeat_product_definition_label_second_or_later_not_same_sku",
     "strict_cancel_refund_exclusion_with_cancel_amounts_and_datetimes",
     "seven_day_repeat_buyer_product_cards",
+    "expanded_coupon_name_detection",
+    "grade_coupon_top_cards_with_period_filter",
+    "coupon_name_source_debug_column",
 ]
 
 
@@ -250,6 +253,65 @@ def safe_str_expr(columns: set[str], col: str, alias: str, default: str = "") ->
     return f"CAST('{default}' AS STRING) AS {alias}"
 
 
+def detect_coupon_name_columns(columns: set[str]) -> list[str]:
+    """Return coupon identifier/name columns in priority order.
+
+    Some marts do not use a simple `coupon_name` field. This broader detector
+    prefers human-readable coupon name/title fields, then coupon code/no/id fields
+    as a fallback so the report does not collapse everything into `쿠폰명 미확인`.
+    Amount/status/flag/date fields are intentionally excluded.
+    """
+    preferred = [
+        "coupon_name", "coupon_title", "coupon_nm", "couponName", "CouponName", "CouponTitle", "CouponNm",
+        "order_coupon_name", "order_coupon_title", "used_coupon_name", "promotion_coupon_name",
+        "OrderCouponName", "OrderCouponTitle", "UseCouponName", "UsedCouponName",
+        "coupon_display_name", "coupon_desc", "coupon_description", "coupon_memo",
+        "CouponDisplayName", "CouponDesc", "CouponDescription", "CouponMemo",
+    ]
+    out: list[str] = []
+    lowered = {c.lower(): c for c in columns}
+    for cand in preferred:
+        hit = lowered.get(cand.lower())
+        if hit and hit not in out:
+            out.append(hit)
+
+    exclude_tokens = [
+        "amount", "price", "total", "amt", "won", "rate", "discount", "dc", "sale",
+        "status", "flag", "is_", "yn", "date", "time", "datetime", "qty", "count", "cnt",
+        "use_coupon_total", "use_coupon_price", "coupon_amount", "coupon_price"
+    ]
+    name_tokens = ["name", "title", "nm", "couponname", "coupontitle", "display", "desc", "memo"]
+    code_tokens = ["code", "no", "number", "num", "id", "idx", "seq"]
+
+    def allowed(c: str) -> bool:
+        low = c.lower()
+        if "coupon" not in low and "쿠폰" not in low:
+            return False
+        if any(tok in low for tok in exclude_tokens):
+            return False
+        return True
+
+    # readable labels first
+    for c in sorted(columns):
+        low = c.lower()
+        if allowed(c) and any(tok in low for tok in name_tokens) and c not in out:
+            out.append(c)
+    # identifier fallback next
+    for c in sorted(columns):
+        low = c.lower()
+        if allowed(c) and any(tok in low for tok in code_tokens) and c not in out:
+            out.append(c)
+    return out[:8]
+
+
+def coupon_name_sql_expr(columns: set[str]) -> tuple[str, str]:
+    cols = detect_coupon_name_columns(columns)
+    if not cols:
+        return "CAST('' AS STRING)", "none"
+    parts = [f"NULLIF(TRIM(CAST(src.{c} AS STRING)), '')" for c in cols]
+    return "COALESCE(" + ", ".join(parts) + ", '')", "+".join(cols)
+
+
 def date_filter_sql(start_date: str, end_date: str) -> str:
     parts = []
     if start_date:
@@ -346,7 +408,7 @@ def build_base_cte(
     category_kr = pick_col(columns, ["category_title_kr", "category_name_kr", "category_kr"])
     category = pick_col(columns, ["category_title", "category_code", "category", "category_name"])
     category_depth2 = pick_col(columns, ["category_depth2_kr", "category_depth2", "category2_kr", "category2", "middle_category_kr", "middle_category", "cate2_name", "category_name_depth2"])
-    coupon_name_col = pick_col(columns, ["coupon_name", "coupon_title", "coupon_nm", "CouponName", "order_coupon_name", "used_coupon_name", "promotion_coupon_name"])
+    coupon_name_expr, coupon_name_source = coupon_name_sql_expr(columns)
     order_dt = pick_col(columns, ["order_datetime", "order_reg_datetime", "order_product_datetime", "order_date"])
     product_code = pick_col(columns, ["product_code", "ProductCode", "item_id", "itemId", "sku"])
     order_no = pick_col(columns, ["order_no", "OrderNo"])
@@ -439,7 +501,8 @@ purchase_lines AS (
     {safe_str_expr(columns, pick_col(columns, ['member_gender', 'MemberGender']), 'member_gender')},
     {member_age_expr},
     {safe_str_expr(columns, pick_col(columns, ['order_device_type', 'OrderSaleCategory']), 'order_device_type')},
-    {safe_str_expr(columns, coupon_name_col, 'coupon_name')},
+    {coupon_name_expr} AS coupon_name,
+    CAST('{coupon_name_source}' AS STRING) AS coupon_name_source,
     {safe_str_expr(columns, image_col, 'source_image_url')},
     NULLIF(TRIM({grade_raw_expr}), '') AS member_grade_raw,
     CASE
@@ -999,6 +1062,18 @@ SELECT order_date,
 FROM purchase_lines
 GROUP BY order_date, coupon_flag, coupon_name
 ORDER BY order_date, revenue DESC
+""",
+        "ui_daily_grade_coupon": base + """
+SELECT order_date, member_grade_label,
+       CASE WHEN is_coupon_order = 1 THEN '쿠폰 사용' ELSE '쿠폰 미사용' END AS coupon_flag,
+       COALESCE(NULLIF(coupon_name, ''), CASE WHEN is_coupon_order = 1 THEN '쿠폰명 미확인' ELSE '쿠폰 미사용' END) AS coupon_name,
+       ANY_VALUE(coupon_name_source) AS coupon_name_source,
+       COUNT(DISTINCT order_no) AS orders, COUNT(DISTINCT member_id) AS buyers,
+       SUM(purchase_qty) AS quantity, SUM(revenue) AS revenue, SUM(coupon_amount) AS coupon_amount,
+       SAFE_DIVIDE(SUM(revenue), COUNT(DISTINCT order_no)) AS aov
+FROM purchase_lines
+GROUP BY order_date, member_grade_label, coupon_flag, coupon_name
+ORDER BY order_date, member_grade_label, revenue DESC
 """,
         "ui_daily_grade": base + """
 SELECT order_date, member_grade_label,
@@ -1674,6 +1749,32 @@ def grade_grouped_category_cards(df: pd.DataFrame, limit_per_grade: int = 8) -> 
     return "<div class='grid grid-cols-1 gap-5 xl:grid-cols-2'>" + "".join(blocks) + "</div>"
 
 
+
+def grade_grouped_coupon_cards(df: pd.DataFrame, limit_per_grade: int = 5) -> str:
+    if df is None or df.empty:
+        return "<div class='p-6 text-sm font-bold text-slate-400'>등급별 쿠폰 데이터 없음</div>"
+    d = sort_grade_df(df)
+    grades = [g for g in ["FAMILY", "SILVER", "GOLD", "TITANIUM"] if g in set(d["member_grade_label"].astype(str))]
+    grades += [g for g in d["member_grade_label"].astype(str).unique().tolist() if g not in grades]
+    blocks = []
+    for grade_label in grades[:4]:
+        sub = d[d["member_grade_label"].astype(str) == grade_label].copy()
+        if sub.empty:
+            continue
+        sub = sub.sort_values("revenue", ascending=False).head(limit_per_grade)
+        coupon_orders = safe_num(sub["orders"].sum())
+        coupon_amount = safe_num(sub["coupon_amount"].sum()) if "coupon_amount" in sub.columns else 0
+        blocks.append(f"""
+        <div class="grade-shell viz-card readable-card rounded-3xl border border-slate-200 p-5 shadow-sm">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">{grade_icon_html(grade_label, "grade-icon h-12 w-12")}<div><div class="text-lg font-black text-slate-950">{escape(grade_label)}</div><div class="text-xs font-extrabold tracking-widest text-slate-400">쿠폰 TOP</div></div></div>
+            <div class="flex flex-col items-end gap-1"><div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">{fmt_int(coupon_orders)}건</div><div class="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">쿠폰액 {fmt_krw(coupon_amount)}</div></div>
+          </div>
+          {mini_visual_cards(sub, 'coupon_name', 'revenue', [('orders','주문','int'),('buyers','구매자','int'),('coupon_amount','쿠폰액','krw'),('aov','객단가','krw')], limit_per_grade, 'krw')}
+        </div>
+        """)
+    return "<div class='grid grid-cols-1 gap-5 xl:grid-cols-2'>" + "".join(blocks) + "</div>"
+
 def characteristics_html(chars: list[dict[str, str]]) -> str:
     if not chars:
         return "<div class='p-6 text-sm font-bold text-slate-400'>집단별 특징 없음</div>"
@@ -1793,6 +1894,16 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
           return `<div class="grade-shell viz-card readable-card rounded-3xl border border-slate-200 p-5 shadow-sm fade-swap"><div class="mb-4 flex items-center justify-between gap-3"><div class="flex items-center gap-3">${gradeIconHtml(g,'h-12 w-12')}<div><div class="text-lg font-black text-slate-950">${g}</div><div class="text-xs font-extrabold tracking-widest text-slate-400">재구매 2뎁스 카테고리</div></div></div><div class="flex flex-col items-end gap-1"><div class="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">TOP ${sub.length}</div><div class="repeat-badge">재구매율 ${fmtPct(rate)}</div></div></div>${barList(sub,'category','revenue',8)}</div>`;
         }).join('') + `</div>`;
       }
+      function gradeCouponBlocks(data){
+        if(!data.length) return `<div class='p-6 text-sm font-bold text-slate-400'>선택 기간 등급별 쿠폰 데이터 없음</div>`;
+        const grades=[...new Set(data.map(x=>String(x.member_grade_label||'UNKNOWN')))].sort((a,b)=>(gradeOrder[a]||99)-(gradeOrder[b]||99));
+        return `<div class='grid grid-cols-1 gap-5 xl:grid-cols-2'>` + grades.slice(0,4).map(g=>{
+          const sub=groupBy(data.filter(x=>String(x.member_grade_label||'')===g), ['member_grade_label','coupon_name'], ['orders','buyers','quantity','revenue','coupon_amount']).sort((a,b)=>b.revenue-a.revenue).slice(0,5);
+          const orders = sub.reduce((a,x)=>a+Number(x.orders||0),0);
+          const amount = sub.reduce((a,x)=>a+Number(x.coupon_amount||0),0);
+          return `<div class="grade-shell viz-card readable-card rounded-3xl border border-slate-200 p-5 shadow-sm fade-swap"><div class="mb-4 flex items-center justify-between gap-3"><div class="flex items-center gap-3">${gradeIconHtml(g,'h-12 w-12')}<div><div class="text-lg font-black text-slate-950">${g}</div><div class="text-xs font-extrabold tracking-widest text-slate-400">쿠폰 TOP</div></div></div><div class="flex flex-col items-end gap-1"><div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">${fmtInt(orders)}건</div><div class="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">쿠폰액 ${fmtKrw(amount)}</div></div></div>${miniCards(sub,'coupon_name','revenue', [['orders','주문','int'],['buyers','구매자','int'],['coupon_amount','쿠폰액','krw'],['quantity','수량','int']],5,'krw')}</div>`;
+        }).join('') + `</div>`;
+      }
       function updateHtml(id, html){ const el=$(id); if(el){ el.innerHTML=html; el.classList.remove('fade-swap'); void el.offsetWidth; el.classList.add('fade-swap'); } }
       function applyRange(start, end, label){
         if(!daily.length) return;
@@ -1816,6 +1927,7 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
         updateHtml('second-purchase-products', productCards(groupBy(rows('ui_daily_second_purchase_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['second_orders','second_buyers','quantity','revenue']),6,true));
         updateHtml('basket-composition', miniCards(groupBy(rows('ui_daily_basket',start,end), ['sku_bucket'], ['orders','buyers','quantity','revenue']), 'sku_bucket','revenue', [['orders','주문','int'],['buyers','구매자','int'],['quantity','수량','int'],['aov','객단가','krw']],4,'krw'));
         updateHtml('coupon-usage', miniCards(groupBy(rows('ui_daily_coupon',start,end), ['coupon_name'], ['orders','buyers','quantity','revenue','coupon_amount']), 'coupon_name','revenue', [['orders','주문','int'],['buyers','구매자','int'],['coupon_amount','쿠폰액','krw'],['quantity','수량','int']],8,'krw'));
+        updateHtml('grade-coupon-usage', gradeCouponBlocks(rows('ui_daily_grade_coupon',start,end)));
         updateHtml('repeat-categories', barList(groupBy(rows('ui_daily_repeat_categories',start,end), ['category'], ['repeat_orders','repeat_buyers','quantity','revenue']), 'category','revenue',12));
         updateHtml('repeat-7day-products', productCards(groupBy(rows('ui_daily_repeat_7day_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['repeat_orders','repeat_buyers','quantity','revenue','avg_days_since_prev_order']),18,true));
         updateHtml('grade-repeat-categories', gradeCategoryBlocks(rows('ui_daily_grade_repeat_categories',start,end)));
@@ -1972,6 +2084,8 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
       <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="mb-4"><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">사이즈/컬러 TOP</div><div class="text-sm font-bold text-slate-400">옵션 단위 판매 집중도</div></div>{bar_list(size_color_vis, 'option_label', 'revenue', 'krw', 12, True)}</div>
     </div>
 
+    <div class="report-card mt-6 rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm"><div class="mb-4 flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-blue-600 uppercase">등급별 쿠폰 TOP</div><div class="text-sm font-bold text-slate-400">FAMILY · SILVER · GOLD · TITANIUM 별로 어떤 쿠폰을 많이 썼는지 확인</div></div><div class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">coupon by grade</div></div><div id="grade-coupon-usage">{grade_grouped_coupon_cards(results.get('grade_coupon_promo', pd.DataFrame()), 5)}</div></div>
+
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="mb-4"><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">등급별 구매 패턴</div><div class="text-sm font-bold text-slate-400">등급 아이콘·핵심 KPI·주요 카테고리/상품을 카드로 요약</div></div><div id="grade-overview-cards">{grade_cards(grade, group_chars)}</div></div>
 
     <div class="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -2031,6 +2145,7 @@ def build_embedded_payload(results: dict[str, pd.DataFrame], summary: dict[str, 
         "ui_daily_second_purchase_products": df_to_records(results.get("ui_daily_second_purchase_products", pd.DataFrame()), 20000),
         "ui_daily_basket": df_to_records(results.get("ui_daily_basket", pd.DataFrame()), 10000),
         "ui_daily_coupon": df_to_records(results.get("ui_daily_coupon", pd.DataFrame()), 10000),
+        "ui_daily_grade_coupon": df_to_records(results.get("ui_daily_grade_coupon", pd.DataFrame()), 10000),
         "ui_daily_grade": df_to_records(results.get("ui_daily_grade", pd.DataFrame()), 10000),
         "ui_daily_repeat_categories": df_to_records(results.get("ui_daily_repeat_categories", pd.DataFrame()), 10000),
         "ui_daily_repeat_7day_products": df_to_records(results.get("ui_daily_repeat_7day_products", pd.DataFrame()), 20000),
@@ -2138,6 +2253,7 @@ def write_outputs(results: dict[str, pd.DataFrame], out_dir: Path, source_table:
             "ui_daily_second_purchase_products.csv",
             "ui_daily_basket.csv",
             "ui_daily_coupon.csv",
+            "ui_daily_grade_coupon.csv",
             "ui_daily_repeat_7day_products.csv",
             "ui_daily_grade_repeat_categories.csv",
             "ui_daily_grade_repeat_products.csv",
@@ -2197,6 +2313,8 @@ def main() -> int:
         columns = get_table_columns(client, source_table, args.location)
         member_columns = safe_get_columns(client, member_table, args.location) if member_table else set()
         log(f"Source columns detected: {len(columns):,}")
+        detected_coupon_cols = detect_coupon_name_columns(columns)
+        log(f"Coupon name/id candidate columns: {', '.join(detected_coupon_cols) if detected_coupon_cols else '-'}")
         log(f"Member columns detected: {len(member_columns):,}")
 
         queries = build_queries(
