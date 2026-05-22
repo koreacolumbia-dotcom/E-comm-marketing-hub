@@ -73,6 +73,9 @@ PATCH_NOTES = [
     "expanded_coupon_name_detection",
     "grade_coupon_top_cards_with_period_filter",
     "coupon_name_source_debug_column",
+    "no_zero_coupon_name_labels",
+    "grade_coupon_used_only",
+    "remove_data_json_placeholder",
 ]
 
 
@@ -262,11 +265,20 @@ def detect_coupon_name_columns(columns: set[str]) -> list[str]:
     Amount/status/flag/date fields are intentionally excluded.
     """
     preferred = [
+        # Human-readable coupon labels first
         "coupon_name", "coupon_title", "coupon_nm", "couponName", "CouponName", "CouponTitle", "CouponNm",
-        "order_coupon_name", "order_coupon_title", "used_coupon_name", "promotion_coupon_name",
+        "coupon_subject", "CouponSubject", "coupon_label", "CouponLabel",
+        "order_coupon_name", "order_coupon_title", "order_use_coupon_name", "order_use_coupon_title", "use_coupon_name", "use_coupon_title", "used_coupon_name", "promotion_coupon_name",
         "OrderCouponName", "OrderCouponTitle", "UseCouponName", "UsedCouponName",
+        "OrderUseCouponName", "OrderUseCouponTitle", "UseCouponTitle",
         "coupon_display_name", "coupon_desc", "coupon_description", "coupon_memo",
         "CouponDisplayName", "CouponDesc", "CouponDescription", "CouponMemo",
+        "쿠폰명", "쿠폰이름", "쿠폰제목", "쿠폰타이틀",
+        # Identifier fallback. These are useful only when non-zero/non-empty.
+        "coupon_code", "coupon_no", "coupon_id", "coupon_seq",
+        "CouponCode", "CouponNo", "CouponID", "CouponId", "CouponSeq",
+        "order_coupon_no", "order_coupon_id", "order_use_coupon_no", "order_use_coupon_id", "use_coupon_no", "use_coupon_id", "used_coupon_no", "used_coupon_id",
+        "OrderCouponNo", "OrderCouponID", "OrderUseCouponNo", "OrderUseCouponID", "UseCouponNo", "UsedCouponNo",
     ]
     out: list[str] = []
     lowered = {c.lower(): c for c in columns}
@@ -280,7 +292,7 @@ def detect_coupon_name_columns(columns: set[str]) -> list[str]:
         "status", "flag", "is_", "yn", "date", "time", "datetime", "qty", "count", "cnt",
         "use_coupon_total", "use_coupon_price", "coupon_amount", "coupon_price"
     ]
-    name_tokens = ["name", "title", "nm", "couponname", "coupontitle", "display", "desc", "memo"]
+    name_tokens = ["name", "title", "nm", "couponname", "coupontitle", "display", "desc", "memo", "subject", "label", "쿠폰명", "쿠폰이름", "쿠폰제목", "타이틀"]
     code_tokens = ["code", "no", "number", "num", "id", "idx", "seq"]
 
     def allowed(c: str) -> bool:
@@ -308,7 +320,19 @@ def coupon_name_sql_expr(columns: set[str]) -> tuple[str, str]:
     cols = detect_coupon_name_columns(columns)
     if not cols:
         return "CAST('' AS STRING)", "none"
-    parts = [f"NULLIF(TRIM(CAST(src.{c} AS STRING)), '')" for c in cols]
+
+    # Do not let numeric zero / blank fallback columns become visible coupon names.
+    # In the previous version some marts surfaced `0` as coupon_name, which made the
+    # UI look like coupon names were present even though only an empty/default ID existed.
+    parts = []
+    for c in cols:
+        raw = f"TRIM(CAST(src.{c} AS STRING))"
+        parts.append(
+            "CASE "
+            f"WHEN {raw} IS NULL THEN NULL "
+            f"WHEN LOWER({raw}) IN ('', '0', '0.0', 'none', 'null', 'nan', '-') THEN NULL "
+            f"ELSE {raw} END"
+        )
     return "COALESCE(" + ", ".join(parts) + ", '')", "+".join(cols)
 
 
@@ -1753,7 +1777,13 @@ def grade_grouped_category_cards(df: pd.DataFrame, limit_per_grade: int = 8) -> 
 def grade_grouped_coupon_cards(df: pd.DataFrame, limit_per_grade: int = 5) -> str:
     if df is None or df.empty:
         return "<div class='p-6 text-sm font-bold text-slate-400'>등급별 쿠폰 데이터 없음</div>"
-    d = sort_grade_df(df)
+    d = sort_grade_df(df).copy()
+    if "coupon_flag" in d.columns:
+        d = d[d["coupon_flag"].astype(str) == "쿠폰 사용"]
+    if "coupon_name" in d.columns:
+        d["coupon_name"] = d["coupon_name"].astype(str).replace({"0":"쿠폰명 미확인", "0.0":"쿠폰명 미확인", "":"쿠폰명 미확인", "nan":"쿠폰명 미확인", "None":"쿠폰명 미확인"})
+    if d.empty:
+        return "<div class='p-6 text-sm font-bold text-slate-400'>쿠폰 사용 데이터 없음</div>"
     grades = [g for g in ["FAMILY", "SILVER", "GOLD", "TITANIUM"] if g in set(d["member_grade_label"].astype(str))]
     grades += [g for g in d["member_grade_label"].astype(str).unique().tolist() if g not in grades]
     blocks = []
@@ -1805,7 +1835,7 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
     """Client-side period filter JS. Updates KPI and major visual sections using embedded daily datasets."""
     template = """
   <script>
-    window.PURCHASE_PATTERN_FALLBACK_DATA = __DATA_JSON__;
+    window.PURCHASE_PATTERN_FALLBACK_DATA = %%PURCHASE_PATTERN_DATA%%;
   </script>
   <script>
     (function(){
@@ -1816,6 +1846,7 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
       const fmtInt = n => Number(n||0).toLocaleString('ko-KR', {maximumFractionDigits:0});
       const fmtKrw = n => '₩' + Number(n||0).toLocaleString('ko-KR', {maximumFractionDigits:0});
       const fmtPct = n => ((Number(n||0))*100).toFixed(1) + '%';
+      const cleanCouponLabel = v => { const s=String(v ?? '').trim(); return (!s || s==='0' || s==='0.0' || s.toLowerCase()==='nan' || s.toLowerCase()==='none' || s.toLowerCase()==='null' || s==='-') ? '쿠폰명 미확인' : s; };
       const $ = id => document.getElementById(id);
       const minDate = __MIN_DATE__;
       const maxDate = __MAX_DATE__;
@@ -1898,7 +1929,7 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
         if(!data.length) return `<div class='p-6 text-sm font-bold text-slate-400'>선택 기간 등급별 쿠폰 데이터 없음</div>`;
         const grades=[...new Set(data.map(x=>String(x.member_grade_label||'UNKNOWN')))].sort((a,b)=>(gradeOrder[a]||99)-(gradeOrder[b]||99));
         return `<div class='grid grid-cols-1 gap-5 xl:grid-cols-2'>` + grades.slice(0,4).map(g=>{
-          const sub=groupBy(data.filter(x=>String(x.member_grade_label||'')===g), ['member_grade_label','coupon_name'], ['orders','buyers','quantity','revenue','coupon_amount']).sort((a,b)=>b.revenue-a.revenue).slice(0,5);
+          const sub=groupBy(data.filter(x=>String(x.member_grade_label||'')===g && String(x.coupon_flag||'')==='쿠폰 사용'), ['member_grade_label','coupon_name'], ['orders','buyers','quantity','revenue','coupon_amount']).sort((a,b)=>b.revenue-a.revenue).slice(0,5);
           const orders = sub.reduce((a,x)=>a+Number(x.orders||0),0);
           const amount = sub.reduce((a,x)=>a+Number(x.coupon_amount||0),0);
           return `<div class="grade-shell viz-card readable-card rounded-3xl border border-slate-200 p-5 shadow-sm fade-swap"><div class="mb-4 flex items-center justify-between gap-3"><div class="flex items-center gap-3">${gradeIconHtml(g,'h-12 w-12')}<div><div class="text-lg font-black text-slate-950">${g}</div><div class="text-xs font-extrabold tracking-widest text-slate-400">쿠폰 TOP</div></div></div><div class="flex flex-col items-end gap-1"><div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">${fmtInt(orders)}건</div><div class="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">쿠폰액 ${fmtKrw(amount)}</div></div></div>${miniCards(sub,'coupon_name','revenue', [['orders','주문','int'],['buyers','구매자','int'],['coupon_amount','쿠폰액','krw'],['quantity','수량','int']],5,'krw')}</div>`;
@@ -1926,7 +1957,7 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
         updateHtml('first-purchase-products', productCards(groupBy(rows('ui_daily_first_purchase_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['first_orders','first_buyers','quantity','revenue']),6,false));
         updateHtml('second-purchase-products', productCards(groupBy(rows('ui_daily_second_purchase_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['second_orders','second_buyers','quantity','revenue']),6,true));
         updateHtml('basket-composition', miniCards(groupBy(rows('ui_daily_basket',start,end), ['sku_bucket'], ['orders','buyers','quantity','revenue']), 'sku_bucket','revenue', [['orders','주문','int'],['buyers','구매자','int'],['quantity','수량','int'],['aov','객단가','krw']],4,'krw'));
-        updateHtml('coupon-usage', miniCards(groupBy(rows('ui_daily_coupon',start,end), ['coupon_name'], ['orders','buyers','quantity','revenue','coupon_amount']), 'coupon_name','revenue', [['orders','주문','int'],['buyers','구매자','int'],['coupon_amount','쿠폰액','krw'],['quantity','수량','int']],8,'krw'));
+        updateHtml('coupon-usage', miniCards(groupBy(rows('ui_daily_coupon',start,end).filter(x=>String(x.coupon_flag||'')==='쿠폰 사용'), ['coupon_name'], ['orders','buyers','quantity','revenue','coupon_amount']), 'coupon_name','revenue', [['orders','주문','int'],['buyers','구매자','int'],['coupon_amount','쿠폰액','krw'],['quantity','수량','int']],8,'krw'));
         updateHtml('grade-coupon-usage', gradeCouponBlocks(rows('ui_daily_grade_coupon',start,end)));
         updateHtml('repeat-categories', barList(groupBy(rows('ui_daily_repeat_categories',start,end), ['category'], ['repeat_orders','repeat_buyers','quantity','revenue']), 'category','revenue',12));
         updateHtml('repeat-7day-products', productCards(groupBy(rows('ui_daily_repeat_7day_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['repeat_orders','repeat_buyers','quantity','revenue','avg_days_since_prev_order']),18,true));
@@ -1970,6 +2001,10 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
     basket = results.get("basket_size", pd.DataFrame())
     intervals = results.get("purchase_interval", pd.DataFrame())
     coupon = results.get("coupon_promo", pd.DataFrame())
+    if coupon is not None and not coupon.empty and "coupon_flag" in coupon.columns:
+        coupon = coupon[coupon["coupon_flag"].astype(str) == "쿠폰 사용"].copy()
+        if "coupon_name" in coupon.columns:
+            coupon["coupon_name"] = coupon["coupon_name"].astype(str).replace({"0":"쿠폰명 미확인", "0.0":"쿠폰명 미확인", "":"쿠폰명 미확인", "nan":"쿠폰명 미확인", "None":"쿠폰명 미확인"})
     weekday = results.get("weekday_hour", pd.DataFrame())
     size_color = results.get("size_color", pd.DataFrame())
     grade = results.get("grade_overview", pd.DataFrame())
@@ -2155,16 +2190,21 @@ def build_embedded_payload(results: dict[str, pd.DataFrame], summary: dict[str, 
 
 
 def finalize_html_payload(html: str, payload: dict[str, Any]) -> str:
-    payload_json = json.dumps(payload, ensure_ascii=False, default=str)
-    if "__DATA_JSON__" in html:
-        html = html.replace("__DATA_JSON__", payload_json.replace("</", "<\\/"))
-    data_script = '<script id="purchase-pattern-data" type="application/json">' + payload_json.replace("</", "<\\/") + '</script>'
+    payload_json = json.dumps(payload, ensure_ascii=False, default=str).replace("</", "<\\/")
+
+    # V14: the generated HTML must not contain the old __DATA_JSON__ placeholder.
+    # Use a neutral token for the interactive JS payload and hard-fail if any token remains.
+    html = html.replace("%%PURCHASE_PATTERN_DATA%%", payload_json)
+    html = html.replace("__DATA_JSON__", payload_json)
+
+    data_script = '<script id="purchase-pattern-data" type="application/json">' + payload_json + '</script>'
     if 'id="purchase-pattern-data"' not in html:
         html = html.replace("</body>", data_script + "\n</body>") if "</body>" in html else html + "\n" + data_script
-    if "__DATA_JSON__" in html:
-        raise RuntimeError("Purchase Pattern HTML still contains __DATA_JSON__ after render replacement.")
-    return html
 
+    leftovers = [tok for tok in ["__DATA_JSON__", "%%PURCHASE_PATTERN_DATA%%"] if tok in html]
+    if leftovers:
+        raise RuntimeError("Purchase Pattern HTML still contains payload placeholder(s): " + ", ".join(leftovers))
+    return html
 
 
 def add_derived_repeat_metrics(results: dict[str, pd.DataFrame]) -> None:
