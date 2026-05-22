@@ -48,9 +48,10 @@ BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_OUT_DIR = Path("reports") / "purchase_pattern"
 DEFAULT_SOURCE_TABLE = "tb_order_product_search_mart"
 DEFAULT_MEMBER_TABLE = "tb_member_staging"
+DEFAULT_COUPON_TYPE_TABLE = "TB_CouponType"
 OFFICIAL_MALL_BASE = "https://www.columbiakorea.co.kr"
 
-SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V13_COUPON_NAME_GRADE_COUPON_PATCH"
+SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V15_COUPON_TYPE_TITLE_JOIN"
 PATCH_NOTES = [
     "date_range_controls_for_top_kpis",
     "monthly_chart_full_period_with_2026_check",
@@ -75,6 +76,7 @@ PATCH_NOTES = [
     "coupon_name_source_debug_column",
     "no_zero_coupon_name_labels",
     "grade_coupon_used_only",
+    "coupon_type_title_join_from_TB_CouponType",
     "remove_data_json_placeholder",
 ]
 
@@ -335,6 +337,68 @@ def coupon_name_sql_expr(columns: set[str]) -> tuple[str, str]:
         )
     return "COALESCE(" + ", ".join(parts) + ", '')", "+".join(cols)
 
+def build_coupon_type_join_parts(
+    coupon_type_table: str,
+    coupon_type_columns: set[str],
+    source_columns: set[str],
+) -> tuple[str, str, str, str]:
+    """Return optional TB_CouponType join SQL and coupon title expression.
+
+    The order mart usually stores the coupon type key, while the readable coupon
+    title lives in TB_CouponType.CouponTypeTitle. This helper is defensive: if
+    either the join key or CouponTypeTitle is missing, the report falls back to
+    the existing coupon columns without failing the whole build.
+    """
+    if not coupon_type_table or not coupon_type_columns:
+        return "", "", "", "none"
+
+    title_col = pick_col(coupon_type_columns, [
+        "CouponTypeTitle", "coupon_type_title", "couponTypeTitle",
+        "CouponTitle", "coupon_title", "title", "Title",
+    ])
+    if not title_col:
+        return "", "", "", "none"
+
+    # Prefer explicit CouponTypeNo-style keys. Keep wider fallbacks because some
+    # marts rename the key as order/use coupon type fields.
+    source_key = pick_col(source_columns, [
+        "CouponTypeNo", "coupon_type_no", "couponTypeNo",
+        "CouponTypeID", "CouponTypeId", "coupon_type_id", "couponTypeId",
+        "OrderCouponTypeNo", "order_coupon_type_no",
+        "OrderUseCouponTypeNo", "order_use_coupon_type_no",
+        "UseCouponTypeNo", "use_coupon_type_no",
+        "UsedCouponTypeNo", "used_coupon_type_no",
+        "CouponTypeSeq", "coupon_type_seq",
+        "CodeCouponTypeNo", "code_coupon_type_no",
+        # Last-resort IDs. These are intentionally after type-specific keys.
+        "CouponNo", "coupon_no", "CouponID", "CouponId", "coupon_id",
+        "OrderCouponNo", "order_coupon_no", "OrderUseCouponNo", "order_use_coupon_no",
+        "UseCouponNo", "use_coupon_no", "UsedCouponNo", "used_coupon_no",
+    ])
+    target_key = pick_col(coupon_type_columns, [
+        "CouponTypeNo", "coupon_type_no", "couponTypeNo",
+        "CouponTypeID", "CouponTypeId", "coupon_type_id", "couponTypeId",
+        "CouponTypeSeq", "coupon_type_seq",
+        "CodeCouponTypeNo", "code_coupon_type_no",
+        "CouponNo", "coupon_no", "CouponID", "CouponId", "coupon_id",
+        "No", "no", "ID", "Id", "id",
+    ])
+    if not source_key or not target_key:
+        return "", "", "", "none"
+
+    join_sql = f"""
+LEFT JOIN `{coupon_type_table}` ct
+  ON TRIM(CAST(ct.{target_key} AS STRING)) = TRIM(CAST(src.{source_key} AS STRING))
+"""
+    title_expr = (
+        f"CASE WHEN TRIM(CAST(ct.{title_col} AS STRING)) IS NULL THEN NULL "
+        f"WHEN LOWER(TRIM(CAST(ct.{title_col} AS STRING))) IN ('', '0', '0.0', 'none', 'null', 'nan', '-') THEN NULL "
+        f"ELSE TRIM(CAST(ct.{title_col} AS STRING)) END"
+    )
+    source = f"{coupon_type_table}.{title_col} via {source_key}={target_key}"
+    return join_sql, title_expr, source_key, source
+
+
 
 def date_filter_sql(start_date: str, end_date: str) -> str:
     parts = []
@@ -421,8 +485,11 @@ def build_base_cte(
     end_date: str,
     member_table: str = "",
     member_columns: Optional[set[str]] = None,
+    coupon_type_table: str = "",
+    coupon_type_columns: Optional[set[str]] = None,
 ) -> str:
     member_columns = member_columns or set()
+    coupon_type_columns = coupon_type_columns or set()
     revenue_col = pick_col(columns, ["admin_revenue", "admin_net_product_amount", "net_erp_revenue", "erp_revenue", "revenue"])
     gross_col = pick_col(columns, ["line_gross_admin_revenue", "order_product_price", "gross_revenue", "product_price"])
     qty_col = pick_col(columns, ["purchase_qty", "ProductQuantity", "quantity", "qty"])
@@ -433,6 +500,10 @@ def build_base_cte(
     category = pick_col(columns, ["category_title", "category_code", "category", "category_name"])
     category_depth2 = pick_col(columns, ["category_depth2_kr", "category_depth2", "category2_kr", "category2", "middle_category_kr", "middle_category", "cate2_name", "category_name_depth2"])
     coupon_name_expr, coupon_name_source = coupon_name_sql_expr(columns)
+    coupon_type_join_sql, coupon_type_title_expr, coupon_type_source_key, coupon_type_source = build_coupon_type_join_parts(coupon_type_table, coupon_type_columns, columns)
+    if coupon_type_title_expr:
+        coupon_name_expr = f"COALESCE({coupon_type_title_expr}, {coupon_name_expr})"
+        coupon_name_source = f"{coupon_type_source}+fallback:{coupon_name_source}"
     order_dt = pick_col(columns, ["order_datetime", "order_reg_datetime", "order_product_datetime", "order_date"])
     product_code = pick_col(columns, ["product_code", "ProductCode", "item_id", "itemId", "sku"])
     order_no = pick_col(columns, ["order_no", "OrderNo"])
@@ -552,6 +623,7 @@ purchase_lines AS (
     COALESCE(SAFE_CAST(src.{pick_col(columns, ['is_promotion_line'], '0')} AS INT64), 0) AS is_promotion_line
   FROM src
   {join_sql}
+  {coupon_type_join_sql}
 )
 """
 
@@ -564,8 +636,10 @@ def build_queries(
     top_limit: int,
     member_table: str = "",
     member_columns: Optional[set[str]] = None,
+    coupon_type_table: str = "",
+    coupon_type_columns: Optional[set[str]] = None,
 ) -> dict[str, str]:
-    base = build_base_cte(source_table, columns, start_date, end_date, member_table, member_columns)
+    base = build_base_cte(source_table, columns, start_date, end_date, member_table, member_columns, coupon_type_table, coupon_type_columns)
     top_limit = int(top_limit)
     return {
         "overview": base + """
@@ -2192,7 +2266,7 @@ def build_embedded_payload(results: dict[str, pd.DataFrame], summary: dict[str, 
 def finalize_html_payload(html: str, payload: dict[str, Any]) -> str:
     payload_json = json.dumps(payload, ensure_ascii=False, default=str).replace("</", "<\\/")
 
-    # V14: the generated HTML must not contain the old __DATA_JSON__ placeholder.
+    # V15: the generated HTML must not contain the old __DATA_JSON__ placeholder.
     # Use a neutral token for the interactive JS payload and hard-fail if any token remains.
     html = html.replace("%%PURCHASE_PATTERN_DATA%%", payload_json)
     html = html.replace("__DATA_JSON__", payload_json)
@@ -2314,6 +2388,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--raw-dataset", default=getenv("BQ_RAW_DATASET", "crm_raw"))
     p.add_argument("--source-table", default=getenv("BQ_ORDER_PRODUCT_TABLE", DEFAULT_SOURCE_TABLE))
     p.add_argument("--member-table", default=getenv("BQ_MEMBER_TABLE", DEFAULT_MEMBER_TABLE))
+    p.add_argument("--coupon-type-table", default=getenv("BQ_COUPON_TYPE_TABLE", DEFAULT_COUPON_TYPE_TABLE), help="Optional coupon master/type table. Defaults to TB_CouponType and uses CouponTypeTitle when joinable.")
     p.add_argument("--start-date", default=getenv("PURCHASE_PATTERN_START_DATE", ""), help="Optional YYYY-MM-DD")
     p.add_argument("--end-date", default=getenv("PURCHASE_PATTERN_END_DATE", ""), help="Optional YYYY-MM-DD")
     p.add_argument("--out-dir", default=getenv("PURCHASE_PATTERN_OUT_DIR", str(DEFAULT_OUT_DIR)))
@@ -2337,6 +2412,7 @@ def main() -> int:
         setup_google_credentials()
         source_table = normalize_table_id(args.source_table, args.project, args.raw_dataset)
         member_table = normalize_table_id(args.member_table, args.project, args.raw_dataset) if args.member_table else ""
+        coupon_type_table = normalize_table_id(args.coupon_type_table, args.project, args.raw_dataset) if args.coupon_type_table else ""
         out_dir = Path(args.out_dir)
         period_label = f"{args.start_date or 'ALL'} ~ {args.end_date or 'ALL'}"
 
@@ -2344,6 +2420,7 @@ def main() -> int:
         log("Columbia Purchase Pattern HTML Report")
         log(f"source_table={source_table}")
         log(f"member_table={member_table or '-'}")
+        log(f"coupon_type_table={coupon_type_table or '-'}")
         log(f"period={period_label}")
         log(f"out_dir={out_dir}")
         log(f"crawl_images={args.crawl_images}, download_images={args.download_images}, max_crawl={args.max_crawl}")
@@ -2352,10 +2429,14 @@ def main() -> int:
         client = bq_client(args.project, args.location)
         columns = get_table_columns(client, source_table, args.location)
         member_columns = safe_get_columns(client, member_table, args.location) if member_table else set()
+        coupon_type_columns = safe_get_columns(client, coupon_type_table, args.location) if coupon_type_table else set()
         log(f"Source columns detected: {len(columns):,}")
         detected_coupon_cols = detect_coupon_name_columns(columns)
         log(f"Coupon name/id candidate columns: {', '.join(detected_coupon_cols) if detected_coupon_cols else '-'}")
         log(f"Member columns detected: {len(member_columns):,}")
+        log(f"Coupon type columns detected: {len(coupon_type_columns):,}")
+        ct_join_sql, ct_title_expr, ct_source_key, ct_source = build_coupon_type_join_parts(coupon_type_table, coupon_type_columns, columns)
+        log(f"Coupon type title join: {ct_source if ct_join_sql else '-'}")
 
         queries = build_queries(
             source_table=source_table,
@@ -2365,6 +2446,8 @@ def main() -> int:
             top_limit=args.top_limit,
             member_table=member_table,
             member_columns=member_columns,
+            coupon_type_table=coupon_type_table,
+            coupon_type_columns=coupon_type_columns,
         )
         results = run_queries(client, queries, args.location, args.start_date, args.end_date)
 
