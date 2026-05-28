@@ -3,14 +3,6 @@ name: Reports Build
 on:
   workflow_dispatch:
     inputs:
-      run_product_keyword_only:
-        description: "Run Product Keyword Performance dashboard only"
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
       reason:
         description: "Manual run reason (optional)"
         required: false
@@ -36,6 +28,15 @@ on:
 
       hero_only:
         description: "Run Hero Main crawler only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+      naver_price_only:
+        description: "Run Official Mall Price Monitor only?"
         required: true
         default: "false"
         type: choice
@@ -155,17 +156,8 @@ on:
           - "true"
 
   schedule:
-    # Competitor Product dashboard only → 01:00 KST daily (16:00 UTC previous day)
+    # Full daily batch → 01:00 KST daily (16:00 UTC previous day)
     - cron: "0 16 * * *"
-    # All other regular dashboards except Competitor/Summary/Product Keyword → 04:00 KST daily (19:00 UTC previous day)
-    - cron: "0 19 * * *"
-    # Product Keyword Performance dashboard only → 07:00 KST daily (22:00 UTC previous day)
-    # 로컬 SQL Server → BigQuery ETL이 06:10 KST에 먼저 끝난 뒤 실행하는 용도
-    - cron: "0 22 * * *"
-    # Summary Dashboard only → 08:00 KST daily (23:00 UTC previous day)
-    - cron: "0 23 * * *"
-    # Summary Dashboard only → 14:00 KST daily (05:00 UTC same day)
-    - cron: "0 5 * * *"
 
 concurrency:
   group: reports-build
@@ -206,6 +198,7 @@ jobs:
           VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
           BLOG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}"
           HERO_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.hero_only == 'true' }}"
+          NAVER_PRICE_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.naver_price_only == 'true' }}"
           COMPETITOR_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.competitor_only == 'true' }}"
           OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
           FUNNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.funnel_only == 'true' }}"
@@ -222,6 +215,7 @@ jobs:
             [ "$VOC_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$BLOG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$HERO_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$NAVER_PRICE_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$COMPETITOR_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$FUNNEL_ONLY" = "true" ] && cnt=$((cnt+1))
@@ -233,7 +227,7 @@ jobs:
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of voc_only/blog_only/hero_only/competitor_only/owned_only/funnel_only/member_only/product_keyword_only/purchase_pattern_only/utm_channel_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of voc_only/blog_only/hero_only/naver_price_only/competitor_only/owned_only/funnel_only/member_only/product_keyword_only/purchase_pattern_only/utm_channel_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -253,59 +247,23 @@ jobs:
           RUN_UTM_CHANNEL=true
 
           if [ "$EVENT" = "schedule" ]; then
-            # Reset all first, then enable only the schedule-specific targets.
-            RUN_PRICE=false
-            RUN_HERO=false
-            RUN_EXTSIG=false
-            RUN_CREMA=false
-            RUN_BLOG=false
-            RUN_SUMMARY=false
-            RUN_COMPETITOR=false
-            RUN_OWNED=false
-            RUN_FUNNEL=false
-            RUN_MEMBER=false
-            RUN_PRODUCT_KEYWORD=false
-            RUN_PURCHASE_PATTERN=false
-            RUN_UTM_CHANNEL=false
-
+            # 01:00 KST daily full batch: run every dashboard in one scheduled workflow.
             case "$SCHEDULE_RAW" in
               "0 16 * * *")
-                echo "[INFO] Scheduled run: Competitor Product dashboard only (01:00 KST)"
-                RUN_COMPETITOR=true
-                ;;
-              "0 23 * * *"|"0 5 * * *")
-                echo "[INFO] Scheduled run: Summary Dashboard only"
-                RUN_SUMMARY=true
-                ;;
-              "0 19 * * *")
-                echo "[INFO] Scheduled run: regular 04:00 KST batch (excluding Competitor/Summary/Product Keyword)"
+                echo "[INFO] Scheduled run: full daily batch (01:00 KST)"
                 RUN_PRICE=true
                 RUN_HERO=true
                 RUN_EXTSIG=true
                 RUN_CREMA=true
                 RUN_BLOG=true
+                RUN_SUMMARY=true
+                RUN_COMPETITOR=true
                 RUN_OWNED=true
-                RUN_PRODUCT_KEYWORD=false
+                RUN_FUNNEL=true
+                RUN_MEMBER=true
+                RUN_PRODUCT_KEYWORD=true
                 RUN_PURCHASE_PATTERN=true
                 RUN_UTM_CHANNEL=true
-                ;;
-              "0 22 * * *")
-                echo "[INFO] Scheduled run: Product Keyword Performance dashboard only (07:00 KST, after local SQL ETL)"
-                RUN_PRODUCT_KEYWORD=true
-                ;;
-              product_keyword_only)
-                echo "[INFO] Manual mode: Product Keyword Performance dashboard only"
-                RUN_DAILY=false
-                RUN_PRICE=false
-                RUN_HERO=false
-                RUN_EXTSIG=false
-                RUN_CREMA=false
-                RUN_BLOG=false
-                RUN_OWNED=false
-                RUN_SUMMARY=false
-                RUN_COMPETITOR=false
-                RUN_PRODUCT_KEYWORD=true
-                RUN_UTM_CHANNEL=false
                 ;;
               *)
                 echo "[ERROR] Unknown schedule: $SCHEDULE_RAW"
@@ -479,6 +437,22 @@ jobs:
             RUN_UTM_CHANNEL=false
           fi
 
+          if [ "$NAVER_PRICE_ONLY" = "true" ]; then
+            RUN_PRICE=true
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_COMPETITOR=false
+            RUN_OWNED=false
+            RUN_FUNNEL=false
+            RUN_MEMBER=false
+            RUN_PRODUCT_KEYWORD=false
+            RUN_PURCHASE_PATTERN=false
+            RUN_UTM_CHANNEL=false
+          fi
+
           if [ "$COMPETITOR_ONLY" = "true" ]; then
             RUN_PRICE=false
             RUN_HERO=false
@@ -541,7 +515,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         env:
-          NEEDS_PLAYWRIGHT: ${{ steps.modes.outputs.run_hero == 'true' || steps.modes.outputs.run_blog == 'true' || steps.modes.outputs.run_extsig == 'true' || steps.modes.outputs.run_competitor == 'true' }}
+          NEEDS_PLAYWRIGHT: ${{ steps.modes.outputs.run_price == 'true' || steps.modes.outputs.run_hero == 'true' || steps.modes.outputs.run_blog == 'true' || steps.modes.outputs.run_extsig == 'true' || steps.modes.outputs.run_competitor == 'true' }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
@@ -656,13 +630,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -u naver_crawl_columbia_c6c7_title_min.py \
-            --limit 999999 \
-            --output_html reports/naver_lowest_price.html \
-            --history_dir . \
-            --cache_dir .naver_cache \
-            || true
+          if [ -f "naver_crawl_columbia_official_auto.py" ]; then
+            echo "[INFO] Run Official Mall Price Monitor with official mall crawling"
+            python -u naver_crawl_columbia_official_auto.py \
+              --crawl_official \
+              --official_seed_file official_seed_urls.txt \
+              --official_out_csv 공식몰가격_auto.csv \
+              --official_max_pages 50 \
+              --official_scroll_times 10 \
+              --limit 999999 \
+              --trim_images \
+              --output_csv result_official_auto.csv \
+              --output_html reports/naver_lowest_price.html \
+              --history_dir . \
+              --cache_dir .naver_cache \
+              || true
+          elif [ -f "naver_crawl_columbia_c6c7_title_min.py" ]; then
+            echo "[WARN] naver_crawl_columbia_official_auto.py not found. Fallback to CSV-based Naver Lowest Price crawler."
+            python -u naver_crawl_columbia_c6c7_title_min.py \
+              --limit 999999 \
+              --output_html reports/naver_lowest_price.html \
+              --history_dir . \
+              --cache_dir .naver_cache \
+              || true
+          else
+            echo "[ERROR] Naver price monitor script not found."
+            exit 1
+          fi
           ls -la reports/naver_lowest_price.html || true
+          ls -la 공식몰가격_auto.csv result_official_auto.csv || true
 
       - name: Run Hero banner crawler
         if: ${{ steps.modes.outputs.run_hero == 'true' }}
