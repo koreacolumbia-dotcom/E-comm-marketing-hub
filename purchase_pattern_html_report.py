@@ -51,7 +51,7 @@ DEFAULT_MEMBER_TABLE = "tb_member_staging"
 DEFAULT_COUPON_TYPE_TABLE = "TB_CouponType"
 OFFICIAL_MALL_BASE = "https://www.columbiakorea.co.kr"
 
-SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V15_COUPON_TYPE_TITLE_JOIN"
+SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V16_COUPON_NAME_STRICT_FINAL"
 PATCH_NOTES = [
     "date_range_controls_for_top_kpis",
     "monthly_chart_full_period_with_2026_check",
@@ -77,6 +77,8 @@ PATCH_NOTES = [
     "no_zero_coupon_name_labels",
     "grade_coupon_used_only",
     "coupon_type_title_join_from_TB_CouponType",
+    "strict_human_readable_coupon_names_only",
+    "block_coupon_id_code_source_fallback",
     "remove_data_json_placeholder",
 ]
 
@@ -259,28 +261,42 @@ def safe_str_expr(columns: set[str], col: str, alias: str, default: str = "") ->
 
 
 def detect_coupon_name_columns(columns: set[str]) -> list[str]:
-    """Return coupon identifier/name columns in priority order.
+    """Return human-readable coupon label columns only, in priority order.
 
-    Some marts do not use a simple `coupon_name` field. This broader detector
-    prefers human-readable coupon name/title fields, then coupon code/no/id fields
-    as a fallback so the report does not collapse everything into `쿠폰명 미확인`.
-    Amount/status/flag/date fields are intentionally excluded.
+    Important:
+    - Do NOT fall back to coupon code/no/id/type-no/source columns.
+    - Those values are identifiers, not coupon names, and they caused labels such
+      as `product_master.CouponTypeNo` / `product_mast...` to appear in the UI.
+    - If no human-readable name exists, the report should show `쿠폰명 미확인`.
     """
     preferred = [
-        # Human-readable coupon labels first
-        "coupon_name", "coupon_title", "coupon_nm", "couponName", "CouponName", "CouponTitle", "CouponNm",
-        "coupon_subject", "CouponSubject", "coupon_label", "CouponLabel",
-        "order_coupon_name", "order_coupon_title", "order_use_coupon_name", "order_use_coupon_title", "use_coupon_name", "use_coupon_title", "used_coupon_name", "promotion_coupon_name",
-        "OrderCouponName", "OrderCouponTitle", "UseCouponName", "UsedCouponName",
-        "OrderUseCouponName", "OrderUseCouponTitle", "UseCouponTitle",
-        "coupon_display_name", "coupon_desc", "coupon_description", "coupon_memo",
-        "CouponDisplayName", "CouponDesc", "CouponDescription", "CouponMemo",
+        # Final enriched mart fields. Highest priority.
+        "coupon_type_title", "CouponTypeTitle", "couponTypeTitle",
+        "coupon_display_name", "CouponDisplayName",
+
+        # Order-level / order-product-level names.
+        "order_coupon_name", "OrderCouponName",
+        "order_product_coupon_name", "OrderProductCouponName",
+        "order_coupon_title", "OrderCouponTitle",
+        "order_product_coupon_title", "OrderProductCouponTitle",
+        "order_use_coupon_name", "OrderUseCouponName",
+        "order_use_coupon_title", "OrderUseCouponTitle",
+        "use_coupon_name", "UseCouponName",
+        "use_coupon_title", "UseCouponTitle",
+        "used_coupon_name", "UsedCouponName",
+        "used_coupon_title", "UsedCouponTitle",
+
+        # Generic readable names.
+        "coupon_name", "CouponName",
+        "coupon_title", "CouponTitle",
+        "coupon_nm", "CouponNm",
+        "coupon_subject", "CouponSubject",
+        "coupon_label", "CouponLabel",
+        "coupon_desc", "CouponDesc",
+        "coupon_description", "CouponDescription",
+        "coupon_memo", "CouponMemo",
+        "promotion_coupon_name", "PromotionCouponName",
         "쿠폰명", "쿠폰이름", "쿠폰제목", "쿠폰타이틀",
-        # Identifier fallback. These are useful only when non-zero/non-empty.
-        "coupon_code", "coupon_no", "coupon_id", "coupon_seq",
-        "CouponCode", "CouponNo", "CouponID", "CouponId", "CouponSeq",
-        "order_coupon_no", "order_coupon_id", "order_use_coupon_no", "order_use_coupon_id", "use_coupon_no", "use_coupon_id", "used_coupon_no", "used_coupon_id",
-        "OrderCouponNo", "OrderCouponID", "OrderUseCouponNo", "OrderUseCouponID", "UseCouponNo", "UsedCouponNo",
     ]
     out: list[str] = []
     lowered = {c.lower(): c for c in columns}
@@ -289,31 +305,22 @@ def detect_coupon_name_columns(columns: set[str]) -> list[str]:
         if hit and hit not in out:
             out.append(hit)
 
-    exclude_tokens = [
+    # Broad fallback is still limited to readable text tokens only.
+    # Never include code/no/id/source/amount columns.
+    include_tokens = ["name", "title", "nm", "display", "desc", "memo", "subject", "label", "쿠폰명", "쿠폰이름", "쿠폰제목", "타이틀"]
+    hard_exclude_tokens = [
+        "code", "no", "number", "num", "id", "idx", "seq", "source",
         "amount", "price", "total", "amt", "won", "rate", "discount", "dc", "sale",
         "status", "flag", "is_", "yn", "date", "time", "datetime", "qty", "count", "cnt",
-        "use_coupon_total", "use_coupon_price", "coupon_amount", "coupon_price"
+        "cart_", "product_coupon_type", "coupon_type_no", "coupon_no", "coupon_code",
     ]
-    name_tokens = ["name", "title", "nm", "couponname", "coupontitle", "display", "desc", "memo", "subject", "label", "쿠폰명", "쿠폰이름", "쿠폰제목", "타이틀"]
-    code_tokens = ["code", "no", "number", "num", "id", "idx", "seq"]
-
-    def allowed(c: str) -> bool:
-        low = c.lower()
-        if "coupon" not in low and "쿠폰" not in low:
-            return False
-        if any(tok in low for tok in exclude_tokens):
-            return False
-        return True
-
-    # readable labels first
     for c in sorted(columns):
         low = c.lower()
-        if allowed(c) and any(tok in low for tok in name_tokens) and c not in out:
-            out.append(c)
-    # identifier fallback next
-    for c in sorted(columns):
-        low = c.lower()
-        if allowed(c) and any(tok in low for tok in code_tokens) and c not in out:
+        if ("coupon" not in low and "쿠폰" not in low):
+            continue
+        if any(tok in low for tok in hard_exclude_tokens):
+            continue
+        if any(tok in low for tok in include_tokens) and c not in out:
             out.append(c)
     return out[:8]
 
@@ -323,16 +330,19 @@ def coupon_name_sql_expr(columns: set[str]) -> tuple[str, str]:
     if not cols:
         return "CAST('' AS STRING)", "none"
 
-    # Do not let numeric zero / blank fallback columns become visible coupon names.
-    # In the previous version some marts surfaced `0` as coupon_name, which made the
-    # UI look like coupon names were present even though only an empty/default ID existed.
+    # Hide blank/default/technical values. Technical source strings must never be
+    # rendered as coupon names.
     parts = []
+    invalid_literals = "('', '0', '0.0', 'none', 'null', 'nan', '-', 'product_master', 'product_mast', 'coupon_type_no_source')"
     for c in cols:
         raw = f"TRIM(CAST(src.{c} AS STRING))"
+        low = f"LOWER({raw})"
         parts.append(
             "CASE "
             f"WHEN {raw} IS NULL THEN NULL "
-            f"WHEN LOWER({raw}) IN ('', '0', '0.0', 'none', 'null', 'nan', '-') THEN NULL "
+            f"WHEN {low} IN {invalid_literals} THEN NULL "
+            f"WHEN REGEXP_CONTAINS({low}, r'^(product_master|order_product|order|tb_|src\\.)[\\._]') THEN NULL "
+            f"WHEN REGEXP_CONTAINS({low}, r'(coupon_type_no|coupon_no|coupon_code|_source)$') THEN NULL "
             f"ELSE {raw} END"
         )
     return "COALESCE(" + ", ".join(parts) + ", '')", "+".join(cols)
@@ -1855,7 +1865,8 @@ def grade_grouped_coupon_cards(df: pd.DataFrame, limit_per_grade: int = 5) -> st
     if "coupon_flag" in d.columns:
         d = d[d["coupon_flag"].astype(str) == "쿠폰 사용"]
     if "coupon_name" in d.columns:
-        d["coupon_name"] = d["coupon_name"].astype(str).replace({"0":"쿠폰명 미확인", "0.0":"쿠폰명 미확인", "":"쿠폰명 미확인", "nan":"쿠폰명 미확인", "None":"쿠폰명 미확인"})
+        d["coupon_name"] = d["coupon_name"].astype(str).replace({"0":"쿠폰명 미확인", "0.0":"쿠폰명 미확인", "":"쿠폰명 미확인", "nan":"쿠폰명 미확인", "None":"쿠폰명 미확인", "null":"쿠폰명 미확인", "-":"쿠폰명 미확인"})
+        d.loc[d["coupon_name"].str.lower().str.contains(r"product_mast|coupon_type_no_source|^(product_master|order_product|order|tb_|src[._])|(?:coupon_type_no|coupon_no|coupon_code|_source)$", regex=True, na=False), "coupon_name"] = "쿠폰명 미확인"
     if d.empty:
         return "<div class='p-6 text-sm font-bold text-slate-400'>쿠폰 사용 데이터 없음</div>"
     grades = [g for g in ["FAMILY", "SILVER", "GOLD", "TITANIUM"] if g in set(d["member_grade_label"].astype(str))]
@@ -1920,7 +1931,7 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
       const fmtInt = n => Number(n||0).toLocaleString('ko-KR', {maximumFractionDigits:0});
       const fmtKrw = n => '₩' + Number(n||0).toLocaleString('ko-KR', {maximumFractionDigits:0});
       const fmtPct = n => ((Number(n||0))*100).toFixed(1) + '%';
-      const cleanCouponLabel = v => { const s=String(v ?? '').trim(); return (!s || s==='0' || s==='0.0' || s.toLowerCase()==='nan' || s.toLowerCase()==='none' || s.toLowerCase()==='null' || s==='-') ? '쿠폰명 미확인' : s; };
+      const cleanCouponLabel = v => { const s=String(v ?? '').trim(); const l=s.toLowerCase(); return (!s || s==='0' || s==='0.0' || l==='nan' || l==='none' || l==='null' || s==='-' || l.includes('product_mast') || l.includes('coupon_type_no_source') || /^(product_master|order_product|order|tb_|src[._])/.test(l) || /(coupon_type_no|coupon_no|coupon_code|_source)$/.test(l)) ? '쿠폰명 미확인' : s; };
       const $ = id => document.getElementById(id);
       const minDate = __MIN_DATE__;
       const maxDate = __MAX_DATE__;
