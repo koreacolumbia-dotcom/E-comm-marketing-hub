@@ -1892,6 +1892,283 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     return html
 
 
+
+# ================================================================
+# Columbia official mall crawler -> 공식몰가격_auto.csv
+# ================================================================
+def _abs_url(url: str, base: str = "https://www.columbiakorea.co.kr") -> str:
+    if not url:
+        return ""
+    return urllib.parse.urljoin(base, str(url).strip())
+
+
+def _normalize_space(s: str) -> str:
+    return re.sub(r"\s+", " ", str(s or "")).strip()
+
+
+def _extract_price_from_text(text: str) -> Optional[int]:
+    if not text:
+        return None
+    # 판매가가 먼저 노출되는 케이스를 우선 사용. 83,300원 / 399,000원 형태.
+    prices = re.findall(r"(\d{1,3}(?:,\d{3})+)\s*원", text)
+    if prices:
+        return int(prices[0].replace(",", ""))
+    return None
+
+
+def _extract_name_from_text(text: str, code: str) -> str:
+    """상품 카드/PDP 주변 텍스트에서 상품명 후보를 가볍게 정리."""
+    if not text:
+        return ""
+    t = _normalize_space(text)
+    t = re.sub(r"COMING\s+SOON|OPEN|SOLD\s+OUT|사이즈|리뷰|Image:?", " ", t, flags=re.I)
+    t = re.sub(r"\d{1,3}(?:,\d{3})+\s*원", " ", t)
+    t = re.sub(r"\b\d+(?:\.\d+)?\s*\(\d+\)", " ", t)
+    t = t.replace(code, " ")
+    # 컬러/사이즈 토큰 과다 노출 방지
+    t = re.sub(r"\b(?:XS|S|M|L|XL|XXL|OS|010|011|100|191|257|397|491|464|466|659|758|851)\b", " ", t, flags=re.I)
+    t = _normalize_space(t)
+    if len(t) > 90:
+        # 너무 긴 경우 상품명처럼 보이는 앞쪽만 사용
+        t = t[:90].rsplit(" ", 1)[0]
+    return t
+
+
+def _fetch_html_urllib(url: str, timeout_sec: int = 20) -> str:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout_sec) as res:
+        raw = res.read()
+    for enc in ("utf-8", "euc-kr", "cp949"):
+        try:
+            return raw.decode(enc)
+        except Exception:
+            continue
+    return raw.decode("utf-8", errors="ignore")
+
+
+def _fetch_html_playwright(url: str, scroll_times: int = 8, wait_ms: int = 1200) -> str:
+    """JS/무한스크롤 대응. Playwright 미설치 시 예외는 상위에서 urllib fallback."""
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1440, "height": 1600})
+        page.goto(url, wait_until="networkidle", timeout=60000)
+        for _ in range(max(0, int(scroll_times))):
+            page.mouse.wheel(0, 1800)
+            page.wait_for_timeout(max(100, int(wait_ms)))
+        html = page.content()
+        browser.close()
+    return html
+
+
+def _extract_product_records_from_html(html: str, page_url: str) -> List[Dict[str, Any]]:
+    """
+    공식몰 HTML에서 상품코드/상품명/가격/이미지/링크 후보 추출.
+    - 가장 강한 단서는 ProductImages 이미지 URL 안의 C71... 스타일코드.
+    - BeautifulSoup가 있으면 카드 단위로 보강, 없으면 regex fallback.
+    """
+    records: Dict[str, Dict[str, Any]] = {}
+    code_re = re.compile(r"([A-Z]\d{2}[A-Z]{2}\d{7})", re.I)
+
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        img_tags = soup.find_all("img")
+        for img in img_tags:
+            src = img.get("src") or img.get("data-src") or img.get("data-original") or ""
+            alt = img.get("alt") or ""
+            m = code_re.search(src) or code_re.search(alt)
+            if not m:
+                continue
+            code = m.group(1).upper()
+            image_url = _abs_url(src, page_url)
+
+            node = img
+            card = None
+            for _ in range(8):
+                node = node.parent if node else None
+                if not node:
+                    break
+                txt = _normalize_space(node.get_text(" ", strip=True))
+                if len(txt) >= 8 and _extract_price_from_text(txt):
+                    card = node
+                    break
+            card_text = _normalize_space(card.get_text(" ", strip=True)) if card else _normalize_space(alt)
+            price = _extract_price_from_text(card_text)
+            name = _extract_name_from_text(card_text or alt, code)
+
+            href = ""
+            a = img.find_parent("a")
+            if not a and card:
+                a = card.find("a", href=True)
+            if a:
+                href = _abs_url(a.get("href"), page_url)
+
+            prev = records.get(code, {})
+            records[code] = {
+                "코드": code,
+                "상품명(영문)": prev.get("상품명(영문)", ""),
+                "상품명(한글)": name or prev.get("상품명(한글)", ""),
+                "공식몰가": price if price is not None else prev.get("공식몰가"),
+                "공식몰URL": href or prev.get("공식몰URL", page_url),
+                "공식이미지URL": image_url or prev.get("공식이미지URL", ""),
+                "source_url": page_url,
+            }
+
+        # 이미지 태그에 없더라도 페이지 내 노출된 코드 fallback
+        text = soup.get_text(" ", strip=True)
+    except Exception:
+        soup = None
+        text = re.sub(r"<[^>]+>", " ", html)
+
+    for m in code_re.finditer(html):
+        code = m.group(1).upper()
+        if code in records and records[code].get("공식몰가"):
+            continue
+        start = max(0, m.start() - 700)
+        end = min(len(html), m.end() + 1200)
+        window_html = html[start:end]
+        window_text = _normalize_space(re.sub(r"<[^>]+>", " ", window_html))
+        img_m = re.search(r"https?://[^'\"\s>]+%s[^'\"\s>]*|/(?:[^'\"\s>]+/)*%s\.(?:jpg|jpeg|png|webp)" % (code, code), window_html, re.I)
+        image_url = _abs_url(img_m.group(0), page_url) if img_m else ""
+        price = _extract_price_from_text(window_text)
+        name = _extract_name_from_text(window_text, code)
+        href_m = re.search(r"href=[\'\"]([^\'\"]+)[\'\"]", window_html, re.I)
+        href = _abs_url(href_m.group(1), page_url) if href_m else page_url
+        prev = records.get(code, {})
+        records[code] = {
+            "코드": code,
+            "상품명(영문)": prev.get("상품명(영문)", ""),
+            "상품명(한글)": prev.get("상품명(한글)") or name,
+            "공식몰가": prev.get("공식몰가") or price,
+            "공식몰URL": prev.get("공식몰URL") or href,
+            "공식이미지URL": prev.get("공식이미지URL") or image_url,
+            "source_url": prev.get("source_url") or page_url,
+        }
+
+    return list(records.values())
+
+
+def _discover_official_links(html: str, page_url: str, max_links: int = 80) -> List[str]:
+    links: List[str] = []
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        for a in soup.find_all("a", href=True):
+            href = _abs_url(a.get("href"), page_url)
+            low = href.lower()
+            if "columbiakorea.co.kr" not in low:
+                continue
+            if any(x in low for x in ["/product/", "product", "goods", "category", "event/"]):
+                links.append(href)
+    except Exception:
+        for href in re.findall(r"href=[\'\"]([^\'\"]+)[\'\"]", html, re.I):
+            u = _abs_url(href, page_url)
+            low = u.lower()
+            if "columbiakorea.co.kr" in low and any(x in low for x in ["product", "goods", "category", "event/"]):
+                links.append(u)
+    dedup = []
+    seen = set()
+    for u in links:
+        u = u.split("#")[0]
+        if u not in seen:
+            seen.add(u)
+            dedup.append(u)
+        if len(dedup) >= max_links:
+            break
+    return dedup
+
+
+def crawl_columbia_official_to_csv(
+    seed_urls: List[str],
+    out_csv: str = "공식몰가격_auto.csv",
+    max_pages: int = 30,
+    max_products: int = 999999,
+    use_playwright: bool = True,
+    scroll_times: int = 8,
+    delay: float = 0.4,
+) -> str:
+    """공식몰에서 상품 기준 CSV를 생성. 기존 네이버 비교 로직의 입력 포맷에 맞춰 저장."""
+    if not seed_urls:
+        seed_urls = ["https://www.columbiakorea.co.kr/main/main.asp"]
+
+    queue = [_abs_url(u) for u in seed_urls if str(u).strip()]
+    seen_pages = set()
+    records: Dict[str, Dict[str, Any]] = {}
+
+    log(f"🧭 OFFICIAL CRAWL START: seeds={len(queue)} max_pages={max_pages} max_products={max_products} playwright={'ON' if use_playwright else 'OFF'}")
+
+    while queue and len(seen_pages) < max_pages and len(records) < max_products:
+        url = queue.pop(0)
+        if url in seen_pages:
+            continue
+        seen_pages.add(url)
+        log(f"  🌐 OFFICIAL PAGE [{len(seen_pages)}/{max_pages}]: {url}")
+
+        html = ""
+        if use_playwright:
+            try:
+                html = _fetch_html_playwright(url, scroll_times=scroll_times)
+                log("    ✅ Playwright fetch")
+            except Exception as e:
+                log(f"    ⚠️ Playwright failed -> urllib fallback: {e}")
+        if not html:
+            try:
+                html = _fetch_html_urllib(url)
+                log("    ✅ urllib fetch")
+            except Exception as e:
+                log(f"    ⛔ fetch failed: {e}")
+                continue
+
+        found = _extract_product_records_from_html(html, url)
+        added = 0
+        for r in found:
+            code = str(r.get("코드", "")).strip().upper()
+            if not code:
+                continue
+            old = records.get(code, {})
+            merged = {**old, **{k: v for k, v in r.items() if v not in (None, "")}}
+            records[code] = merged
+            if not old:
+                added += 1
+            if len(records) >= max_products:
+                break
+        log(f"    📦 products found={len(found)} added={added} total={len(records)}")
+
+        for link in _discover_official_links(html, url):
+            if link not in seen_pages and link not in queue and len(queue) < max_pages * 4:
+                queue.append(link)
+
+        time.sleep(max(0.0, delay))
+
+    rows = list(records.values())
+    if not rows:
+        raise SystemExit("[OFFICIAL CRAWL] 공식몰에서 상품 데이터를 추출하지 못했습니다. seed URL 또는 사이트 구조를 확인해주세요.")
+
+    df = pd.DataFrame(rows)
+    for c in ["코드", "상품명(영문)", "상품명(한글)", "공식몰가", "공식몰URL", "공식이미지URL", "source_url"]:
+        if c not in df.columns:
+            df[c] = ""
+    df = df[["코드", "상품명(영문)", "상품명(한글)", "공식몰가", "공식몰URL", "공식이미지URL", "source_url"]]
+    df = df.drop_duplicates("코드", keep="first")
+    df.to_csv(out_csv, index=False, encoding="utf-8-sig")
+    log(f"✅ OFFICIAL CSV SAVED: {out_csv} rows={len(df):,}")
+    return out_csv
+
+
+def _parse_seed_urls_arg(seed_urls: str, seed_file: Optional[str]) -> List[str]:
+    seeds: List[str] = []
+    if seed_urls:
+        seeds.extend([x.strip() for x in re.split(r"[,\n]", seed_urls) if x.strip()])
+    if seed_file and os.path.exists(seed_file):
+        with open(seed_file, "r", encoding="utf-8-sig") as f:
+            seeds.extend([x.strip() for x in f.read().splitlines() if x.strip() and not x.strip().startswith("#")])
+    return seeds
+
 # -----------------------------
 # 메인
 # -----------------------------
@@ -1923,6 +2200,17 @@ def main():
     parser.add_argument("--image_dir", default=".trimmed_images", help="트리밍 이미지 저장 폴더")
     parser.add_argument("--image_ttl_hours", type=int, default=72, help="트리밍 이미지 캐시 TTL(시간)")
 
+    # 공식몰 직접 크롤링 옵션: CSV를 수동으로 만들지 않고 공식몰에서 기준 상품 리스트를 먼저 생성
+    parser.add_argument("--crawl_official", action="store_true", help="공식몰을 먼저 크롤링해서 공식몰가격_auto.csv 생성 후 해당 CSV로 네이버 최저가 비교")
+    parser.add_argument("--official_seed_urls", default="", help="공식몰 seed URL 목록(콤마/줄바꿈 구분). 비우면 메인 페이지부터 시작")
+    parser.add_argument("--official_seed_file", default=None, help="공식몰 seed URL 텍스트 파일(1줄 1URL)")
+    parser.add_argument("--official_out_csv", default="공식몰가격_auto.csv", help="공식몰 크롤링 결과 CSV 경로")
+    parser.add_argument("--official_max_pages", type=int, default=30, help="공식몰 크롤링 최대 페이지 수")
+    parser.add_argument("--official_max_products", type=int, default=999999, help="공식몰 크롤링 최대 상품 수")
+    parser.add_argument("--official_no_playwright", action="store_true", help="Playwright 사용 안 함(urllib HTML 파싱만 사용)")
+    parser.add_argument("--official_scroll_times", type=int, default=8, help="공식몰 Playwright 스크롤 횟수")
+    parser.add_argument("--official_delay", type=float, default=0.4, help="공식몰 페이지 요청 간 딜레이(초)")
+
     args = parser.parse_args()
 
     log("🚀 SCRIPT START")
@@ -1945,7 +2233,28 @@ def main():
 
     official_img_map = build_official_image_map(args.official_hashes)
 
-    input_path = pick_input_file(args.input)
+    if args.crawl_official:
+        seed_urls = _parse_seed_urls_arg(args.official_seed_urls, args.official_seed_file)
+        input_path = crawl_columbia_official_to_csv(
+            seed_urls=seed_urls,
+            out_csv=args.official_out_csv,
+            max_pages=args.official_max_pages,
+            max_products=args.official_max_products,
+            use_playwright=(not args.official_no_playwright),
+            scroll_times=args.official_scroll_times,
+            delay=args.official_delay,
+        )
+        # 공식몰에서 확보한 이미지 URL을 기존 이미지 우선순위에 합류시킴
+        try:
+            auto_img_df = pd.read_csv(input_path, encoding="utf-8-sig")
+            if "코드" in auto_img_df.columns and "공식이미지URL" in auto_img_df.columns:
+                auto_img_map = dict(zip(auto_img_df["코드"].astype(str).str.upper(), auto_img_df["공식이미지URL"].astype(str)))
+                official_img_map.update({k: v for k, v in auto_img_map.items() if v and v.lower() != "nan"})
+                log(f"🖼️ official image map merged from crawl: +{len(auto_img_map):,}")
+        except Exception as e:
+            log(f"⚠️ official image merge skipped: {e}")
+    else:
+        input_path = pick_input_file(args.input)
     log(f"📄 INPUT FILE SELECTED: {input_path}")
 
     log("📥 CSV LOAD START")
