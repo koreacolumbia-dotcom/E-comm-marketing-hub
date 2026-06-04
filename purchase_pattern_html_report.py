@@ -51,7 +51,7 @@ DEFAULT_MEMBER_TABLE = "tb_member_staging"
 DEFAULT_COUPON_TYPE_TABLE = "TB_CouponType"
 OFFICIAL_MALL_BASE = "https://www.columbiakorea.co.kr"
 
-SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V16_COUPON_NAME_STRICT_FINAL"
+SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V17_CATEGORY_TRANSITION_EDM_TARGETING"
 PATCH_NOTES = [
     "date_range_controls_for_top_kpis",
     "monthly_chart_full_period_with_2026_check",
@@ -80,6 +80,7 @@ PATCH_NOTES = [
     "strict_human_readable_coupon_names_only",
     "block_coupon_id_code_source_fallback",
     "remove_data_json_placeholder",
+    "grade_first_to_second_category_transition_for_edm_targeting",
 ]
 
 
@@ -1081,6 +1082,84 @@ GROUP BY p.member_grade_label, p.product_code
 QUALIFY rank_in_grade <= 8
 ORDER BY p.member_grade_label, rank_in_grade
 """,
+        "first_to_second_category_by_grade": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date
+  FROM purchase_lines
+  GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+), first_order_categories AS (
+  SELECT r.member_id, r.order_no AS first_order_no, p.member_grade_label,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS first_category
+  FROM ranked_orders r
+  JOIN purchase_lines p ON p.member_id = r.member_id AND p.order_no = r.order_no
+  WHERE r.order_rank = 1
+  GROUP BY r.member_id, first_order_no, p.member_grade_label, first_category
+), second_order_categories AS (
+  SELECT r.member_id, r.order_no AS second_order_no, MIN(p.order_date) AS second_order_date,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS second_category,
+         SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+  FROM ranked_orders r
+  JOIN purchase_lines p ON p.member_id = r.member_id AND p.order_no = r.order_no
+  WHERE r.order_rank = 2
+  GROUP BY r.member_id, second_order_no, second_category
+), transitions AS (
+  SELECT f.member_grade_label, f.first_category, s.second_category,
+         COUNT(DISTINCT f.member_id) AS transition_buyers,
+         COUNT(DISTINCT s.second_order_no) AS second_orders,
+         SUM(s.quantity) AS quantity, SUM(s.revenue) AS revenue
+  FROM first_order_categories f
+  JOIN second_order_categories s ON f.member_id = s.member_id
+  GROUP BY f.member_grade_label, f.first_category, s.second_category
+), totals AS (
+  SELECT member_grade_label, first_category, SUM(transition_buyers) AS first_category_second_buyers
+  FROM transitions
+  GROUP BY member_grade_label, first_category
+)
+SELECT t.member_grade_label, t.first_category, t.second_category,
+       t.transition_buyers, t.second_orders, t.quantity, t.revenue,
+       SAFE_DIVIDE(t.transition_buyers, NULLIF(tt.first_category_second_buyers, 0)) AS transition_rate,
+       ROW_NUMBER() OVER(PARTITION BY t.member_grade_label, t.first_category ORDER BY t.transition_buyers DESC, t.revenue DESC) AS rank_in_first_category
+FROM transitions t
+JOIN totals tt USING(member_grade_label, first_category)
+QUALIFY rank_in_first_category <= 8
+ORDER BY member_grade_label, first_category, rank_in_first_category
+""",
+        "ui_daily_first_to_second_category_by_grade": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date
+  FROM purchase_lines
+  GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+), first_order_categories AS (
+  SELECT r.member_id, r.order_no AS first_order_no, p.member_grade_label,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS first_category
+  FROM ranked_orders r
+  JOIN purchase_lines p ON p.member_id = r.member_id AND p.order_no = r.order_no
+  WHERE r.order_rank = 1
+  GROUP BY r.member_id, first_order_no, p.member_grade_label, first_category
+), second_order_categories AS (
+  SELECT r.member_id, r.order_no AS second_order_no, MIN(p.order_date) AS second_order_date,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS second_category,
+         SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+  FROM ranked_orders r
+  JOIN purchase_lines p ON p.member_id = r.member_id AND p.order_no = r.order_no
+  WHERE r.order_rank = 2
+  GROUP BY r.member_id, second_order_no, second_category
+)
+SELECT s.second_order_date AS order_date, f.member_grade_label, f.first_category, s.second_category,
+       COUNT(DISTINCT f.member_id) AS transition_buyers,
+       COUNT(DISTINCT s.second_order_no) AS second_orders,
+       SUM(s.quantity) AS quantity, SUM(s.revenue) AS revenue
+FROM first_order_categories f
+JOIN second_order_categories s ON f.member_id = s.member_id
+GROUP BY order_date, f.member_grade_label, f.first_category, s.second_category
+ORDER BY order_date, f.member_grade_label, first_category, revenue DESC
+""",
         "ui_daily_categories": base + """
 SELECT order_date, COALESCE(NULLIF(category_depth2,''), NULLIF(category_title_kr,''), NULLIF(category_title,''), NULLIF(category_code,''), 'UNKNOWN') AS category,
        COUNT(DISTINCT order_no) AS orders, COUNT(DISTINCT member_id) AS buyers,
@@ -1890,6 +1969,70 @@ def grade_grouped_coupon_cards(df: pd.DataFrame, limit_per_grade: int = 5) -> st
         """)
     return "<div class='grid grid-cols-1 gap-5 xl:grid-cols-2'>" + "".join(blocks) + "</div>"
 
+
+def grade_category_transition_cards(df: pd.DataFrame, limit_first_categories: int = 6, limit_next_categories: int = 5) -> str:
+    """Render grade > first category > second purchase category transition cards for EDM targeting."""
+    if df is None or df.empty:
+        return "<div class='p-6 text-sm font-bold text-slate-400'>카테고리 전이 데이터 없음</div>"
+    d = sort_grade_df(df).copy()
+    for col in ["transition_buyers", "second_orders", "quantity", "revenue", "transition_rate"]:
+        if col in d.columns:
+            d[col] = pd.to_numeric(d[col], errors="coerce").fillna(0)
+    grades = [g for g in ["FAMILY", "SILVER", "GOLD", "TITANIUM"] if g in set(d["member_grade_label"].astype(str))]
+    grades += [g for g in d["member_grade_label"].astype(str).unique().tolist() if g not in grades]
+    blocks = []
+    for grade_label in grades[:4]:
+        gd = d[d["member_grade_label"].astype(str) == grade_label].copy()
+        if gd.empty:
+            continue
+        first_rank = (gd.groupby("first_category", as_index=False)
+                        .agg(transition_buyers=("transition_buyers", "sum"), revenue=("revenue", "sum"))
+                        .sort_values(["transition_buyers", "revenue"], ascending=False)
+                        .head(limit_first_categories))
+        category_blocks = []
+        for _, fr in first_rank.iterrows():
+            fc = str(fr.get("first_category") or "UNKNOWN")
+            sub = gd[gd["first_category"].astype(str) == fc].sort_values(["transition_buyers", "revenue"], ascending=False).head(limit_next_categories)
+            rows = []
+            max_v = safe_num(sub["transition_buyers"].max()) or 1
+            for _, r in sub.iterrows():
+                second_cat = str(r.get("second_category") or "UNKNOWN")
+                buyers = safe_num(r.get("transition_buyers"))
+                pct = min(max(buyers / max_v * 100, 0), 100)
+                rows.append(f"""
+                <div class="rounded-2xl bg-white p-3 shadow-sm">
+                  <div class="mb-1 flex items-center justify-between gap-3">
+                    <div class="truncate text-sm font-black text-slate-800" title="{escape(second_cat)}">{escape(second_cat)}</div>
+                    <div class="repeat-badge">전이율 {fmt_pct(r.get('transition_rate'))}</div>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill-soft" style="width:{pct:.1f}%"></div></div>
+                  <div class="mt-2 grid grid-cols-3 gap-2 text-xs">
+                    <div class="rounded-xl bg-slate-50 p-2"><div class="font-black text-slate-400">구매자</div><div class="font-black text-slate-900">{fmt_int(r.get('transition_buyers'))}</div></div>
+                    <div class="rounded-xl bg-slate-50 p-2"><div class="font-black text-slate-400">2회차 주문</div><div class="font-black text-slate-900">{fmt_int(r.get('second_orders'))}</div></div>
+                    <div class="rounded-xl bg-slate-50 p-2"><div class="font-black text-slate-400">2회차 매출</div><div class="font-black text-slate-900">{fmt_krw(r.get('revenue'))}</div></div>
+                  </div>
+                </div>
+                """)
+            category_blocks.append(f"""
+            <div class="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="min-w-0"><div class="truncate text-base font-black text-slate-950" title="{escape(fc)}">{escape(fc)}</div><div class="text-xs font-extrabold text-slate-400">첫 구매 카테고리 → 2번째 구매 카테고리</div></div>
+                <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">{fmt_int(fr.get('transition_buyers'))}명</div>
+              </div>
+              <div class="grid grid-cols-1 gap-2">{''.join(rows)}</div>
+            </div>
+            """)
+        blocks.append(f"""
+        <div class="grade-shell report-card rounded-3xl border border-blue-100 bg-white/80 p-5 shadow-sm">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">{grade_icon_html(grade_label, 'grade-icon h-12 w-12')}<div><div class="text-lg font-black text-slate-950">{escape(grade_label)}</div><div class="text-xs font-extrabold tracking-widest text-blue-500">EDM 추천 타겟 카테고리 전이</div></div></div>
+            <div class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">first → second</div>
+          </div>
+          <div class="grid grid-cols-1 gap-3">{''.join(category_blocks)}</div>
+        </div>
+        """)
+    return "<div class='grid grid-cols-1 gap-5 xl:grid-cols-2'>" + "".join(blocks) + "</div>"
+
 def characteristics_html(chars: list[dict[str, str]]) -> str:
     if not chars:
         return "<div class='p-6 text-sm font-bold text-slate-400'>집단별 특징 없음</div>"
@@ -2020,6 +2163,25 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
           return `<div class="grade-shell viz-card readable-card rounded-3xl border border-slate-200 p-5 shadow-sm fade-swap"><div class="mb-4 flex items-center justify-between gap-3"><div class="flex items-center gap-3">${gradeIconHtml(g,'h-12 w-12')}<div><div class="text-lg font-black text-slate-950">${g}</div><div class="text-xs font-extrabold tracking-widest text-slate-400">쿠폰 TOP</div></div></div><div class="flex flex-col items-end gap-1"><div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">${fmtInt(orders)}건</div><div class="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">쿠폰액 ${fmtKrw(amount)}</div></div></div>${miniCards(sub,'coupon_name','revenue', [['orders','주문','int'],['buyers','구매자','int'],['coupon_amount','쿠폰액','krw'],['quantity','수량','int']],5,'krw')}</div>`;
         }).join('') + `</div>`;
       }
+      function transitionBlocks(data){
+        if(!data.length) return `<div class='p-6 text-sm font-bold text-slate-400'>선택 기간 카테고리 전이 데이터 없음</div>`;
+        const grouped = groupBy(data, ['member_grade_label','first_category','second_category'], ['transition_buyers','second_orders','quantity','revenue']);
+        const totals = new Map();
+        grouped.forEach(x=>{ const k=String(x.member_grade_label||'')+'||'+String(x.first_category||''); totals.set(k,(totals.get(k)||0)+Number(x.transition_buyers||0)); });
+        grouped.forEach(x=>{ const k=String(x.member_grade_label||'')+'||'+String(x.first_category||''); x.transition_rate = totals.get(k) ? Number(x.transition_buyers||0)/totals.get(k) : 0; });
+        const grades=[...new Set(grouped.map(x=>String(x.member_grade_label||'UNKNOWN')))].sort((a,b)=>(gradeOrder[a]||99)-(gradeOrder[b]||99));
+        return `<div class='grid grid-cols-1 gap-5 xl:grid-cols-2'>` + grades.slice(0,4).map(g=>{
+          const gd=grouped.filter(x=>String(x.member_grade_label||'')===g);
+          const firsts=groupBy(gd, ['first_category'], ['transition_buyers','revenue']).sort((a,b)=>(Number(b.transition_buyers||0)-Number(a.transition_buyers||0)) || (Number(b.revenue||0)-Number(a.revenue||0))).slice(0,6);
+          const cats=firsts.map(fc=>{
+            const sub=gd.filter(x=>String(x.first_category||'')===String(fc.first_category||'')).sort((a,b)=>(Number(b.transition_buyers||0)-Number(a.transition_buyers||0)) || (Number(b.revenue||0)-Number(a.revenue||0))).slice(0,5);
+            const max=Math.max(...sub.map(x=>Number(x.transition_buyers||0)),1);
+            const rows=sub.map(r=>{ const pct=Math.max(0,Math.min(100,Number(r.transition_buyers||0)/max*100)); return `<div class="rounded-2xl bg-white p-3 shadow-sm"><div class="mb-1 flex items-center justify-between gap-3"><div class="truncate text-sm font-black text-slate-800" title="${r.second_category||'UNKNOWN'}">${r.second_category||'UNKNOWN'}</div><div class="repeat-badge">전이율 ${fmtPct(r.transition_rate)}</div></div><div class="bar-track"><div class="bar-fill-soft" style="width:${pct.toFixed(1)}%"></div></div><div class="mt-2 grid grid-cols-3 gap-2 text-xs"><div class="rounded-xl bg-slate-50 p-2"><div class="font-black text-slate-400">구매자</div><div class="font-black text-slate-900">${fmtInt(r.transition_buyers)}</div></div><div class="rounded-xl bg-slate-50 p-2"><div class="font-black text-slate-400">2회차 주문</div><div class="font-black text-slate-900">${fmtInt(r.second_orders)}</div></div><div class="rounded-xl bg-slate-50 p-2"><div class="font-black text-slate-400">2회차 매출</div><div class="font-black text-slate-900">${fmtKrw(r.revenue)}</div></div></div></div>`; }).join('');
+            return `<div class="rounded-3xl border border-slate-200 bg-slate-50/70 p-4"><div class="mb-3 flex items-center justify-between gap-3"><div class="min-w-0"><div class="truncate text-base font-black text-slate-950" title="${fc.first_category||'UNKNOWN'}">${fc.first_category||'UNKNOWN'}</div><div class="text-xs font-extrabold text-slate-400">첫 구매 카테고리 → 2번째 구매 카테고리</div></div><div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">${fmtInt(fc.transition_buyers)}명</div></div><div class="grid grid-cols-1 gap-2">${rows}</div></div>`;
+          }).join('');
+          return `<div class="grade-shell report-card rounded-3xl border border-blue-100 bg-white/80 p-5 shadow-sm fade-swap"><div class="mb-4 flex items-center justify-between gap-3"><div class="flex items-center gap-3">${gradeIconHtml(g,'h-12 w-12')}<div><div class="text-lg font-black text-slate-950">${g}</div><div class="text-xs font-extrabold tracking-widest text-blue-500">EDM 추천 타겟 카테고리 전이</div></div></div><div class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">first → second</div></div><div class="grid grid-cols-1 gap-3">${cats}</div></div>`;
+        }).join('') + `</div>`;
+      }
       function updateHtml(id, html){ const el=$(id); if(el){ el.innerHTML=html; el.classList.remove('fade-swap'); void el.offsetWidth; el.classList.add('fade-swap'); } }
       function applyRange(start, end, label){
         if(!daily.length) return;
@@ -2047,6 +2209,7 @@ def build_interactive_js(min_date: str, max_date: str, source_table: str) -> str
         updateHtml('repeat-categories', barList(groupBy(rows('ui_daily_repeat_categories',start,end), ['category'], ['repeat_orders','repeat_buyers','quantity','revenue']), 'category','revenue',12));
         updateHtml('repeat-7day-products', productCards(groupBy(rows('ui_daily_repeat_7day_products',start,end), ['product_code','product_name_kor','product_name','image_url','source_image_url'], ['repeat_orders','repeat_buyers','quantity','revenue','avg_days_since_prev_order']),18,true));
         updateHtml('grade-repeat-categories', gradeCategoryBlocks(rows('ui_daily_grade_repeat_categories',start,end)));
+        updateHtml('category-transition', transitionBlocks(rows('ui_daily_first_to_second_category_by_grade',start,end)));
         updateHtml('grade-repeat-products', gradeProductBlocks(rows('ui_daily_grade_repeat_products',start,end)));
       }
       function setActive(btn){ document.querySelectorAll('.pill').forEach(b=>b.classList.remove('active')); if(btn) btn.classList.add('active'); }
@@ -2081,6 +2244,7 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
     c7_products = results.get("c7_products", pd.DataFrame())
     first_purchase_products = results.get("first_purchase_products", pd.DataFrame())
     second_purchase_products = results.get("second_purchase_products", pd.DataFrame())
+    first_to_second_category = results.get("first_to_second_category_by_grade", pd.DataFrame())
     top_categories = results.get("top_categories", pd.DataFrame())
     segments = results.get("member_segments", pd.DataFrame())
     basket = results.get("basket_size", pd.DataFrame())
@@ -2218,6 +2382,8 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
       <div class="report-card rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="mb-4"><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">등급별 재구매 카테고리</div><div class="text-sm font-bold text-slate-400">등급별 재구매 2뎁스 카테고리 TOP</div></div><div id="grade-repeat-categories">{grade_grouped_category_cards(grade_repeat_categories, 8)}</div></div>
     </div>
 
+    <div class="report-card mt-6 rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm"><div class="mb-4 flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-blue-600 uppercase">EDM 타겟팅용 카테고리 전이</div><div class="text-sm font-bold text-slate-400">등급별로 첫 구매 카테고리 고객이 2번째 구매 때 어떤 카테고리로 넘어갔는지 확인</div></div><div class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">first category → second category</div></div><div id="category-transition">{grade_category_transition_cards(first_to_second_category, 6, 5)}</div></div>
+
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">재구매 상품 TOP</div><div class="text-sm font-bold text-slate-400">회원별 2회차 이상 주문에서 매출이 큰 상품 · 동일 SKU 중복구매 기준 아님</div></div><div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-500">repeat products</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"><div id="repeat-products" class="contents">{product_cards(repeat_products, 18, True)}</div></div></div>
 
     <div class="report-card mt-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-blue-600 uppercase">7일 이내 재구매자 구매 상품 TOP</div><div class="text-sm font-bold text-slate-500">이전 주문 후 0~7일 안에 다시 구매한 고객의 재구매 주문에 포함된 상품</div></div><div class="rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-black text-blue-700">≤7 days repeat</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"><div id="repeat-7day-products" class="contents">{product_cards(repeat_7day_products, 18, True)}</div></div></div>
@@ -2263,6 +2429,8 @@ def build_embedded_payload(results: dict[str, pd.DataFrame], summary: dict[str, 
         "ui_daily_c7_products": df_to_records(results.get("ui_daily_c7_products", pd.DataFrame()), 20000),
         "ui_daily_first_purchase_products": df_to_records(results.get("ui_daily_first_purchase_products", pd.DataFrame()), 20000),
         "ui_daily_second_purchase_products": df_to_records(results.get("ui_daily_second_purchase_products", pd.DataFrame()), 20000),
+        "first_to_second_category_by_grade": df_to_records(results.get("first_to_second_category_by_grade", pd.DataFrame()), 5000),
+        "ui_daily_first_to_second_category_by_grade": df_to_records(results.get("ui_daily_first_to_second_category_by_grade", pd.DataFrame()), 50000),
         "ui_daily_basket": df_to_records(results.get("ui_daily_basket", pd.DataFrame()), 10000),
         "ui_daily_coupon": df_to_records(results.get("ui_daily_coupon", pd.DataFrame()), 10000),
         "ui_daily_grade_coupon": df_to_records(results.get("ui_daily_grade_coupon", pd.DataFrame()), 10000),
@@ -2335,6 +2503,7 @@ def write_outputs(results: dict[str, pd.DataFrame], out_dir: Path, source_table:
         "c7_products": df_to_records(results.get("c7_products", pd.DataFrame()), 50),
         "first_purchase_products": df_to_records(results.get("first_purchase_products", pd.DataFrame()), 50),
         "second_purchase_products": df_to_records(results.get("second_purchase_products", pd.DataFrame()), 50),
+        "first_to_second_category_by_grade": df_to_records(results.get("first_to_second_category_by_grade", pd.DataFrame()), 200),
         "top_categories": df_to_records(results.get("top_categories", pd.DataFrame()), 50),
         "grade_overview": df_to_records(results.get("grade_overview", pd.DataFrame()), 50),
         "repeat_categories": df_to_records(results.get("repeat_categories", pd.DataFrame()), 50),
@@ -2376,6 +2545,8 @@ def write_outputs(results: dict[str, pd.DataFrame], out_dir: Path, source_table:
             "ui_daily_c7_products.csv",
             "ui_daily_first_purchase_products.csv",
             "ui_daily_second_purchase_products.csv",
+            "first_to_second_category_by_grade.csv",
+            "ui_daily_first_to_second_category_by_grade.csv",
             "ui_daily_basket.csv",
             "ui_daily_coupon.csv",
             "ui_daily_grade_coupon.csv",
