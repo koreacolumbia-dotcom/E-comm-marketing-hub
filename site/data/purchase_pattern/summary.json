@@ -1,5 +1,5 @@
 {
-  "script_version": "PURCHASE_PATTERN_HTML_REPORT_V17_CATEGORY_TRANSITION_EDM_TARGETING",
+  "script_version": "PURCHASE_PATTERN_HTML_REPORT_V21_EDM_RENDER_KEY_SAFE",
   "patch_notes": [
     "date_range_controls_for_top_kpis",
     "monthly_chart_full_period_with_2026_check",
@@ -28,9 +28,18 @@
     "strict_human_readable_coupon_names_only",
     "block_coupon_id_code_source_fallback",
     "remove_data_json_placeholder",
-    "grade_first_to_second_category_transition_for_edm_targeting"
+    "grade_first_to_second_category_transition_for_edm_targeting",
+    "edm_repeat_timing_by_first_category",
+    "edm_low_second_purchase_conversion_categories",
+    "edm_action_cards_by_grade_first_category",
+    "edm_recommendation_score_next_best_category",
+    "edm_price_band_to_second_category_transition",
+    "edm_transition_top2_only_for_readability",
+    "exclude_gender_only_categories_from_edm_transition",
+    "safe_revenue_alias_normalization_for_edm_sections",
+    "safe_missing_rank_columns_for_edm_price_band"
   ],
-  "generated_at_kst": "2026-06-04 13:54:51",
+  "generated_at_kst": "2026-06-04 14:58:39",
   "source_table": "columbia-ga4.crm_raw.tb_order_product_search_mart",
   "period_label": "ALL ~ ALL",
   "overview": {
@@ -3262,35 +3271,13 @@
     {
       "member_grade_label": "FAMILY",
       "first_category": "UNKNOWN",
-      "second_category": "남성",
-      "transition_buyers": 143,
-      "second_orders": 143,
-      "quantity": 176,
-      "revenue": 11013830,
-      "transition_rate": 0.6271929825,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "UNKNOWN",
-      "second_category": "여성",
-      "transition_buyers": 20,
-      "second_orders": 20,
-      "quantity": 30,
-      "revenue": 2542010,
-      "transition_rate": 0.0877192982,
-      "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "UNKNOWN",
       "second_category": "라운드티",
       "transition_buyers": 10,
       "second_orders": 10,
       "quantity": 10,
       "revenue": 409360,
       "transition_rate": 0.0438596491,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -3301,62 +3288,7 @@
       "quantity": 10,
       "revenue": 467570,
       "transition_rate": 0.0394736842,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "UNKNOWN",
-      "second_category": "긴바지",
-      "transition_buyers": 8,
-      "second_orders": 8,
-      "quantity": 8,
-      "revenue": 555350,
-      "transition_rate": 0.0350877193,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "UNKNOWN",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 8,
-      "second_orders": 8,
-      "quantity": 8,
-      "revenue": 460947,
-      "transition_rate": 0.0350877193,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "UNKNOWN",
-      "second_category": "UNKNOWN",
-      "transition_buyers": 7,
-      "second_orders": 7,
-      "quantity": 8,
-      "revenue": 608710,
-      "transition_rate": 0.0307017544,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "UNKNOWN",
-      "second_category": "등산화",
-      "transition_buyers": 5,
-      "second_orders": 5,
-      "quantity": 5,
-      "revenue": 584340,
-      "transition_rate": 0.0219298246,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "가방",
-      "second_category": "남성",
-      "transition_buyers": 94,
-      "second_orders": 94,
-      "quantity": 264,
-      "revenue": 15036313,
-      "transition_rate": 0.6351351351,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -3367,7 +3299,7 @@
       "quantity": 14,
       "revenue": 1063840,
       "transition_rate": 0.0608108108,
-      "rank_in_first_category": 2
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -3378,73 +3310,7 @@
       "quantity": 9,
       "revenue": 306490,
       "transition_rate": 0.0608108108,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "가방",
-      "second_category": "여성",
-      "transition_buyers": 7,
-      "second_orders": 7,
-      "quantity": 7,
-      "revenue": 943800,
-      "transition_rate": 0.0472972973,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "가방",
-      "second_category": "긴바지",
-      "transition_buyers": 7,
-      "second_orders": 7,
-      "quantity": 7,
-      "revenue": 401030,
-      "transition_rate": 0.0472972973,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "가방",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 6,
-      "second_orders": 6,
-      "quantity": 6,
-      "revenue": 352709,
-      "transition_rate": 0.0405405405,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "가방",
-      "second_category": "셋업",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 3,
-      "revenue": 193820,
-      "transition_rate": 0.0202702703,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "가방",
-      "second_category": "바람막이",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 194650,
-      "transition_rate": 0.0135135135,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "긴바지",
-      "second_category": "남성",
-      "transition_buyers": 307,
-      "second_orders": 307,
-      "quantity": 398,
-      "revenue": 26317306,
-      "transition_rate": 0.5159663866,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -3455,7 +3321,7 @@
       "quantity": 89,
       "revenue": 6280250,
       "transition_rate": 0.1378151261,
-      "rank_in_first_category": 2
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -3466,161 +3332,7 @@
       "quantity": 58,
       "revenue": 2283490,
       "transition_rate": 0.0806722689,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "긴바지",
-      "second_category": "여성",
-      "transition_buyers": 37,
-      "second_orders": 37,
-      "quantity": 43,
-      "revenue": 4279890,
-      "transition_rate": 0.0621848739,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "긴바지",
-      "second_category": "셋업",
-      "transition_buyers": 25,
-      "second_orders": 25,
-      "quantity": 27,
-      "revenue": 1963290,
-      "transition_rate": 0.0420168067,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "긴바지",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 16,
-      "second_orders": 16,
-      "quantity": 16,
-      "revenue": 1288167,
-      "transition_rate": 0.0268907563,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "긴바지",
-      "second_category": "UNKNOWN",
-      "transition_buyers": 13,
-      "second_orders": 13,
-      "quantity": 14,
-      "revenue": 1059070,
-      "transition_rate": 0.0218487395,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "긴바지",
-      "second_category": "반바지",
-      "transition_buyers": 13,
-      "second_orders": 13,
-      "quantity": 15,
-      "revenue": 530440,
-      "transition_rate": 0.0218487395,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "남성",
-      "second_category": "남성",
-      "transition_buyers": 5328,
-      "second_orders": 5328,
-      "quantity": 7064,
-      "revenue": 405421308,
-      "transition_rate": 0.7071001991,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "남성",
-      "second_category": "여성",
-      "transition_buyers": 557,
-      "second_orders": 557,
-      "quantity": 632,
-      "revenue": 52640360,
-      "transition_rate": 0.0739216987,
       "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "남성",
-      "second_category": "라운드티",
-      "transition_buyers": 257,
-      "second_orders": 257,
-      "quantity": 309,
-      "revenue": 10799530,
-      "transition_rate": 0.0341074983,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "남성",
-      "second_category": "긴바지",
-      "transition_buyers": 198,
-      "second_orders": 198,
-      "quantity": 205,
-      "revenue": 12718130,
-      "transition_rate": 0.0262773723,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "남성",
-      "second_category": "셋업",
-      "transition_buyers": 156,
-      "second_orders": 156,
-      "quantity": 186,
-      "revenue": 12351660,
-      "transition_rate": 0.0207033842,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "남성",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 124,
-      "second_orders": 124,
-      "quantity": 128,
-      "revenue": 7802918,
-      "transition_rate": 0.0164565362,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "남성",
-      "second_category": "바람막이",
-      "transition_buyers": 84,
-      "second_orders": 84,
-      "quantity": 85,
-      "revenue": 6827136,
-      "transition_rate": 0.0111479761,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "남성",
-      "second_category": "UNKNOWN",
-      "transition_buyers": 83,
-      "second_orders": 83,
-      "quantity": 88,
-      "revenue": 6173025,
-      "transition_rate": 0.0110152621,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "다운/ 패딩",
-      "second_category": "남성",
-      "transition_buyers": 10,
-      "second_orders": 10,
-      "quantity": 12,
-      "revenue": 829003,
-      "transition_rate": 0.8333333333,
-      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -3631,7 +3343,7 @@
       "quantity": 1,
       "revenue": 59000,
       "transition_rate": 0.0833333333,
-      "rank_in_first_category": 2
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -3642,28 +3354,6 @@
       "quantity": 1,
       "revenue": 49000,
       "transition_rate": 0.0833333333,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "등산화",
-      "second_category": "남성",
-      "transition_buyers": 125,
-      "second_orders": 125,
-      "quantity": 163,
-      "revenue": 8455180,
-      "transition_rate": 0.5952380952,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "등산화",
-      "second_category": "여성",
-      "transition_buyers": 35,
-      "second_orders": 35,
-      "quantity": 38,
-      "revenue": 3449170,
-      "transition_rate": 0.1666666667,
       "rank_in_first_category": 2
     },
     {
@@ -3675,7 +3365,7 @@
       "quantity": 22,
       "revenue": 2620590,
       "transition_rate": 0.1047619048,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -3686,62 +3376,7 @@
       "quantity": 9,
       "revenue": 329640,
       "transition_rate": 0.0380952381,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "등산화",
-      "second_category": "긴바지",
-      "transition_buyers": 4,
-      "second_orders": 4,
-      "quantity": 5,
-      "revenue": 278950,
-      "transition_rate": 0.019047619,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "등산화",
-      "second_category": "셋업",
-      "transition_buyers": 4,
-      "second_orders": 4,
-      "quantity": 4,
-      "revenue": 255560,
-      "transition_rate": 0.019047619,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "등산화",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 193850,
-      "transition_rate": 0.0095238095,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "등산화",
-      "second_category": "바람막이",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 178250,
-      "transition_rate": 0.0095238095,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "라운드티",
-      "second_category": "남성",
-      "transition_buyers": 454,
-      "second_orders": 454,
-      "quantity": 584,
-      "revenue": 31879158,
-      "transition_rate": 0.4763903463,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -3752,18 +3387,7 @@
       "quantity": 204,
       "revenue": 8076730,
       "transition_rate": 0.1794333683,
-      "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "라운드티",
-      "second_category": "여성",
-      "transition_buyers": 87,
-      "second_orders": 87,
-      "quantity": 100,
-      "revenue": 8241869,
-      "transition_rate": 0.0912906611,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -3774,62 +3398,7 @@
       "quantity": 56,
       "revenue": 4023840,
       "transition_rate": 0.0577124869,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "라운드티",
-      "second_category": "셋업",
-      "transition_buyers": 34,
-      "second_orders": 34,
-      "quantity": 35,
-      "revenue": 2225380,
-      "transition_rate": 0.0356768101,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "라운드티",
-      "second_category": "반바지",
-      "transition_buyers": 29,
-      "second_orders": 29,
-      "quantity": 34,
-      "revenue": 1402500,
-      "transition_rate": 0.0304302204,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "라운드티",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 20,
-      "second_orders": 20,
-      "quantity": 20,
-      "revenue": 1775330,
-      "transition_rate": 0.0209863589,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "라운드티",
-      "second_category": "UNKNOWN",
-      "transition_buyers": 14,
-      "second_orders": 14,
-      "quantity": 15,
-      "revenue": 987660,
-      "transition_rate": 0.0146904512,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "맨투맨/후드티",
-      "second_category": "남성",
-      "transition_buyers": 44,
-      "second_orders": 44,
-      "quantity": 54,
-      "revenue": 3236840,
-      "transition_rate": 0.5569620253,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -3840,7 +3409,7 @@
       "quantity": 5,
       "revenue": 378530,
       "transition_rate": 0.0632911392,
-      "rank_in_first_category": 2
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -3851,83 +3420,6 @@
       "quantity": 5,
       "revenue": 295090,
       "transition_rate": 0.0632911392,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "맨투맨/후드티",
-      "second_category": "라운드티",
-      "transition_buyers": 5,
-      "second_orders": 5,
-      "quantity": 6,
-      "revenue": 270210,
-      "transition_rate": 0.0632911392,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "맨투맨/후드티",
-      "second_category": "긴바지",
-      "transition_buyers": 5,
-      "second_orders": 5,
-      "quantity": 5,
-      "revenue": 222120,
-      "transition_rate": 0.0632911392,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "맨투맨/후드티",
-      "second_category": "볼캡",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 3,
-      "revenue": 111240,
-      "transition_rate": 0.0253164557,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "맨투맨/후드티",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 105830,
-      "transition_rate": 0.0253164557,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "맨투맨/후드티",
-      "second_category": "상의",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 85830,
-      "transition_rate": 0.0253164557,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "미드/롱다운",
-      "second_category": "남성",
-      "transition_buyers": 52,
-      "second_orders": 52,
-      "quantity": 65,
-      "revenue": 4427580,
-      "transition_rate": 0.5842696629,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "미드/롱다운",
-      "second_category": "여성",
-      "transition_buyers": 10,
-      "second_orders": 10,
-      "quantity": 12,
-      "revenue": 1700700,
-      "transition_rate": 0.1123595506,
       "rank_in_first_category": 2
     },
     {
@@ -3939,7 +3431,7 @@
       "quantity": 5,
       "revenue": 1475175,
       "transition_rate": 0.0449438202,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -3950,62 +3442,7 @@
       "quantity": 3,
       "revenue": 169710,
       "transition_rate": 0.0337078652,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "미드/롱다운",
-      "second_category": "볼캡",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 3,
-      "revenue": 98620,
-      "transition_rate": 0.0337078652,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "미드/롱다운",
-      "second_category": "UNKNOWN",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 174400,
-      "transition_rate": 0.0224719101,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "미드/롱다운",
-      "second_category": "바람막이",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 172210,
-      "transition_rate": 0.0224719101,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "미드/롱다운",
-      "second_category": "가방",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 125110,
-      "transition_rate": 0.0224719101,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "바람막이",
-      "second_category": "남성",
-      "transition_buyers": 93,
-      "second_orders": 93,
-      "quantity": 129,
-      "revenue": 7170365,
-      "transition_rate": 0.5602409639,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -4016,7 +3453,7 @@
       "quantity": 19,
       "revenue": 748540,
       "transition_rate": 0.0903614458,
-      "rank_in_first_category": 2
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4027,73 +3464,7 @@
       "quantity": 14,
       "revenue": 809660,
       "transition_rate": 0.0843373494,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "바람막이",
-      "second_category": "여성",
-      "transition_buyers": 12,
-      "second_orders": 12,
-      "quantity": 14,
-      "revenue": 1756820,
-      "transition_rate": 0.0722891566,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "바람막이",
-      "second_category": "바람막이",
-      "transition_buyers": 5,
-      "second_orders": 5,
-      "quantity": 8,
-      "revenue": 563490,
-      "transition_rate": 0.0301204819,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "바람막이",
-      "second_category": "셋업",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 3,
-      "revenue": 329250,
-      "transition_rate": 0.0180722892,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "바람막이",
-      "second_category": "반바지",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 4,
-      "revenue": 123860,
-      "transition_rate": 0.0180722892,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "바람막이",
-      "second_category": "맨투맨/후드티",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 3,
-      "revenue": 118290,
-      "transition_rate": 0.0180722892,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "반바지",
-      "second_category": "남성",
-      "transition_buyers": 117,
-      "second_orders": 117,
-      "quantity": 141,
-      "revenue": 7609109,
-      "transition_rate": 0.5109170306,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -4104,18 +3475,7 @@
       "quantity": 35,
       "revenue": 1420840,
       "transition_rate": 0.1135371179,
-      "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "반바지",
-      "second_category": "여성",
-      "transition_buyers": 18,
-      "second_orders": 18,
-      "quantity": 22,
-      "revenue": 1554170,
-      "transition_rate": 0.0786026201,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4126,62 +3486,7 @@
       "quantity": 16,
       "revenue": 534430,
       "transition_rate": 0.0611353712,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "반바지",
-      "second_category": "긴바지",
-      "transition_buyers": 12,
-      "second_orders": 12,
-      "quantity": 13,
-      "revenue": 818050,
-      "transition_rate": 0.0524017467,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "반바지",
-      "second_category": "셋업",
-      "transition_buyers": 7,
-      "second_orders": 7,
-      "quantity": 7,
-      "revenue": 390410,
-      "transition_rate": 0.0305676856,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "반바지",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 6,
-      "second_orders": 6,
-      "quantity": 6,
-      "revenue": 487049,
-      "transition_rate": 0.0262008734,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "반바지",
-      "second_category": "UNKNOWN",
-      "transition_buyers": 5,
-      "second_orders": 5,
-      "quantity": 5,
-      "revenue": 296990,
-      "transition_rate": 0.0218340611,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "방수자켓",
-      "second_category": "남성",
-      "transition_buyers": 21,
-      "second_orders": 21,
-      "quantity": 26,
-      "revenue": 1728450,
-      "transition_rate": 0.6,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -4192,18 +3497,7 @@
       "quantity": 4,
       "revenue": 249950,
       "transition_rate": 0.1142857143,
-      "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "방수자켓",
-      "second_category": "여성",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 3,
-      "revenue": 267520,
-      "transition_rate": 0.0857142857,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4214,94 +3508,6 @@
       "quantity": 1,
       "revenue": 109710,
       "transition_rate": 0.0285714286,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "방수자켓",
-      "second_category": "패딩/슬림다운",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 85130,
-      "transition_rate": 0.0285714286,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "방수자켓",
-      "second_category": "셋업",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 57780,
-      "transition_rate": 0.0285714286,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "방수자켓",
-      "second_category": "방수자켓",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 57000,
-      "transition_rate": 0.0285714286,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "방수자켓",
-      "second_category": "UNKNOWN",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 36980,
-      "transition_rate": 0.0285714286,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "버킷/부니",
-      "second_category": "남성",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 3,
-      "revenue": 151040,
-      "transition_rate": 0.6666666667,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "버킷/부니",
-      "second_category": "여성",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 50230,
-      "transition_rate": 0.3333333333,
-      "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "볼캡",
-      "second_category": "남성",
-      "transition_buyers": 42,
-      "second_orders": 42,
-      "quantity": 58,
-      "revenue": 3455833,
-      "transition_rate": 0.6086956522,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "볼캡",
-      "second_category": "여성",
-      "transition_buyers": 5,
-      "second_orders": 5,
-      "quantity": 5,
-      "revenue": 356930,
-      "transition_rate": 0.0724637681,
       "rank_in_first_category": 2
     },
     {
@@ -4313,7 +3519,7 @@
       "quantity": 3,
       "revenue": 158830,
       "transition_rate": 0.0434782609,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4324,72 +3530,6 @@
       "quantity": 3,
       "revenue": 120080,
       "transition_rate": 0.0434782609,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "볼캡",
-      "second_category": "셋업",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 211190,
-      "transition_rate": 0.0289855072,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "볼캡",
-      "second_category": "UNKNOWN",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 196310,
-      "transition_rate": 0.0289855072,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "볼캡",
-      "second_category": "긴바지",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 153100,
-      "transition_rate": 0.0289855072,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "볼캡",
-      "second_category": "장갑",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 60120,
-      "transition_rate": 0.0289855072,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "부츠",
-      "second_category": "남성",
-      "transition_buyers": 27,
-      "second_orders": 27,
-      "quantity": 32,
-      "revenue": 1781820,
-      "transition_rate": 0.6428571429,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "부츠",
-      "second_category": "여성",
-      "transition_buyers": 7,
-      "second_orders": 7,
-      "quantity": 8,
-      "revenue": 306710,
-      "transition_rate": 0.1666666667,
       "rank_in_first_category": 2
     },
     {
@@ -4401,7 +3541,7 @@
       "quantity": 2,
       "revenue": 85430,
       "transition_rate": 0.0476190476,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4412,72 +3552,6 @@
       "quantity": 1,
       "revenue": 147500,
       "transition_rate": 0.0238095238,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "부츠",
-      "second_category": "부츠",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 111300,
-      "transition_rate": 0.0238095238,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "부츠",
-      "second_category": "패딩/슬림다운",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 86090,
-      "transition_rate": 0.0238095238,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "부츠",
-      "second_category": "스니커즈",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 46950,
-      "transition_rate": 0.0238095238,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "부츠",
-      "second_category": "액세서리",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 2,
-      "revenue": 11000,
-      "transition_rate": 0.0238095238,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "상의",
-      "second_category": "남성",
-      "transition_buyers": 58,
-      "second_orders": 58,
-      "quantity": 71,
-      "revenue": 3730390,
-      "transition_rate": 0.479338843,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "상의",
-      "second_category": "여성",
-      "transition_buyers": 11,
-      "second_orders": 11,
-      "quantity": 12,
-      "revenue": 862060,
-      "transition_rate": 0.0909090909,
       "rank_in_first_category": 2
     },
     {
@@ -4489,7 +3563,7 @@
       "quantity": 15,
       "revenue": 629340,
       "transition_rate": 0.0826446281,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4500,62 +3574,7 @@
       "quantity": 10,
       "revenue": 496370,
       "transition_rate": 0.0743801653,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "상의",
-      "second_category": "셋업",
-      "transition_buyers": 8,
-      "second_orders": 8,
-      "quantity": 11,
-      "revenue": 751550,
-      "transition_rate": 0.0661157025,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "상의",
-      "second_category": "긴바지",
-      "transition_buyers": 5,
-      "second_orders": 5,
-      "quantity": 5,
-      "revenue": 308410,
-      "transition_rate": 0.041322314,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "상의",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 5,
-      "second_orders": 5,
-      "quantity": 5,
-      "revenue": 154698,
-      "transition_rate": 0.041322314,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "상의",
-      "second_category": "등산화",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 3,
-      "revenue": 343740,
-      "transition_rate": 0.0247933884,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "셋업",
-      "second_category": "남성",
-      "transition_buyers": 231,
-      "second_orders": 231,
-      "quantity": 298,
-      "revenue": 18473291,
-      "transition_rate": 0.512195122,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -4566,18 +3585,7 @@
       "quantity": 64,
       "revenue": 4392430,
       "transition_rate": 0.1175166297,
-      "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "셋업",
-      "second_category": "여성",
-      "transition_buyers": 49,
-      "second_orders": 49,
-      "quantity": 60,
-      "revenue": 4797160,
-      "transition_rate": 0.1086474501,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4588,62 +3596,7 @@
       "quantity": 22,
       "revenue": 1416270,
       "transition_rate": 0.0487804878,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "셋업",
-      "second_category": "라운드티",
-      "transition_buyers": 22,
-      "second_orders": 22,
-      "quantity": 28,
-      "revenue": 1088770,
-      "transition_rate": 0.0487804878,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "셋업",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 9,
-      "second_orders": 9,
-      "quantity": 9,
-      "revenue": 856040,
-      "transition_rate": 0.0199556541,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "셋업",
-      "second_category": "반바지",
-      "transition_buyers": 8,
-      "second_orders": 8,
-      "quantity": 9,
-      "revenue": 326000,
-      "transition_rate": 0.0177383592,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "셋업",
-      "second_category": "자켓/베스트",
-      "transition_buyers": 6,
-      "second_orders": 6,
-      "quantity": 8,
-      "revenue": 449930,
-      "transition_rate": 0.0133037694,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "셔츠",
-      "second_category": "남성",
-      "transition_buyers": 15,
-      "second_orders": 15,
-      "quantity": 18,
-      "revenue": 956690,
-      "transition_rate": 0.625,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -4654,7 +3607,7 @@
       "quantity": 5,
       "revenue": 152250,
       "transition_rate": 0.2083333333,
-      "rank_in_first_category": 2
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4665,40 +3618,7 @@
       "quantity": 2,
       "revenue": 98800,
       "transition_rate": 0.0833333333,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "셔츠",
-      "second_category": "여성",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 149000,
-      "transition_rate": 0.0416666667,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "셔츠",
-      "second_category": "자켓/ 베스트",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 125770,
-      "transition_rate": 0.0416666667,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "스니커즈",
-      "second_category": "남성",
-      "transition_buyers": 21,
-      "second_orders": 21,
-      "quantity": 30,
-      "revenue": 1613540,
-      "transition_rate": 0.512195122,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -4709,18 +3629,7 @@
       "quantity": 10,
       "revenue": 469800,
       "transition_rate": 0.2195121951,
-      "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "스니커즈",
-      "second_category": "여성",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 4,
-      "revenue": 112440,
-      "transition_rate": 0.0731707317,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4731,72 +3640,6 @@
       "quantity": 2,
       "revenue": 481450,
       "transition_rate": 0.0487804878,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "스니커즈",
-      "second_category": "상의",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 84460,
-      "transition_rate": 0.0487804878,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "스니커즈",
-      "second_category": "셋업",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 67300,
-      "transition_rate": 0.0487804878,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "스니커즈",
-      "second_category": "라운드티",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 86520,
-      "transition_rate": 0.0243902439,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "스니커즈",
-      "second_category": "긴바지",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 57640,
-      "transition_rate": 0.0243902439,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "액세서리",
-      "second_category": "남성",
-      "transition_buyers": 65,
-      "second_orders": 65,
-      "quantity": 89,
-      "revenue": 3506283,
-      "transition_rate": 0.5963302752,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "액세서리",
-      "second_category": "여성",
-      "transition_buyers": 11,
-      "second_orders": 11,
-      "quantity": 12,
-      "revenue": 647700,
-      "transition_rate": 0.1009174312,
       "rank_in_first_category": 2
     },
     {
@@ -4808,7 +3651,7 @@
       "quantity": 9,
       "revenue": 69830,
       "transition_rate": 0.0550458716,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4819,150 +3662,7 @@
       "quantity": 4,
       "revenue": 107730,
       "transition_rate": 0.0366972477,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "액세서리",
-      "second_category": "바람막이",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 3,
-      "revenue": 208640,
-      "transition_rate": 0.0275229358,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "액세서리",
-      "second_category": "하이킹",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 270740,
-      "transition_rate": 0.0183486239,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "액세서리",
-      "second_category": "셋업",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 213860,
-      "transition_rate": 0.0183486239,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "액세서리",
-      "second_category": "등산화",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 144470,
-      "transition_rate": 0.0183486239,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "여성",
-      "second_category": "남성",
-      "transition_buyers": 586,
-      "second_orders": 586,
-      "quantity": 780,
-      "revenue": 39539753,
-      "transition_rate": 0.4928511354,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "여성",
-      "second_category": "여성",
-      "transition_buyers": 326,
-      "second_orders": 326,
-      "quantity": 378,
-      "revenue": 33158528,
-      "transition_rate": 0.2741799832,
       "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "여성",
-      "second_category": "라운드티",
-      "transition_buyers": 52,
-      "second_orders": 52,
-      "quantity": 61,
-      "revenue": 1847440,
-      "transition_rate": 0.0437342304,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "여성",
-      "second_category": "셋업",
-      "transition_buyers": 35,
-      "second_orders": 35,
-      "quantity": 48,
-      "revenue": 3535320,
-      "transition_rate": 0.0294365013,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "여성",
-      "second_category": "등산화",
-      "transition_buyers": 34,
-      "second_orders": 34,
-      "quantity": 35,
-      "revenue": 4016660,
-      "transition_rate": 0.0285954584,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "여성",
-      "second_category": "긴바지",
-      "transition_buyers": 22,
-      "second_orders": 22,
-      "quantity": 22,
-      "revenue": 1390800,
-      "transition_rate": 0.0185029437,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "여성",
-      "second_category": "장갑",
-      "transition_buyers": 18,
-      "second_orders": 18,
-      "quantity": 20,
-      "revenue": 673170,
-      "transition_rate": 0.0151387721,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "여성",
-      "second_category": "하이킹",
-      "transition_buyers": 13,
-      "second_orders": 13,
-      "quantity": 19,
-      "revenue": 1180850,
-      "transition_rate": 0.0109335576,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "인터체인지 (3 in 1)",
-      "second_category": "남성",
-      "transition_buyers": 7,
-      "second_orders": 7,
-      "quantity": 11,
-      "revenue": 883360,
-      "transition_rate": 0.4666666667,
-      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4973,7 +3673,7 @@
       "quantity": 1,
       "revenue": 137000,
       "transition_rate": 0.0666666667,
-      "rank_in_first_category": 2
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -4984,83 +3684,6 @@
       "quantity": 1,
       "revenue": 100170,
       "transition_rate": 0.0666666667,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "인터체인지 (3 in 1)",
-      "second_category": "패딩/슬림다운",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 73200,
-      "transition_rate": 0.0666666667,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "인터체인지 (3 in 1)",
-      "second_category": "장갑",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 68380,
-      "transition_rate": 0.0666666667,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "인터체인지 (3 in 1)",
-      "second_category": "폴로티/집업",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 62660,
-      "transition_rate": 0.0666666667,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "인터체인지 (3 in 1)",
-      "second_category": "긴바지",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 47000,
-      "transition_rate": 0.0666666667,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "인터체인지 (3 in 1)",
-      "second_category": "여성",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 42000,
-      "transition_rate": 0.0666666667,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/ 베스트",
-      "second_category": "남성",
-      "transition_buyers": 128,
-      "second_orders": 128,
-      "quantity": 163,
-      "revenue": 9259415,
-      "transition_rate": 0.5541125541,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/ 베스트",
-      "second_category": "여성",
-      "transition_buyers": 18,
-      "second_orders": 18,
-      "quantity": 20,
-      "revenue": 1687980,
-      "transition_rate": 0.0779220779,
       "rank_in_first_category": 2
     },
     {
@@ -5072,7 +3695,7 @@
       "quantity": 22,
       "revenue": 867520,
       "transition_rate": 0.0692640693,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -5083,72 +3706,6 @@
       "quantity": 19,
       "revenue": 1511860,
       "transition_rate": 0.0562770563,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/ 베스트",
-      "second_category": "긴바지",
-      "transition_buyers": 11,
-      "second_orders": 11,
-      "quantity": 11,
-      "revenue": 714240,
-      "transition_rate": 0.0476190476,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/ 베스트",
-      "second_category": "셋업",
-      "transition_buyers": 9,
-      "second_orders": 9,
-      "quantity": 10,
-      "revenue": 555680,
-      "transition_rate": 0.038961039,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/ 베스트",
-      "second_category": "바람막이",
-      "transition_buyers": 4,
-      "second_orders": 4,
-      "quantity": 4,
-      "revenue": 296050,
-      "transition_rate": 0.0173160173,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/ 베스트",
-      "second_category": "맨투맨/후드티",
-      "transition_buyers": 4,
-      "second_orders": 4,
-      "quantity": 4,
-      "revenue": 194120,
-      "transition_rate": 0.0173160173,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/베스트",
-      "second_category": "남성",
-      "transition_buyers": 30,
-      "second_orders": 30,
-      "quantity": 37,
-      "revenue": 1871100,
-      "transition_rate": 0.4615384615,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/베스트",
-      "second_category": "여성",
-      "transition_buyers": 18,
-      "second_orders": 18,
-      "quantity": 21,
-      "revenue": 1647030,
-      "transition_rate": 0.2769230769,
       "rank_in_first_category": 2
     },
     {
@@ -5160,7 +3717,7 @@
       "quantity": 6,
       "revenue": 135980,
       "transition_rate": 0.0923076923,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -5171,72 +3728,6 @@
       "quantity": 3,
       "revenue": 343600,
       "transition_rate": 0.0461538462,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/베스트",
-      "second_category": "하이킹",
-      "transition_buyers": 2,
-      "second_orders": 2,
-      "quantity": 2,
-      "revenue": 166040,
-      "transition_rate": 0.0307692308,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/베스트",
-      "second_category": "패딩/슬림다운",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 137200,
-      "transition_rate": 0.0153846154,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/베스트",
-      "second_category": "등산화",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 93740,
-      "transition_rate": 0.0153846154,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "자켓/베스트",
-      "second_category": "셋업",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 89000,
-      "transition_rate": 0.0153846154,
-      "rank_in_first_category": 8
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "장갑",
-      "second_category": "남성",
-      "transition_buyers": 15,
-      "second_orders": 15,
-      "quantity": 21,
-      "revenue": 707720,
-      "transition_rate": 0.5172413793,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "장갑",
-      "second_category": "여성",
-      "transition_buyers": 9,
-      "second_orders": 9,
-      "quantity": 10,
-      "revenue": 802700,
-      "transition_rate": 0.3103448276,
       "rank_in_first_category": 2
     },
     {
@@ -5248,7 +3739,7 @@
       "quantity": 1,
       "revenue": 121610,
       "transition_rate": 0.0344827586,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -5259,61 +3750,6 @@
       "quantity": 1,
       "revenue": 94440,
       "transition_rate": 0.0344827586,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "장갑",
-      "second_category": "UNKNOWN",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 86970,
-      "transition_rate": 0.0344827586,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "장갑",
-      "second_category": "가방",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 61970,
-      "transition_rate": 0.0344827586,
-      "rank_in_first_category": 6
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "장갑",
-      "second_category": "액세서리",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 4500,
-      "transition_rate": 0.0344827586,
-      "rank_in_first_category": 7
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "카고/조거",
-      "second_category": "남성",
-      "transition_buyers": 5,
-      "second_orders": 5,
-      "quantity": 6,
-      "revenue": 339020,
-      "transition_rate": 0.4166666667,
-      "rank_in_first_category": 1
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "카고/조거",
-      "second_category": "여성",
-      "transition_buyers": 3,
-      "second_orders": 3,
-      "quantity": 3,
-      "revenue": 239400,
-      "transition_rate": 0.25,
       "rank_in_first_category": 2
     },
     {
@@ -5325,7 +3761,7 @@
       "quantity": 2,
       "revenue": 102200,
       "transition_rate": 0.1666666667,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -5336,29 +3772,7 @@
       "quantity": 1,
       "revenue": 121200,
       "transition_rate": 0.0833333333,
-      "rank_in_first_category": 4
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "카고/조거",
-      "second_category": "카고/조거",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 63000,
-      "transition_rate": 0.0833333333,
-      "rank_in_first_category": 5
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "캐주얼",
-      "second_category": "여성",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 46300,
-      "transition_rate": 0.3333333333,
-      "rank_in_first_category": 1
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
@@ -5369,28 +3783,6 @@
       "quantity": 2,
       "revenue": 22000,
       "transition_rate": 0.3333333333,
-      "rank_in_first_category": 2
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "캐주얼",
-      "second_category": "남성",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 11000,
-      "transition_rate": 0.3333333333,
-      "rank_in_first_category": 3
-    },
-    {
-      "member_grade_label": "FAMILY",
-      "first_category": "캡",
-      "second_category": "남성",
-      "transition_buyers": 11,
-      "second_orders": 11,
-      "quantity": 12,
-      "revenue": 535360,
-      "transition_rate": 0.5789473684,
       "rank_in_first_category": 1
     },
     {
@@ -5402,7 +3794,7 @@
       "quantity": 2,
       "revenue": 98500,
       "transition_rate": 0.1052631579,
-      "rank_in_first_category": 2
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
@@ -5413,51 +3805,1025 @@
       "quantity": 2,
       "revenue": 48550,
       "transition_rate": 0.1052631579,
-      "rank_in_first_category": 3
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
-      "first_category": "캡",
-      "second_category": "여성",
+      "first_category": "트레일러닝",
+      "second_category": "라운드티",
+      "transition_buyers": 7,
+      "second_orders": 7,
+      "quantity": 7,
+      "revenue": 237050,
+      "transition_rate": 0.1842105263,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "FAMILY",
+      "first_category": "트레일러닝",
+      "second_category": "트레일러닝",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 2,
+      "revenue": 184650,
+      "transition_rate": 0.0526315789,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "FAMILY",
+      "first_category": "패딩/슬림다운",
+      "second_category": "패딩/슬림다운",
+      "transition_buyers": 3,
+      "second_orders": 3,
+      "quantity": 3,
+      "revenue": 392280,
+      "transition_rate": 0.09375,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "FAMILY",
+      "first_category": "패딩/슬림다운",
+      "second_category": "UNKNOWN",
       "transition_buyers": 1,
       "second_orders": 1,
       "quantity": 1,
-      "revenue": 93900,
-      "transition_rate": 0.0526315789,
-      "rank_in_first_category": 4
+      "revenue": 88075,
+      "transition_rate": 0.03125,
+      "rank_in_first_category": 2
     },
     {
       "member_grade_label": "FAMILY",
-      "first_category": "캡",
-      "second_category": "가방",
-      "transition_buyers": 1,
-      "second_orders": 1,
-      "quantity": 1,
-      "revenue": 60300,
-      "transition_rate": 0.0526315789,
-      "rank_in_first_category": 5
+      "first_category": "폴로티/집업",
+      "second_category": "UNKNOWN",
+      "transition_buyers": 3,
+      "second_orders": 3,
+      "quantity": 3,
+      "revenue": 244960,
+      "transition_rate": 0.0652173913,
+      "rank_in_first_category": 1
     },
     {
       "member_grade_label": "FAMILY",
-      "first_category": "캡",
+      "first_category": "폴로티/집업",
+      "second_category": "셋업",
+      "transition_buyers": 3,
+      "second_orders": 3,
+      "quantity": 3,
+      "revenue": 181030,
+      "transition_rate": 0.0652173913,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "FAMILY",
+      "first_category": "하이킹",
+      "second_category": "하이킹",
+      "transition_buyers": 19,
+      "second_orders": 19,
+      "quantity": 20,
+      "revenue": 1582160,
+      "transition_rate": 0.0818965517,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "FAMILY",
+      "first_category": "하이킹",
+      "second_category": "라운드티",
+      "transition_buyers": 14,
+      "second_orders": 14,
+      "quantity": 18,
+      "revenue": 645930,
+      "transition_rate": 0.0603448276,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "FAMILY",
+      "first_category": "햇",
+      "second_category": "긴바지",
+      "transition_buyers": 3,
+      "second_orders": 3,
+      "quantity": 3,
+      "revenue": 150230,
+      "transition_rate": 0.1,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "FAMILY",
+      "first_category": "햇",
+      "second_category": "햇",
+      "transition_buyers": 3,
+      "second_orders": 3,
+      "quantity": 3,
+      "revenue": 120770,
+      "transition_rate": 0.1,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "긴바지",
       "second_category": "셋업",
       "transition_buyers": 1,
       "second_orders": 1,
       "quantity": 1,
-      "revenue": 50020,
-      "transition_rate": 0.0526315789,
-      "rank_in_first_category": 6
+      "revenue": 137820,
+      "transition_rate": 0.1666666667,
+      "rank_in_first_category": 1
     },
     {
-      "member_grade_label": "FAMILY",
-      "first_category": "캡",
-      "second_category": "반바지",
+      "member_grade_label": "GOLD",
+      "first_category": "긴바지",
+      "second_category": "등산화",
       "transition_buyers": 1,
       "second_orders": 1,
       "quantity": 1,
-      "revenue": 39200,
-      "transition_rate": 0.0526315789,
-      "rank_in_first_category": 7
+      "revenue": 110680,
+      "transition_rate": 0.1666666667,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "라운드티",
+      "second_category": "라운드티",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 3,
+      "revenue": 136210,
+      "transition_rate": 0.1818181818,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "라운드티",
+      "second_category": "등산화",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 110680,
+      "transition_rate": 0.0909090909,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "상의",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 137820,
+      "transition_rate": 0.5,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "셋업",
+      "second_category": "긴바지",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 62300,
+      "transition_rate": 1.0,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "자켓/ 베스트",
+      "second_category": "등산화",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 110680,
+      "transition_rate": 0.5,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "장갑",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 83510,
+      "transition_rate": 0.3333333333,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "장갑",
+      "second_category": "라운드티",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 32850,
+      "transition_rate": 0.3333333333,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "UNKNOWN",
+      "second_category": "긴바지",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 3,
+      "revenue": 466770,
+      "transition_rate": 0.0588235294,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "UNKNOWN",
+      "second_category": "미드/롱다운",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 447200,
+      "transition_rate": 0.0588235294,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "가방",
+      "second_category": "긴바지",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 3,
+      "revenue": 466770,
+      "transition_rate": 0.1111111111,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "가방",
+      "second_category": "자켓/ 베스트",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 128900,
+      "transition_rate": 0.1111111111,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "긴바지",
+      "second_category": "긴바지",
+      "transition_buyers": 14,
+      "second_orders": 14,
+      "quantity": 18,
+      "revenue": 1548820,
+      "transition_rate": 0.2745098039,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "긴바지",
+      "second_category": "라운드티",
+      "transition_buyers": 5,
+      "second_orders": 5,
+      "quantity": 6,
+      "revenue": 231090,
+      "transition_rate": 0.0980392157,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "등산화",
+      "second_category": "등산화",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 3,
+      "revenue": 387130,
+      "transition_rate": 0.0588235294,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "등산화",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 2,
+      "revenue": 132570,
+      "transition_rate": 0.0588235294,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "라운드티",
+      "second_category": "라운드티",
+      "transition_buyers": 8,
+      "second_orders": 8,
+      "quantity": 11,
+      "revenue": 461900,
+      "transition_rate": 0.1355932203,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "라운드티",
+      "second_category": "긴바지",
+      "transition_buyers": 4,
+      "second_orders": 4,
+      "quantity": 4,
+      "revenue": 305330,
+      "transition_rate": 0.0677966102,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "맨투맨/후드티",
+      "second_category": "다운/ 패딩",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 164000,
+      "transition_rate": 0.1,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "맨투맨/후드티",
+      "second_category": "자켓/베스트",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 82490,
+      "transition_rate": 0.1,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "미드/롱다운",
+      "second_category": "미드/롱다운",
+      "transition_buyers": 3,
+      "second_orders": 3,
+      "quantity": 3,
+      "revenue": 887430,
+      "transition_rate": 0.1875,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "미드/롱다운",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 108300,
+      "transition_rate": 0.0625,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "바람막이",
+      "second_category": "자켓/ 베스트",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 2,
+      "revenue": 246500,
+      "transition_rate": 0.1666666667,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "바람막이",
+      "second_category": "바람막이",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 2,
+      "revenue": 154170,
+      "transition_rate": 0.1666666667,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "반바지",
+      "second_category": "긴바지",
+      "transition_buyers": 5,
+      "second_orders": 5,
+      "quantity": 6,
+      "revenue": 413090,
+      "transition_rate": 0.3846153846,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "반바지",
+      "second_category": "라운드티",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 4,
+      "revenue": 149370,
+      "transition_rate": 0.1538461538,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "상의",
+      "second_category": "반바지",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 2,
+      "revenue": 110090,
+      "transition_rate": 0.2222222222,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "상의",
+      "second_category": "방수자켓",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 80630,
+      "transition_rate": 0.1111111111,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "셋업",
+      "second_category": "긴바지",
+      "transition_buyers": 3,
+      "second_orders": 3,
+      "quantity": 3,
+      "revenue": 240570,
+      "transition_rate": 0.0681818182,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "셋업",
+      "second_category": "라운드티",
+      "transition_buyers": 3,
+      "second_orders": 3,
+      "quantity": 3,
+      "revenue": 153630,
+      "transition_rate": 0.0681818182,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "셔츠",
+      "second_category": "긴바지",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 69500,
+      "transition_rate": 0.1428571429,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "셔츠",
+      "second_category": "라운드티",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 34500,
+      "transition_rate": 0.1428571429,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "스니커즈",
+      "second_category": "등산화",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 88350,
+      "transition_rate": 0.5,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "액세서리",
+      "second_category": "긴바지",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 112770,
+      "transition_rate": 0.3333333333,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "자켓/ 베스트",
+      "second_category": "라운드티",
+      "transition_buyers": 5,
+      "second_orders": 5,
+      "quantity": 5,
+      "revenue": 311580,
+      "transition_rate": 0.1470588235,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "자켓/ 베스트",
+      "second_category": "긴바지",
+      "transition_buyers": 4,
+      "second_orders": 4,
+      "quantity": 4,
+      "revenue": 296700,
+      "transition_rate": 0.1176470588,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "자켓/베스트",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 185960,
+      "transition_rate": 0.125,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "자켓/베스트",
+      "second_category": "패딩/슬림다운",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 159000,
+      "transition_rate": 0.125,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "캐주얼",
+      "second_category": "긴바지",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 151000,
+      "transition_rate": 0.3333333333,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "캐주얼",
+      "second_category": "자켓/ 베스트",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 112770,
+      "transition_rate": 0.3333333333,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "크로스/토트백",
+      "second_category": "UNKNOWN",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 101410,
+      "transition_rate": 0.5,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "폴로티/집업",
+      "second_category": "바람막이",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 2,
+      "revenue": 190159,
+      "transition_rate": 0.3333333333,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "폴로티/집업",
+      "second_category": "라운드티",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 34250,
+      "transition_rate": 0.1666666667,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "하이킹",
+      "second_category": "등산화",
+      "transition_buyers": 3,
+      "second_orders": 3,
+      "quantity": 7,
+      "revenue": 931550,
+      "transition_rate": 0.1363636364,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "하이킹",
+      "second_category": "셋업",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 2,
+      "revenue": 172300,
+      "transition_rate": 0.0909090909,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "햇",
+      "second_category": "자켓/ 베스트",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 2,
+      "revenue": 252280,
+      "transition_rate": 0.4,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "햇",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 70190,
+      "transition_rate": 0.2,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "반바지",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 3,
+      "revenue": 397200,
+      "transition_rate": 0.2,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "반바지",
+      "second_category": "인터체인지 (3 in 1)",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 395000,
+      "transition_rate": 0.2,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "셋업",
+      "second_category": "셋업",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 4,
+      "revenue": 529500,
+      "transition_rate": 0.25,
+      "rank_in_first_category": 1
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "셋업",
+      "second_category": "인터체인지 (3 in 1)",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 395000,
+      "transition_rate": 0.125,
+      "rank_in_first_category": 2
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "하이킹",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 132300,
+      "transition_rate": 0.5,
+      "rank_in_first_category": 1
+    }
+  ],
+  "edm_next_best_category_actions": [
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "셋업",
+      "recommended_category": "긴바지",
+      "transition_buyers": 1,
+      "revenue": 62300,
+      "transition_rate": 1.0,
+      "avg_days_to_second": 64.0,
+      "median_days_to_second": 64,
+      "suggested_send_day": 57,
+      "recommendation_score": 11.039732756,
+      "action_copy": "GOLD · 셋업 구매자에게 구매 후 57일차 긴바지 추천",
+      "rank_in_first_category": 1,
+      "second_orders": 0,
+      "quantity": 0
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "햇",
+      "recommended_category": "자켓/ 베스트",
+      "transition_buyers": 2,
+      "revenue": 252280,
+      "transition_rate": 0.4,
+      "avg_days_to_second": 34.0,
+      "median_days_to_second": 21,
+      "suggested_send_day": 14,
+      "recommendation_score": 9.9506390597,
+      "action_copy": "SILVER · 햇 구매자에게 구매 후 14일차 자켓/ 베스트 추천",
+      "rank_in_first_category": 1,
+      "second_orders": 0,
+      "quantity": 0
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "상의",
+      "recommended_category": "셋업",
+      "transition_buyers": 1,
+      "revenue": 137820,
+      "transition_rate": 0.5,
+      "avg_days_to_second": 25.0,
+      "median_days_to_second": 25,
+      "suggested_send_day": 18,
+      "recommendation_score": 5.9168555104,
+      "action_copy": "GOLD · 상의 구매자에게 구매 후 18일차 셋업 추천",
+      "rank_in_first_category": 1,
+      "second_orders": 0,
+      "quantity": 0
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "하이킹",
+      "recommended_category": "셋업",
+      "transition_buyers": 1,
+      "revenue": 132300,
+      "transition_rate": 0.5,
+      "avg_days_to_second": 8.0,
+      "median_days_to_second": 8,
+      "suggested_send_day": 3,
+      "recommendation_score": 5.8964174543,
+      "action_copy": "TITANIUM · 하이킹 구매자에게 구매 후 3일차 셋업 추천",
+      "rank_in_first_category": 1,
+      "second_orders": 0,
+      "quantity": 0
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "크로스/토트백",
+      "recommended_category": "UNKNOWN",
+      "transition_buyers": 1,
+      "revenue": 101410,
+      "transition_rate": 0.5,
+      "avg_days_to_second": 102.0,
+      "median_days_to_second": 102,
+      "suggested_send_day": 95,
+      "recommendation_score": 5.7634684228,
+      "action_copy": "SILVER · 크로스/토트백 구매자에게 구매 후 95일차 UNKNOWN 추천",
+      "rank_in_first_category": 1,
+      "second_orders": 0,
+      "quantity": 0
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "반바지",
+      "recommended_category": "셋업",
+      "transition_buyers": 1,
+      "revenue": 397200,
+      "transition_rate": 0.2,
+      "avg_days_to_second": 4.0,
+      "median_days_to_second": 4,
+      "suggested_send_day": 3,
+      "recommendation_score": 2.5784395458,
+      "action_copy": "TITANIUM · 반바지 구매자에게 구매 후 3일차 셋업 추천",
+      "rank_in_first_category": 1,
+      "second_orders": 0,
+      "quantity": 0
+    }
+  ],
+  "edm_recommendation_score_by_grade_category": [
+    {
+      "member_grade_label": "FAMILY",
+      "first_category": "라운드티",
+      "second_category": "라운드티",
+      "transition_buyers": 171,
+      "second_orders": 171,
+      "quantity": 204,
+      "revenue": 8076730,
+      "transition_rate": 0.1794333683,
+      "avg_days_to_second": 80.730994152,
+      "median_days_to_second": 34,
+      "suggested_send_day": 27,
+      "recommendation_score": 487.9993906356,
+      "rank_in_grade": 16
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "셋업",
+      "second_category": "긴바지",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 62300,
+      "transition_rate": 1.0,
+      "avg_days_to_second": 64.0,
+      "median_days_to_second": 64,
+      "suggested_send_day": 57,
+      "recommendation_score": 11.039732756,
+      "rank_in_grade": 13
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "상의",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 137820,
+      "transition_rate": 0.5,
+      "avg_days_to_second": 25.0,
+      "median_days_to_second": 25,
+      "suggested_send_day": 18,
+      "recommendation_score": 5.9168555104,
+      "rank_in_grade": 15
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "자켓/ 베스트",
+      "second_category": "등산화",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 110680,
+      "transition_rate": 0.5,
+      "avg_days_to_second": 3.0,
+      "median_days_to_second": 3,
+      "suggested_send_day": 3,
+      "recommendation_score": 5.8072037345,
+      "rank_in_grade": 16
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "라운드티",
+      "second_category": "라운드티",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 3,
+      "revenue": 136210,
+      "transition_rate": 0.1818181818,
+      "avg_days_to_second": 82.5,
+      "median_days_to_second": 40,
+      "suggested_send_day": 33,
+      "recommendation_score": 4.2988947029,
+      "rank_in_grade": 18
+    },
+    {
+      "member_grade_label": "GOLD",
+      "first_category": "장갑",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 83510,
+      "transition_rate": 0.3333333333,
+      "avg_days_to_second": 80.0,
+      "median_days_to_second": 80,
+      "suggested_send_day": 73,
+      "recommendation_score": 3.7775778796,
+      "rank_in_grade": 20
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "긴바지",
+      "second_category": "긴바지",
+      "transition_buyers": 14,
+      "second_orders": 14,
+      "quantity": 18,
+      "revenue": 1548820,
+      "transition_rate": 0.2745098039,
+      "avg_days_to_second": 53.9285714286,
+      "median_days_to_second": 18,
+      "suggested_send_day": 11,
+      "recommendation_score": 54.7762527969,
+      "rank_in_grade": 13
+    },
+    {
+      "member_grade_label": "SILVER",
+      "first_category": "반바지",
+      "second_category": "긴바지",
+      "transition_buyers": 5,
+      "second_orders": 5,
+      "quantity": 6,
+      "revenue": 413090,
+      "transition_rate": 0.3846153846,
+      "avg_days_to_second": 79.6,
+      "median_days_to_second": 49,
+      "suggested_send_day": 42,
+      "recommendation_score": 24.8681215128,
+      "rank_in_grade": 20
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "셋업",
+      "second_category": "셋업",
+      "transition_buyers": 2,
+      "second_orders": 2,
+      "quantity": 4,
+      "revenue": 529500,
+      "transition_rate": 0.25,
+      "avg_days_to_second": 6.0,
+      "median_days_to_second": 4,
+      "suggested_send_day": 3,
+      "recommendation_score": 6.5898451663,
+      "rank_in_grade": 7
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "하이킹",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 132300,
+      "transition_rate": 0.5,
+      "avg_days_to_second": 8.0,
+      "median_days_to_second": 8,
+      "suggested_send_day": 3,
+      "recommendation_score": 5.8964174543,
+      "rank_in_grade": 8
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "반바지",
+      "second_category": "셋업",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 3,
+      "revenue": 397200,
+      "transition_rate": 0.2,
+      "avg_days_to_second": 4.0,
+      "median_days_to_second": 4,
+      "suggested_send_day": 3,
+      "recommendation_score": 2.5784395458,
+      "rank_in_grade": 11
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "반바지",
+      "second_category": "인터체인지 (3 in 1)",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 395000,
+      "transition_rate": 0.2,
+      "avg_days_to_second": 4.0,
+      "median_days_to_second": 4,
+      "suggested_send_day": 3,
+      "recommendation_score": 2.5773287151,
+      "rank_in_grade": 12
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "반바지",
+      "second_category": "긴바지",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 53000,
+      "transition_rate": 0.2,
+      "avg_days_to_second": 4.0,
+      "median_days_to_second": 4,
+      "suggested_send_day": 3,
+      "recommendation_score": 2.1756132121,
+      "rank_in_grade": 15
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "셋업",
+      "second_category": "인터체인지 (3 in 1)",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 395000,
+      "transition_rate": 0.125,
+      "avg_days_to_second": 4.0,
+      "median_days_to_second": 4,
+      "suggested_send_day": 3,
+      "recommendation_score": 1.6108304469,
+      "rank_in_grade": 16
+    },
+    {
+      "member_grade_label": "TITANIUM",
+      "first_category": "셋업",
+      "second_category": "긴바지",
+      "transition_buyers": 1,
+      "second_orders": 1,
+      "quantity": 1,
+      "revenue": 53000,
+      "transition_rate": 0.125,
+      "avg_days_to_second": 4.0,
+      "median_days_to_second": 4,
+      "suggested_send_day": 3,
+      "recommendation_score": 1.3597582575,
+      "rank_in_grade": 18
     }
   ],
   "top_categories": [
