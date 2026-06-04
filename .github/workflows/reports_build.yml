@@ -168,7 +168,13 @@ permissions:
 
 jobs:
   run:
+    name: ${{ github.event_name == 'schedule' && format('Build {0}', matrix.target) || 'Build manual' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        target: ${{ fromJSON(github.event_name == 'schedule' && '["price","hero","extsig","crema","blog","competitor","owned","funnel","member","product_keyword","purchase_pattern","utm_channel","summary"]' || '["manual"]') }}
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
@@ -247,23 +253,46 @@ jobs:
           RUN_UTM_CHANNEL=true
 
           if [ "$EVENT" = "schedule" ]; then
-            # 01:00 KST daily full batch: run every dashboard in one scheduled workflow.
+            # 01:00 KST daily: run each dashboard as a separate matrix job in parallel.
+            # GitHub cron is UTC, so 16:00 UTC = 01:00 KST.
             case "$SCHEDULE_RAW" in
               "0 16 * * *")
-                echo "[INFO] Scheduled run: full daily batch (01:00 KST)"
-                RUN_PRICE=true
-                RUN_HERO=true
-                RUN_EXTSIG=true
-                RUN_CREMA=true
-                RUN_BLOG=true
-                RUN_SUMMARY=true
-                RUN_COMPETITOR=true
-                RUN_OWNED=true
-                RUN_FUNNEL=true
-                RUN_MEMBER=true
-                RUN_PRODUCT_KEYWORD=true
-                RUN_PURCHASE_PATTERN=true
-                RUN_UTM_CHANNEL=true
+                MATRIX_TARGET="${{ matrix.target }}"
+                echo "[INFO] Scheduled parallel run: ${MATRIX_TARGET} (01:00 KST)"
+
+                RUN_PRICE=false
+                RUN_HERO=false
+                RUN_EXTSIG=false
+                RUN_CREMA=false
+                RUN_BLOG=false
+                RUN_SUMMARY=false
+                RUN_COMPETITOR=false
+                RUN_OWNED=false
+                RUN_FUNNEL=false
+                RUN_MEMBER=false
+                RUN_PRODUCT_KEYWORD=false
+                RUN_PURCHASE_PATTERN=false
+                RUN_UTM_CHANNEL=false
+
+                case "$MATRIX_TARGET" in
+                  price) RUN_PRICE=true ;;
+                  hero) RUN_HERO=true ;;
+                  extsig) RUN_EXTSIG=true ;;
+                  crema) RUN_CREMA=true ;;
+                  blog) RUN_BLOG=true ;;
+                  competitor) RUN_COMPETITOR=true ;;
+                  owned) RUN_OWNED=true ;;
+                  funnel) RUN_FUNNEL=true ;;
+                  member) RUN_MEMBER=true ;;
+                  product_keyword) RUN_PRODUCT_KEYWORD=true ;;
+                  purchase_pattern) RUN_PURCHASE_PATTERN=true ;;
+                  utm_channel) RUN_UTM_CHANNEL=true ;;
+                  summary) RUN_SUMMARY=true ;;
+                  *)
+                    echo "[ERROR] Unknown matrix target: ${MATRIX_TARGET}"
+                    exit 1
+                    ;;
+                esac
                 ;;
               *)
                 echo "[ERROR] Unknown schedule: $SCHEDULE_RAW"
@@ -1500,14 +1529,17 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Reports auto update" || true
+          git commit -m "Reports auto update (${{ matrix.target }})" || true
 
-          for i in 1 2 3; do
-            echo "[INFO] push attempt $i/3"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            echo "[INFO] push attempt $i/10"
             if git push origin HEAD:main; then
               echo "[OK] pushed"
               exit 0
             fi
+
+            echo "[WARN] push rejected. Rebase with latest origin/main and retry..."
+            sleep $((RANDOM % 20 + 5))
             git fetch origin main
             git pull --rebase --autostash origin main
           done
