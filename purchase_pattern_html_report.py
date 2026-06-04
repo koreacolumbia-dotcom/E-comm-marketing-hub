@@ -51,7 +51,7 @@ DEFAULT_MEMBER_TABLE = "tb_member_staging"
 DEFAULT_COUPON_TYPE_TABLE = "TB_CouponType"
 OFFICIAL_MALL_BASE = "https://www.columbiakorea.co.kr"
 
-SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V17_CATEGORY_TRANSITION_EDM_TARGETING"
+SCRIPT_VERSION = "PURCHASE_PATTERN_HTML_REPORT_V18_EDM_NEXT_BEST_CATEGORY"
 PATCH_NOTES = [
     "date_range_controls_for_top_kpis",
     "monthly_chart_full_period_with_2026_check",
@@ -81,6 +81,11 @@ PATCH_NOTES = [
     "block_coupon_id_code_source_fallback",
     "remove_data_json_placeholder",
     "grade_first_to_second_category_transition_for_edm_targeting",
+    "edm_repeat_timing_by_first_category",
+    "edm_low_second_purchase_conversion_categories",
+    "edm_action_cards_by_grade_first_category",
+    "edm_recommendation_score_next_best_category",
+    "edm_price_band_to_second_category_transition",
 ]
 
 
@@ -1160,6 +1165,279 @@ JOIN second_order_categories s ON f.member_id = s.member_id
 GROUP BY order_date, f.member_grade_label, f.first_category, s.second_category
 ORDER BY order_date, f.member_grade_label, first_category, revenue DESC
 """,
+
+        "edm_repeat_timing_by_first_category_by_grade": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date, SUM(revenue) AS order_revenue
+  FROM purchase_lines
+  GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+), first_orders AS (
+  SELECT member_id, order_no AS first_order_no, order_date AS first_order_date, order_revenue AS first_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 1
+), second_orders AS (
+  SELECT member_id, order_no AS second_order_no, order_date AS second_order_date, order_revenue AS second_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 2
+), first_categories AS (
+  SELECT f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS first_category
+  FROM first_orders f
+  JOIN purchase_lines p ON p.member_id = f.member_id AND p.order_no = f.first_order_no
+  GROUP BY f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label, first_category
+), second_categories AS (
+  SELECT s.member_id, s.second_order_no, s.second_order_date,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS second_category,
+         SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+  FROM second_orders s
+  JOIN purchase_lines p ON p.member_id = s.member_id AND p.order_no = s.second_order_no
+  GROUP BY s.member_id, s.second_order_no, s.second_order_date, second_category
+)
+
+SELECT f.member_grade_label, f.first_category,
+       COUNT(DISTINCT f.member_id) AS first_buyers,
+       COUNT(DISTINCT s.member_id) AS second_buyers,
+       SAFE_DIVIDE(COUNT(DISTINCT s.member_id), COUNT(DISTINCT f.member_id)) AS second_purchase_rate,
+       AVG(DATE_DIFF(s.second_order_date, f.first_order_date, DAY)) AS avg_days_to_second,
+       APPROX_QUANTILES(DATE_DIFF(s.second_order_date, f.first_order_date, DAY), 100 IGNORE NULLS)[OFFSET(50)] AS median_days_to_second,
+       GREATEST(CAST(APPROX_QUANTILES(DATE_DIFF(s.second_order_date, f.first_order_date, DAY), 100 IGNORE NULLS)[OFFSET(50)] AS INT64) - 7, 3) AS suggested_send_day,
+       SUM(s.second_order_revenue) AS second_order_revenue
+FROM first_categories f
+LEFT JOIN second_orders s ON f.member_id = s.member_id
+GROUP BY f.member_grade_label, f.first_category
+HAVING first_buyers >= 3
+ORDER BY second_order_revenue DESC, second_buyers DESC
+""",
+        "edm_second_purchase_conversion_by_first_category_by_grade": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date, SUM(revenue) AS order_revenue
+  FROM purchase_lines
+  GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+), first_orders AS (
+  SELECT member_id, order_no AS first_order_no, order_date AS first_order_date, order_revenue AS first_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 1
+), second_orders AS (
+  SELECT member_id, order_no AS second_order_no, order_date AS second_order_date, order_revenue AS second_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 2
+), first_categories AS (
+  SELECT f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS first_category
+  FROM first_orders f
+  JOIN purchase_lines p ON p.member_id = f.member_id AND p.order_no = f.first_order_no
+  GROUP BY f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label, first_category
+), second_categories AS (
+  SELECT s.member_id, s.second_order_no, s.second_order_date,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS second_category,
+         SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+  FROM second_orders s
+  JOIN purchase_lines p ON p.member_id = s.member_id AND p.order_no = s.second_order_no
+  GROUP BY s.member_id, s.second_order_no, s.second_order_date, second_category
+)
+
+SELECT f.member_grade_label, f.first_category,
+       COUNT(DISTINCT f.member_id) AS first_buyers,
+       COUNT(DISTINCT s.member_id) AS second_buyers,
+       COUNT(DISTINCT f.member_id) - COUNT(DISTINCT s.member_id) AS not_yet_second_buyers,
+       SAFE_DIVIDE(COUNT(DISTINCT s.member_id), COUNT(DISTINCT f.member_id)) AS second_purchase_rate,
+       1 - SAFE_DIVIDE(COUNT(DISTINCT s.member_id), COUNT(DISTINCT f.member_id)) AS second_purchase_gap_rate,
+       CAST(COUNT(DISTINCT f.member_id) AS FLOAT64) * (1 - SAFE_DIVIDE(COUNT(DISTINCT s.member_id), COUNT(DISTINCT f.member_id))) AS edm_opportunity_score,
+       AVG(DATE_DIFF(s.second_order_date, f.first_order_date, DAY)) AS avg_days_to_second,
+       APPROX_QUANTILES(DATE_DIFF(s.second_order_date, f.first_order_date, DAY), 100 IGNORE NULLS)[OFFSET(50)] AS median_days_to_second
+FROM first_categories f
+LEFT JOIN second_orders s ON f.member_id = s.member_id
+GROUP BY f.member_grade_label, f.first_category
+HAVING first_buyers >= 3
+ORDER BY edm_opportunity_score DESC, first_buyers DESC
+""",
+        "edm_next_best_category_actions": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date, SUM(revenue) AS order_revenue
+  FROM purchase_lines
+  GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+), first_orders AS (
+  SELECT member_id, order_no AS first_order_no, order_date AS first_order_date, order_revenue AS first_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 1
+), second_orders AS (
+  SELECT member_id, order_no AS second_order_no, order_date AS second_order_date, order_revenue AS second_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 2
+), first_categories AS (
+  SELECT f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS first_category
+  FROM first_orders f
+  JOIN purchase_lines p ON p.member_id = f.member_id AND p.order_no = f.first_order_no
+  GROUP BY f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label, first_category
+), second_categories AS (
+  SELECT s.member_id, s.second_order_no, s.second_order_date,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS second_category,
+         SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+  FROM second_orders s
+  JOIN purchase_lines p ON p.member_id = s.member_id AND p.order_no = s.second_order_no
+  GROUP BY s.member_id, s.second_order_no, s.second_order_date, second_category
+)
+
+, transitions AS (
+  SELECT f.member_grade_label, f.first_category, sc.second_category,
+         COUNT(DISTINCT f.member_id) AS transition_buyers,
+         SUM(sc.revenue) AS revenue,
+         AVG(DATE_DIFF(sc.second_order_date, f.first_order_date, DAY)) AS avg_days_to_second,
+         APPROX_QUANTILES(DATE_DIFF(sc.second_order_date, f.first_order_date, DAY), 100 IGNORE NULLS)[OFFSET(50)] AS median_days_to_second
+  FROM first_categories f
+  JOIN second_categories sc ON f.member_id = sc.member_id
+  GROUP BY f.member_grade_label, f.first_category, sc.second_category
+), totals AS (
+  SELECT member_grade_label, first_category, SUM(transition_buyers) AS total_second_buyers
+  FROM transitions
+  GROUP BY member_grade_label, first_category
+), scored AS (
+  SELECT t.*, SAFE_DIVIDE(t.transition_buyers, NULLIF(tt.total_second_buyers, 0)) AS transition_rate,
+         SAFE_DIVIDE(t.transition_buyers, NULLIF(tt.total_second_buyers, 0)) * LOG(GREATEST(t.revenue, 0) + 1) * t.transition_buyers AS recommendation_score,
+         GREATEST(CAST(t.median_days_to_second AS INT64) - 7, 3) AS suggested_send_day
+  FROM transitions t
+  JOIN totals tt USING(member_grade_label, first_category)
+)
+SELECT member_grade_label, first_category, second_category AS recommended_category,
+       transition_buyers, revenue, transition_rate, avg_days_to_second, median_days_to_second, suggested_send_day,
+       recommendation_score,
+       CONCAT(member_grade_label, ' · ', first_category, ' 구매자에게 구매 후 ', CAST(suggested_send_day AS STRING), '일차 ', second_category, ' 추천') AS action_copy,
+       ROW_NUMBER() OVER(PARTITION BY member_grade_label, first_category ORDER BY recommendation_score DESC, transition_buyers DESC) AS rank_in_first_category
+FROM scored
+QUALIFY rank_in_first_category = 1
+ORDER BY recommendation_score DESC
+""",
+        "edm_recommendation_score_by_grade_category": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date, SUM(revenue) AS order_revenue
+  FROM purchase_lines
+  GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+), first_orders AS (
+  SELECT member_id, order_no AS first_order_no, order_date AS first_order_date, order_revenue AS first_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 1
+), second_orders AS (
+  SELECT member_id, order_no AS second_order_no, order_date AS second_order_date, order_revenue AS second_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 2
+), first_categories AS (
+  SELECT f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS first_category
+  FROM first_orders f
+  JOIN purchase_lines p ON p.member_id = f.member_id AND p.order_no = f.first_order_no
+  GROUP BY f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label, first_category
+), second_categories AS (
+  SELECT s.member_id, s.second_order_no, s.second_order_date,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS second_category,
+         SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+  FROM second_orders s
+  JOIN purchase_lines p ON p.member_id = s.member_id AND p.order_no = s.second_order_no
+  GROUP BY s.member_id, s.second_order_no, s.second_order_date, second_category
+)
+
+, transitions AS (
+  SELECT f.member_grade_label, f.first_category, sc.second_category,
+         COUNT(DISTINCT f.member_id) AS transition_buyers,
+         COUNT(DISTINCT sc.second_order_no) AS second_orders,
+         SUM(sc.quantity) AS quantity,
+         SUM(sc.revenue) AS revenue,
+         AVG(DATE_DIFF(sc.second_order_date, f.first_order_date, DAY)) AS avg_days_to_second,
+         APPROX_QUANTILES(DATE_DIFF(sc.second_order_date, f.first_order_date, DAY), 100 IGNORE NULLS)[OFFSET(50)] AS median_days_to_second
+  FROM first_categories f
+  JOIN second_categories sc ON f.member_id = sc.member_id
+  GROUP BY f.member_grade_label, f.first_category, sc.second_category
+), totals AS (
+  SELECT member_grade_label, first_category, SUM(transition_buyers) AS total_second_buyers
+  FROM transitions
+  GROUP BY member_grade_label, first_category
+)
+SELECT t.member_grade_label, t.first_category, t.second_category,
+       t.transition_buyers, t.second_orders, t.quantity, t.revenue,
+       SAFE_DIVIDE(t.transition_buyers, NULLIF(tt.total_second_buyers, 0)) AS transition_rate,
+       t.avg_days_to_second, t.median_days_to_second,
+       GREATEST(CAST(t.median_days_to_second AS INT64) - 7, 3) AS suggested_send_day,
+       SAFE_DIVIDE(t.transition_buyers, NULLIF(tt.total_second_buyers, 0)) * LOG(GREATEST(t.revenue, 0) + 1) * t.transition_buyers AS recommendation_score,
+       ROW_NUMBER() OVER(PARTITION BY t.member_grade_label ORDER BY SAFE_DIVIDE(t.transition_buyers, NULLIF(tt.total_second_buyers, 0)) * LOG(GREATEST(t.revenue, 0) + 1) * t.transition_buyers DESC) AS rank_in_grade
+FROM transitions t
+JOIN totals tt USING(member_grade_label, first_category)
+QUALIFY rank_in_grade <= 20
+ORDER BY member_grade_label, rank_in_grade
+""",
+        "edm_price_band_to_second_category_by_grade": base + """
+, order_level AS (
+  SELECT member_id, order_no, MIN(order_date) AS order_date, SUM(revenue) AS order_revenue
+  FROM purchase_lines
+  GROUP BY member_id, order_no
+), ranked_orders AS (
+  SELECT *, ROW_NUMBER() OVER(PARTITION BY member_id ORDER BY order_date, order_no) AS order_rank
+  FROM order_level
+), first_orders AS (
+  SELECT member_id, order_no AS first_order_no, order_date AS first_order_date, order_revenue AS first_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 1
+), second_orders AS (
+  SELECT member_id, order_no AS second_order_no, order_date AS second_order_date, order_revenue AS second_order_revenue
+  FROM ranked_orders
+  WHERE order_rank = 2
+), first_categories AS (
+  SELECT f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS first_category
+  FROM first_orders f
+  JOIN purchase_lines p ON p.member_id = f.member_id AND p.order_no = f.first_order_no
+  GROUP BY f.member_id, f.first_order_no, f.first_order_date, f.first_order_revenue, p.member_grade_label, first_category
+), second_categories AS (
+  SELECT s.member_id, s.second_order_no, s.second_order_date,
+         COALESCE(NULLIF(p.category_depth2,''), NULLIF(p.category_title_kr,''), NULLIF(p.category_title,''), NULLIF(p.category_code,''), 'UNKNOWN') AS second_category,
+         SUM(p.purchase_qty) AS quantity, SUM(p.revenue) AS revenue
+  FROM second_orders s
+  JOIN purchase_lines p ON p.member_id = s.member_id AND p.order_no = s.second_order_no
+  GROUP BY s.member_id, s.second_order_no, s.second_order_date, second_category
+)
+
+, first_price_band AS (
+  SELECT *, CASE
+    WHEN first_order_revenue < 30000 THEN '01_3만원 미만'
+    WHEN first_order_revenue < 70000 THEN '02_3~7만원'
+    WHEN first_order_revenue < 120000 THEN '03_7~12만원'
+    WHEN first_order_revenue < 200000 THEN '04_12~20만원'
+    ELSE '05_20만원 이상'
+  END AS first_order_price_band
+  FROM first_categories
+), transitions AS (
+  SELECT f.member_grade_label, f.first_order_price_band, sc.second_category,
+         COUNT(DISTINCT f.member_id) AS transition_buyers,
+         COUNT(DISTINCT sc.second_order_no) AS second_orders,
+         SUM(sc.revenue) AS revenue
+  FROM first_price_band f
+  JOIN second_categories sc ON f.member_id = sc.member_id
+  GROUP BY f.member_grade_label, f.first_order_price_band, sc.second_category
+), totals AS (
+  SELECT member_grade_label, first_order_price_band, SUM(transition_buyers) AS band_second_buyers
+  FROM transitions
+  GROUP BY member_grade_label, first_order_price_band
+)
+SELECT t.member_grade_label, REGEXP_REPLACE(t.first_order_price_band, '^[0-9]+_', '') AS first_order_price_band,
+       t.second_category, t.transition_buyers, t.second_orders, t.revenue,
+       SAFE_DIVIDE(t.transition_buyers, NULLIF(tt.band_second_buyers, 0)) AS transition_rate,
+       ROW_NUMBER() OVER(PARTITION BY t.member_grade_label, t.first_order_price_band ORDER BY t.transition_buyers DESC, t.revenue DESC) AS rank_in_band
+FROM transitions t
+JOIN totals tt USING(member_grade_label, first_order_price_band)
+QUALIFY rank_in_band <= 5
+ORDER BY member_grade_label, first_order_price_band, rank_in_band
+""",
         "ui_daily_categories": base + """
 SELECT order_date, COALESCE(NULLIF(category_depth2,''), NULLIF(category_title_kr,''), NULLIF(category_title,''), NULLIF(category_code,''), 'UNKNOWN') AS category,
        COUNT(DISTINCT order_no) AS orders, COUNT(DISTINCT member_id) AS buyers,
@@ -2033,6 +2311,100 @@ def grade_category_transition_cards(df: pd.DataFrame, limit_first_categories: in
         """)
     return "<div class='grid grid-cols-1 gap-5 xl:grid-cols-2'>" + "".join(blocks) + "</div>"
 
+
+def edm_strategy_cards(actions: pd.DataFrame, timing: pd.DataFrame, conversion: pd.DataFrame, score: pd.DataFrame, price_band: pd.DataFrame) -> str:
+    """Render V18 EDM strategy sections: timing, conversion gap, action cards, score, price band."""
+    def prep(df: pd.DataFrame, numeric_cols: list[str]) -> pd.DataFrame:
+        if df is None or df.empty:
+            return pd.DataFrame()
+        d = sort_grade_df(df).copy() if "member_grade_label" in df.columns else df.copy()
+        for c in numeric_cols:
+            if c in d.columns:
+                d[c] = pd.to_numeric(d[c], errors="coerce").fillna(0)
+        return d
+
+    actions = prep(actions, ["transition_buyers", "revenue", "transition_rate", "median_days_to_second", "suggested_send_day", "recommendation_score"])
+    timing = prep(timing, ["first_buyers", "second_buyers", "second_purchase_rate", "avg_days_to_second", "median_days_to_second", "suggested_send_day", "second_order_revenue"])
+    conversion = prep(conversion, ["first_buyers", "second_buyers", "not_yet_second_buyers", "second_purchase_rate", "second_purchase_gap_rate", "edm_opportunity_score"])
+    score = prep(score, ["transition_buyers", "second_orders", "quantity", "revenue", "transition_rate", "suggested_send_day", "recommendation_score"])
+    price_band = prep(price_band, ["transition_buyers", "second_orders", "revenue", "transition_rate"])
+
+    def section(title: str, sub: str, body: str, badge: str = "EDM") -> str:
+        return f"""
+        <div class="report-card mt-6 rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm">
+          <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div><div class="text-xs font-extrabold tracking-widest text-blue-600 uppercase">{escape(title)}</div><div class="text-sm font-bold text-slate-400">{escape(sub)}</div></div>
+            <div class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{escape(badge)}</div>
+          </div>
+          {body}
+        </div>
+        """
+
+    # 1. Action cards
+    if actions.empty:
+        action_html = "<div class='p-6 text-sm font-bold text-slate-400'>EDM 액션 데이터 없음</div>"
+    else:
+        cards=[]
+        d=actions.sort_values("recommendation_score", ascending=False).head(16)
+        for _, r in d.iterrows():
+            cards.append(f"""
+            <div class="grade-shell rounded-3xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0"><div class="text-xs font-black text-blue-600">{escape(str(r.get('member_grade_label','UNKNOWN')))}</div><div class="mt-1 truncate text-base font-black text-slate-950" title="{escape(str(r.get('action_copy','')))}">{escape(str(r.get('action_copy','')))}</div></div>
+                <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">Score {fmt_int(r.get('recommendation_score'))}</div>
+              </div>
+              <div class="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 text-xs">
+                <div class="rounded-xl bg-white p-2"><div class="font-black text-slate-400">첫 카테고리</div><div class="font-black text-slate-900">{escape(str(r.get('first_category','UNKNOWN')))}</div></div>
+                <div class="rounded-xl bg-white p-2"><div class="font-black text-slate-400">추천 카테고리</div><div class="font-black text-blue-700">{escape(str(r.get('recommended_category','UNKNOWN')))}</div></div>
+                <div class="rounded-xl bg-white p-2"><div class="font-black text-slate-400">전이율</div><div class="font-black text-slate-900">{fmt_pct(r.get('transition_rate'))}</div></div>
+                <div class="rounded-xl bg-white p-2"><div class="font-black text-slate-400">추천 발송</div><div class="font-black text-slate-900">구매 후 {fmt_int(r.get('suggested_send_day'))}일</div></div>
+              </div>
+            </div>
+            """)
+        action_html="<div class='grid grid-cols-1 gap-3 xl:grid-cols-2'>"+"".join(cards)+"</div>"
+
+    # 2. Timing
+    if timing.empty:
+        timing_html = "<div class='p-6 text-sm font-bold text-slate-400'>재구매 타이밍 데이터 없음</div>"
+    else:
+        timing_html = mini_visual_cards(timing.sort_values(["second_order_revenue", "second_buyers"], ascending=False), "first_category", "second_order_revenue", [("first_buyers","첫구매자","int"),("second_buyers","2회차 구매자","int"),("median_days_to_second","중앙일","int"),("suggested_send_day","추천일","int")], 12, "krw")
+
+    # 3. Low conversion gap
+    if conversion.empty:
+        conversion_html = "<div class='p-6 text-sm font-bold text-slate-400'>전환 갭 데이터 없음</div>"
+    else:
+        conversion_html = mini_visual_cards(conversion.sort_values(["edm_opportunity_score", "first_buyers"], ascending=False), "first_category", "edm_opportunity_score", [("first_buyers","첫구매자","int"),("second_buyers","2회차","int"),("not_yet_second_buyers","미전환","int"),("second_purchase_rate","2회차율","pct")], 12, "int")
+
+    # 4. Recommendation score table/cards
+    if score.empty:
+        score_html = "<div class='p-6 text-sm font-bold text-slate-400'>추천점수 데이터 없음</div>"
+    else:
+        score_html = grade_category_transition_cards(score.rename(columns={"rank_in_grade":"rank_in_first_category"}), 5, 4)
+
+    # 5. Price band transition
+    if price_band.empty:
+        price_html = "<div class='p-6 text-sm font-bold text-slate-400'>가격대별 전이 데이터 없음</div>"
+    else:
+        rows=[]
+        d=price_band.sort_values(["member_grade_label", "first_order_price_band", "rank_in_band"])
+        for _, r in d.head(40).iterrows():
+            rows.append(f"""
+            <div class="rounded-2xl bg-white p-3 shadow-sm">
+              <div class="flex items-center justify-between gap-3"><div class="truncate text-sm font-black text-slate-800">{escape(str(r.get('member_grade_label','UNKNOWN')))} · {escape(str(r.get('first_order_price_band','UNKNOWN')))}</div><div class="repeat-badge">{fmt_pct(r.get('transition_rate'))}</div></div>
+              <div class="mt-1 text-base font-black text-blue-700">→ {escape(str(r.get('second_category','UNKNOWN')))}</div>
+              <div class="mt-2 grid grid-cols-3 gap-2 text-xs"><div class="rounded-xl bg-slate-50 p-2"><div class="font-black text-slate-400">구매자</div><div class="font-black text-slate-900">{fmt_int(r.get('transition_buyers'))}</div></div><div class="rounded-xl bg-slate-50 p-2"><div class="font-black text-slate-400">주문</div><div class="font-black text-slate-900">{fmt_int(r.get('second_orders'))}</div></div><div class="rounded-xl bg-slate-50 p-2"><div class="font-black text-slate-400">매출</div><div class="font-black text-slate-900">{fmt_krw(r.get('revenue'))}</div></div></div>
+            </div>
+            """)
+        price_html="<div class='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4'>"+"".join(rows)+"</div>"
+
+    return "".join([
+        section("EDM NEXT ACTION CARD", "등급 × 첫 구매 카테고리별로 바로 실행 가능한 추천 카테고리·발송일을 제안", action_html, "who · when · what"),
+        section("첫 구매 카테고리별 2회차 소요일", "구매 후 며칠 차에 EDM을 보내야 할지 평균/중앙값 기준으로 확인", timing_html, "timing"),
+        section("2회차 전환 갭 카테고리", "첫 구매자는 많은데 2번째 구매 전환이 약한 카테고리, 즉 EDM 개입 우선순위", conversion_html, "conversion gap"),
+        section("추천점수 기반 NEXT BEST CATEGORY", "전이율 × 전이 구매자 × 2회차 매출 로그값 기반으로 추천 우선순위 산정", score_html, "score"),
+        section("첫 구매 가격대별 다음 구매 카테고리", "저가/중가/고가 첫 구매자가 다음 구매에서 이동하는 카테고리 확인", price_html, "price band"),
+    ])
+
 def characteristics_html(chars: list[dict[str, str]]) -> str:
     if not chars:
         return "<div class='p-6 text-sm font-bold text-slate-400'>집단별 특징 없음</div>"
@@ -2245,6 +2617,11 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
     first_purchase_products = results.get("first_purchase_products", pd.DataFrame())
     second_purchase_products = results.get("second_purchase_products", pd.DataFrame())
     first_to_second_category = results.get("first_to_second_category_by_grade", pd.DataFrame())
+    edm_timing = results.get("edm_repeat_timing_by_first_category_by_grade", pd.DataFrame())
+    edm_conversion = results.get("edm_second_purchase_conversion_by_first_category_by_grade", pd.DataFrame())
+    edm_actions = results.get("edm_next_best_category_actions", pd.DataFrame())
+    edm_score = results.get("edm_recommendation_score_by_grade_category", pd.DataFrame())
+    edm_price_band = results.get("edm_price_band_to_second_category_by_grade", pd.DataFrame())
     top_categories = results.get("top_categories", pd.DataFrame())
     segments = results.get("member_segments", pd.DataFrame())
     basket = results.get("basket_size", pd.DataFrame())
@@ -2384,6 +2761,8 @@ def render_html(results: dict[str, pd.DataFrame], out_dir: Path, source_table: s
 
     <div class="report-card mt-6 rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm"><div class="mb-4 flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-blue-600 uppercase">EDM 타겟팅용 카테고리 전이</div><div class="text-sm font-bold text-slate-400">등급별로 첫 구매 카테고리 고객이 2번째 구매 때 어떤 카테고리로 넘어갔는지 확인</div></div><div class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">first category → second category</div></div><div id="category-transition">{grade_category_transition_cards(first_to_second_category, 6, 5)}</div></div>
 
+    {edm_strategy_cards(edm_actions, edm_timing, edm_conversion, edm_score, edm_price_band)}
+
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">재구매 상품 TOP</div><div class="text-sm font-bold text-slate-400">회원별 2회차 이상 주문에서 매출이 큰 상품 · 동일 SKU 중복구매 기준 아님</div></div><div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-500">repeat products</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"><div id="repeat-products" class="contents">{product_cards(repeat_products, 18, True)}</div></div></div>
 
     <div class="report-card mt-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><div class="text-xs font-extrabold tracking-widest text-blue-600 uppercase">7일 이내 재구매자 구매 상품 TOP</div><div class="text-sm font-bold text-slate-500">이전 주문 후 0~7일 안에 다시 구매한 고객의 재구매 주문에 포함된 상품</div></div><div class="rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-black text-blue-700">≤7 days repeat</div></div><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"><div id="repeat-7day-products" class="contents">{product_cards(repeat_7day_products, 18, True)}</div></div></div>
@@ -2431,6 +2810,11 @@ def build_embedded_payload(results: dict[str, pd.DataFrame], summary: dict[str, 
         "ui_daily_second_purchase_products": df_to_records(results.get("ui_daily_second_purchase_products", pd.DataFrame()), 20000),
         "first_to_second_category_by_grade": df_to_records(results.get("first_to_second_category_by_grade", pd.DataFrame()), 5000),
         "ui_daily_first_to_second_category_by_grade": df_to_records(results.get("ui_daily_first_to_second_category_by_grade", pd.DataFrame()), 50000),
+        "edm_repeat_timing_by_first_category_by_grade": df_to_records(results.get("edm_repeat_timing_by_first_category_by_grade", pd.DataFrame()), 5000),
+        "edm_second_purchase_conversion_by_first_category_by_grade": df_to_records(results.get("edm_second_purchase_conversion_by_first_category_by_grade", pd.DataFrame()), 5000),
+        "edm_next_best_category_actions": df_to_records(results.get("edm_next_best_category_actions", pd.DataFrame()), 5000),
+        "edm_recommendation_score_by_grade_category": df_to_records(results.get("edm_recommendation_score_by_grade_category", pd.DataFrame()), 5000),
+        "edm_price_band_to_second_category_by_grade": df_to_records(results.get("edm_price_band_to_second_category_by_grade", pd.DataFrame()), 5000),
         "ui_daily_basket": df_to_records(results.get("ui_daily_basket", pd.DataFrame()), 10000),
         "ui_daily_coupon": df_to_records(results.get("ui_daily_coupon", pd.DataFrame()), 10000),
         "ui_daily_grade_coupon": df_to_records(results.get("ui_daily_grade_coupon", pd.DataFrame()), 10000),
@@ -2504,6 +2888,8 @@ def write_outputs(results: dict[str, pd.DataFrame], out_dir: Path, source_table:
         "first_purchase_products": df_to_records(results.get("first_purchase_products", pd.DataFrame()), 50),
         "second_purchase_products": df_to_records(results.get("second_purchase_products", pd.DataFrame()), 50),
         "first_to_second_category_by_grade": df_to_records(results.get("first_to_second_category_by_grade", pd.DataFrame()), 200),
+        "edm_next_best_category_actions": df_to_records(results.get("edm_next_best_category_actions", pd.DataFrame()), 200),
+        "edm_recommendation_score_by_grade_category": df_to_records(results.get("edm_recommendation_score_by_grade_category", pd.DataFrame()), 200),
         "top_categories": df_to_records(results.get("top_categories", pd.DataFrame()), 50),
         "grade_overview": df_to_records(results.get("grade_overview", pd.DataFrame()), 50),
         "repeat_categories": df_to_records(results.get("repeat_categories", pd.DataFrame()), 50),
@@ -2547,6 +2933,11 @@ def write_outputs(results: dict[str, pd.DataFrame], out_dir: Path, source_table:
             "ui_daily_second_purchase_products.csv",
             "first_to_second_category_by_grade.csv",
             "ui_daily_first_to_second_category_by_grade.csv",
+            "edm_repeat_timing_by_first_category_by_grade.csv",
+            "edm_second_purchase_conversion_by_first_category_by_grade.csv",
+            "edm_next_best_category_actions.csv",
+            "edm_recommendation_score_by_grade_category.csv",
+            "edm_price_band_to_second_category_by_grade.csv",
             "ui_daily_basket.csv",
             "ui_daily_coupon.csv",
             "ui_daily_grade_coupon.csv",
