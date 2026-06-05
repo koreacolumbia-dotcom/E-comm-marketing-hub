@@ -2021,12 +2021,68 @@ def get_ga_unique_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -
 
 
 # =========================
-# Looker CASE rules based on sample.rtf source/medium + campaign logic
+# Looker CASE rules from uploaded RTF source/medium + campaign logic
 # =========================
 def _rx(p: str):
     return re.compile(p, re.IGNORECASE)
 
+# Source of truth: uploaded RTF files
+# 1. 채널 대분류.rtf / 2. 채널 중분류.rtf / 3. 채널 소분류.rtf
+_LOOKER_CHANNEL_MAJOR_RULES = [('REGEXp_MATCH(session_source_medium,"(?i).*(youtube / live).*")', 'Official SNS'), ('REGEXp_MATCH(session_source_medium,"(?i).*(lighthouse).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(instagram).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(story).*")', 'Official SNS'), ('REGEXp_MATCH(session_source_medium,"(?i).*(instagram).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(feed).*")', 'Official SNS'), ('REGEXp_MATCH(session_source_medium,"(?i).*(benz).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(nap).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(da).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(toss).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(blind).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakaobs).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(inhouse).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(lms).*") OR REGEXp_MATCH(session_campaign,"(?i).*(lms).*")', 'Owned Channel'), ('REGEXp_MATCH(session_source_medium,"(?i).*(email|edm).*")', 'Owned Channel'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_fridnstalk).*")', 'Owned Channel'), ('REGEXp_MATCH(session_source_medium,"(?i).*(mkt|_bd).*") OR REGEXP_MATCH(session_campaign,"(?i).*(mkt|\\\\[bd).*")', 'Awareness'), ('REGEXp_MATCH(session_source_medium,"(?i).*(igshopping).*")', 'Official SNS'), ('REGEXp_MATCH(session_source_medium,"(?i).*(facebook).*") AND REGEXP_MATCH(session_source_medium,"(?i).*(referral).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(instagram).*") AND REGEXP_MATCH(session_source_medium,"(?i).*(referral).*")', 'Official SNS'), ('REGEXp_MATCH(session_source_medium,"(?i).*(meta|facebook|instagram|ig|fb).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google).*") AND REGEXP_MATCH(session_campaign,"(?i).*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demand|demend).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google).*") AND REGEXP_MATCH(session_campaign,"(?i).*(gdn).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(pmax).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(유튜브|yt|youtube|instream|vac|vvc).*")', 'Awareness'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(discovery).*")', 'Awareness'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(sa|ss|검색).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / organic).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(youtube).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(da).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(gfa).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naverbs).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(cpc).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(shopping_ad).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(shopping).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(organic).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(daum / organic).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(daum).*") AND REGEXP_MATCH(session_source_medium,"(?i).*(referral).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_ch).*") OR REGEXp_MATCH(session_campaign,"(?i).*(kakao_ch).*")', 'Owned Channel'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_alimtalk).*")', 'Owned Channel'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_coupon).*")', 'Owned Channel'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_chatbot).*")', 'Owned Channel'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(\\(direct\\) / \\(none\\)).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(signalplay|signal play|signal_play|sg_|signal|manplus).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(buzzvill).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(criteo).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(mobon).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(snow).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(smr).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(tg).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(t_cafe).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(blind).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(cpc).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(organic).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(banner|da).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium, "(?i).*(referral).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(shopping).*")', 'Organic Traffic'), ('REGEXp_MATCH(session_source_medium,"(?i).*(social).*")', 'Organic Traffic')]
+_LOOKER_CHANNEL_MIDDLE_RULES = [('REGEXp_MATCH(session_source_medium,"(?i).*(youtube / live).*")', 'YouTube Referral'), ('REGEXp_MATCH(session_source_medium,"(?i).*(lighthouse).*")', 'Referral'), ('REGEXp_MATCH(session_source_medium,"(?i).*(instagram).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(story).*")', 'Instagram Story'), ('REGEXp_MATCH(session_source_medium,"(?i).*(instagram).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(feed).*")', 'Instagram Feed'), ('REGEXp_MATCH(session_source_medium,"(?i).*(benz).*")', 'Referral'), ('REGEXp_MATCH(session_source_medium,"(?i).*(nap).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(da).*")', 'Rewarded Ads'), ('REGEXp_MATCH(session_source_medium,"(?i).*(toss).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(blind).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakaobs).*")', 'Paid Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(inhouse).*")', 'Inhouse Purchase'), ('REGEXp_MATCH(session_source_medium,"(?i).*(lms).*") OR REGEXp_MATCH(session_campaign,"(?i).*(lms).*")', 'LMS'), ('REGEXp_MATCH(session_source_medium,"(?i).*(email|edm).*")', 'Email'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_fridnstalk).*")', 'Kakao Friendstalk'), ('REGEXp_MATCH(session_source_medium,"(?i).*(igshopping).*")', 'Instagram Offical Shop'), ('REGEXp_MATCH(session_source_medium,"(?i).*(facebook).*") AND REGEXP_MATCH(session_source_medium,"(?i).*(referral).*")', 'Social'), ('REGEXp_MATCH(session_source_medium,"(?i).*(instagram).*") AND REGEXP_MATCH(session_source_medium,"(?i).*(referral).*")', 'Instagram Offical Account'), ('REGEXp_MATCH(session_source_medium,"(?i).*(meta|facebook|instagram|ig|fb).*")', 'Paid Social'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google).*") AND REGEXP_MATCH(session_campaign,"(?i).*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demand|demend).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google).*") AND REGEXP_MATCH(session_campaign,"(?i).*(gdn).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(pmax).*")', 'Paid Omni Channel'), ('REGEXP_MATCH(session_source_medium,"(?i).*(youtube_bd).*")', 'Paid Video'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(유튜브|yt|youtube|instream|vac|vvc).*")', 'Paid Video'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(discovery).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(sa|ss|검색).*")', 'Paid Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*")', 'Paid Ad'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / organic).*")', 'Organic Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google).*")', 'Referral'), ('REGEXp_MATCH(session_source_medium,"(?i).*(youtube).*")', 'YouTube'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(da).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(gfa).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naverbs).*")', 'Paid Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(cpc).*")', 'Paid Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(shopping_ad).*")', 'Paid Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(shopping).*")', 'Organic Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(organic).*")', 'Organic Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*")', 'Referral'), ('REGEXp_MATCH(session_source_medium,"(?i).*(daum / organic).*")', 'Organic Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(daum).*") AND REGEXP_MATCH(session_source_medium,"(?i).*(referral).*")', 'Referral'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_ch).*") OR REGEXp_MATCH(session_campaign,"(?i).*(kakao_ch).*")', 'Kakao Channel'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_alimtalk).*")', 'Kakao Alimtalk'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_coupon).*")', 'Kakao Coupon'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_chatbot).*")', 'Kakao Chatbot'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(\\(direct\\) / \\(none\\)).*")', 'Direct'), ('REGEXp_MATCH(session_source_medium,"(?i).*(signalplay|signal play|signal_play|sg_|signal|manplus).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(buzzvill).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(criteo).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(mobon).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(snow).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(smr).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(tg).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(t_cafe).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(blind).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(cpc).*")', 'Paid Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(organic).*")', 'Organic Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(banner|da).*")', 'Paid Display'), ('REGEXp_MATCH(session_source_medium,"(?i).*(referral).*")', 'Referral'), ('REGEXp_MATCH(session_source_medium,"(?i).*(shopping).*")', 'Organic Search'), ('REGEXp_MATCH(session_source_medium,"(?i).*(social).*")', 'Social')]
+_LOOKER_CHANNEL_MINOR_RULES = [('REGEXp_MATCH(session_source_medium,"(?i).*(youtube / live).*")', '유튜브 라이브'), ('REGEXp_MATCH(session_source_medium,"(?i).*(lighthouse).*")', '라이트하우스 팝 디스플레이 존'), ('REGEXp_MATCH(session_source_medium,"(?i).*(instagram).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(story).*")', '인스타그램 스토리'), ('REGEXp_MATCH(session_source_medium,"(?i).*(instagram).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(feed).*")', '인스타그램 피드'), ('REGEXp_MATCH(session_source_medium,"(?i).*(benz).*")', '벤츠 러닝 프로그램'), ('REGEXp_MATCH(session_source_medium,"(?i).*(nap).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(da).*")', '버즈빌 회원가입 광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(toss).*")', '토스 배너 광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(blind).*")', '블라인드 배너 광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakaobs).*")', '카카오 브랜드검색광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(inhouse).*")', 'Inhouse Purchase'), ('REGEXp_MATCH(session_source_medium,"(?i).*(lms).*") OR REGEXp_MATCH(session_campaign,"(?i).*(lms).*")', '문자메시지유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(email|edm).*")', '이메일유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_fridnstalk).*")', '카카오톡친구톡'), ('REGEXp_MATCH(session_source_medium,"(?i).*(igshopping).*")', '인스타그램 샵'), ('REGEXp_MATCH(session_source_medium,"(?i).*(facebook).*") AND REGEXP_MATCH(session_source_medium,"(?i).*(referral).*")', '페이스북자연유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(instagram).*") AND REGEXP_MATCH(session_source_medium,"(?i).*(referral).*")', '인스타그램 공식계정'), ('REGEXp_MATCH(session_source_medium,"(?i).*(meta|facebook|instagram|ig|fb).*")', '메타광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google).*") AND REGEXP_MATCH(session_campaign,"(?i).*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demand|demend).*")', '구글디멘드젠광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google).*") AND REGEXP_MATCH(session_campaign,"(?i).*(gdn).*")', '구글GDN광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(pmax).*")', '구글피맥스광고'), ('REGEXP_MATCH(session_source_medium,"(?i).*(youtube_bd).*")', '구글동영상광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(유튜브|yt|youtube|instream|vac|vvc).*")', '구글동영상광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(discovery).*")', '구글디스커버리광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*") AND REGEXP_MATCH(session_campaign,"(?i).*(sa|ss|검색).*")', '구글검색광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / cpc).*")', '구글기타광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google / organic).*")', '구글자연검색'), ('REGEXp_MATCH(session_source_medium,"(?i).*(google).*")', '구글기타유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(youtube).*")', '유튜브자연유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(da).*")', '네이버배너광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(gfa).*")', '네이버배너광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naverbs).*")', '네이버브랜드검색광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(cpc).*")', '네이버파워링크광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(shopping_ad).*")', '네이버쇼핑검색광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(shopping).*")', '네이버쇼핑자연검색'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*") AND REGEXp_MATCH(session_source_medium,"(?i).*(organic).*")', '네이버사이트자연검색'), ('REGEXp_MATCH(session_source_medium,"(?i).*(naver).*")', '네이버기타유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(daum / organic).*")', '다음자연검색'), ('REGEXp_MATCH(session_source_medium,"(?i).*(daum).*") AND REGEXP_MATCH(session_source_medium,"(?i).*(referral).*")', '다음기타유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_ch).*") OR REGEXp_MATCH(session_campaign,"(?i).*(kakao_ch).*")', '카카오톡채널메시지'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_alimtalk).*")', '카카오톡알림톡'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_coupon).*")', '카카오톡쿠폰'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao_chatbot).*")', '카카오톡챗봇'), ('REGEXp_MATCH(session_source_medium,"(?i).*(kakao).*")', '카카오광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(\\(direct\\) / \\(none\\)).*")', '직접유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(signalplay|signal play|signal_play|sg_|signal|manplus).*")', '시그널플레이광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(buzzvill).*")', '버즈빌광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(criteo).*")', '크리테오광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(mobon).*")', '모비온광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(snow).*")', '스노우광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(smr).*")', 'SMR광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(tg).*")', '타게팅게이츠광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(t_cafe).*")', '티카페광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(blind).*")', '블라인드광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(cpc).*")', '기타검색광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(organic).*")', '기타자연검색'), ('REGEXp_MATCH(session_source_medium,"(?i).*(banner|da).*")', '기타배너광고'), ('REGEXp_MATCH(session_source_medium,"(?i).*(referral).*")', '기타추천유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(shopping).*")', '기타쇼핑유입'), ('REGEXp_MATCH(session_source_medium,"(?i).*(social).*")', '기타소셜유입')]
+
+_LOOKER_CHANNEL_MAJOR_FALLBACK = 'etc'
+_LOOKER_CHANNEL_MIDDLE_FALLBACK = '미분류'
+_LOOKER_CHANNEL_MINOR_FALLBACK = '미분류'
+
+
+def _safe_regex_search(pattern: str, value: str) -> bool:
+    try:
+        return re.search(pattern, value or "", re.IGNORECASE) is not None
+    except re.error:
+        # Defensive fallback for malformed Looker regex copied from RTF.
+        try:
+            return re.search(pattern.replace("[bd", r"\[bd"), value or "", re.IGNORECASE) is not None
+        except re.error:
+            return False
+
+
+def _eval_single_looker_match(expr: str, source_medium: str, campaign: str) -> bool:
+    m = re.search(
+        r'REGEX[pP]_MATCH\s*\(\s*(session_source_medium|session_campaign)\s*,\s*"(.*?)"\s*\)',
+        expr.strip(),
+        flags=re.IGNORECASE,
+    )
+    if not m:
+        return False
+    field = m.group(1).lower()
+    pattern = m.group(2)
+    value = source_medium if field == "session_source_medium" else campaign
+    return _safe_regex_search(pattern, value)
+
+
+def _eval_looker_condition(condition: str, source_medium: str, campaign: str) -> bool:
+    """Evaluate the limited Looker CASE condition grammar used in the uploaded RTF files."""
+    or_parts = re.split(r'\s+OR\s+', condition, flags=re.IGNORECASE)
+    for or_part in or_parts:
+        and_parts = re.split(r'\s+AND\s+', or_part, flags=re.IGNORECASE)
+        if all(_eval_single_looker_match(part, source_medium, campaign) for part in and_parts):
+            return True
+    return False
+
+
+def _classify_from_looker_rules(rules: list[tuple[str, str]], fallback: str, source_medium: str, campaign: str = "") -> str:
+    sm = (source_medium or "").strip()
+    cp = (campaign or "").strip()
+    for condition, label in rules:
+        if _eval_looker_condition(condition, sm, cp):
+            return label
+    return fallback
+
+
 def map_default_channel_group_to_bucket(default_channel_group: str = "") -> str:
+    # Kept as a safety fallback only. Primary classification follows uploaded RTF CASE rules.
     dcg = (default_channel_group or "").strip().lower()
     if not dcg:
         return ""
@@ -2044,140 +2100,39 @@ def map_default_channel_group_to_bucket(default_channel_group: str = "") -> str:
 
 
 def classify_looker_channel(source_medium: str, campaign: str = "", default_channel_group: str = "") -> str:
-    """
-    Follow the uploaded Looker Studio / RTF CASE logic as the source of truth.
-    We intentionally classify by sessionSourceMedium + sessionCampaignName to reduce
-    GA default-channel Unassigned volume, while keeping the metric itself as GA sessions.
-    """
-    sm = (source_medium or "").strip()
-    cp = (campaign or "").strip()
+    """채널 대분류: uploaded '1. 채널 대분류.rtf' CASE logic."""
+    bucket = _classify_from_looker_rules(_LOOKER_CHANNEL_MAJOR_RULES, _LOOKER_CHANNEL_MAJOR_FALLBACK, source_medium, campaign)
+    # Normalize numbered Looker labels to report labels used by the HTML renderer.
+    bucket = re.sub(r'^\s*\d+\.\s*', '', bucket or '').strip()
+    if bucket:
+        return bucket
+    return map_default_channel_group_to_bucket(default_channel_group) or "etc"
 
-    if _rx(r"(?i).*(instagram).*").search(sm) and _rx(r"(?i).*(story).*").search(sm):
-        return "Official SNS"
-    if _rx(r"(?i).*(benz).*").search(sm):
-        return "Organic Traffic"
 
-    if _rx(r"(?i).*(nap).*").search(sm) and _rx(r"(?i).*(da).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(toss).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(blind).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(kakaobs).*").search(sm):
-        return "Paid Ad"
+def classify_looker_channel_middle(source_medium: str, campaign: str = "") -> str:
+    """채널 중분류: uploaded '2. 채널 중분류.rtf' CASE logic."""
+    return _classify_from_looker_rules(_LOOKER_CHANNEL_MIDDLE_RULES, _LOOKER_CHANNEL_MIDDLE_FALLBACK, source_medium, campaign)
 
-    if _rx(r"(?i).*(inhouse).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(lms).*").search(sm) or _rx(r"(?i).*(lms).*").search(cp):
-        return "Owned Channel"
-    if _rx(r"(?i).*(email|edm).*").search(sm):
-        return "Owned Channel"
-    if _rx(r"(?i).*(kakao_fridnstalk).*").search(sm):
-        return "Owned Channel"
 
-    if _rx(r"(?i).*(mkt|_bd).*").search(sm) or _rx(r"(?i).*(mkt|\[bd).*").search(cp):
-        return "Awareness"
+def classify_looker_channel_minor(source_medium: str, campaign: str = "") -> str:
+    """채널 소분류: uploaded '3. 채널 소분류.rtf' CASE logic."""
+    return _classify_from_looker_rules(_LOOKER_CHANNEL_MINOR_RULES, _LOOKER_CHANNEL_MINOR_FALLBACK, source_medium, campaign)
 
-    if _rx(r"(?i).*(igshopping).*").search(sm):
-        return "Official SNS"
-    if _rx(r"(?i).*(facebook).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(instagram).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
-        return "Official SNS"
-    if _rx(r"(?i).*(meta|facebook|instagram|ig|fb).*").search(sm):
-        return "Paid Ad"
 
-    if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demandgen).*").search(cp):
-        return "Awareness"
-    if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(pmax).*").search(cp):
-        return "Paid Ad"
-    if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(유튜브|yt|youtube|instream|vac|vvc).*").search(cp):
-        return "Awareness"
-    if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(discovery).*").search(cp):
-        return "Awareness"
-    if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(sa|ss|검색).*").search(cp):
-        return "Paid Ad"
-    if _rx(r"(?i).*(google \/ cpc).*").search(sm):
-        return "Paid Ad"
+def classify_channel_detail_label(source_medium: str, campaign: str = "") -> str:
+    """Display label for bucket drill-down: 중분류 · 소분류, based on uploaded RTF files."""
+    mid = (classify_looker_channel_middle(source_medium, campaign) or "").strip()
+    minor = (classify_looker_channel_minor(source_medium, campaign) or "").strip()
+    if mid and minor and mid != minor:
+        return f"{mid} · {minor}"
+    return minor or mid or (source_medium or "(not set)").strip() or "(not set)"
 
-    if _rx(r"(?i).*(google \/ organic).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(google).*").search(sm):
-        return "Organic Traffic"
-
-    if _rx(r"(?i).*(youtube).*").search(sm):
-        return "Organic Traffic"
-
-    if _rx(r"(?i).*(naver).*").search(sm) and _rx(r"(?i).*(da).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(gfa).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(naverbs).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(naver).*").search(sm) and _rx(r"(?i).*(cpc).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(shopping_ad).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(naver).*").search(sm) and _rx(r"(?i).*(shopping).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(naver).*").search(sm) and _rx(r"(?i).*(organic).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(naver).*").search(sm):
-        return "Organic Traffic"
-
-    if _rx(r"(?i).*(daum \/ organic).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(daum).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(kakao_ch).*").search(sm) or _rx(r"(?i).*(kakao_ch).*").search(cp):
-        return "Owned Channel"
-    if _rx(r"(?i).*(kakao_alimtalk).*").search(sm):
-        return "Owned Channel"
-    if _rx(r"(?i).*(kakao_coupon).*").search(sm):
-        return "Owned Channel"
-    if _rx(r"(?i).*(kakao_chatbot).*").search(sm):
-        return "Owned Channel"
-    if _rx(r"(?i).*(kakao).*").search(sm):
-        return "Paid Ad"
-
-    if _rx(r"(?i).*(\(direct\) / \(none\)).*").search(sm):
-        return "Organic Traffic"
-
-    if _rx(r"(?i).*(signalplay|signal play|signal_play|sg_|signal|manplus).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(buzzvill).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(criteo).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(mobon).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(snow).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(smr).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(tg).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(t_cafe).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(blind).*").search(sm):
-        return "Paid Ad"
-
-    if _rx(r"(?i).*(cpc).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(organic).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(banner|da).*").search(sm):
-        return "Paid Ad"
-    if _rx(r"(?i).*(referral).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(shopping).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(social).*").search(sm):
-        return "Organic Traffic"
-
-    return "etc"
 
 def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
+    """
+    Paid Detail keeps the report's existing platform-level split for spend matching.
+    The RTF 중/소분류 labels are exposed in channel drill-down via classify_channel_detail_label().
+    """
     sm = (source_medium or "").strip().lower()
     cp = (campaign or "").strip().lower()
 
@@ -2193,11 +2148,11 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
     if has(r".*(meta|facebook|(^|[^a-z])fb([^a-z]|$)).*", sm):
         return "meta"
     if has(r".*google\s*/\s*cpc.*", sm) or has(r"(^|[^a-z])google([^a-z]|$)", sm):
-        if has(r"(^|[^a-z])(gdn|display|dg|demand|demand[\s_-]*gen)([^a-z]|$)", cp):
+        if has(r"(^|[^a-z])(gdn|display|dg|demand|demend|demand[\s_-]*gen)([^a-z]|$)", cp):
             return "google gdn"
         if has(r"(^|[^a-z])pmax([^a-z]|$)", cp):
             return "google gdn"
-        if has(r"(^|[^a-z])(sa|ss|search)([^a-z]|$)", cp):
+        if has(r"(^|[^a-z])(sa|ss|search|검색)([^a-z]|$)", cp):
             return "google search"
         return "google"
     if has(r".*naver.*", sm) and has(r".*cpc.*", sm):
@@ -3443,10 +3398,13 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
         out = df[df["bucket"] == bucket].copy()
         if out.empty:
             return out
-        if bucket == "Paid Ad":
-            out["sub"] = out.apply(lambda r: classify_paid_detail(str(r.get("sessionSourceMedium", "")), str(r.get("sessionCampaignName", ""))), axis=1)
-        else:
-            out["sub"] = out["sessionSourceMedium"].astype(str).str.strip().replace("", "(not set)")
+        out["sub"] = out.apply(
+            lambda r: classify_channel_detail_label(
+                str(r.get("sessionSourceMedium", "")),
+                str(r.get("sessionCampaignName", "")),
+            ),
+            axis=1,
+        )
         return out
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
