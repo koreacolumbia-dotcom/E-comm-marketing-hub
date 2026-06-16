@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Columbia AI Agent Report · 2026-06-15</title>
+<link href="https://fonts.googleapis.com/css2?family=SUIT:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+    :root{
+      --forest:#17231d; --forest2:#26382f; --charcoal:#111513; --ink:#1f261f;
+      --paper:#f4f0e8; --paper2:#faf8f2; --card:#fffdf8; --line:#e0d8c9;
+      --muted:#7d776b; --accent:#d6ff5f; --accent2:#8ba878; --red:#b42318; --green:#067647;
+      --shadow:0 24px 80px rgba(23,35,29,.14);
+    }
+    *{box-sizing:border-box} body{margin:0;background:var(--paper);color:var(--ink);font-family:'SUIT','Pretendard','Apple SD Gothic Neo','Segoe UI',sans-serif;}
+    .wrap{max-width:1440px;margin:0 auto;padding:28px 28px 80px}.hero{min-height:360px;border-radius:34px;background:radial-gradient(circle at 75% 10%,rgba(214,255,95,.22),transparent 28%),linear-gradient(135deg,var(--forest) 0%,var(--charcoal) 56%,#39473b 100%);color:#fff;position:relative;overflow:hidden;padding:42px 44px;box-shadow:var(--shadow)}
+    .hero:after{content:'COLUMBIA';position:absolute;right:-32px;bottom:-36px;font-size:148px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.055)}
+    .eyebrow{display:inline-flex;gap:10px;align-items:center;padding:8px 13px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(255,255,255,.08);backdrop-filter:blur(10px);font-size:13px;color:#eee9db}.dot{width:8px;height:8px;border-radius:99px;background:var(--accent);box-shadow:0 0 18px var(--accent)}
+    h1{font-size:64px;line-height:.96;letter-spacing:-.07em;margin:58px 0 0;font-weight:900}.hero-sub{max-width:760px;margin:18px 0 0;font-size:18px;line-height:1.65;color:#dcd8cd}.hero-meta{position:absolute;right:42px;top:42px;text-align:right;color:#d8d3c8;font-size:14px;line-height:1.6}.provider{color:var(--accent);font-weight:800}.grid{display:grid;gap:18px}.kpis{grid-template-columns:repeat(5,1fr);margin-top:-54px;position:relative;z-index:3;padding:0 28px}.card{background:var(--card);border:1px solid var(--line);border-radius:28px;box-shadow:0 16px 45px rgba(32,38,32,.08);padding:24px}.kpi .label{font-size:13px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.06em}.kpi .value{font-size:34px;font-weight:900;letter-spacing:-.05em;margin-top:12px}.delta{font-size:13px;margin-top:8px;font-weight:800}.positive{color:var(--green)!important}.negative{color:var(--red)!important}.neutral{color:var(--muted)!important}.section{margin-top:34px}.section-title{display:flex;align-items:flex-end;justify-content:space-between;margin:0 0 14px}.section-title h2{margin:0;font-size:26px;letter-spacing:-.045em}.section-title p{margin:0;color:var(--muted);font-size:14px}.two{grid-template-columns:1.15fr .85fr}.three{grid-template-columns:repeat(3,1fr)}.insight h3{margin:0 0 12px;font-size:18px}.insight p{font-size:17px;line-height:1.75;margin:0;color:#373c35}.list{margin:10px 0 0;padding:0;list-style:none}.list li{position:relative;padding:10px 0 10px 18px;border-bottom:1px solid #eee7da;line-height:1.55}.list li:before{content:'';position:absolute;left:0;top:19px;width:7px;height:7px;border-radius:50%;background:var(--forest2)}.panel-dark{background:linear-gradient(135deg,#202a23,#131815);color:#fff;border:0}.panel-dark .list li{border-color:rgba(255,255,255,.12)}.panel-dark .list li:before{background:var(--accent)}.panel-dark h3,.panel-dark p{color:#fff}.panel-dark .muted{color:#cbc7bc}.table-card{padding:0;overflow:hidden}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#eee7da;color:#6b655d;text-align:left;padding:14px 16px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}td{padding:14px 16px;border-top:1px solid #eee7da;vertical-align:middle}tr:hover td{background:#fbf7ef}.empty{text-align:center;color:var(--muted);padding:30px}.badge{display:inline-flex;align-items:center;border-radius:999px;background:#eef2e6;border:1px solid #d7dfca;padding:5px 10px;font-size:12px;font-weight:800;color:#39473b}.footer{margin-top:36px;color:var(--muted);font-size:13px;text-align:center}.mobile-note{display:none}.mini{font-size:13px;color:var(--muted);line-height:1.6}.headline{font-size:30px;line-height:1.22;font-weight:900;letter-spacing:-.05em;margin:0 0 14px}.summary-box{border-left:5px solid var(--accent2);padding-left:18px}@media(max-width:1100px){.kpis,.two,.three{grid-template-columns:1fr}.kpis{padding:0;margin-top:18px}.hero{min-height:auto}.hero-meta{position:static;text-align:left;margin-top:24px}h1{font-size:44px}.wrap{padding:18px}.table-scroll{overflow-x:auto}.mobile-note{display:block}}
+    </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <div class="eyebrow"><span class="dot"></span> AI COMMERCE DIAGNOSIS</div>
+    <div class="hero-meta">Generated 2026-06-16 11:04 KST<br>Provider <span class="provider">rule_based</span><br>Target 2026-06-15</div>
+    <h1>Commerce<br>Performance Agent</h1>
+    <p class="hero-sub">MSSQL 주문·상품·재고·카테고리·혜택 데이터를 BigQuery 기준으로 통합 진단한 자동 리포트입니다.</p>
+  </section>
+
+  <section class="grid kpis">
+    <div class="card kpi"><div class="label">Revenue</div><div class="value">0원</div><div class="delta negative">WoW -100.0%</div></div>
+    <div class="card kpi"><div class="label">Orders</div><div class="value">4</div><div class="delta negative">WoW -94.7%</div></div>
+    <div class="card kpi"><div class="label">Buyers</div><div class="value">3</div><div class="delta negative">WoW -95.9%</div></div>
+    <div class="card kpi"><div class="label">AOV</div><div class="value">0원</div><div class="delta negative">WoW -100.0%</div></div>
+    <div class="card kpi"><div class="label">CVR</div><div class="value">0.0%</div><div class="delta negative">WoW -100.0%</div></div>
+  </section>
+
+  <section class="section grid two">
+    <div class="card insight">
+      <span class="badge">Executive Summary</span>
+      <h2 class="headline">2026-06-15 매출 0원, WoW -100.0%</h2>
+      <div class="summary-box"><p>주문수는 WoW -94.7%, 구매자 수는 -95.9%, 객단가는 -100.0%입니다. 주요 하락 상품과 재고/혜택 시그널을 함께 확인하는 구성이 적합합니다.</p></div>
+    </div>
+    <div class="card panel-dark insight">
+      <h3>Today Actions</h3>
+      <ul class="list"><li>고가 상품 판매 비중과 쿠폰/프로모션 적용률을 함께 확인하세요.</li>
+<li>재고 위험 상품은 광고/EDM 노출 전 사이즈별 재고를 먼저 확인하세요.</li></ul>
+    </div>
+  </section>
+
+  <section class="section grid three">
+    <div class="card insight"><h3>Alerts</h3><ul class="list"><li>매출이 전주 동일 요일 대비 -100.0% 하락했습니다.</li></ul></div>
+    <div class="card insight"><h3>Causes</h3><ul class="list"><li>주문수가 -94.7% 감소했습니다.</li>
+<li>구매자 수가 -95.9% 감소했습니다.</li>
+<li>객단가가 -100.0% 하락했습니다.</li>
+<li>최근 매출이 있는 상품 중 품절/저재고 신호가 감지됩니다.</li></ul></div>
+    <div class="card insight"><h3>Watch Next</h3><ul class="list"><li>매출/주문수/구매자/객단가 WoW</li>
+<li>쿠폰 주문 비중</li>
+<li>품절/저재고 상품의 매출 기여도</li></ul></div>
+  </section>
+
+  <section class="section">
+    <div class="section-title"><h2>Category Drop / Growth</h2><p>전주 동일 요일 대비 카테고리 기여도</p></div>
+    <div class="card table-card table-scroll"><table><thead><tr><th>카테고리</th><th>매출</th><th>전주</th><th>증감</th><th>증감률</th><th>주문</th><th>구매자</th><th>품절라인</th></tr></thead><tbody><tr><td colspan='8' class='empty'>데이터 없음</td></tr></tbody></table></div>
+  </section>
+
+  <section class="section">
+    <div class="section-title"><h2>Product Detail</h2><p>하락 기여 상품 · 재고 · 장바구니 시그널</p></div>
+    <div class="card table-card table-scroll"><table><thead><tr><th>상품코드</th><th>상품명</th><th>카테고리</th><th>매출</th><th>전주</th><th>증감</th><th>증감률</th><th>재고</th><th>장바구니</th></tr></thead><tbody><tr><td colspan='9' class='empty'>데이터 없음</td></tr></tbody></table></div>
+  </section>
+
+  <section class="section grid two">
+    <div>
+      <div class="section-title"><h2>Stock Risk</h2><p>최근 30일 매출 상품 중 품절/저재고</p></div>
+      <div class="card table-card table-scroll"><table><thead><tr><th>상품코드</th><th>상품명</th><th>카테고리</th><th>30일 매출</th><th>30일 주문</th><th>최대재고</th><th>최소재고</th><th>품절</th><th>저재고</th></tr></thead><tbody><tr><td class=''>C75BM1935010</td><td class=''>남성 PFG 프로 스포츠 레인 부츠</td><td class=''>남성</td><td class=''>4,699,420원</td><td class=''>37</td><td class=''>21</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr>
+<tr><td class=''>C72FM7047457</td><td class=''>공용 PFG 바하마 II 반팔 셔츠</td><td class=''>남성</td><td class=''>1,472,730원</td><td class=''>27</td><td class=''>10</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr>
+<tr><td class=''>C75BI9168096</td><td class=''>남성 픽프릭 러쉬 아웃드라이 와이드</td><td class=''>남성</td><td class=''>1,169,000원</td><td class=''>9</td><td class=''>13</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr>
+<tr><td class=''>C75BM1935063</td><td class=''>남성 PFG 프로 스포츠 레인 부츠</td><td class=''>남성</td><td class=''>1,124,760원</td><td class=''>9</td><td class=''>2</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr>
+<tr><td class=''>C75BI8634083</td><td class=''>남성 텔루릭스 타이타늄 아웃드라이 와이드</td><td class=''>남성</td><td class=''>1,115,770원</td><td class=''>9</td><td class=''>8</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr>
+<tr><td class=''>C75YE6448010</td><td class=''>남성 트랜스 트레일 워터프루프</td><td class=''>남성</td><td class=''>913,670원</td><td class=''>11</td><td class=''>1</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr>
+<tr><td class=''>C61XE5850010</td><td class=''>공용 센트릴리엄 2.5 레이어 방수 자켓</td><td class=''>남성</td><td class=''>898,000원</td><td class=''>8</td><td class=''>15</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr>
+<tr><td class=''>C72FM8467019</td><td class=''>[공식몰 단독] 남성 PFG 쉐도우캐스터 OFZ 바라클라바 후디 티셔츠</td><td class=''>남성</td><td class=''>849,920원</td><td class=''>11</td><td class=''>0</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr>
+<tr><td class=''>C75YU0369010</td><td class=''>공용 본레 포레스트 20L 패커블 경량 백팩</td><td class=''>남성</td><td class=''>793,930원</td><td class=''>16</td><td class=''>0</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr>
+<tr><td class=''>C75YU0367010</td><td class=''>공용 레드우드 35L 백팩</td><td class=''>남성</td><td class=''>778,510원</td><td class=''>7</td><td class=''>0</td><td class=''>0</td><td class=''>1</td><td class=''>1</td></tr></tbody></table></div>
+    </div>
+    <div>
+      <div class="section-title"><h2>Device / Benefit</h2><p>주문 디바이스와 혜택 사용</p></div>
+      <div class="card table-card table-scroll"><table><thead><tr><th>디바이스</th><th>매출</th><th>주문</th><th>구매자</th><th>쿠폰</th><th>쿠폰주문</th><th>프로모션주문</th></tr></thead><tbody><tr><td colspan='7' class='empty'>데이터 없음</td></tr></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="section grid two">
+    <div class="card insight"><h3>This Week Actions</h3><ul class="list"><li>상위 매출 상품의 사이즈 품절률을 별도 KPI로 추적하세요.</li>
+<li>GA4 상품조회/장바구니 데이터와 결합해 조회 대비 구매전환 낮은 상품을 분리하세요.</li></ul></div>
+    <div class="card insight"><h3>Data Limits</h3><ul class="list"><li>본 리포트는 BigQuery에 적재된 MSSQL 주문상품 마트 기준입니다.</li>
+<li>재고는 주문 당시 재고가 아니라 현재/최근 적재 시점의 재고 신호일 수 있습니다.</li>
+<li>GA4 상품조회/광고비/발송 데이터가 결합되면 원인 판단 정확도가 올라갑니다.</li></ul><p class="mini">Confidence: medium</p></div>
+  </section>
+
+  <div class="footer">Columbia AI Agent Report · BigQuery + MSSQL Integrated Mart · 2026-06-16 11:04 KST</div>
+</div>
+</body>
+</html>
