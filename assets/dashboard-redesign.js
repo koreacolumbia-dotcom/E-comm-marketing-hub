@@ -5,10 +5,28 @@
   const target=(el)=>el.dataset.target||'';
   const ready=()=>{
     document.documentElement.classList.add('csk-redesign');
+    const isHub=!!q('#frame')&&qa('.nav-item[data-target]').length>0;
+    document.body.classList.add(isHub?'csk-hub-page':'csk-report-page');
+    const flatten=document.createElement('style');
+    flatten.textContent=`
+      body.csk-hub-page>main>section{padding:0!important;margin:0!important;background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;backdrop-filter:none!important}
+      body.csk-hub-page #frame{display:block!important;width:100%!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+      body.csk-report-page>#dashboard-experience.dx-shell,#dashboard-experience.dx-shell{max-width:1500px!important;margin:0 auto 16px!important;padding:0!important;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important}
+      body.csk-report-page>#dashboard-ops.ops-shell,#dashboard-ops.ops-shell{max-width:1500px!important;margin:0 auto 16px!important;padding:0!important;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important}
+      body.csk-report-page>main.glass-card,body.csk-report-page>.glass-card:first-child{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important}
+      @media(max-width:1023px){
+        body.csk-hub-page>main{padding:0!important;margin:0!important}
+        body.csk-hub-page>main>section{padding:0!important;margin:0!important}
+        body.csk-report-page{padding-left:0!important;padding-right:0!important}
+        body.csk-report-page>#dashboard-experience.dx-shell,#dashboard-experience.dx-shell,body.csk-report-page>#dashboard-ops.ops-shell,#dashboard-ops.ops-shell{margin:0 0 12px!important;padding:0 12px!important}
+        #dashboard-experience .dx-head,#dashboard-ops .ops-head{border-radius:16px!important}
+        #dashboard-experience .dx-panel{border-radius:16px!important}
+      }
+    `;
+    document.head.appendChild(flatten);
     qa('table').forEach(t=>{if(t.parentElement?.classList.contains('csk-mobile-table'))return;const w=document.createElement('div');w.className='csk-mobile-table';t.parentNode.insertBefore(w,t);w.appendChild(t)});
     qa('img').forEach(i=>{i.loading='lazy';i.decoding='async'});qa('a[target="_blank"]').forEach(a=>a.rel='noopener noreferrer');
     const top=document.createElement('button');top.type='button';top.className='csk-backtop';top.setAttribute('aria-label','맨 위로');top.innerHTML='↑';top.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});document.body.appendChild(top);const syncTop=()=>top.classList.toggle('show',window.scrollY>480);addEventListener('scroll',syncTop,{passive:true});syncTop();
-    const isHub=!!q('#frame')&&qa('.nav-item[data-target]').length>0;
     if(!isHub)return;
     const frame=q('#frame'), pcItems=qa('.nav-item[data-target]'), oldMobile=qa('.mo-tabbar');oldMobile.forEach(x=>x.style.display='none');
     const groups=[];qa('.sidebar .nav-section').forEach(sec=>{const title=q('.nav-section-title',sec)?.textContent.trim()||'Menu';const items=qa('.nav-item[data-target]',sec);if(items.length)groups.push({title,items})});
