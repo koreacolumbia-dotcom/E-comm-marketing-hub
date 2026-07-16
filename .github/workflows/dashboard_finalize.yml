@@ -45,6 +45,24 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          else
+            python -m pip install pandas numpy openpyxl
+          fi
+          python - <<'PY'
+          import numpy
+          import openpyxl
+          import pandas
+          print("[OK] Python dependencies loaded")
+          PY
 
       - name: Rebuild Summary after report jobs
         shell: bash
