@@ -24,6 +24,18 @@ jobs:
         with:
           ref: main
 
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install local Wrangler 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          echo "Local Wrangler: $(npx --no-install wrangler --version)"
+
       - name: Prepare bounded static bundle
         shell: bash
         run: |
