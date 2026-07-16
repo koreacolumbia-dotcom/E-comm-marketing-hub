@@ -70,6 +70,14 @@ jobs:
           set -euo pipefail
           python scripts/dashboard_intelligence.py
 
+      - name: Build E-commerce Marketing Hub v2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/dashboard_v2.py
+          test -f reports/v2/index.html
+          test -f reports/v2/data.json
+
       - name: Add data health board and action center
         shell: bash
         run: |
@@ -135,9 +143,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add reports/meta.json reports/member_funnel/data/meta.json reports/ai_agent/data/meta.json reports/index.html reports/dashboard_alert.md reports/dashboard_intelligence.json index.html reports site 2>/dev/null || true
+          git add reports/meta.json reports/member_funnel/data/meta.json reports/ai_agent/data/meta.json reports/index.html reports/dashboard_alert.md reports/dashboard_intelligence.json reports/v2 index.html reports site 2>/dev/null || true
           if git diff --cached --quiet; then echo "[INFO] No finalization changes"; exit 0; fi
-          git commit -m "Finalize dashboard intelligence and mobile experience"
+          git commit -m "Finalize dashboard intelligence, v2 and mobile experience"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:main; then exit 0; fi
             git pull --rebase origin main
