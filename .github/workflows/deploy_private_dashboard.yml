@@ -28,13 +28,14 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24"
+          cache: npm
 
-      - name: Install local Wrangler 4
+      - name: Install dependencies
         shell: bash
         run: |
           set -euo pipefail
           npm install --no-audit --no-fund
-          echo "Local Wrangler: $(npx --no-install wrangler --version)"
+          echo "Wrangler version: $(npx --no-install wrangler --version)"
 
       - name: Prepare bounded static bundle
         shell: bash
@@ -44,11 +45,11 @@ jobs:
           test -f dist/index.html
           echo "Bundle size: $(du -sh dist | cut -f1)"
           echo "Bundle files: $(find dist -type f | wc -l)"
-          find dist -type f -size +24M -print -quit | grep -q . && {
+          if find dist -type f -size +24M -print -quit | grep -q .; then
             echo "[ERROR] Cloudflare bundle still contains a file over 24 MiB"
             find dist -type f -size +24M -print
             exit 1
-          } || true
+          fi
 
       - name: Sanitize and scan deploy bundle
         shell: bash
@@ -57,24 +58,12 @@ jobs:
           python scripts/dashboard_security.py --sanitize --root dist
 
       - name: Deploy ecom Worker with static assets
-        id: cloudflare_deploy
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4"
-          packageManager: npm
-          command: deploy --config wrangler.jsonc
-
-      - name: Print deployment result
-        if: always()
         shell: bash
         env:
-          DEPLOYMENT_URL: ${{ steps.cloudflare_deploy.outputs.deployment-url }}
-          COMMAND_STDERR: ${{ steps.cloudflare_deploy.outputs.command-stderr }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ -n "$DEPLOYMENT_URL" ]; then echo "Deployment URL: $DEPLOYMENT_URL"; fi
-          if [ -n "$COMMAND_STDERR" ]; then
-            echo "Wrangler stderr:"
-            printf '%s\n' "$COMMAND_STDERR"
-          fi
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx --no-install wrangler deploy --config wrangler.jsonc
