@@ -17,8 +17,9 @@ EXCLUDED_PREFIXES = (
     Path("voc_crema/member_funnel"),
     Path("daily_digest/daily"),
 )
-DESIGN_HEAD = '<link rel="stylesheet" href="/assets/dashboard-redesign.css">'
-DESIGN_SCRIPT = '<script defer src="/assets/dashboard-redesign.js"></script>'
+DESIGN_VERSION = "20260716-v3"
+DESIGN_HEAD = f'<link rel="stylesheet" href="/assets/dashboard-redesign.css?v={DESIGN_VERSION}">'
+DESIGN_SCRIPT = f'<script defer src="/assets/dashboard-redesign.js?v={DESIGN_VERSION}"></script>'
 
 
 def information_page(title: str, message: str) -> str:
@@ -41,6 +42,10 @@ def inject_design(path: Path) -> None:
     if path.suffix.lower() != ".html" or not path.exists() or path.stat().st_size > MAX_FILE_BYTES:
         return
     text = path.read_text(encoding="utf-8", errors="ignore")
+    # Replace prior design references as well as inserting missing references.
+    import re
+    text = re.sub(r'<link[^>]+dashboard-redesign\.css[^>]*>', DESIGN_HEAD, text, flags=re.I)
+    text = re.sub(r'<script[^>]+dashboard-redesign\.js[^>]*></script>', DESIGN_SCRIPT, text, flags=re.I)
     changed = False
     if "dashboard-redesign.css" not in text:
         marker = "</head>"
@@ -58,8 +63,8 @@ def inject_design(path: Path) -> None:
         else:
             text += "\n" + DESIGN_SCRIPT
         changed = True
-    if changed:
-        path.write_text(text, encoding="utf-8")
+    # Always write because an old reference may have been replaced with a versioned one.
+    path.write_text(text, encoding="utf-8")
 
 
 def write_restricted_placeholders(destination: Path) -> None:
