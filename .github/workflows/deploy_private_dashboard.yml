@@ -1,0 +1,43 @@
+name: Deploy Private Dashboard
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Dashboard Finalize"]
+    types: [completed]
+
+concurrency:
+  group: private-dashboard-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: dashboard-production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Prepare static bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp -f index.html Columbia_logo.png dist/
+          cp -a reports dist/reports
+          test -f robots.txt && cp -f robots.txt dist/robots.txt || true
+          test -f _headers && cp -f _headers dist/_headers || true
+          python scripts/dashboard_security.py --sanitize
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=csk-ecomm-dashboard --branch=main
