@@ -23,12 +23,6 @@ jobs:
         with:
           ref: main
 
-      - name: Security scan generated reports
-        shell: bash
-        run: |
-          set -euo pipefail
-          python scripts/dashboard_security.py --sanitize
-
       - name: Prepare bounded static bundle
         shell: bash
         run: |
@@ -42,6 +36,12 @@ jobs:
             find dist -type f -size +24M -print
             exit 1
           } || true
+
+      - name: Sanitize and scan deploy bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/dashboard_security.py --sanitize --root dist
 
       - name: Deploy ecom Worker with static assets
         uses: cloudflare/wrangler-action@v3
