@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build a minimal Cloudflare Pages bundle from the dashboard repository.
+"""Build a bounded Cloudflare bundle from the dashboard repository.
 
-Cloudflare static assets have a 25 MiB per-file limit. This script copies only
-runtime dashboard assets, excludes development/cache content, and replaces any
-oversized HTML report with a small explanatory page so one report cannot block
-publication of the entire dashboard.
+Only runtime dashboard assets are copied. Customer-level member reports and raw
+Daily Digest archives are intentionally excluded from the internet-facing bundle.
+Oversized HTML reports are replaced with a small explanatory page so one report
+cannot block publication of the rest of the dashboard.
 """
 from __future__ import annotations
 
@@ -17,30 +17,71 @@ DIST = ROOT / "dist"
 MAX_FILE_BYTES = 24 * 1024 * 1024
 ROOT_FILES = ("index.html", "Columbia_logo.png", "robots.txt", "_headers")
 SKIP_NAMES = {".git", ".github", "__pycache__", ".pytest_cache", ".naver_cache"}
+EXCLUDED_PREFIXES = (
+    Path("member_funnel"),
+    Path("voc_crema/member_funnel"),
+    Path("daily_digest/daily"),
+)
 
 
-def placeholder(relative_path: Path, size: int) -> str:
-    size_mb = size / 1024 / 1024
-    title = html.escape(relative_path.stem.replace("_", " ").title())
+def information_page(title: str, message: str) -> str:
     return f"""<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>{title} · 배포 최적화 중</title>
-<style>body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#0f172a;margin:0;display:grid;min-height:100vh;place-items:center}}main{{max-width:680px;margin:24px;padding:32px;background:#fff;border:1px solid #e2e8f0;border-radius:24px;box-shadow:0 18px 50px rgba(15,23,42,.08)}}h1{{font-size:24px}}p{{line-height:1.7;color:#475569}}a{{color:#0369a1;font-weight:700}}</style></head><body><main><h1>{title}</h1><p>이 리포트는 단일 파일 용량이 {size_mb:.1f}MB로 Cloudflare의 정적 파일 제한을 초과하여 현재 경량화 작업이 필요합니다.</p><p>나머지 대시보드는 정상적으로 이용할 수 있습니다.</p><p><a href="/">대시보드로 돌아가기</a></p></main></body></html>"""
+<meta name="robots" content="noindex,nofollow"><title>{html.escape(title)}</title>
+<style>body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#0f172a;margin:0;display:grid;min-height:100vh;place-items:center}}main{{max-width:680px;margin:24px;padding:32px;background:#fff;border:1px solid #e2e8f0;border-radius:24px;box-shadow:0 18px 50px rgba(15,23,42,.08)}}h1{{font-size:24px}}p{{line-height:1.7;color:#475569}}a{{color:#0369a1;font-weight:700}}</style></head><body><main><h1>{html.escape(title)}</h1><p>{html.escape(message)}</p><p><a href="/">대시보드로 돌아가기</a></p></main></body></html>"""
 
 
-def copy_tree(source: Path, destination: Path) -> tuple[int, list[str]]:
+def oversized_placeholder(relative_path: Path, size: int) -> str:
+    size_mb = size / 1024 / 1024
+    title = relative_path.stem.replace("_", " ").title()
+    return information_page(
+        title,
+        f"이 리포트는 단일 파일 용량이 {size_mb:.1f}MB로 배포 제한을 초과하여 현재 경량화 작업 중입니다. 나머지 대시보드는 정상적으로 이용할 수 있습니다.",
+    )
+
+
+def is_excluded(relative: Path) -> bool:
+    return any(relative == prefix or prefix in relative.parents for prefix in EXCLUDED_PREFIXES)
+
+
+def write_restricted_placeholders(destination: Path) -> None:
+    pages = {
+        Path("member_funnel/index.html"): (
+            "회원 분석 접근 제한",
+            "고객 단위 정보가 포함될 수 있어 인터넷 배포 대상에서 제외되었습니다. 집계 지표는 Summary에서 확인할 수 있습니다.",
+        ),
+        Path("voc_crema/member_funnel/index.html"): (
+            "회원 분석 접근 제한",
+            "고객 단위 정보가 포함될 수 있어 인터넷 배포 대상에서 제외되었습니다.",
+        ),
+        Path("daily_digest/daily/index.html"): (
+            "일별 원본 리포트 접근 제한",
+            "원본 일별 아카이브는 개인정보 오탐 및 노출 위험을 줄이기 위해 배포 대상에서 제외되었습니다.",
+        ),
+    }
+    for relative, (title, message) in pages.items():
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(information_page(title, message), encoding="utf-8")
+
+
+def copy_tree(source: Path, destination: Path) -> tuple[int, list[str], int]:
     copied = 0
+    excluded = 0
     replaced: list[str] = []
     for path in source.rglob("*"):
         if not path.is_file() or any(part in SKIP_NAMES for part in path.parts):
             continue
         relative = path.relative_to(source)
+        if is_excluded(relative):
+            excluded += 1
+            continue
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         size = path.stat().st_size
         if size > MAX_FILE_BYTES:
             if path.suffix.lower() == ".html":
-                target.write_text(placeholder(relative, size), encoding="utf-8")
+                target.write_text(oversized_placeholder(relative, size), encoding="utf-8")
                 replaced.append(f"{relative} ({size / 1024 / 1024:.1f} MiB)")
                 copied += 1
             else:
@@ -48,7 +89,7 @@ def copy_tree(source: Path, destination: Path) -> tuple[int, list[str]]:
             continue
         shutil.copy2(path, target)
         copied += 1
-    return copied, replaced
+    return copied, replaced, excluded
 
 
 def main() -> int:
@@ -64,7 +105,9 @@ def main() -> int:
     if not reports.exists():
         raise SystemExit("reports directory is missing")
 
-    copied, replaced = copy_tree(reports, DIST / "reports")
+    copied, replaced, excluded = copy_tree(reports, DIST / "reports")
+    write_restricted_placeholders(DIST / "reports")
+
     if not (DIST / "index.html").exists():
         raise SystemExit("dist/index.html is missing")
 
@@ -73,7 +116,7 @@ def main() -> int:
     if oversized:
         raise SystemExit("Oversized assets remain: " + ", ".join(str(p) for p in oversized))
 
-    print(f"[BUNDLE] copied report assets={copied}; total files={total_files}")
+    print(f"[BUNDLE] copied report assets={copied}; excluded sensitive/raw files={excluded}; total files={total_files}")
     for item in replaced:
         print(f"[BUNDLE] oversized replacement: {item}")
     return 0
