@@ -15,6 +15,13 @@ META = Path("reports/meta.json")
 SUMMARY_JSON = Path("reports/summary.json")
 START = "<!-- DASHBOARD-OPS-START -->"
 END = "<!-- DASHBOARD-OPS-END -->"
+EXCLUDED_ACTION_TERMS = {
+    "crm",
+    "재구매 타겟",
+    "추천 타겟",
+    "메시지 발송 대상",
+    "고객 타기팅",
+}
 
 
 def load(path: Path, default: Any) -> Any:
@@ -62,6 +69,11 @@ def status_label(status: str) -> tuple[str, str]:
     }.get(status, (status or "확인 필요", "#64748b"))
 
 
+def allowed_action(action: dict[str, str]) -> bool:
+    haystack = f"{action.get('title', '')} {action.get('detail', '')}".lower()
+    return not any(term in haystack for term in EXCLUDED_ACTION_TERMS)
+
+
 def build_actions(meta: dict[str, Any], summary: dict[str, Any]) -> list[dict[str, str]]:
     actions: list[dict[str, str]] = []
     reports = meta.get("reports", {}) if isinstance(meta, dict) else {}
@@ -90,6 +102,7 @@ def build_actions(meta: dict[str, Any], summary: dict[str, Any]) -> list[dict[st
     if signups_wow is not None and signups_wow <= -15:
         actions.append({"priority": "P1", "title": "신규가입 유입 점검", "detail": f"신규가입 전주 대비 {signups_wow:.1f}% — 광고 랜딩과 가입 퍼널을 확인하세요.", "link": "../index.html?tab=member"})
 
+    actions = [action for action in actions if allowed_action(action)]
     if not actions:
         actions.append({"priority": "OK", "title": "즉시 조치가 필요한 이상 없음", "detail": "핵심 데이터와 KPI가 설정된 경고 기준 안에 있습니다.", "link": "#data-health"})
     return actions[:6]
