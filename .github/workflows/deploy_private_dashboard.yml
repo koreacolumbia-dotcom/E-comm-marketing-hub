@@ -19,7 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: dashboard-production
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout latest main
+        uses: actions/checkout@v6
         with:
           ref: main
 
@@ -44,8 +45,24 @@ jobs:
           python scripts/dashboard_security.py --sanitize --root dist
 
       - name: Deploy ecom Worker with static assets
+        id: cloudflare_deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4"
+          packageManager: npm
           command: deploy --config wrangler.jsonc
+
+      - name: Print deployment result
+        if: always()
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.cloudflare_deploy.outputs.deployment-url }}
+          COMMAND_STDERR: ${{ steps.cloudflare_deploy.outputs.command-stderr }}
+        run: |
+          if [ -n "$DEPLOYMENT_URL" ]; then echo "Deployment URL: $DEPLOYMENT_URL"; fi
+          if [ -n "$COMMAND_STDERR" ]; then
+            echo "Wrangler stderr:"
+            printf '%s\n' "$COMMAND_STDERR"
+          fi
