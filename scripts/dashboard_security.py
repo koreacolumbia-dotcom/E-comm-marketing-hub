@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sanitize generated dashboard data and block secrets/PII from public artifacts."""
+"""Sanitize generated dashboard data and block secrets/PII from deploy artifacts."""
 from __future__ import annotations
 
 import argparse
@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-ROOTS = [Path("reports"), Path("site")]
+DEFAULT_ROOTS = [Path("reports"), Path("site")]
 TEXT_SUFFIXES = {".html", ".js", ".json", ".csv", ".txt"}
 EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
 PHONE_RE = re.compile(r"(?<!\d)(?:01[016789])[- .]?\d{3,4}[- .]?\d{4}(?!\d)")
@@ -39,6 +39,7 @@ def token(value: str) -> str:
 
 def mask_text(text: str) -> tuple[str, int]:
     count = 0
+
     def email_repl(match: re.Match[str]) -> str:
         nonlocal count
         value = match.group(0)
@@ -46,10 +47,12 @@ def mask_text(text: str) -> tuple[str, int]:
             return value
         count += 1
         return token(value)
+
     def pii_repl(match: re.Match[str]) -> str:
         nonlocal count
         count += 1
         return token(match.group(0))
+
     text = EMAIL_RE.sub(email_repl, text)
     text = PHONE_RE.sub(pii_repl, text)
     text = RRN_RE.sub(pii_repl, text)
@@ -66,14 +69,18 @@ def sanitize_obj(obj: Any) -> tuple[Any, int]:
                 if lower in {"email", "email_address", "e_mail"} and PUBLIC_EMAIL_RE.match(str(v)):
                     out[k] = v
                 else:
-                    out[k] = token(str(v)); count += 1
+                    out[k] = token(str(v))
+                    count += 1
             else:
-                out[k], n = sanitize_obj(v); count += n
+                out[k], n = sanitize_obj(v)
+                count += n
         return out, count
     if isinstance(obj, list):
         result, count = [], 0
         for v in obj:
-            clean, n = sanitize_obj(v); result.append(clean); count += n
+            clean, n = sanitize_obj(v)
+            result.append(clean)
+            count += n
         return result, count
     if isinstance(obj, str):
         return mask_text(obj)
@@ -98,7 +105,8 @@ def sanitize_json(path: Path) -> int:
 def sanitize_csv(path: Path) -> int:
     try:
         with path.open("r", encoding="utf-8-sig", newline="") as f:
-            rows = list(csv.DictReader(f)); fields = list(rows[0].keys()) if rows else []
+            rows = list(csv.DictReader(f))
+            fields = list(rows[0].keys()) if rows else []
     except Exception:
         return 0
     count = 0
@@ -108,12 +116,27 @@ def sanitize_csv(path: Path) -> int:
             if field.lower() in SENSITIVE_KEYS and value:
                 if field.lower() in {"email", "email_address", "e_mail"} and PUBLIC_EMAIL_RE.match(value):
                     continue
-                row[field] = token(value); count += 1
+                row[field] = token(value)
+                count += 1
             elif value:
-                row[field], n = mask_text(value); count += n
+                row[field], n = mask_text(value)
+                count += n
     if count:
         with path.open("w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fields); writer.writeheader(); writer.writerows(rows)
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+    return count
+
+
+def sanitize_text_file(path: Path) -> int:
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return 0
+    clean, count = mask_text(text)
+    if count:
+        path.write_text(clean, encoding="utf-8")
     return count
 
 
@@ -123,26 +146,48 @@ def remaining_pii(text: str) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(); parser.add_argument("--sanitize", action="store_true"); args = parser.parse_args()
-    findings: list[str] = []; masked = 0; scanned = 0
-    for root in ROOTS:
-        if not root.exists(): continue
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sanitize", action="store_true")
+    parser.add_argument("--root", action="append", dest="roots", help="Directory to scan; may be repeated")
+    args = parser.parse_args()
+
+    roots = [Path(value) for value in args.roots] if args.roots else DEFAULT_ROOTS
+    findings: list[str] = []
+    masked = 0
+    scanned = 0
+
+    for root in roots:
+        if not root.exists():
+            continue
         for path in root.rglob("*"):
-            if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES or path.stat().st_size > 25_000_000: continue
+            if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES or path.stat().st_size > 25_000_000:
+                continue
             scanned += 1
-            if args.sanitize and path.suffix.lower() == ".json": masked += sanitize_json(path)
-            elif args.sanitize and path.suffix.lower() == ".csv": masked += sanitize_csv(path)
-            try: text = path.read_text(encoding="utf-8", errors="ignore")
-            except Exception: continue
+            suffix = path.suffix.lower()
+            if args.sanitize and suffix == ".json":
+                masked += sanitize_json(path)
+            elif args.sanitize and suffix == ".csv":
+                masked += sanitize_csv(path)
+            elif args.sanitize and suffix in {".html", ".js", ".txt"}:
+                masked += sanitize_text_file(path)
+
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
             hits = scan_secrets(text)
-            if hits: findings.append(f"{path}: {', '.join(hits)}")
-            if path.suffix.lower() in {".html", ".js", ".txt"}:
+            if hits:
+                findings.append(f"{path}: {', '.join(hits)}")
+            if suffix in {".html", ".js", ".txt"}:
                 pii = remaining_pii(text)
-                if pii: findings.append(f"{path}: unmasked PII-like strings={pii}")
-    print(f"[SECURITY] scanned={scanned} masked={masked}")
+                if pii:
+                    findings.append(f"{path}: unmasked PII-like strings={pii}")
+
+    print(f"[SECURITY] roots={','.join(str(r) for r in roots)} scanned={scanned} masked={masked}")
     if findings:
         print("[SECURITY] blocked findings:")
-        for hit in findings[:100]: print(f" - {hit}")
+        for hit in findings[:100]:
+            print(f" - {hit}")
         return 1
     return 0
 
