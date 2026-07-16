@@ -1,0 +1,47 @@
+name: Hourly BigQuery Dashboard Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekdays, 09:15-19:15 KST
+    - cron: "15 0-10 * * 1-5"
+
+concurrency:
+  group: hourly-bigquery-dashboard-refresh
+  cancel-in-progress: true
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Refresh BigQuery-backed report groups
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_target() {
+            local input="$1"
+            echo "[REFRESH] dispatching $input"
+            gh workflow run reports_build.yml --repo "$GITHUB_REPOSITORY" --ref main \
+              -f reason="hourly-bigquery-refresh" -f "$input=true"
+            sleep 8
+            local run_id
+            run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow reports_build.yml --event workflow_dispatch --branch main --limit 1 --json databaseId --jq '.[0].databaseId')"
+            if [ -z "$run_id" ]; then echo "[ERROR] unable to resolve run id for $input"; exit 1; fi
+            echo "[REFRESH] watching run $run_id"
+            gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
+          }
+          run_target owned_only
+          run_target funnel_only
+          run_target product_keyword_only
+          run_target utm_channel_only
+
+      - name: Refresh completion summary
+        run: |
+          echo "BigQuery-backed dashboard reports refreshed successfully." >> "$GITHUB_STEP_SUMMARY"
+          echo "Dashboard Finalize and Cloudflare deployment will follow automatically." >> "$GITHUB_STEP_SUMMARY"
