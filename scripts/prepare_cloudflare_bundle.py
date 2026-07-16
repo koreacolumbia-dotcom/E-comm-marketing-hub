@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import re
 import shutil
 from pathlib import Path
 
@@ -17,15 +18,15 @@ EXCLUDED_PREFIXES = (
     Path("voc_crema/member_funnel"),
     Path("daily_digest/daily"),
 )
-DESIGN_VERSION = "20260716-v3"
+DESIGN_VERSION = "20260716-v5"
 DESIGN_HEAD = f'<link rel="stylesheet" href="/assets/dashboard-redesign.css?v={DESIGN_VERSION}">'
 DESIGN_SCRIPT = f'<script defer src="/assets/dashboard-redesign.js?v={DESIGN_VERSION}"></script>'
 
 
 def information_page(title: str, message: str) -> str:
     return f"""<!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>{html.escape(title)}</title>{DESIGN_HEAD}{DESIGN_SCRIPT}</head><body><main style="max-width:680px;margin:10vh auto;padding:32px;background:#fff;border:1px solid #e7ebf1;border-radius:18px"><h1>{html.escape(title)}</h1><p>{html.escape(message)}</p><p><a href="/">대시보드로 돌아가기</a></p></main></body></html>"""
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow"><title>{html.escape(title)}</title>{DESIGN_HEAD}{DESIGN_SCRIPT}</head><body><main style="max-width:680px;margin:10vh auto;padding:24px"><section style="background:#fff;border:1px solid #e7ebf1;border-radius:18px;padding:24px"><h1>{html.escape(title)}</h1><p>{html.escape(message)}</p><p><a href="/">대시보드로 돌아가기</a></p></section></main></body></html>"""
 
 
 def oversized_placeholder(relative_path: Path, size: int) -> str:
@@ -42,36 +43,57 @@ def inject_design(path: Path) -> None:
     if path.suffix.lower() != ".html" or not path.exists() or path.stat().st_size > MAX_FILE_BYTES:
         return
     text = path.read_text(encoding="utf-8", errors="ignore")
-    # Replace prior design references as well as inserting missing references.
-    import re
     text = re.sub(r'<link[^>]+dashboard-redesign\.css[^>]*>', DESIGN_HEAD, text, flags=re.I)
     text = re.sub(r'<script[^>]+dashboard-redesign\.js[^>]*></script>', DESIGN_SCRIPT, text, flags=re.I)
-    changed = False
+    if 'name="viewport"' not in text.lower():
+        text = text.replace("</head>", '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n</head>', 1)
     if "dashboard-redesign.css" not in text:
-        marker = "</head>"
-        if marker in text.lower():
-            pos = text.lower().rfind(marker)
-            text = text[:pos] + DESIGN_HEAD + "\n" + text[pos:]
-        else:
-            text = DESIGN_HEAD + "\n" + text
-        changed = True
+        pos = text.lower().rfind("</head>")
+        text = text[:pos] + DESIGN_HEAD + "\n" + text[pos:] if pos >= 0 else DESIGN_HEAD + "\n" + text
     if "dashboard-redesign.js" not in text:
-        marker = "</body>"
-        if marker in text.lower():
-            pos = text.lower().rfind(marker)
-            text = text[:pos] + DESIGN_SCRIPT + "\n" + text[pos:]
-        else:
-            text += "\n" + DESIGN_SCRIPT
-        changed = True
-    # Always write because an old reference may have been replaced with a versioned one.
+        pos = text.lower().rfind("</body>")
+        text = text[:pos] + DESIGN_SCRIPT + "\n" + text[pos:] if pos >= 0 else text + "\n" + DESIGN_SCRIPT
     path.write_text(text, encoding="utf-8")
+
+
+def package_latest_daily(source_reports: Path, destination_reports: Path) -> None:
+    """Expose only the latest Daily Digest report while keeping the dated archive excluded."""
+    source_index = source_reports / "daily_digest" / "index.html"
+    out_dir = destination_reports / "daily_digest"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not source_index.exists():
+        (out_dir / "index.html").write_text(
+            information_page("Owned.com Report", "Daily Digest 생성 결과가 없습니다."), encoding="utf-8"
+        )
+        return
+
+    text = source_index.read_text(encoding="utf-8", errors="ignore")
+    matches = re.findall(r'daily/([0-9]{4}-[0-9]{2}-[0-9]{2}\.html)', text)
+    candidate = source_reports / "daily_digest" / "daily" / matches[-1] if matches else None
+    if not candidate or not candidate.exists():
+        available = sorted((source_reports / "daily_digest" / "daily").glob("*.html"))
+        candidate = available[-1] if available else None
+
+    if not candidate or not candidate.exists():
+        (out_dir / "index.html").write_text(
+            information_page("Owned.com Report", "최신 Daily Digest 파일을 찾지 못했습니다. Daily Digest workflow를 다시 실행해 주세요."),
+            encoding="utf-8",
+        )
+        return
+
+    if candidate.stat().st_size > MAX_FILE_BYTES:
+        (out_dir / "index.html").write_text(oversized_placeholder(candidate, candidate.stat().st_size), encoding="utf-8")
+        return
+
+    shutil.copy2(candidate, out_dir / "index.html")
+    print(f"[BUNDLE] packaged latest Daily Digest: {candidate.name}")
 
 
 def write_restricted_placeholders(destination: Path) -> None:
     pages = {
         Path("member_funnel/index.html"): ("회원 분석 접근 제한", "고객 단위 정보가 포함될 수 있어 인터넷 배포 대상에서 제외되었습니다. 집계 지표는 Summary에서 확인할 수 있습니다."),
         Path("voc_crema/member_funnel/index.html"): ("회원 분석 접근 제한", "고객 단위 정보가 포함될 수 있어 인터넷 배포 대상에서 제외되었습니다."),
-        Path("daily_digest/daily/index.html"): ("일별 원본 리포트 접근 제한", "원본 일별 아카이브는 개인정보 오탐 및 노출 위험을 줄이기 위해 배포 대상에서 제외되었습니다."),
+        Path("daily_digest/daily/index.html"): ("일별 원본 리포트 접근 제한", "일별 아카이브는 배포하지 않으며 최신 리포트만 Owned.com Report에서 제공합니다."),
     }
     for relative, (title, message) in pages.items():
         target = destination / relative
@@ -109,7 +131,6 @@ def copy_tree(source: Path, destination: Path) -> tuple[int, list[str], int]:
 def main() -> int:
     shutil.rmtree(DIST, ignore_errors=True)
     DIST.mkdir(parents=True)
-
     for filename in ROOT_FILES:
         source = ROOT / filename
         if source.exists():
@@ -128,6 +149,7 @@ def main() -> int:
         raise SystemExit("reports directory is missing")
 
     copied, replaced, excluded = copy_tree(reports, DIST / "reports")
+    package_latest_daily(reports, DIST / "reports")
     write_restricted_placeholders(DIST / "reports")
 
     html_files = list(DIST.rglob("*.html"))
@@ -136,7 +158,6 @@ def main() -> int:
 
     if not (DIST / "index.html").exists():
         raise SystemExit("dist/index.html is missing")
-
     total_files = sum(1 for p in DIST.rglob("*") if p.is_file())
     oversized = [p for p in DIST.rglob("*") if p.is_file() and p.stat().st_size > MAX_FILE_BYTES]
     if oversized:
