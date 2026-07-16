@@ -24,11 +24,13 @@ jobs:
         with:
           ref: main
 
-      - name: Setup Node 24
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          package-manager-cache: false
+      - name: Verify runner tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          python --version
 
       - name: Install dependencies
         shell: bash
