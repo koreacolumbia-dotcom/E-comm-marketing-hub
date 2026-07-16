@@ -9,6 +9,9 @@ on:
         default: "false"
         type: choice
         options: ["false", "true"]
+  workflow_run:
+    workflows: ["Reports Build"]
+    types: [completed]
   schedule:
     - cron: "30 21 * * *" # 06:30 KST
 
@@ -22,6 +25,7 @@ permissions:
 
 jobs:
   finalize:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout latest main
@@ -50,11 +54,7 @@ jobs:
           for candidate in build_summary_dashboard.py build_summary.py summary_dashboard.py build_reports_summary.py; do
             if [ -f "$candidate" ]; then BUILDER="$candidate"; break; fi
           done
-          if [ -n "$BUILDER" ]; then
-            python -u "$BUILDER"
-          else
-            echo "[WARN] No standalone Summary builder found"
-          fi
+          if [ -n "$BUILDER" ]; then python -u "$BUILDER"; else echo "[WARN] No standalone Summary builder found"; fi
 
       - name: Normalize metadata and audit freshness
         shell: bash
@@ -62,17 +62,20 @@ jobs:
           STRICT_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.strict || 'false' }}
         run: |
           set -euo pipefail
-          if [ "$STRICT_INPUT" = "true" ]; then
-            python scripts/dashboard_healthcheck.py --strict
-          else
-            python scripts/dashboard_healthcheck.py
-          fi
+          if [ "$STRICT_INPUT" = "true" ]; then python scripts/dashboard_healthcheck.py --strict; else python scripts/dashboard_healthcheck.py; fi
+
+      - name: Generate executive and PDP intelligence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/dashboard_intelligence.py
 
       - name: Add data health board and action center
         shell: bash
         run: |
           set -euo pipefail
           python scripts/dashboard_enhance.py
+          python scripts/dashboard_experience.py
 
       - name: Sanitize public artifacts and block sensitive data
         shell: bash
@@ -89,16 +92,13 @@ jobs:
           import re
           from pathlib import Path
           index = Path("index.html")
-          if not index.exists():
-              raise SystemExit("[ERROR] index.html missing")
+          if not index.exists(): raise SystemExit("[ERROR] index.html missing")
           text = index.read_text(encoding="utf-8")
           targets = sorted(set(re.findall(r'data-target="([^"]+)"', text)))
           missing = [target for target in targets if not Path(target).exists()]
           print(f"[CHECK] navigation targets={len(targets)}")
-          for target in targets:
-              print(f" - {'OK' if Path(target).exists() else 'MISSING'} {target}")
-          if missing:
-              raise SystemExit("[ERROR] Missing dashboard targets: " + ", ".join(missing))
+          for target in targets: print(f" - {'OK' if Path(target).exists() else 'MISSING'} {target}")
+          if missing: raise SystemExit("[ERROR] Missing dashboard targets: " + ", ".join(missing))
           PY
 
       - name: Build alert summary and optional email
@@ -125,11 +125,7 @@ jobs:
           TITLE="[Dashboard Alert] Data freshness or security attention required"
           EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')"
           if [ "$STATUS" != "fresh" ]; then
-            if [ -n "$EXISTING" ]; then
-              gh issue comment "$EXISTING" --body-file reports/dashboard_alert.md
-            else
-              gh issue create --title "$TITLE" --body-file reports/dashboard_alert.md
-            fi
+            if [ -n "$EXISTING" ]; then gh issue comment "$EXISTING" --body-file reports/dashboard_alert.md; else gh issue create --title "$TITLE" --body-file reports/dashboard_alert.md; fi
           elif [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" --body "All monitored reports are fresh. Closing automatically."
             gh issue close "$EXISTING"
@@ -139,17 +135,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add reports/meta.json \
-            reports/member_funnel/data/meta.json \
-            reports/ai_agent/data/meta.json \
-            reports/index.html \
-            reports/dashboard_alert.md \
-            reports site 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "[INFO] No finalization changes"
-            exit 0
-          fi
-          git commit -m "Finalize dashboard operations and security"
+          git add reports/meta.json reports/member_funnel/data/meta.json reports/ai_agent/data/meta.json reports/index.html reports/dashboard_alert.md reports/dashboard_intelligence.json index.html reports site 2>/dev/null || true
+          if git diff --cached --quiet; then echo "[INFO] No finalization changes"; exit 0; fi
+          git commit -m "Finalize dashboard intelligence and mobile experience"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:main; then exit 0; fi
             git pull --rebase origin main
