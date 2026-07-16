@@ -1,0 +1,11 @@
+{
+  "name": "csk-ecomm-dashboard",
+  "private": true,
+  "scripts": {
+    "build": "python scripts/dashboard_security.py --sanitize && python scripts/prepare_cloudflare_bundle.py",
+    "deploy": "npm run build && wrangler deploy --config wrangler.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
