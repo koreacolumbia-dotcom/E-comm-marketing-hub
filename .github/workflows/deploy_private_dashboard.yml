@@ -23,21 +23,29 @@ jobs:
         with:
           ref: main
 
-      - name: Prepare static bundle
+      - name: Security scan generated reports
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf dist
-          mkdir -p dist
-          cp -f index.html Columbia_logo.png dist/
-          cp -a reports dist/reports
-          test -f robots.txt && cp -f robots.txt dist/robots.txt || true
-          test -f _headers && cp -f _headers dist/_headers || true
           python scripts/dashboard_security.py --sanitize
 
-      - name: Deploy to Cloudflare Pages
+      - name: Prepare bounded static bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/prepare_cloudflare_bundle.py
+          test -f dist/index.html
+          echo "Bundle size: $(du -sh dist | cut -f1)"
+          echo "Bundle files: $(find dist -type f | wc -l)"
+          find dist -type f -size +24M -print -quit | grep -q . && {
+            echo "[ERROR] Cloudflare bundle still contains a file over 24 MiB"
+            find dist -type f -size +24M -print
+            exit 1
+          } || true
+
+      - name: Deploy ecom Worker with static assets
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=csk-ecomm-dashboard --branch=main
+          command: deploy --config wrangler.jsonc
