@@ -1,0 +1,86 @@
+name: Decision OS Build
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Dashboard Finalize"]
+    types: [completed]
+  schedule:
+    - cron: "45 21 * * *"
+
+concurrency:
+  group: decision-os-build
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Sync latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git reset --hard origin/main
+          echo "WORKFLOW_REVISION=decision-os-v1"
+          echo "GIT_SHA=$(git rev-parse HEAD)"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build and validate Decision OS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/build_decision_os.py scripts/render_v2_safe.py
+          test -s reports/v2/data.json
+          python scripts/build_decision_os.py
+          python scripts/render_v2_safe.py
+          test -s reports/decision_os/data.json
+          test -s reports/decision_os/state.json
+          test -s reports/decision_os/index.html
+          test -s reports/v2/index.html
+          grep -q 'Executive Command Center' reports/v2/index.html
+          grep -q 'Root Cause Inference' reports/v2/index.html
+          grep -q 'Multi-baseline Ensemble' reports/v2/index.html
+          grep -q 'Profitability Intelligence' reports/v2/index.html
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('reports/decision_os/data.json').read_text(encoding='utf-8'))
+          if len(d.get('feature_status',[])) != 10:
+              raise SystemExit('[ERROR] all 10 Decision OS modules are required')
+          if 'command_center' not in d or 'connections' not in d:
+              raise SystemExit('[ERROR] command center or connection registry missing')
+          print(f"[DECISION_OS_OK] incidents={len(d.get('incidents',[]))} features={len(d['feature_status'])} connections={len(d['connections'])}")
+          PY
+
+      - name: Commit Decision OS outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add reports/decision_os reports/v2
+          if git diff --cached --quiet; then echo "[INFO] No Decision OS changes"; exit 0; fi
+          git commit -m "Build and render Decision OS"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+            sleep $((attempt * 3))
+          done
+          exit 1
