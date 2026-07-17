@@ -10,7 +10,7 @@ on:
         type: choice
         options: ["false", "true"]
   workflow_run:
-    workflows: ["Reports Build"]
+    workflows: ["Reports Build", "PDP Opportunity Build"]
     types: [completed]
   schedule:
     - cron: "30 21 * * *" # 06:30 KST
