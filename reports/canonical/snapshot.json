@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-07-17T23:10:08.174222+09:00",
+  "contract_version": "2026.07-enterprise",
+  "period": "2025-07-17 ~ 2026-07-16",
+  "period_type": "rolling_365d",
+  "metrics": {
+    "sessions": 3366675.0,
+    "users": 3077286.0,
+    "orders": 33537.0,
+    "revenue": 3992978672.0,
+    "cvr": 0.009961460491434428,
+    "aov": 119061.89199988073,
+    "signups": 21636.0
+  },
+  "sources": {
+    "commerce_365d": {
+      "name": "commerce_365d",
+      "path": "reports/summary.json",
+      "period_type": "rolling_365d",
+      "exists": true,
+      "ready": true,
+      "missing": [],
+      "age_hours": 0.1
+    },
+    "pdp_30d": {
+      "name": "pdp_30d",
+      "path": "reports/pdp_opportunity/data.json",
+      "period_type": "rolling_30d",
+      "exists": false,
+      "ready": false,
+      "missing": [
+        "products",
+        "data_start",
+        "data_end"
+      ],
+      "age_hours": null
+    },
+    "paid_media": {
+      "name": "paid_media",
+      "path": "reports/paid_media/summary.json",
+      "period_type": "configured",
+      "exists": false,
+      "ready": false,
+      "missing": [
+        "spend",
+        "revenue"
+      ],
+      "age_hours": null
+    }
+  },
+  "pdp": {
+    "ready": false,
+    "data_start": null,
+    "data_end": null,
+    "row_count": 0,
+    "top_opportunities": []
+  },
+  "paid_media": {
+    "ready": false,
+    "spend": null,
+    "revenue": null,
+    "roas": null,
+    "platforms": []
+  }
+}
