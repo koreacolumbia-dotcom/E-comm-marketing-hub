@@ -11,15 +11,18 @@ ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 MAX_FILE_BYTES = 24 * 1024 * 1024
 ROOT_FILES = ("index.html", "Columbia_logo.png", "robots.txt", "_headers")
-DESIGN_FILES = ("dashboard-redesign.css", "dashboard-redesign.js")
+DESIGN_FILES = ("dashboard-redesign.css", "dashboard-mobile-compact.css", "dashboard-redesign.js")
 SKIP_NAMES = {".git", ".github", "__pycache__", ".pytest_cache", ".naver_cache"}
 EXCLUDED_PREFIXES = (
     Path("member_funnel"),
     Path("voc_crema/member_funnel"),
     Path("daily_digest/daily"),
 )
-DESIGN_VERSION = "20260716-v5"
-DESIGN_HEAD = f'<link rel="stylesheet" href="/assets/dashboard-redesign.css?v={DESIGN_VERSION}">'
+DESIGN_VERSION = "20260716-v6"
+DESIGN_HEAD = (
+    f'<link rel="stylesheet" href="/assets/dashboard-redesign.css?v={DESIGN_VERSION}">\n'
+    f'<link rel="stylesheet" href="/assets/dashboard-mobile-compact.css?v={DESIGN_VERSION}">'
+)
 DESIGN_SCRIPT = f'<script defer src="/assets/dashboard-redesign.js?v={DESIGN_VERSION}"></script>'
 
 
@@ -43,16 +46,15 @@ def inject_design(path: Path) -> None:
     if path.suffix.lower() != ".html" or not path.exists() or path.stat().st_size > MAX_FILE_BYTES:
         return
     text = path.read_text(encoding="utf-8", errors="ignore")
-    text = re.sub(r'<link[^>]+dashboard-redesign\.css[^>]*>', DESIGN_HEAD, text, flags=re.I)
-    text = re.sub(r'<script[^>]+dashboard-redesign\.js[^>]*></script>', DESIGN_SCRIPT, text, flags=re.I)
+    text = re.sub(r'<link[^>]+dashboard-redesign\.css[^>]*>', '', text, flags=re.I)
+    text = re.sub(r'<link[^>]+dashboard-mobile-compact\.css[^>]*>', '', text, flags=re.I)
+    text = re.sub(r'<script[^>]+dashboard-redesign\.js[^>]*></script>', '', text, flags=re.I)
     if 'name="viewport"' not in text.lower():
         text = text.replace("</head>", '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n</head>', 1)
-    if "dashboard-redesign.css" not in text:
-        pos = text.lower().rfind("</head>")
-        text = text[:pos] + DESIGN_HEAD + "\n" + text[pos:] if pos >= 0 else DESIGN_HEAD + "\n" + text
-    if "dashboard-redesign.js" not in text:
-        pos = text.lower().rfind("</body>")
-        text = text[:pos] + DESIGN_SCRIPT + "\n" + text[pos:] if pos >= 0 else text + "\n" + DESIGN_SCRIPT
+    pos = text.lower().rfind("</head>")
+    text = text[:pos] + DESIGN_HEAD + "\n" + text[pos:] if pos >= 0 else DESIGN_HEAD + "\n" + text
+    pos = text.lower().rfind("</body>")
+    text = text[:pos] + DESIGN_SCRIPT + "\n" + text[pos:] if pos >= 0 else text + "\n" + DESIGN_SCRIPT
     path.write_text(text, encoding="utf-8")
 
 
@@ -62,29 +64,20 @@ def package_latest_daily(source_reports: Path, destination_reports: Path) -> Non
     out_dir = destination_reports / "daily_digest"
     out_dir.mkdir(parents=True, exist_ok=True)
     if not source_index.exists():
-        (out_dir / "index.html").write_text(
-            information_page("Owned.com Report", "Daily Digest 생성 결과가 없습니다."), encoding="utf-8"
-        )
+        (out_dir / "index.html").write_text(information_page("Owned.com Report", "Daily Digest 생성 결과가 없습니다."), encoding="utf-8")
         return
-
     text = source_index.read_text(encoding="utf-8", errors="ignore")
     matches = re.findall(r'daily/([0-9]{4}-[0-9]{2}-[0-9]{2}\.html)', text)
     candidate = source_reports / "daily_digest" / "daily" / matches[-1] if matches else None
     if not candidate or not candidate.exists():
         available = sorted((source_reports / "daily_digest" / "daily").glob("*.html"))
         candidate = available[-1] if available else None
-
     if not candidate or not candidate.exists():
-        (out_dir / "index.html").write_text(
-            information_page("Owned.com Report", "최신 Daily Digest 파일을 찾지 못했습니다. Daily Digest workflow를 다시 실행해 주세요."),
-            encoding="utf-8",
-        )
+        (out_dir / "index.html").write_text(information_page("Owned.com Report", "최신 Daily Digest 파일을 찾지 못했습니다. Daily Digest workflow를 다시 실행해 주세요."), encoding="utf-8")
         return
-
     if candidate.stat().st_size > MAX_FILE_BYTES:
         (out_dir / "index.html").write_text(oversized_placeholder(candidate, candidate.stat().st_size), encoding="utf-8")
         return
-
     shutil.copy2(candidate, out_dir / "index.html")
     print(f"[BUNDLE] packaged latest Daily Digest: {candidate.name}")
 
@@ -135,7 +128,6 @@ def main() -> int:
         source = ROOT / filename
         if source.exists():
             shutil.copy2(source, DIST / filename)
-
     assets_out = DIST / "assets"
     assets_out.mkdir(parents=True, exist_ok=True)
     for filename in DESIGN_FILES:
@@ -143,26 +135,21 @@ def main() -> int:
         if not source.exists():
             raise SystemExit(f"missing design asset: {source}")
         shutil.copy2(source, assets_out / filename)
-
     reports = ROOT / "reports"
     if not reports.exists():
         raise SystemExit("reports directory is missing")
-
     copied, replaced, excluded = copy_tree(reports, DIST / "reports")
     package_latest_daily(reports, DIST / "reports")
     write_restricted_placeholders(DIST / "reports")
-
     html_files = list(DIST.rglob("*.html"))
     for page in html_files:
         inject_design(page)
-
     if not (DIST / "index.html").exists():
         raise SystemExit("dist/index.html is missing")
     total_files = sum(1 for p in DIST.rglob("*") if p.is_file())
     oversized = [p for p in DIST.rglob("*") if p.is_file() and p.stat().st_size > MAX_FILE_BYTES]
     if oversized:
         raise SystemExit("Oversized assets remain: " + ", ".join(str(p) for p in oversized))
-
     print(f"[BUNDLE] redesigned html pages={len(html_files)}; copied report assets={copied}; excluded sensitive/raw files={excluded}; total files={total_files}")
     for item in replaced:
         print(f"[BUNDLE] oversized replacement: {item}")
