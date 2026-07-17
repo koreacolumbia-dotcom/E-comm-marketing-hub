@@ -37,12 +37,13 @@ def query_rows(client: bigquery.Client) -> list[dict[str, Any]]:
     table = env("GA4_EVENTS_TABLE", "columbia-ga4.analytics_358593394.events_*")
     location = env("BQ_LOCATION", "asia-northeast3")
     sql = f"""
-    DECLARE end_ts TIMESTAMP DEFAULT TIMESTAMP_TRUNC(TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR), HOUR);
-    DECLARE start_ts TIMESTAMP DEFAULT TIMESTAMP_SUB(end_ts, INTERVAL 15 DAY);
+    DECLARE query_end_ts TIMESTAMP DEFAULT TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), HOUR);
+    DECLARE observed_start_ts TIMESTAMP DEFAULT TIMESTAMP_SUB(query_end_ts, INTERVAL 1 HOUR);
+    DECLARE start_ts TIMESTAMP DEFAULT TIMESTAMP_SUB(observed_start_ts, INTERVAL 15 DAY);
 
     WITH base AS (
       SELECT
-        TIMESTAMP_TRUNC(TIMESTAMP_MICROS(event_timestamp), HOUR, 'Asia/Seoul') AS hour_kst,
+        DATETIME_TRUNC(DATETIME(TIMESTAMP_MICROS(event_timestamp), 'Asia/Seoul'), HOUR) AS hour_kst,
         TIMESTAMP_MICROS(event_timestamp) AS event_ts,
         event_name,
         user_pseudo_id,
@@ -77,7 +78,7 @@ def query_rows(client: bigquery.Client) -> list[dict[str, Any]]:
         (SELECT ANY_VALUE(NULLIF(item_name,'')) FROM UNNEST(items) WHERE NULLIF(item_name,'') IS NOT NULL) AS product_name
       FROM `{table}`
       WHERE TIMESTAMP_MICROS(event_timestamp) >= start_ts
-        AND TIMESTAMP_MICROS(event_timestamp) < end_ts
+        AND TIMESTAMP_MICROS(event_timestamp) < query_end_ts
         AND REGEXP_CONTAINS(_TABLE_SUFFIX, r'^(?:intraday_)?\\d{{8}}$')
         AND event_name IN (
           'session_start','page_view','view_item','add_to_cart',
@@ -280,11 +281,22 @@ def detect(rows: list[dict[str, Any]]) -> dict[str, Any]:
             ))
 
     overall = next((x for x in rows if x["dimension_type"] == "overall" and str(x["hour_kst"]).startswith(completed.strftime("%Y-%m-%d %H"))), {})
-    latest_ts = overall.get("latest_event_ts")
+    if not overall:
+        alerts.append(alert(
+            now=now, completed=completed, level="critical", category="data_quality", metric="missing_hour",
+            title="최근 완료 시간 데이터 없음",
+            impact=f"관측 대상 {completed.strftime('%Y-%m-%d %H:00 KST')} 집계가 비어 있음",
+            cause="GA4 Export 적재 지연 또는 이벤트 수집 중단 가능성",
+            action="events_intraday 테이블과 GA4 실시간 수집 상태 확인",
+            dtype="overall", dvalue="all",
+        ))
+
+    latest_ts = overall.get("latest_event_ts") if overall else None
     if latest_ts:
         try:
             latest = latest_ts if isinstance(latest_ts, dt.datetime) else dt.datetime.fromisoformat(str(latest_ts).replace("Z", "+00:00"))
-            lag_minutes = max((completed.astimezone(dt.timezone.utc) + dt.timedelta(hours=1) - latest.astimezone(dt.timezone.utc)).total_seconds() / 60, 0)
+            expected_end = completed.astimezone(dt.timezone.utc) + dt.timedelta(hours=1)
+            lag_minutes = max((expected_end - latest.astimezone(dt.timezone.utc)).total_seconds() / 60, 0)
             if lag_minutes > 90:
                 alerts.append(alert(
                     now=now, completed=completed, level="critical", category="data_quality", metric="ingestion_lag",
