@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from fix_v2_metric_integrity import main as fix_metric_integrity
+
 ROOT = Path(__file__).resolve().parents[1]
 PDP = ROOT / "reports" / "pdp_opportunity" / "data.json"
 V2_DATA = ROOT / "reports" / "v2" / "data.json"
@@ -17,6 +19,10 @@ def main() -> int:
         raise SystemExit("[ERROR] PDP data.json missing")
     if not V2_DATA.exists() or not V2_HTML.exists():
         raise SystemExit("[ERROR] V2 output missing")
+
+    # Never attach PDP data to a V2 payload whose KPI values were mixed across
+    # unrelated report periods. This rewrites the KPI bundle first.
+    fix_metric_integrity()
 
     pdp = json.loads(PDP.read_text(encoding="utf-8"))
     products = pdp.get("products") or pdp.get("rows") or []
@@ -100,7 +106,7 @@ def main() -> int:
                 root = root[:end] + item + root[end:]
                 INDEX.write_text(root, encoding="utf-8")
 
-    print(f"[OK] Connected {len(opportunities)} PDP opportunities to V2")
+    print(f"[OK] Connected {len(opportunities)} PDP opportunities to coherent V2 KPI bundle")
     return 0
 
 
