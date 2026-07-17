@@ -20,6 +20,7 @@ jobs:
       - name: Checkout latest main
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Pull latest
@@ -28,7 +29,25 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Verify checked-out revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "WORKFLOW_REVISION=realtime-alerts-v3"
+          echo "GIT_SHA=$(git rev-parse HEAD)"
+          echo "SCRIPT_SHA256=$(sha256sum scripts/build_realtime_bigquery_alerts.py | cut -d' ' -f1)"
+          grep -n "DECLARE query_end_ts" scripts/build_realtime_bigquery_alerts.py
+          if grep -nE 'UNNEST\(IF\(ARRAY_LENGTH\(items\)' scripts/build_realtime_bigquery_alerts.py; then
+            echo "[ERROR] Legacy ARRAY<STRUCT> IF query is still present"
+            exit 1
+          fi
+          if ! grep -q "monitored_dimensions" scripts/build_realtime_bigquery_alerts.py; then
+            echo "[ERROR] Expected v3 realtime detector markers are missing"
+            exit 1
+          fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -100,7 +119,8 @@ jobs:
           git commit -m "Refresh realtime BigQuery alerts"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:main; then exit 0; fi
-            git pull --rebase origin main
+            git fetch origin main
+            git rebase origin/main
             sleep $((attempt * 3))
           done
           exit 1
