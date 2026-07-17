@@ -92,15 +92,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile scripts/dashboard_v2.py scripts/connect_pdp_to_dashboard.py
+          python -m py_compile scripts/dashboard_v2.py scripts/connect_pdp_to_dashboard.py scripts/dashboard_enterprise_layer.py
           python scripts/dashboard_v2.py
           if [ -s reports/pdp_opportunity/data.json ]; then
             python scripts/connect_pdp_to_dashboard.py
           else
-            echo "[WARN] PDP data not built yet; V2 will remain in discovery mode"
+            echo "[WARN] PDP data not built yet"
           fi
           test -f reports/v2/index.html
           test -f reports/v2/data.json
+
+      - name: Build canonical data layer and enforce quality gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/dashboard_enterprise_layer.py
+          test -s reports/canonical/snapshot.json
+          test -s reports/canonical/quality.json
+          test -s reports/canonical/features.json
+          python - <<'PY'
+          import json
+          q=json.load(open('reports/canonical/quality.json',encoding='utf-8'))
+          print(f"[QUALITY] status={q['status']} score={q['score']}")
+          if q['status']=='blocked':
+              raise SystemExit('[ERROR] Canonical quality gate blocked publication')
+          PY
 
       - name: Add data health board and action center
         shell: bash
@@ -175,9 +191,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add reports/meta.json reports/member_funnel/data/meta.json reports/ai_agent/data/meta.json reports/index.html reports/dashboard_alert.md reports/dashboard_intelligence.json reports/v2 index.html reports site 2>/dev/null || true
+          git add reports/meta.json reports/member_funnel/data/meta.json reports/ai_agent/data/meta.json reports/index.html reports/dashboard_alert.md reports/dashboard_intelligence.json reports/v2 reports/canonical index.html reports site 2>/dev/null || true
           if git diff --cached --quiet; then echo "[INFO] No finalization changes"; exit 0; fi
-          git commit -m "Finalize dashboard intelligence, v2 and mobile experience"
+          git commit -m "Finalize canonical intelligence and enterprise quality gate"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:main; then exit 0; fi
             git pull --rebase origin main
