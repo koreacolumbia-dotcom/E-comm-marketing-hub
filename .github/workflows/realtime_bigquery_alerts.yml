@@ -1,0 +1,96 @@
+name: Realtime BigQuery Alerts
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "12 * * * *" # hourly at minute 12
+
+concurrency:
+  group: realtime-bigquery-alerts
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pull latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install google-cloud-bigquery
+          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py scripts/dashboard_v2.py
+
+      - name: Detect BigQuery anomalies
+        shell: bash
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          BQ_PROJECT: columbia-ga4
+          BQ_LOCATION: asia-northeast3
+          GA4_EVENTS_TABLE: columbia-ga4.analytics_358593394.events_*
+        run: |
+          set -euo pipefail
+          test -n "$GOOGLE_SA_JSON_B64"
+          python -u scripts/build_realtime_bigquery_alerts.py
+          test -s reports/realtime_alerts/alerts.json
+          test -s reports/realtime_alerts/index.html
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('reports/realtime_alerts/alerts.json').read_text(encoding='utf-8'))
+          required={'generated_at','observed_hour','status','alert_count','alerts'}
+          missing=required-set(d)
+          if missing:
+              raise SystemExit('[ERROR] realtime alert output missing: '+', '.join(sorted(missing)))
+          print(f"[OK] status={d['status']} alerts={d['alert_count']} observed={d['observed_hour']}")
+          PY
+
+      - name: Rebuild and connect dashboard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/dashboard_v2.py
+          if [ -s reports/pdp_opportunity/data.json ]; then python scripts/connect_pdp_to_dashboard.py; fi
+          if [ -s reports/canonical/snapshot.json ]; then python scripts/build_enterprise_dashboard.py; fi
+          python scripts/connect_realtime_alerts.py
+          test -s reports/v2/data.json
+          test -s reports/v2/index.html
+
+      - name: Commit realtime outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add reports/realtime_alerts reports/v2 reports/canonical index.html
+          if git diff --cached --quiet; then
+            echo "[INFO] No realtime changes"
+            exit 0
+          fi
+          git commit -m "Refresh realtime BigQuery alerts"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            git pull --rebase origin main
+            sleep $((attempt * 3))
+          done
+          exit 1
