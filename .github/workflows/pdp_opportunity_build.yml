@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install google-cloud-bigquery
-          python -m py_compile scripts/build_pdp_opportunity.py
+          python -m py_compile scripts/build_pdp_opportunity.py scripts/connect_pdp_to_dashboard.py
 
       - name: Build PDP Opportunity
         shell: bash
@@ -88,8 +88,11 @@ jobs:
           set -euo pipefail
           python -m py_compile scripts/dashboard_v2.py
           python scripts/dashboard_v2.py
+          python scripts/connect_pdp_to_dashboard.py
           test -s reports/v2/data.json
           test -s reports/v2/index.html
+          grep -q 'reports/pdp_opportunity/data.json' reports/v2/data.json
+          grep -q '../pdp_opportunity/index.html' reports/v2/index.html
 
       - name: Commit PDP outputs
         shell: bash
