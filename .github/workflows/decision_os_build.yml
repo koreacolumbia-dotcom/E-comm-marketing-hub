@@ -35,7 +35,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git reset --hard origin/main
-          echo "WORKFLOW_REVISION=decision-os-v1"
+          echo "WORKFLOW_REVISION=decision-os-v2"
           echo "GIT_SHA=$(git rev-parse HEAD)"
 
       - name: Setup Python
@@ -47,9 +47,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile scripts/build_decision_os.py scripts/render_v2_safe.py
+          python -m py_compile scripts/build_decision_os.py scripts/harden_decision_os.py scripts/render_v2_safe.py
           test -s reports/v2/data.json
           python scripts/build_decision_os.py
+          python scripts/harden_decision_os.py
           python scripts/render_v2_safe.py
           test -s reports/decision_os/data.json
           test -s reports/decision_os/state.json
@@ -67,6 +68,9 @@ jobs:
               raise SystemExit('[ERROR] all 10 Decision OS modules are required')
           if 'command_center' not in d or 'connections' not in d:
               raise SystemExit('[ERROR] command center or connection registry missing')
+          positive_risk=[x for x in d.get('incidents',[]) if not any((a.get('delta_pct') or 0)<0 for a in x.get('alerts',[])) and (x.get('revenue_at_risk') or {}).get('today',0)>0]
+          if positive_risk:
+              raise SystemExit('[ERROR] positive anomalies must not create revenue loss risk')
           print(f"[DECISION_OS_OK] incidents={len(d.get('incidents',[]))} features={len(d['feature_status'])} connections={len(d['connections'])}")
           PY
 
