@@ -56,7 +56,7 @@ def build_today(client:bigquery.Client)->dict[str,Any]:
 
 def build_pdp(client:bigquery.Client)->dict[str,Any]:
     table=env('GA4_EVENTS_TABLE','columbia-ga4.analytics_358593394.events_*');days=int(env('PDP_LOOKBACK_DAYS','30'));minimum=int(env('PDP_MIN_SESSIONS','5'))
-    sql=f'''DECLARE start_date DATE DEFAULT DATE_SUB(CURRENT_DATE('Asia/Seoul'),INTERVAL @days-1 DAY);
+    sql=f'''DECLARE start_date DATE DEFAULT DATE_SUB(CURRENT_DATE('Asia/Seoul'),INTERVAL @lookback_minus_one DAY);
     WITH b AS (
       SELECT event_name,user_pseudo_id,
         CONCAT(user_pseudo_id,'-',COALESCE(CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id') AS STRING),'0')) session_key,
@@ -72,14 +72,14 @@ def build_pdp(client:bigquery.Client)->dict[str,Any]:
       SELECT *,UPPER(TRIM(COALESCE(item_id,REGEXP_EXTRACT(page_location,r'(?i)(?:product|goods|item)[^A-Za-z0-9]*([A-Za-z0-9_-]{{5,}})')))) product_code FROM b
     ),sp AS (
       SELECT product_code,session_key,ANY_VALUE(item_name) product_name,
-        MAX(event_name='view_item') viewed,MAX(event_name='add_to_cart') added,MAX(event_name='begin_checkout') checkout,MAX(event_name='purchase') purchased,
+        LOGICAL_OR(event_name='view_item') viewed,LOGICAL_OR(event_name='add_to_cart') added,LOGICAL_OR(event_name='begin_checkout') checkout,LOGICAL_OR(event_name='purchase') purchased,
         MAX(IF(event_name='purchase',purchase_revenue,0)) revenue
       FROM x WHERE product_code IS NOT NULL GROUP BY 1,2
     )
     SELECT product_code,ANY_VALUE(product_name) product_name,COUNTIF(viewed) pdp_sessions,COUNTIF(added) add_to_cart_sessions,
       COUNTIF(checkout) checkout_sessions,COUNTIF(purchased) purchase_sessions,SUM(revenue) revenue
     FROM sp GROUP BY 1 HAVING pdp_sessions>=@minimum ORDER BY pdp_sessions DESC'''
-    rows=run_query(client,sql,[bigquery.ScalarQueryParameter('days','INT64',days),bigquery.ScalarQueryParameter('minimum','INT64',minimum)])
+    rows=run_query(client,sql,[bigquery.ScalarQueryParameter('lookback_minus_one','INT64',max(days-1,0)),bigquery.ScalarQueryParameter('minimum','INT64',minimum)])
     products=[]
     for r in rows:
         v=f(r.get('pdp_sessions'));a=f(r.get('add_to_cart_sessions'));c=f(r.get('checkout_sessions'));p=f(r.get('purchase_sessions'));rev=f(r.get('revenue'))
