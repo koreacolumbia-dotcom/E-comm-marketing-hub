@@ -1,0 +1,49 @@
+{
+  "version": "2026.07-enterprise",
+  "canonical_sources": {
+    "commerce_365d": {
+      "path": "reports/summary.json",
+      "root": "utm_channel.summary",
+      "period_type": "rolling_365d",
+      "required": ["sessions", "users", "purchase", "revenue"],
+      "mapping": {
+        "sessions": "sessions",
+        "users": "users",
+        "orders": "purchase",
+        "revenue": "revenue",
+        "cvr": "buy_cvr",
+        "aov": "aov_per_buyer",
+        "signups": "signups"
+      }
+    },
+    "pdp_30d": {
+      "path": "reports/pdp_opportunity/data.json",
+      "root": "",
+      "period_type": "rolling_30d",
+      "required": ["products", "data_start", "data_end"]
+    },
+    "paid_media": {
+      "path": "reports/paid_media/summary.json",
+      "root": "",
+      "period_type": "configured",
+      "required": ["spend", "revenue"]
+    }
+  },
+  "quality_rules": {
+    "cvr_min": 0,
+    "cvr_max_percent": 30,
+    "aov_min": 1000,
+    "aov_max": 5000000,
+    "orders_cannot_exceed_sessions": true,
+    "forecast_allowed_period_types": ["mtd"],
+    "max_source_age_hours": 48
+  },
+  "feature_registry": {
+    "canonical_kpi": {"label": "Canonical KPI", "requires": ["commerce_365d"]},
+    "pdp_opportunity": {"label": "PDP Opportunity", "requires": ["pdp_30d"]},
+    "paid_media": {"label": "Paid Media", "requires": ["paid_media"]},
+    "forecast": {"label": "Monthly Forecast", "requires_period_type": "mtd"},
+    "decision_engine": {"label": "Decision Engine", "requires": ["commerce_365d"]},
+    "alert_center": {"label": "Alert Center", "requires": ["commerce_365d"]}
+  }
+}
