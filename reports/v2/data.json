@@ -1,56 +1,236 @@
 {
-  "generated_at": "2026-07-17 07:36 KST",
-  "decomposition": {
-    "ready": false,
-    "message": "현재 Summary JSON에 전기 매출·세션·주문 값이 없어 자동 분해를 대기 중입니다."
+  "generated_at": "2026-07-17 11:17 KST",
+  "metrics": {
+    "revenue": 7074451836.0,
+    "previous_revenue": 5205420.0,
+    "sessions": 5281.0,
+    "previous_sessions": null,
+    "orders": 66264.0,
+    "previous_orders": 82.0,
+    "users": 4508.0,
+    "cvr": 0.00886813244477095,
+    "aov": 101366.0,
+    "spend": 1050950.0,
+    "new_customers": 147.0,
+    "signups": 21632.0
+  },
+  "provenance": {
+    "revenue": "reports/voc_crema/data/purchase_pattern/summary.json::overview.revenue",
+    "orders": "reports/voc_crema/data/purchase_pattern/summary.json::overview.orders",
+    "aov": "reports/voc_crema/data/purchase_pattern/summary.json::group_characteristics.0.aov",
+    "new_customers": "reports/voc_crema/data/purchase_pattern/summary.json::first_purchase_products.0.first_buyers",
+    "sessions": "reports/daily_digest/data/funnel/funnel_2026-07-13.json::summary_rows.0.sessions",
+    "users": "reports/daily_digest/data/funnel/funnel_2026-07-13.json::summary_rows.0.users",
+    "signups": "reports/summary.json::utm_channel.summary.signups",
+    "cvr": "reports/daily_digest/hub/data/weekly/END_2025-03-22.json::kpis.cvr",
+    "previous_revenue": "reports/voc_crema/reports/ai_agent/data/2026-06-09.json::kpi.category_drops.0.revenue_prev",
+    "previous_orders": "reports/voc_crema/reports/ai_agent/data/2026-06-09.json::kpi.category_drops.0.orders_prev",
+    "spend": "reports/voc_crema/data/owned/owned_2026-07-12.json::message_log.0.cost"
+  },
+  "source_status": [
+    {
+      "path": "reports/voc_crema/data/purchase_pattern/summary.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/purchase_pattern/data/summary.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-13.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-14.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-11.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-12.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-15.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-07.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-04.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-03.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-10.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-08.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-06.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-05.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-02.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-01.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-07-09.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-06-18.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-06-22.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-06-20.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-06-28.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-06-19.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-06-25.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-06-17.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    },
+    {
+      "path": "reports/daily_digest/data/funnel/funnel_2026-06-30.json",
+      "metrics": 4,
+      "age_hours": 0.0,
+      "status": "fresh"
+    }
+  ],
+  "source_count": 25,
+  "opportunity_source": "reports/voc_crema/data/search_volume/product_keyword.json",
+  "opportunities": [],
+  "ads": {
+    "connected": false,
+    "spend": 0.0,
+    "revenue": 0.0,
+    "roas": null,
+    "orders": 0.0,
+    "cac": null,
+    "platforms": [],
+    "sources": []
   },
   "forecast": {
     "ready": true,
-    "current": 3993971997.0,
+    "current": 7074451836.0,
     "elapsed_days": 17,
     "days": 31,
-    "predicted": 7283125406.294117,
-    "daily_pace": 234939529.2352941,
-    "target": null
+    "daily_pace": 416144225.64705884,
+    "predicted": 12900470995.058825,
+    "scenarios": {
+      "conservative": 11868433315.454119,
+      "base": 12900470995.058825,
+      "optimistic": 13932508674.663532
+    },
+    "target": 5205420.0,
+    "target_source": "previous_period_reference",
+    "attainment": 135905.49534907847,
+    "forecast_attainment": 247827.66798949605,
+    "gap": 12895265575.058825,
+    "required_daily": 0.0
   },
-  "opportunities": [],
-  "ads": {
-    "connected": false
+  "decomposition": {
+    "ready": false,
+    "message": "전기 매출·세션·주문 집계가 모두 연결되면 자동 분해됩니다."
   },
   "alerts": [
     {
-      "level": "critical",
-      "title": "purchase_pattern 데이터 지연",
-      "impact": "기준일 2026-06-02",
-      "cause": "원천 적재 또는 리포트 생성 작업 확인",
-      "link": "../index.html"
-    },
-    {
-      "level": "critical",
-      "title": "funnel 데이터 누락",
-      "impact": "기준일 확인 불가",
-      "cause": "원천 적재 또는 리포트 생성 작업 확인",
-      "link": "../index.html"
-    },
-    {
-      "level": "critical",
-      "title": "member 데이터 누락",
-      "impact": "기준일 확인 불가",
-      "cause": "원천 적재 또는 리포트 생성 작업 확인",
-      "link": "../index.html"
-    },
-    {
-      "level": "critical",
-      "title": "ai_agent 데이터 누락",
-      "impact": "기준일 확인 불가",
-      "cause": "원천 적재 또는 리포트 생성 작업 확인",
-      "link": "../index.html"
-    },
-    {
       "level": "info",
-      "title": "광고비 데이터 미연결",
+      "category": "media",
+      "title": "광고비 집계 미연결",
       "impact": "ROAS·CAC 통합 분석 대기",
-      "cause": "광고 플랫폼 집계 파일 또는 BigQuery View 설정 필요",
+      "cause": "집계 JSON 또는 BigQuery 산출 파일 없음",
+      "action": "paid_media 집계 산출 연결",
+      "link": "#media"
+    }
+  ],
+  "actions": [
+    {
+      "priority": "info",
+      "title": "paid_media 집계 산출 연결",
+      "reason": "광고비 집계 미연결",
       "link": "#media"
     }
   ]
