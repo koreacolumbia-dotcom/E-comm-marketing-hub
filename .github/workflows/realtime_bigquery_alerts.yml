@@ -15,6 +15,7 @@ permissions:
 jobs:
   detect:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout latest main
         uses: actions/checkout@v4
@@ -56,15 +57,24 @@ jobs:
           python -u scripts/build_realtime_bigquery_alerts.py
           test -s reports/realtime_alerts/alerts.json
           test -s reports/realtime_alerts/index.html
+          test -s reports/realtime_alerts/meta.json
           python - <<'PY'
           import json
           from pathlib import Path
           d=json.loads(Path('reports/realtime_alerts/alerts.json').read_text(encoding='utf-8'))
-          required={'generated_at','observed_hour','status','alert_count','alerts'}
+          required={'generated_at','observed_hour','status','alert_count','critical_count','warning_count','monitored_dimensions','current_overall','alerts'}
           missing=required-set(d)
           if missing:
               raise SystemExit('[ERROR] realtime alert output missing: '+', '.join(sorted(missing)))
-          print(f"[OK] status={d['status']} alerts={d['alert_count']} observed={d['observed_hour']}")
+          if d['status'] not in {'healthy','warning','critical'}:
+              raise SystemExit('[ERROR] invalid realtime status: '+str(d['status']))
+          if not isinstance(d['alerts'], list):
+              raise SystemExit('[ERROR] alerts must be a list')
+          if d['alert_count'] != len(d['alerts']):
+              raise SystemExit('[ERROR] alert_count does not match alerts length')
+          if d['monitored_dimensions'] <= 0:
+              raise SystemExit('[ERROR] no BigQuery dimensions were monitored')
+          print(f"[OK] status={d['status']} alerts={d['alert_count']} dimensions={d['monitored_dimensions']} observed={d['observed_hour']}")
           PY
 
       - name: Rebuild and connect dashboard
