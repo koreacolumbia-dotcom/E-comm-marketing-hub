@@ -1,0 +1,109 @@
+name: PDP Opportunity Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "PDP analysis window"
+        required: true
+        default: "30"
+        type: choice
+        options: ["7", "14", "30", "60", "90"]
+  schedule:
+    - cron: "20 16 * * *" # 01:20 KST
+
+concurrency:
+  group: pdp-opportunity-build
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pull latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install google-cloud-bigquery
+          python -m py_compile scripts/build_pdp_opportunity.py
+
+      - name: Build PDP Opportunity
+        shell: bash
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          BQ_PROJECT: columbia-ga4
+          BQ_LOCATION: asia-northeast3
+          GA4_EVENTS_TABLE: columbia-ga4.analytics_358593394.events_*
+          PDP_LOOKBACK_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_days || '30' }}
+          PDP_MIN_SESSIONS: "10"
+        run: |
+          set -euo pipefail
+          test -n "$GOOGLE_SA_JSON_B64"
+          python -u scripts/build_pdp_opportunity.py
+          test -s reports/pdp_opportunity/data.json
+          test -s reports/pdp_opportunity/summary.json
+          test -s reports/pdp_opportunity/meta.json
+          test -s reports/pdp_opportunity/index.html
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('reports/pdp_opportunity/data.json')
+          d=json.loads(p.read_text(encoding='utf-8'))
+          rows=d.get('products') or []
+          if not rows:
+              raise SystemExit('[ERROR] PDP output contains no products')
+          required={'product_code','pdp_sessions','atc_rate','checkout_rate','cvr','opportunity_score','expected_revenue'}
+          missing=required-set(rows[0])
+          if missing:
+              raise SystemExit('[ERROR] Missing PDP fields: '+', '.join(sorted(missing)))
+          print(f'[OK] PDP rows={len(rows)} data_end={d.get("data_end")}')
+          PY
+
+      - name: Rebuild integrated V2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/dashboard_v2.py
+          python scripts/dashboard_v2.py
+          test -s reports/v2/data.json
+          test -s reports/v2/index.html
+
+      - name: Commit PDP outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add reports/pdp_opportunity reports/v2 index.html
+          if git diff --cached --quiet; then
+            echo "[INFO] No PDP changes"
+            exit 0
+          fi
+          git commit -m "Refresh PDP opportunity and integrated intelligence"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            git pull --rebase origin main
+            sleep $((attempt * 3))
+          done
+          exit 1
