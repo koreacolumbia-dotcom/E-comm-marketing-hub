@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "WORKFLOW_REVISION=realtime-alerts-decision-os-v1"
+          echo "WORKFLOW_REVISION=realtime-alerts-decision-os-v2"
           echo "GIT_SHA=$(git rev-parse HEAD)"
           grep -n "DECLARE query_end_ts" scripts/build_realtime_bigquery_alerts.py
           if grep -nE 'UNNEST\(IF\(ARRAY_LENGTH\(items\)' scripts/build_realtime_bigquery_alerts.py; then exit 1; fi
@@ -54,7 +54,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install google-cloud-bigquery
-          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py scripts/build_decision_os.py scripts/render_v2_safe.py
+          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py scripts/build_decision_os.py scripts/harden_decision_os.py scripts/render_v2_safe.py
 
       - name: Detect BigQuery anomalies
         shell: bash
@@ -86,6 +86,7 @@ jobs:
           set -euo pipefail
           python scripts/connect_realtime_alerts.py
           python scripts/build_decision_os.py
+          python scripts/harden_decision_os.py
           python scripts/render_v2_safe.py
           test -s reports/v2/data.json
           test -s reports/v2/index.html
