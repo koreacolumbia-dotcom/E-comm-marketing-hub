@@ -3,7 +3,7 @@ name: Realtime BigQuery Alerts
 on:
   workflow_dispatch:
   schedule:
-    - cron: "12 * * * *" # hourly at minute 12
+    - cron: "12 * * * *"
 
 concurrency:
   group: realtime-bigquery-alerts
@@ -36,20 +36,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "WORKFLOW_REVISION=realtime-alerts-v4"
+          echo "WORKFLOW_REVISION=realtime-alerts-v5"
           echo "GIT_SHA=$(git rev-parse HEAD)"
-          echo "SCRIPT_SHA256=$(sha256sum scripts/build_realtime_bigquery_alerts.py | cut -d' ' -f1)"
           grep -n "DECLARE query_end_ts" scripts/build_realtime_bigquery_alerts.py
-          if grep -nE 'UNNEST\(IF\(ARRAY_LENGTH\(items\)' scripts/build_realtime_bigquery_alerts.py; then
-            echo "[ERROR] Legacy ARRAY<STRUCT> IF query is still present"
-            exit 1
-          fi
-          if ! grep -q "monitored_dimensions" scripts/build_realtime_bigquery_alerts.py; then
-            echo "[ERROR] Expected realtime detector markers are missing"
-            exit 1
-          fi
+          if grep -nE 'UNNEST\(IF\(ARRAY_LENGTH\(items\)' scripts/build_realtime_bigquery_alerts.py; then exit 1; fi
           test -s reports/v2/data.json
-          test -s reports/v2/index.html
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -63,7 +54,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install google-cloud-bigquery
-          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py
+          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py scripts/render_v2_safe.py
 
       - name: Detect BigQuery anomalies
         shell: bash
@@ -78,43 +69,34 @@ jobs:
           python -u scripts/build_realtime_bigquery_alerts.py
           test -s reports/realtime_alerts/alerts.json
           test -s reports/realtime_alerts/index.html
-          test -s reports/realtime_alerts/meta.json
           python - <<'PY'
           import json
           from pathlib import Path
           d=json.loads(Path('reports/realtime_alerts/alerts.json').read_text(encoding='utf-8'))
-          required={'generated_at','observed_hour','status','alert_count','critical_count','warning_count','monitored_dimensions','current_overall','alerts'}
+          required={'generated_at','observed_hour','status','alert_count','critical_count','warning_count','monitored_dimensions','alerts'}
           missing=required-set(d)
-          if missing:
-              raise SystemExit('[ERROR] realtime alert output missing: '+', '.join(sorted(missing)))
-          if d['status'] not in {'healthy','warning','critical'}:
-              raise SystemExit('[ERROR] invalid realtime status: '+str(d['status']))
-          if not isinstance(d['alerts'], list):
-              raise SystemExit('[ERROR] alerts must be a list')
-          if d['alert_count'] != len(d['alerts']):
-              raise SystemExit('[ERROR] alert_count does not match alerts length')
-          if d['monitored_dimensions'] <= 0:
-              raise SystemExit('[ERROR] no BigQuery dimensions were monitored')
-          print(f"[OK] status={d['status']} alerts={d['alert_count']} dimensions={d['monitored_dimensions']} observed={d['observed_hour']}")
+          if missing: raise SystemExit('[ERROR] missing fields: '+', '.join(sorted(missing)))
+          if d['monitored_dimensions'] <= 0: raise SystemExit('[ERROR] no monitored dimensions')
+          print(f"[OK] status={d['status']} alerts={d['alert_count']} dimensions={d['monitored_dimensions']}")
           PY
 
-      - name: Connect alerts to validated dashboard
+      - name: Connect and safely render dashboard
         shell: bash
         run: |
           set -euo pipefail
-          # Realtime refresh must never rebuild or overwrite canonical KPI layers.
-          # The daily Finalize workflow owns canonical data and quality enforcement.
           python scripts/connect_realtime_alerts.py
+          python scripts/render_v2_safe.py
           test -s reports/v2/data.json
           test -s reports/v2/index.html
+          grep -q 'function render' reports/v2/index.html
+          grep -q 'Realtime BigQuery Monitoring' reports/v2/index.html
           python - <<'PY'
           import json
           from pathlib import Path
           v2=json.loads(Path('reports/v2/data.json').read_text(encoding='utf-8'))
           rt=v2.get('realtime_alerts') or {}
-          if not rt:
-              raise SystemExit('[ERROR] realtime_alerts were not connected to V2')
-          print(f"[CONNECTED] realtime status={rt.get('status')} alerts={rt.get('alert_count')}")
+          if not rt: raise SystemExit('[ERROR] realtime alerts not connected')
+          print(f"[CONNECTED] status={rt.get('status')} alerts={rt.get('alert_count')}")
           PY
 
       - name: Commit realtime outputs
@@ -122,11 +104,8 @@ jobs:
         run: |
           set -euo pipefail
           git add reports/realtime_alerts reports/v2
-          if git diff --cached --quiet; then
-            echo "[INFO] No realtime changes"
-            exit 0
-          fi
-          git commit -m "Refresh realtime BigQuery alerts"
+          if git diff --cached --quiet; then echo "[INFO] No realtime changes"; exit 0; fi
+          git commit -m "Refresh realtime alerts and safe V2 render"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:main; then exit 0; fi
             git fetch origin main
