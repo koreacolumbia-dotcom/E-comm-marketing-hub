@@ -10,7 +10,7 @@ on:
         type: choice
         options: ["false", "true"]
   workflow_run:
-    workflows: ["Reports Build", "PDP Opportunity Build"]
+    workflows: ["Reports Build", "PDP Opportunity Build", "Realtime BigQuery Alerts"]
     types: [completed]
   schedule:
     - cron: "30 21 * * *" # 06:30 KST
@@ -55,12 +55,10 @@ jobs:
           if [ -f requirements.txt ]; then
             python -m pip install -r requirements.txt
           else
-            python -m pip install pandas numpy openpyxl
+            python -m pip install pandas numpy openpyxl google-cloud-bigquery
           fi
           python - <<'PY'
-          import numpy
-          import openpyxl
-          import pandas
+          import numpy, openpyxl, pandas
           print("[OK] Python dependencies loaded")
           PY
 
@@ -92,7 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile scripts/dashboard_v2.py scripts/connect_pdp_to_dashboard.py scripts/dashboard_enterprise_layer.py
+          python -m py_compile scripts/dashboard_v2.py scripts/connect_pdp_to_dashboard.py scripts/dashboard_enterprise_layer.py scripts/connect_realtime_alerts.py
           python scripts/dashboard_v2.py
           if [ -s reports/pdp_opportunity/data.json ]; then
             python scripts/connect_pdp_to_dashboard.py
@@ -118,6 +116,16 @@ jobs:
               raise SystemExit('[ERROR] Canonical quality gate blocked publication')
           PY
 
+      - name: Connect realtime BigQuery alerts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -s reports/realtime_alerts/alerts.json ]; then
+            python scripts/connect_realtime_alerts.py
+          else
+            echo "[WARN] Realtime alert output not available yet"
+          fi
+
       - name: Add data health board and action center
         shell: bash
         run: |
@@ -140,21 +148,16 @@ jobs:
           import re
           from pathlib import Path
           index = Path("index.html")
-          if not index.exists():
-              raise SystemExit("[ERROR] index.html missing")
+          if not index.exists(): raise SystemExit("[ERROR] index.html missing")
           text = index.read_text(encoding="utf-8")
           targets = sorted(set(re.findall(r'data-target="([^"]+)"', text)))
-          local_targets = []
+          local_targets=[]
           for target in targets:
-              clean = target.split("#", 1)[0].split("?", 1)[0]
-              if clean and not re.match(r"^[a-z]+://", clean, re.I):
-                  local_targets.append((target, clean))
-          missing = [original for original, clean in local_targets if not Path(clean).exists()]
-          print(f"[CHECK] navigation targets={len(targets)}")
-          for original, clean in local_targets:
-              print(f" - {'OK' if Path(clean).exists() else 'MISSING'} {original}")
-          if missing:
-              raise SystemExit("[ERROR] Missing dashboard targets: " + ", ".join(missing))
+              clean=target.split("#",1)[0].split("?",1)[0]
+              if clean and not re.match(r"^[a-z]+://", clean, re.I): local_targets.append((target,clean))
+          missing=[original for original,clean in local_targets if not Path(clean).exists()]
+          for original,clean in local_targets: print(f" - {'OK' if Path(clean).exists() else 'MISSING'} {original}")
+          if missing: raise SystemExit("[ERROR] Missing dashboard targets: "+", ".join(missing))
           PY
 
       - name: Build alert summary and optional email
@@ -191,9 +194,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add reports/meta.json reports/member_funnel/data/meta.json reports/ai_agent/data/meta.json reports/index.html reports/dashboard_alert.md reports/dashboard_intelligence.json reports/v2 reports/canonical index.html reports site 2>/dev/null || true
+          git add reports/meta.json reports/member_funnel/data/meta.json reports/ai_agent/data/meta.json reports/index.html reports/dashboard_alert.md reports/dashboard_intelligence.json reports/v2 reports/canonical reports/realtime_alerts index.html reports site 2>/dev/null || true
           if git diff --cached --quiet; then echo "[INFO] No finalization changes"; exit 0; fi
-          git commit -m "Finalize canonical intelligence and enterprise quality gate"
+          git commit -m "Finalize canonical intelligence and realtime alerts"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:main; then exit 0; fi
             git pull --rebase origin main
