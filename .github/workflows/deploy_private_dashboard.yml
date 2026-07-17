@@ -32,6 +32,30 @@ jobs:
           npm --version
           python --version
 
+      - name: Verify canonical production readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s reports/canonical/snapshot.json
+          test -s reports/canonical/quality.json
+          test -s reports/canonical/features.json
+          test -s reports/v2/data.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path('reports/canonical/quality.json').read_text(encoding='utf-8'))
+          v=json.loads(Path('reports/v2/data.json').read_text(encoding='utf-8'))
+          print(f"[QUALITY] status={q['status']} score={q['score']}")
+          print(f"[PERIOD] {v.get('period')} ({v.get('period_type')})")
+          if q['status']=='blocked':
+              raise SystemExit('[ERROR] Production deploy blocked by canonical data quality gate')
+          m=v.get('metrics') or {}
+          if not all(m.get(k) is not None for k in ('sessions','orders','revenue')):
+              raise SystemExit('[ERROR] Canonical KPI bundle is incomplete')
+          if m['orders'] > m['sessions']:
+              raise SystemExit('[ERROR] Impossible KPI relation: orders > sessions')
+          PY
+
       - name: Install dependencies
         shell: bash
         run: |
@@ -45,6 +69,8 @@ jobs:
           set -euo pipefail
           python scripts/prepare_cloudflare_bundle.py
           test -f dist/index.html
+          test -s dist/reports/v2/index.html
+          test -s dist/reports/canonical/quality.json
           echo "Bundle size: $(du -sh dist | cut -f1)"
           echo "Bundle files: $(find dist -type f | wc -l)"
           if find dist -type f -size +24M -print -quit | grep -q .; then
