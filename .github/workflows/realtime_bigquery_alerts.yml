@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install google-cloud-bigquery
-          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py scripts/dashboard_v2.py
+          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py scripts/dashboard_v2.py scripts/dashboard_enterprise_layer.py
 
       - name: Detect BigQuery anomalies
         shell: bash
@@ -73,7 +73,7 @@ jobs:
           set -euo pipefail
           python scripts/dashboard_v2.py
           if [ -s reports/pdp_opportunity/data.json ]; then python scripts/connect_pdp_to_dashboard.py; fi
-          if [ -s reports/canonical/snapshot.json ]; then python scripts/build_enterprise_dashboard.py; fi
+          python scripts/dashboard_enterprise_layer.py
           python scripts/connect_realtime_alerts.py
           test -s reports/v2/data.json
           test -s reports/v2/index.html
