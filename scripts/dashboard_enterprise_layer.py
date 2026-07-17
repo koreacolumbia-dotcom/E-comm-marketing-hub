@@ -73,13 +73,18 @@ def build_canonical(config: dict[str, Any]) -> dict[str, Any]:
         root = commerce["root"]
         for target, source_key in commerce["mapping"].items():
             metrics[target] = finite(root.get(source_key))
+
+        # Canonical derived metrics must come from the same grain and period.
+        # Never reconcile order AOV against buyer-level revenue metrics.
+        sessions = metrics.get("sessions")
+        orders = metrics.get("orders")
+        revenue = metrics.get("revenue")
+        metrics["cvr"] = (orders / sessions) if sessions and orders is not None else None
+        metrics["aov"] = (revenue / orders) if orders and revenue is not None else None
     else:
         metrics = {k: None for k in ["sessions", "users", "orders", "revenue", "cvr", "aov", "signups"]}
 
-    period = None
-    if commerce["ready"]:
-        period = commerce["root"].get("period")
-
+    period = commerce["root"].get("period") if commerce["ready"] else None
     pdp = sources["pdp_30d"]
     pdp_products = pdp["root"].get("products", []) if pdp["ready"] else []
     paid = sources["paid_media"]
@@ -131,11 +136,10 @@ def validate(snapshot: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]
     aov = m.get("aov")
     if aov is not None:
         add("aov_range", rules["aov_min"] <= aov <= rules["aov_max"], f"AOV {aov:,.0f} is within valid range")
-    if revenue is not None and orders:
+    if revenue is not None and orders and aov is not None:
         derived = revenue / orders
-        if aov is not None:
-            delta = abs(derived - aov) / max(abs(aov), 1)
-            add("aov_reconciliation", delta <= .15, f"AOV reconciles with revenue/orders (delta {delta:.1%})")
+        delta = abs(derived - aov) / max(abs(aov), 1)
+        add("aov_reconciliation", delta <= .001, f"AOV reconciles with revenue/orders (delta {delta:.2%})")
 
     source_checks = snapshot["sources"]
     for name, source in source_checks.items():
