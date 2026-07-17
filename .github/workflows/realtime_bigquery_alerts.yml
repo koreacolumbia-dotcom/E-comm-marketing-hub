@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "WORKFLOW_REVISION=realtime-alerts-v5"
+          echo "WORKFLOW_REVISION=realtime-alerts-decision-os-v1"
           echo "GIT_SHA=$(git rev-parse HEAD)"
           grep -n "DECLARE query_end_ts" scripts/build_realtime_bigquery_alerts.py
           if grep -nE 'UNNEST\(IF\(ARRAY_LENGTH\(items\)' scripts/build_realtime_bigquery_alerts.py; then exit 1; fi
@@ -54,7 +54,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install google-cloud-bigquery
-          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py scripts/render_v2_safe.py
+          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py scripts/build_decision_os.py scripts/render_v2_safe.py
 
       - name: Detect BigQuery anomalies
         shell: bash
@@ -80,32 +80,39 @@ jobs:
           print(f"[OK] status={d['status']} alerts={d['alert_count']} dimensions={d['monitored_dimensions']}")
           PY
 
-      - name: Connect and safely render dashboard
+      - name: Build Decision OS and render dashboard
         shell: bash
         run: |
           set -euo pipefail
           python scripts/connect_realtime_alerts.py
+          python scripts/build_decision_os.py
           python scripts/render_v2_safe.py
           test -s reports/v2/data.json
           test -s reports/v2/index.html
-          grep -q 'function render' reports/v2/index.html
-          grep -q 'Realtime BigQuery Monitoring' reports/v2/index.html
+          test -s reports/decision_os/data.json
+          test -s reports/decision_os/state.json
+          test -s reports/decision_os/index.html
+          grep -q 'Executive Command Center' reports/v2/index.html
+          grep -q 'Incident Center' reports/v2/index.html
+          grep -q 'Feature Readiness' reports/v2/index.html
           python - <<'PY'
           import json
           from pathlib import Path
           v2=json.loads(Path('reports/v2/data.json').read_text(encoding='utf-8'))
           rt=v2.get('realtime_alerts') or {}
+          os=v2.get('decision_os') or {}
           if not rt: raise SystemExit('[ERROR] realtime alerts not connected')
-          print(f"[CONNECTED] status={rt.get('status')} alerts={rt.get('alert_count')}")
+          if not os or len(os.get('feature_status',[])) != 10: raise SystemExit('[ERROR] Decision OS modules not connected')
+          print(f"[CONNECTED] realtime={rt.get('status')} incidents={len(os.get('incidents',[]))} features={len(os.get('feature_status',[]))}")
           PY
 
-      - name: Commit realtime outputs
+      - name: Commit realtime and Decision OS outputs
         shell: bash
         run: |
           set -euo pipefail
-          git add reports/realtime_alerts reports/v2
+          git add reports/realtime_alerts reports/v2 reports/decision_os
           if git diff --cached --quiet; then echo "[INFO] No realtime changes"; exit 0; fi
-          git commit -m "Refresh realtime alerts and safe V2 render"
+          git commit -m "Refresh realtime alerts and Decision OS"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:main; then exit 0; fi
             git fetch origin main
