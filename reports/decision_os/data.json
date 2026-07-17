@@ -1,24 +1,32 @@
 {
   "version": "decision-os-v1",
-  "generated_at": "2026-07-18T06:16:14.887868+09:00",
+  "generated_at": "2026-07-18T07:06:55.463437+09:00",
   "command_center": {
-    "headline": "(direct) / (none) traffic 이상 징후",
-    "critical_incidents": 1,
+    "headline": "all commerce 이상 징후",
+    "critical_incidents": 2,
     "revenue_at_risk_today": 0.0,
-    "top_recommended_action": "채널 랜딩·UTM·봇 트래픽 검증",
+    "top_recommended_action": "결제 플로우·쿠폰·옵션 선택 회귀 테스트",
     "data_trust_score": 30,
-    "observed_hour": "2026-07-18T04:00:00+09:00"
+    "observed_hour": "2026-07-18T06:00:00+09:00"
   },
   "root_cause_inference": [
     {
-      "dimension_type": "channel",
-      "dimension_value": "(direct) / (none)",
+      "dimension_type": "device",
+      "dimension_value": "mobile",
       "cause": "복합 성과 변동",
-      "confidence": 53,
+      "confidence": 55,
       "diagnosis": "business",
       "evidence": [
-        "(direct) / (none) 채널에 집중"
+        "mobile 디바이스에 집중"
       ]
+    },
+    {
+      "dimension_type": "overall",
+      "dimension_value": "all",
+      "cause": "복합 성과 변동",
+      "confidence": 45,
+      "diagnosis": "business",
+      "evidence": []
     }
   ],
   "revenue_risk": {
@@ -55,56 +63,80 @@
   "incidents": [
     {
       "incident_id": "INC-20260718-001",
-      "signature": "channel|(direct) / (none)|traffic",
-      "title": "(direct) / (none) traffic 이상 징후",
+      "signature": "overall|all|commerce",
+      "title": "all commerce 이상 징후",
       "level": "critical",
       "status": "NEW",
       "owner": "Unassigned",
-      "first_seen": "2026-07-18T05:17:05.595689+09:00",
-      "last_seen": "2026-07-18T05:17:05.595689+09:00",
+      "first_seen": "2026-07-18T07:06:55.244153+09:00",
+      "last_seen": "2026-07-18T07:06:55.244153+09:00",
       "recurrence_count": 1,
-      "dimension_type": "channel",
-      "dimension_value": "(direct) / (none)",
-      "family": "traffic",
+      "dimension_type": "overall",
+      "dimension_value": "all",
+      "family": "commerce",
       "alerts": [
         {
-          "id": "channel:(direct) / (none):sessions:2026-07-18T04:00:00+09:00",
+          "id": "overall:all:cvr:2026-07-18T06:00:00+09:00",
           "level": "critical",
-          "category": "channel",
-          "metric": "sessions",
-          "title": "(direct) / (none) sessions 급증",
-          "impact": "현재 89 · 기준 58 · +53.4%",
-          "cause": "동일 시간대 15일 기준선 대비 z-score 6.8",
-          "action": "채널·디바이스·상품·태깅 상태를 세부 리포트에서 확인",
-          "dimension_type": "channel",
-          "dimension_value": "(direct) / (none)",
-          "current": 89.0,
-          "baseline": 58.0,
-          "delta_pct": 53.448275862068975,
-          "z_score": 6.775517936815009,
-          "detected_at": "2026-07-18T05:17:05.595689+09:00",
-          "link": "../realtime_alerts/index.html"
-        },
-        {
-          "id": "channel:(direct) / (none):users:2026-07-18T04:00:00+09:00",
-          "level": "critical",
-          "category": "channel",
-          "metric": "users",
-          "title": "(direct) / (none) users 급증",
-          "impact": "현재 89 · 기준 58 · +53.4%",
-          "cause": "동일 시간대 15일 기준선 대비 z-score 6.8",
-          "action": "채널·디바이스·상품·태깅 상태를 세부 리포트에서 확인",
-          "dimension_type": "channel",
-          "dimension_value": "(direct) / (none)",
-          "current": 89.0,
-          "baseline": 58.0,
-          "delta_pct": 53.448275862068975,
-          "z_score": 6.775517936815009,
-          "detected_at": "2026-07-18T05:17:05.595689+09:00",
+          "category": "overall",
+          "metric": "cvr",
+          "title": "all 구매전환율 급락",
+          "impact": "현재 0.00% · 기준 0.80%",
+          "cause": "세션 대비 구매 완료가 동일 시간대 기준보다 현저히 낮음",
+          "action": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
+          "dimension_type": "overall",
+          "dimension_value": "all",
+          "current": 0.0,
+          "baseline": 0.8,
+          "delta_pct": -100.0,
+          "z_score": -1.0940122755893193,
+          "detected_at": "2026-07-18T07:06:55.244153+09:00",
           "link": "../realtime_alerts/index.html"
         }
       ],
-      "alert_count": 2,
+      "alert_count": 1,
+      "revenue_at_risk": {
+        "hourly": 0,
+        "today": 0,
+        "seven_day": 0,
+        "recoverable": 0
+      },
+      "risk_basis": "negative anomalies only"
+    },
+    {
+      "incident_id": "INC-20260718-002",
+      "signature": "device|mobile|commerce",
+      "title": "mobile commerce 이상 징후",
+      "level": "critical",
+      "status": "NEW",
+      "owner": "Unassigned",
+      "first_seen": "2026-07-18T07:06:55.244153+09:00",
+      "last_seen": "2026-07-18T07:06:55.244153+09:00",
+      "recurrence_count": 1,
+      "dimension_type": "device",
+      "dimension_value": "mobile",
+      "family": "commerce",
+      "alerts": [
+        {
+          "id": "device:mobile:cvr:2026-07-18T06:00:00+09:00",
+          "level": "critical",
+          "category": "device",
+          "metric": "cvr",
+          "title": "mobile 구매전환율 급락",
+          "impact": "현재 0.00% · 기준 1.02%",
+          "cause": "세션 대비 구매 완료가 동일 시간대 기준보다 현저히 낮음",
+          "action": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
+          "dimension_type": "device",
+          "dimension_value": "mobile",
+          "current": 0.0,
+          "baseline": 1.0204081632653061,
+          "delta_pct": -100.0,
+          "z_score": -0.6744907594765952,
+          "detected_at": "2026-07-18T07:06:55.244153+09:00",
+          "link": "../realtime_alerts/index.html"
+        }
+      ],
+      "alert_count": 1,
       "revenue_at_risk": {
         "hourly": 0,
         "today": 0,
@@ -119,6 +151,7 @@
     "business_probability": 100,
     "status": "partial",
     "evidence": [
+      "복합 성과 변동",
       "복합 성과 변동"
     ]
   },
@@ -496,12 +529,22 @@
   },
   "experiments": [
     {
-      "title": "채널 랜딩·UTM·봇 트래픽 검증",
+      "title": "결제 플로우·쿠폰·옵션 선택 회귀 테스트",
       "incident_id": "INC-20260718-001",
-      "primary_metric": "Engaged session / CVR",
+      "primary_metric": "Checkout→Purchase rate",
       "expected_lift": "+5~15% 상대 개선",
-      "estimated_revenue": 661820,
-      "effort": "낮음",
+      "estimated_revenue": 0,
+      "effort": "중간",
+      "duration": "7~14일",
+      "minimum_sample": 1000
+    },
+    {
+      "title": "결제 플로우·쿠폰·옵션 선택 회귀 테스트",
+      "incident_id": "INC-20260718-002",
+      "primary_metric": "Checkout→Purchase rate",
+      "expected_lift": "+5~15% 상대 개선",
+      "estimated_revenue": 0,
+      "effort": "중간",
       "duration": "7~14일",
       "minimum_sample": 1000
     },
