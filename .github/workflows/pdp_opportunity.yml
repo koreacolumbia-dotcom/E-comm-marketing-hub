@@ -1,0 +1,115 @@
+name: PDP Opportunity Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "PDP analysis window"
+        required: true
+        default: "30"
+        type: choice
+        options: ["7", "14", "30", "60", "90"]
+      min_sessions:
+        description: "Minimum PDP sessions per product"
+        required: true
+        default: "10"
+        type: choice
+        options: ["1", "5", "10", "20", "50"]
+  schedule:
+    - cron: "15 17 * * *" # 02:15 KST
+
+concurrency:
+  group: pdp-opportunity-build
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pull latest reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install BigQuery dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install google-cloud-bigquery db-dtypes pyarrow
+
+      - name: Build PDP funnel and opportunity report
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GA4_EVENTS_TABLE: ${{ vars.GA4_EVENTS_TABLE }}
+          BQ_LOCATION: ${{ vars.BQ_LOCATION }}
+          PDP_LOOKBACK_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_days || '30' }}
+          PDP_MIN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.min_sessions || '10' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/build_pdp_opportunity_v2.py
+          python -u scripts/build_pdp_opportunity_v2.py
+          test -s reports/pdp_opportunity/data.json
+          test -s reports/pdp_opportunity/index.html
+          python - <<'PY'
+          import json
+          d=json.load(open('reports/pdp_opportunity/data.json',encoding='utf-8'))
+          print('[CHECK] products=',len(d.get('products',[])))
+          print('[CHECK] period=',d.get('data_start'),'..',d.get('data_end'))
+          PY
+
+      - name: Rebuild Marketing Hub v2 with PDP data
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/dashboard_v2.py
+          python scripts/dashboard_v2.py
+          test -s reports/v2/data.json
+          test -s reports/v2/index.html
+
+      - name: Commit PDP and V2 outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f gcp_service_account.json
+          git add reports/pdp_opportunity reports/v2 index.html
+          if git diff --cached --quiet; then
+            echo "[INFO] No PDP changes"
+          else
+            git commit -m "Refresh GA4 PDP opportunity intelligence"
+            for attempt in 1 2 3 4 5; do
+              if git push origin HEAD:main; then break; fi
+              git pull --rebase origin main
+              sleep $((attempt * 3))
+            done
+          fi
+
+      - name: Trigger dashboard finalization
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run dashboard_finalize.yml -f strict=false
+          echo "[OK] Dashboard Finalize requested"
