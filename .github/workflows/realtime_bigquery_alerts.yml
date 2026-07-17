@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "WORKFLOW_REVISION=realtime-alerts-v3"
+          echo "WORKFLOW_REVISION=realtime-alerts-v4"
           echo "GIT_SHA=$(git rev-parse HEAD)"
           echo "SCRIPT_SHA256=$(sha256sum scripts/build_realtime_bigquery_alerts.py | cut -d' ' -f1)"
           grep -n "DECLARE query_end_ts" scripts/build_realtime_bigquery_alerts.py
@@ -45,9 +45,11 @@ jobs:
             exit 1
           fi
           if ! grep -q "monitored_dimensions" scripts/build_realtime_bigquery_alerts.py; then
-            echo "[ERROR] Expected v3 realtime detector markers are missing"
+            echo "[ERROR] Expected realtime detector markers are missing"
             exit 1
           fi
+          test -s reports/v2/data.json
+          test -s reports/v2/index.html
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -61,7 +63,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install google-cloud-bigquery
-          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py scripts/dashboard_v2.py scripts/dashboard_enterprise_layer.py
+          python -m py_compile scripts/build_realtime_bigquery_alerts.py scripts/connect_realtime_alerts.py
 
       - name: Detect BigQuery anomalies
         shell: bash
@@ -96,22 +98,30 @@ jobs:
           print(f"[OK] status={d['status']} alerts={d['alert_count']} dimensions={d['monitored_dimensions']} observed={d['observed_hour']}")
           PY
 
-      - name: Rebuild and connect dashboard
+      - name: Connect alerts to validated dashboard
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/dashboard_v2.py
-          if [ -s reports/pdp_opportunity/data.json ]; then python scripts/connect_pdp_to_dashboard.py; fi
-          python scripts/dashboard_enterprise_layer.py
+          # Realtime refresh must never rebuild or overwrite canonical KPI layers.
+          # The daily Finalize workflow owns canonical data and quality enforcement.
           python scripts/connect_realtime_alerts.py
           test -s reports/v2/data.json
           test -s reports/v2/index.html
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          v2=json.loads(Path('reports/v2/data.json').read_text(encoding='utf-8'))
+          rt=v2.get('realtime_alerts') or {}
+          if not rt:
+              raise SystemExit('[ERROR] realtime_alerts were not connected to V2')
+          print(f"[CONNECTED] realtime status={rt.get('status')} alerts={rt.get('alert_count')}")
+          PY
 
       - name: Commit realtime outputs
         shell: bash
         run: |
           set -euo pipefail
-          git add reports/realtime_alerts reports/v2 reports/canonical index.html
+          git add reports/realtime_alerts reports/v2
           if git diff --cached --quiet; then
             echo "[INFO] No realtime changes"
             exit 0
