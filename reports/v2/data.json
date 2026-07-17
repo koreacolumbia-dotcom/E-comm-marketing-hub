@@ -9638,32 +9638,6 @@
   },
   "alerts": [
     {
-      "level": "critical",
-      "category": "realtime",
-      "title": "all 구매전환율 급락",
-      "impact": "현재 0.00% · 기준 0.80%",
-      "cause": "세션 대비 구매 완료가 동일 시간대 기준보다 현저히 낮음",
-      "action": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
-      "link": "../realtime_alerts/index.html",
-      "detected_at": "2026-07-18T07:06:55.244153+09:00",
-      "metric": "cvr",
-      "dimension_type": "overall",
-      "dimension_value": "all"
-    },
-    {
-      "level": "critical",
-      "category": "realtime",
-      "title": "mobile 구매전환율 급락",
-      "impact": "현재 0.00% · 기준 1.02%",
-      "cause": "세션 대비 구매 완료가 동일 시간대 기준보다 현저히 낮음",
-      "action": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
-      "link": "../realtime_alerts/index.html",
-      "detected_at": "2026-07-18T07:06:55.244153+09:00",
-      "metric": "cvr",
-      "dimension_type": "device",
-      "dimension_value": "mobile"
-    },
-    {
       "level": "info",
       "category": "media",
       "title": "광고비 집계 미연결",
@@ -9674,18 +9648,6 @@
     }
   ],
   "actions": [
-    {
-      "priority": "critical",
-      "title": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
-      "reason": "Realtime anomaly",
-      "link": "../realtime_alerts/index.html"
-    },
-    {
-      "priority": "critical",
-      "title": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
-      "reason": "Realtime anomaly",
-      "link": "../realtime_alerts/index.html"
-    },
     {
       "priority": "info",
       "title": "paid_media 집계 산출 연결",
@@ -9855,85 +9817,29 @@
   "period": "오늘 누적 2026-07-18 KST",
   "period_type": "today_intraday",
   "realtime_alerts": {
-    "status": "critical",
-    "observed_hour": "2026-07-18T06:00:00+09:00",
-    "alert_count": 2,
-    "critical_count": 2,
+    "status": "healthy",
+    "observed_hour": "2026-07-18T07:00:00+09:00",
+    "alert_count": 0,
+    "critical_count": 0,
     "warning_count": 0,
-    "top_alerts": [
-      {
-        "id": "overall:all:cvr:2026-07-18T06:00:00+09:00",
-        "level": "critical",
-        "category": "overall",
-        "metric": "cvr",
-        "title": "all 구매전환율 급락",
-        "impact": "현재 0.00% · 기준 0.80%",
-        "cause": "세션 대비 구매 완료가 동일 시간대 기준보다 현저히 낮음",
-        "action": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
-        "dimension_type": "overall",
-        "dimension_value": "all",
-        "current": 0.0,
-        "baseline": 0.8,
-        "delta_pct": -100.0,
-        "z_score": -1.0940122755893193,
-        "detected_at": "2026-07-18T07:06:55.244153+09:00",
-        "link": "../realtime_alerts/index.html"
-      },
-      {
-        "id": "device:mobile:cvr:2026-07-18T06:00:00+09:00",
-        "level": "critical",
-        "category": "device",
-        "metric": "cvr",
-        "title": "mobile 구매전환율 급락",
-        "impact": "현재 0.00% · 기준 1.02%",
-        "cause": "세션 대비 구매 완료가 동일 시간대 기준보다 현저히 낮음",
-        "action": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
-        "dimension_type": "device",
-        "dimension_value": "mobile",
-        "current": 0.0,
-        "baseline": 1.0204081632653061,
-        "delta_pct": -100.0,
-        "z_score": -0.6744907594765952,
-        "detected_at": "2026-07-18T07:06:55.244153+09:00",
-        "link": "../realtime_alerts/index.html"
-      }
-    ]
+    "top_alerts": []
   },
   "decision_os": {
     "version": "decision-os-v1",
-    "generated_at": "2026-07-18T07:34:33.118512+09:00",
+    "generated_at": "2026-07-18T08:06:11.004004+09:00",
     "command_center": {
-      "headline": "all commerce 이상 징후",
-      "critical_incidents": 2,
-      "revenue_at_risk_today": 0.0,
-      "top_recommended_action": "결제 플로우·쿠폰·옵션 선택 회귀 테스트",
+      "headline": "현재 중대한 이상 징후 없음",
+      "critical_incidents": 0,
+      "revenue_at_risk_today": 0,
+      "top_recommended_action": "M`s Three Rock Jacket PDP 가격·재고·콘텐츠 패키지 테스트",
       "data_trust_score": 30,
-      "observed_hour": "2026-07-18T06:00:00+09:00"
+      "observed_hour": "2026-07-18T07:00:00+09:00"
     },
-    "root_cause_inference": [
-      {
-        "dimension_type": "device",
-        "dimension_value": "mobile",
-        "cause": "복합 성과 변동",
-        "confidence": 55,
-        "diagnosis": "business",
-        "evidence": [
-          "mobile 디바이스에 집중"
-        ]
-      },
-      {
-        "dimension_type": "overall",
-        "dimension_value": "all",
-        "cause": "복합 성과 변동",
-        "confidence": 45,
-        "diagnosis": "business",
-        "evidence": []
-      }
-    ],
+    "root_cause_inference": [],
     "revenue_risk": {
-      "today": 0.0,
-      "seven_day": 0.0,
-      "recoverable": 0.0
+      "today": 0,
+      "seven_day": 0,
+      "recoverable": 0
     },
     "baseline_ensemble": {
       "status": "partial",
@@ -9961,100 +9867,12 @@
       ],
       "confidence": "중간"
     },
-    "incidents": [
-      {
-        "incident_id": "INC-20260718-001",
-        "signature": "overall|all|commerce",
-        "title": "all commerce 이상 징후",
-        "level": "critical",
-        "status": "NEW",
-        "owner": "Unassigned",
-        "first_seen": "2026-07-18T07:06:55.244153+09:00",
-        "last_seen": "2026-07-18T07:06:55.244153+09:00",
-        "recurrence_count": 1,
-        "dimension_type": "overall",
-        "dimension_value": "all",
-        "family": "commerce",
-        "alerts": [
-          {
-            "id": "overall:all:cvr:2026-07-18T06:00:00+09:00",
-            "level": "critical",
-            "category": "overall",
-            "metric": "cvr",
-            "title": "all 구매전환율 급락",
-            "impact": "현재 0.00% · 기준 0.80%",
-            "cause": "세션 대비 구매 완료가 동일 시간대 기준보다 현저히 낮음",
-            "action": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
-            "dimension_type": "overall",
-            "dimension_value": "all",
-            "current": 0.0,
-            "baseline": 0.8,
-            "delta_pct": -100.0,
-            "z_score": -1.0940122755893193,
-            "detected_at": "2026-07-18T07:06:55.244153+09:00",
-            "link": "../realtime_alerts/index.html"
-          }
-        ],
-        "alert_count": 1,
-        "revenue_at_risk": {
-          "hourly": 0,
-          "today": 0,
-          "seven_day": 0,
-          "recoverable": 0
-        },
-        "risk_basis": "negative anomalies only"
-      },
-      {
-        "incident_id": "INC-20260718-002",
-        "signature": "device|mobile|commerce",
-        "title": "mobile commerce 이상 징후",
-        "level": "critical",
-        "status": "NEW",
-        "owner": "Unassigned",
-        "first_seen": "2026-07-18T07:06:55.244153+09:00",
-        "last_seen": "2026-07-18T07:06:55.244153+09:00",
-        "recurrence_count": 1,
-        "dimension_type": "device",
-        "dimension_value": "mobile",
-        "family": "commerce",
-        "alerts": [
-          {
-            "id": "device:mobile:cvr:2026-07-18T06:00:00+09:00",
-            "level": "critical",
-            "category": "device",
-            "metric": "cvr",
-            "title": "mobile 구매전환율 급락",
-            "impact": "현재 0.00% · 기준 1.02%",
-            "cause": "세션 대비 구매 완료가 동일 시간대 기준보다 현저히 낮음",
-            "action": "결제·상품 옵션·쿠폰·모바일 구매 플로우 즉시 점검",
-            "dimension_type": "device",
-            "dimension_value": "mobile",
-            "current": 0.0,
-            "baseline": 1.0204081632653061,
-            "delta_pct": -100.0,
-            "z_score": -0.6744907594765952,
-            "detected_at": "2026-07-18T07:06:55.244153+09:00",
-            "link": "../realtime_alerts/index.html"
-          }
-        ],
-        "alert_count": 1,
-        "revenue_at_risk": {
-          "hourly": 0,
-          "today": 0,
-          "seven_day": 0,
-          "recoverable": 0
-        },
-        "risk_basis": "negative anomalies only"
-      }
-    ],
+    "incidents": [],
     "measurement_diagnosis": {
       "measurement_probability": 0,
-      "business_probability": 100,
-      "status": "partial",
-      "evidence": [
-        "복합 성과 변동",
-        "복합 성과 변동"
-      ]
+      "business_probability": 0,
+      "status": "waiting",
+      "evidence": []
     },
     "product_context": [
       {
@@ -10430,26 +10248,6 @@
     },
     "experiments": [
       {
-        "title": "결제 플로우·쿠폰·옵션 선택 회귀 테스트",
-        "incident_id": "INC-20260718-001",
-        "primary_metric": "Checkout→Purchase rate",
-        "expected_lift": "+5~15% 상대 개선",
-        "estimated_revenue": 0,
-        "effort": "중간",
-        "duration": "7~14일",
-        "minimum_sample": 1000
-      },
-      {
-        "title": "결제 플로우·쿠폰·옵션 선택 회귀 테스트",
-        "incident_id": "INC-20260718-002",
-        "primary_metric": "Checkout→Purchase rate",
-        "expected_lift": "+5~15% 상대 개선",
-        "estimated_revenue": 0,
-        "effort": "중간",
-        "duration": "7~14일",
-        "minimum_sample": 1000
-      },
-      {
         "title": "M`s Three Rock Jacket PDP 가격·재고·콘텐츠 패키지 테스트",
         "incident_id": null,
         "primary_metric": "PDP CVR",
@@ -10531,12 +10329,12 @@
       {
         "key": "root_cause",
         "label": "원인 추론",
-        "status": "live"
+        "status": "waiting"
       },
       {
         "key": "revenue_risk",
         "label": "손실매출",
-        "status": "live"
+        "status": "waiting"
       },
       {
         "key": "baseline",
@@ -10556,7 +10354,7 @@
       {
         "key": "measurement_split",
         "label": "태깅/실성과 분리",
-        "status": "partial"
+        "status": "waiting"
       },
       {
         "key": "product_context",
