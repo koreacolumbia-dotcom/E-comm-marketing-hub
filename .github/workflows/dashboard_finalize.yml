@@ -92,8 +92,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile scripts/dashboard_v2.py
+          python -m py_compile scripts/dashboard_v2.py scripts/connect_pdp_to_dashboard.py
           python scripts/dashboard_v2.py
+          if [ -s reports/pdp_opportunity/data.json ]; then
+            python scripts/connect_pdp_to_dashboard.py
+          else
+            echo "[WARN] PDP data not built yet; V2 will remain in discovery mode"
+          fi
           test -f reports/v2/index.html
           test -f reports/v2/data.json
 
