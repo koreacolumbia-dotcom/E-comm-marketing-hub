@@ -1,4 +1,65 @@
 {
-  "updated_at": "2026-07-18T03:34:04.369610+09:00",
-  "incidents": []
+  "updated_at": "2026-07-18T05:17:05.856932+09:00",
+  "incidents": [
+    {
+      "incident_id": "INC-20260718-001",
+      "signature": "channel|(direct) / (none)|traffic",
+      "title": "(direct) / (none) traffic 이상 징후",
+      "level": "critical",
+      "status": "NEW",
+      "owner": "Unassigned",
+      "first_seen": "2026-07-18T05:17:05.595689+09:00",
+      "last_seen": "2026-07-18T05:17:05.595689+09:00",
+      "recurrence_count": 1,
+      "dimension_type": "channel",
+      "dimension_value": "(direct) / (none)",
+      "family": "traffic",
+      "alerts": [
+        {
+          "id": "channel:(direct) / (none):sessions:2026-07-18T04:00:00+09:00",
+          "level": "critical",
+          "category": "channel",
+          "metric": "sessions",
+          "title": "(direct) / (none) sessions 급증",
+          "impact": "현재 89 · 기준 58 · +53.4%",
+          "cause": "동일 시간대 15일 기준선 대비 z-score 6.8",
+          "action": "채널·디바이스·상품·태깅 상태를 세부 리포트에서 확인",
+          "dimension_type": "channel",
+          "dimension_value": "(direct) / (none)",
+          "current": 89.0,
+          "baseline": 58.0,
+          "delta_pct": 53.448275862068975,
+          "z_score": 6.775517936815009,
+          "detected_at": "2026-07-18T05:17:05.595689+09:00",
+          "link": "../realtime_alerts/index.html"
+        },
+        {
+          "id": "channel:(direct) / (none):users:2026-07-18T04:00:00+09:00",
+          "level": "critical",
+          "category": "channel",
+          "metric": "users",
+          "title": "(direct) / (none) users 급증",
+          "impact": "현재 89 · 기준 58 · +53.4%",
+          "cause": "동일 시간대 15일 기준선 대비 z-score 6.8",
+          "action": "채널·디바이스·상품·태깅 상태를 세부 리포트에서 확인",
+          "dimension_type": "channel",
+          "dimension_value": "(direct) / (none)",
+          "current": 89.0,
+          "baseline": 58.0,
+          "delta_pct": 53.448275862068975,
+          "z_score": 6.775517936815009,
+          "detected_at": "2026-07-18T05:17:05.595689+09:00",
+          "link": "../realtime_alerts/index.html"
+        }
+      ],
+      "alert_count": 2,
+      "revenue_at_risk": {
+        "hourly": 0,
+        "today": 0,
+        "seven_day": 0,
+        "recoverable": 0
+      },
+      "risk_basis": "negative anomalies only"
+    }
+  ]
 }
