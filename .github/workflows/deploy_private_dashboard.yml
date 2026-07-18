@@ -63,6 +63,20 @@ jobs:
           npm install --no-audit --no-fund
           echo "Wrangler version: $(npx --no-install wrangler --version)"
 
+      - name: Rebuild static V2 before bundling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/render_v2_safe.py
+          python scripts/render_v2_safe.py
+          test -s reports/v2/index.html
+          if grep -q '<script' reports/v2/index.html; then
+            echo "[ERROR] V2 must be server-side static HTML without inline JavaScript"
+            exit 1
+          fi
+          grep -q '서버사이드 정적 렌더링' reports/v2/index.html
+          grep -q '오늘의 핵심 KPI' reports/v2/index.html
+
       - name: Prepare bounded static bundle
         shell: bash
         run: |
@@ -85,13 +99,33 @@ jobs:
           set -euo pipefail
           python scripts/dashboard_security.py --sanitize --root dist
 
+      - name: Check Cloudflare credentials
+        id: cloudflare
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "[OK] Cloudflare credentials are configured"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "[WARN] Cloudflare credentials are missing; bundle validation succeeded but deployment will be skipped"
+          fi
+
       - name: Deploy ecom Worker with static assets
+        if: ${{ steps.cloudflare.outputs.ready == 'true' }}
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$CLOUDFLARE_ACCOUNT_ID"
           npx --no-install wrangler deploy --config wrangler.jsonc
+
+      - name: Deployment skipped
+        if: ${{ steps.cloudflare.outputs.ready != 'true' }}
+        shell: bash
+        run: |
+          echo "Cloudflare deploy skipped. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to the dashboard-production environment or repository Actions secrets."
