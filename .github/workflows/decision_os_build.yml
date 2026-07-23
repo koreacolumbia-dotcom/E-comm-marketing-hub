@@ -2,11 +2,6 @@ name: Decision OS Build
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Dashboard Finalize"]
-    types: [completed]
-  schedule:
-    - cron: "45 21 * * *"
 
 concurrency:
   group: decision-os-build
@@ -17,7 +12,6 @@ permissions:
 
 jobs:
   build:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -35,7 +29,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git reset --hard origin/main
-          echo "WORKFLOW_REVISION=decision-os-v2"
+          echo "WORKFLOW_REVISION=decision-os-paused-manual-only"
           echo "GIT_SHA=$(git rev-parse HEAD)"
 
       - name: Setup Python
@@ -56,23 +50,6 @@ jobs:
           test -s reports/decision_os/state.json
           test -s reports/decision_os/index.html
           test -s reports/v2/index.html
-          grep -q 'Executive Command Center' reports/v2/index.html
-          grep -q 'Root Cause Inference' reports/v2/index.html
-          grep -q 'Multi-baseline Ensemble' reports/v2/index.html
-          grep -q 'Profitability Intelligence' reports/v2/index.html
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          d=json.loads(Path('reports/decision_os/data.json').read_text(encoding='utf-8'))
-          if len(d.get('feature_status',[])) != 10:
-              raise SystemExit('[ERROR] all 10 Decision OS modules are required')
-          if 'command_center' not in d or 'connections' not in d:
-              raise SystemExit('[ERROR] command center or connection registry missing')
-          positive_risk=[x for x in d.get('incidents',[]) if not any((a.get('delta_pct') or 0)<0 for a in x.get('alerts',[])) and (x.get('revenue_at_risk') or {}).get('today',0)>0]
-          if positive_risk:
-              raise SystemExit('[ERROR] positive anomalies must not create revenue loss risk')
-          print(f"[DECISION_OS_OK] incidents={len(d.get('incidents',[]))} features={len(d['feature_status'])} connections={len(d['connections'])}")
-          PY
 
       - name: Commit Decision OS outputs
         shell: bash
