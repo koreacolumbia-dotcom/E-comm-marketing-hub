@@ -1,4 +1,4 @@
-name: PDP Opportunity Build
+name: PDP Opportunity Build Legacy
 
 on:
   workflow_dispatch:
@@ -15,11 +15,9 @@ on:
         default: "10"
         type: choice
         options: ["1", "5", "10", "20", "50"]
-  schedule:
-    - cron: "15 17 * * *" # 02:15 KST
 
 concurrency:
-  group: pdp-opportunity-build
+  group: pdp-opportunity-build-legacy
   cancel-in-progress: true
 
 permissions:
@@ -42,6 +40,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main
+          echo "WORKFLOW_REVISION=pdp-legacy-paused-manual-only"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -63,8 +62,8 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GA4_EVENTS_TABLE: ${{ vars.GA4_EVENTS_TABLE }}
           BQ_LOCATION: ${{ vars.BQ_LOCATION }}
-          PDP_LOOKBACK_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_days || '30' }}
-          PDP_MIN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.min_sessions || '10' }}
+          PDP_LOOKBACK_DAYS: ${{ inputs.lookback_days }}
+          PDP_MIN_SESSIONS: ${{ inputs.min_sessions }}
         shell: bash
         run: |
           set -euo pipefail
@@ -72,12 +71,6 @@ jobs:
           python -u scripts/build_pdp_opportunity_v2.py
           test -s reports/pdp_opportunity/data.json
           test -s reports/pdp_opportunity/index.html
-          python - <<'PY'
-          import json
-          d=json.load(open('reports/pdp_opportunity/data.json',encoding='utf-8'))
-          print('[CHECK] products=',len(d.get('products',[])))
-          print('[CHECK] period=',d.get('data_start'),'..',d.get('data_end'))
-          PY
 
       - name: Rebuild Marketing Hub v2 with PDP data
         shell: bash
@@ -104,12 +97,3 @@ jobs:
               sleep $((attempt * 3))
             done
           fi
-
-      - name: Trigger dashboard finalization
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh workflow run dashboard_finalize.yml -f strict=false
-          echo "[OK] Dashboard Finalize requested"
