@@ -9,11 +9,9 @@ on:
         default: "30"
         type: choice
         options: ["7", "14", "30", "60", "90"]
-  schedule:
-    - cron: "22 * * * *"
 
 concurrency:
-  group: pdp-opportunity-build
+  group: pdp-opportunity-build-new
   cancel-in-progress: true
 
 permissions:
@@ -37,7 +35,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git reset --hard origin/main
-          echo "WORKFLOW_REVISION=ga4-today-pdp-v1"
+          echo "WORKFLOW_REVISION=ga4-today-pdp-paused-manual-only"
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -57,7 +55,7 @@ jobs:
           BQ_PROJECT: columbia-ga4
           BQ_LOCATION: asia-northeast3
           GA4_EVENTS_TABLE: columbia-ga4.analytics_358593394.events_*
-          PDP_LOOKBACK_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_days || '30' }}
+          PDP_LOOKBACK_DAYS: ${{ inputs.lookback_days }}
           PDP_MIN_SESSIONS: "5"
         run: |
           set -euo pipefail
@@ -74,17 +72,6 @@ jobs:
           python scripts/build_decision_os.py
           python scripts/harden_decision_os.py
           python scripts/render_v2_safe.py
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          t=json.loads(Path('reports/today_kpi/data.json').read_text(encoding='utf-8'))
-          p=json.loads(Path('reports/pdp_opportunity/data.json').read_text(encoding='utf-8'))
-          v=json.loads(Path('reports/v2/data.json').read_text(encoding='utf-8'))
-          if t.get('status')!='live': raise SystemExit('[ERROR] GA4 today KPI empty')
-          if not v.get('today_kpi'): raise SystemExit('[ERROR] today KPI not connected')
-          print(f"[TODAY] sessions={t['metrics']['sessions']} orders={t['metrics']['orders']} revenue={t['metrics']['revenue']}")
-          print(f"[PDP] status={p.get('status')} rows={len(p.get('products') or [])} diagnostics={p.get('diagnostics')}")
-          PY
       - name: Commit outputs
         shell: bash
         run: |
