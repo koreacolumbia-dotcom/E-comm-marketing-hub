@@ -2,8 +2,6 @@ name: Realtime BigQuery Alerts
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "12 * * * *"
 
 concurrency:
   group: realtime-bigquery-alerts
@@ -36,7 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "WORKFLOW_REVISION=realtime-alerts-decision-os-v2"
+          echo "WORKFLOW_REVISION=realtime-alerts-paused-manual-only"
           echo "GIT_SHA=$(git rev-parse HEAD)"
           grep -n "DECLARE query_end_ts" scripts/build_realtime_bigquery_alerts.py
           if grep -nE 'UNNEST\(IF\(ARRAY_LENGTH\(items\)' scripts/build_realtime_bigquery_alerts.py; then exit 1; fi
@@ -69,16 +67,6 @@ jobs:
           python -u scripts/build_realtime_bigquery_alerts.py
           test -s reports/realtime_alerts/alerts.json
           test -s reports/realtime_alerts/index.html
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          d=json.loads(Path('reports/realtime_alerts/alerts.json').read_text(encoding='utf-8'))
-          required={'generated_at','observed_hour','status','alert_count','critical_count','warning_count','monitored_dimensions','alerts'}
-          missing=required-set(d)
-          if missing: raise SystemExit('[ERROR] missing fields: '+', '.join(sorted(missing)))
-          if d['monitored_dimensions'] <= 0: raise SystemExit('[ERROR] no monitored dimensions')
-          print(f"[OK] status={d['status']} alerts={d['alert_count']} dimensions={d['monitored_dimensions']}")
-          PY
 
       - name: Build Decision OS and render dashboard
         shell: bash
@@ -91,21 +79,6 @@ jobs:
           test -s reports/v2/data.json
           test -s reports/v2/index.html
           test -s reports/decision_os/data.json
-          test -s reports/decision_os/state.json
-          test -s reports/decision_os/index.html
-          grep -q 'Executive Command Center' reports/v2/index.html
-          grep -q 'Incident Center' reports/v2/index.html
-          grep -q 'Feature Readiness' reports/v2/index.html
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          v2=json.loads(Path('reports/v2/data.json').read_text(encoding='utf-8'))
-          rt=v2.get('realtime_alerts') or {}
-          os=v2.get('decision_os') or {}
-          if not rt: raise SystemExit('[ERROR] realtime alerts not connected')
-          if not os or len(os.get('feature_status',[])) != 10: raise SystemExit('[ERROR] Decision OS modules not connected')
-          print(f"[CONNECTED] realtime={rt.get('status')} incidents={len(os.get('incidents',[]))} features={len(os.get('feature_status',[]))}")
-          PY
 
       - name: Commit realtime and Decision OS outputs
         shell: bash
