@@ -1,0 +1,81 @@
+{
+  "kpi": {
+    "target_date": "2026-07-24",
+    "previous_date": "2026-07-17",
+    "current": {
+      "revenue": 0.0,
+      "orders": 3.0,
+      "buyers": 3.0,
+      "sessions": 0.0,
+      "pv": 0.0,
+      "signups": 5.0,
+      "aov": 0.0,
+      "cvr": 0.0,
+      "coupon_used": 0.0,
+      "point_used": 0.0,
+      "cancel_amount": 0.0,
+      "coupon_order_rate": 0.0,
+      "promotion_order_rate": 0.0
+    },
+    "previous": {
+      "revenue": 0.0,
+      "orders": 51.0,
+      "buyers": 50.0,
+      "sessions": 5288.0,
+      "pv": 20011.0,
+      "signups": 60.0,
+      "aov": 0.0,
+      "cvr": 0.9644478063540092,
+      "coupon_used": 0.0,
+      "point_used": 0.0,
+      "cancel_amount": 0.0
+    },
+    "changes": {
+      "revenue_change_pct": null,
+      "orders_change_pct": -94.11764705882352,
+      "buyers_change_pct": -94.0,
+      "sessions_change_pct": -100.0,
+      "pv_change_pct": -100.0,
+      "signups_change_pct": -91.66666666666666,
+      "aov_change_pct": null,
+      "cvr_change_pct": -100.0,
+      "coupon_used_change_pct": null,
+      "point_used_change_pct": null,
+      "cancel_amount_change_pct": null
+    },
+    "category_drops": [],
+    "product_drops": [],
+    "stock_risks": [],
+    "device": []
+  },
+  "insight": {
+    "provider": "rule_based",
+    "headline": "2026-07-24 매출 0원, WoW -",
+    "summary": "주문수는 WoW -94.1%, 구매자 수는 -94.0%, 객단가는 -입니다. 주요 하락 상품과 재고/혜택 시그널을 함께 확인하는 구성이 적합합니다.",
+    "alerts": [
+      "전주 동일 요일 대비 매출 급변은 크지 않습니다."
+    ],
+    "causes": [
+      "주문수가 -94.1% 감소했습니다.",
+      "구매자 수가 -94.0% 감소했습니다."
+    ],
+    "actions_today": [
+      "카테고리별 하락 기여도와 상품별 순매출 증감을 먼저 확인하세요."
+    ],
+    "actions_week": [
+      "GA4 상품조회/장바구니 데이터와 결합해 조회 대비 구매전환 낮은 상품을 분리하세요."
+    ],
+    "watch_next": [
+      "매출/주문수/구매자/객단가 WoW",
+      "쿠폰 주문 비중",
+      "품절/저재고 상품의 매출 기여도"
+    ],
+    "confidence": "medium",
+    "data_limits": [
+      "본 리포트는 BigQuery에 적재된 MSSQL 주문상품 마트 기준입니다.",
+      "재고는 주문 당시 재고가 아니라 현재/최근 적재 시점의 재고 신호일 수 있습니다.",
+      "GA4 상품조회/광고비/발송 데이터가 결합되면 원인 판단 정확도가 올라갑니다."
+    ],
+    "llm_error": "openrouter: RuntimeError: OPENROUTER_API_KEY missing"
+  }
+}
