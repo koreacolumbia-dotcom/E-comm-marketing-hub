@@ -1,0 +1,104 @@
+name: Owned PDP YoY
+
+on:
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: "Daily report date (YYYY-MM-DD); blank uses yesterday KST"
+        required: false
+        default: ""
+        type: string
+  workflow_run:
+    workflows: ["Daily Digest"]
+    types: [completed]
+
+concurrency:
+  group: owned-pdp-yoy
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Sync latest Daily Digest output
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install bounded PDP dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install google-cloud-bigquery pandas db-dtypes pyarrow
+          python -m py_compile scripts/patch_owned_pdp_yoy.py
+
+      - name: Resolve report date
+        id: date
+        shell: bash
+        env:
+          INPUT_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.report_date || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INPUT_DATE" ]; then
+            YMD="$INPUT_DATE"
+          else
+            YMD="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
+          fi
+          echo "ymd=$YMD" >> "$GITHUB_OUTPUT"
+          echo "[DATE] $YMD"
+
+      - name: Patch PDP category trend with prior year
+        shell: bash
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          YMD: ${{ steps.date.outputs.ymd }}
+          DAILY_DIGEST_BQ_EVENTS_TABLE: columbia-ga4.analytics_358593394.events_*
+          DAILY_DIGEST_BQ_LOCATION: asia-northeast3
+        run: |
+          set -euo pipefail
+          test -n "$GOOGLE_SA_JSON_B64"
+          python -u scripts/patch_owned_pdp_yoy.py
+          test -s "reports/daily_digest/daily/${YMD}.html"
+          test -s "reports/daily_digest/data/daily/${YMD}.json"
+          grep -q "Current 7D vs prior-year comparable 7D" "reports/daily_digest/daily/${YMD}.html"
+          grep -q '"pdp_series_yoy"' "reports/daily_digest/data/daily/${YMD}.json"
+
+      - name: Commit patched Owned report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add reports/daily_digest
+          if git diff --cached --quiet; then
+            echo "[INFO] No PDP YoY changes"
+            exit 0
+          fi
+          git commit -m "Add prior-year PDP trend to Owned report"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+            sleep $((attempt * 3))
+          done
+          exit 1
