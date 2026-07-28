@@ -153,8 +153,12 @@ def query(end_date: dt.date) -> list[dict[str, Any]]:
                     mask &= frame.c2.isin(values) if values else frame.c2.eq(sub)
                     out.append(float(frame.loc[mask, "views"].sum()))
                 return out
-            cur, py = extract("current",cur_dates), extract("previous",py_dates)
-            rows.append({"category":f"{c1} · {sub}","cur":cur,"py":py,"labels":labels,"svg":dual_svg(labels,cur,py,end_date.year,end_date.year-1)})
+            cur, py = extract("current", cur_dates), extract("previous", py_dates)
+            # Only keep categories that have data in both periods.
+            # This removes legacy/current-year-only cards from the visible report.
+            if sum(cur) <= 0 or sum(py) <= 0:
+                continue
+            rows.append({"category": f"{c1} · {sub}", "cur": cur, "py": py, "labels": labels, "svg": dual_svg(labels, cur, py, end_date.year, end_date.year-1)})
     return rows
 
 
@@ -165,29 +169,47 @@ def patch(end_date: dt.date) -> None:
         raise SystemExit(f"[ERROR] report not found: {report}")
     rows = query(end_date)
     if not rows:
-        raise SystemExit("[ERROR] PDP YoY query returned no rows")
+        raise SystemExit("[ERROR] PDP YoY query returned no comparable rows")
     cards = []
     for row in rows:
         cur, py = row["cur"], row["py"]
         cur_avg, py_avg = sum(cur)/len(cur), sum(py)/len(py)
-        yoy = ((cur_avg-py_avg)/py_avg*100) if py_avg else (0 if not cur_avg else 100)
+        yoy = ((cur_avg-py_avg)/py_avg*100) if py_avg else 0
         cls = "text-emerald-600" if yoy >= 0 else "text-rose-600"
         cards.append(f"""<div class='flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white/70 p-3 xl:flex-row xl:items-center xl:justify-between'>
         <div class='min-w-0 flex-1'><div class='truncate text-sm font-extrabold text-slate-900'>{html.escape(row['category'])}</div>
         <div class='text-xs text-slate-500'>{end_date.year} D1 {fmt(cur[-1])} · 7D Avg {fmt(cur_avg)} &nbsp;|&nbsp; {end_date.year-1} D1 {fmt(py[-1])} · 7D Avg {fmt(py_avg)} · <b class='{cls}'>YoY {yoy:+.1f}%</b></div></div>
         <div class='shrink-0 overflow-x-auto'>{row['svg']}</div></div>""")
-    replacement = "<div class=\"mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4\"><div class=\"flex flex-wrap items-end justify-between gap-2\"><div><div class=\"text-xs font-extrabold tracking-widest text-slate-500 uppercase\">PDP View Trend (Category)</div><div class=\"mt-1 text-xs text-slate-400\">Current 7D vs prior-year comparable 7D · hover points for values</div></div></div><div class=\"mt-3 space-y-2\">" + "".join(cards) + "</div></div>"
+    replacement = "<div class=\"mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4\" data-pdp-yoy-section=\"true\"><div class=\"flex flex-wrap items-end justify-between gap-2\"><div><div class=\"text-xs font-extrabold tracking-widest text-slate-500 uppercase\">PDP View Trend (Category)</div><div class=\"mt-1 text-xs text-slate-400\">Current 7D vs prior-year comparable 7D · comparable categories only</div></div></div><div class=\"mt-3 space-y-2\">" + "".join(cards) + "</div></div>"
     text = report.read_text(encoding="utf-8")
-    pattern = re.compile(r'<div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">\s*<div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend \(Category\)</div>.*?</div>\s*</div>', re.S)
-    new_text, count = pattern.subn(replacement, text, count=1)
+
+    # Replace the entire PDP block, including any duplicated legacy single-year cards,
+    # up to the next Search section. This is intentionally broader than the old regex.
+    pattern = re.compile(
+        r'<div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4"(?:\s+data-pdp-yoy-section="true")?>\s*'
+        r'<div[^>]*>\s*(?:<div[^>]*>\s*)?'
+        r'<div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend \(Category\)</div>'
+        r'.*?(?=\s*<div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">\s*'
+        r'<div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">\s*'
+        r'<div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Search · New</div>)',
+        re.S,
+    )
+    new_text, count = pattern.subn(replacement + "\n\n    ", text, count=1)
     if count != 1:
-        raise SystemExit("[ERROR] PDP category section was not found in HTML")
+        raise SystemExit("[ERROR] Full PDP category section was not found in HTML")
     report.write_text(new_text, encoding="utf-8")
+
     if data_path.exists():
         data = json.loads(data_path.read_text(encoding="utf-8"))
-        data["pdp_series_yoy"] = {"current_year":end_date.year,"previous_year":end_date.year-1,"shift_days":364,"rows":[{"itemCategory":r["category"],"ys":r["cur"],"ys_py":r["py"]} for r in rows]}
-        data_path.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    print(f"[OK] PDP YoY patched: {report} rows={len(rows)}")
+        data["pdp_series_yoy"] = {
+            "current_year": end_date.year,
+            "previous_year": end_date.year-1,
+            "shift_days": 364,
+            "comparable_only": True,
+            "rows": [{"itemCategory": r["category"], "ys": r["cur"], "ys_py": r["py"]} for r in rows],
+        }
+        data_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"[OK] PDP YoY patched: {report} comparable_rows={len(rows)}")
 
 
 if __name__ == "__main__":
