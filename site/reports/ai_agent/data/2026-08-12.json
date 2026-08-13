@@ -1,0 +1,82 @@
+{
+  "kpi": {
+    "target_date": "2026-08-12",
+    "previous_date": "2026-08-05",
+    "current": {
+      "revenue": 0.0,
+      "orders": 7.0,
+      "buyers": 7.0,
+      "sessions": 0.0,
+      "pv": 0.0,
+      "signups": 7.0,
+      "aov": 0.0,
+      "cvr": 0.0,
+      "coupon_used": 0.0,
+      "point_used": 0.0,
+      "cancel_amount": 0.0,
+      "coupon_order_rate": 0.0,
+      "promotion_order_rate": 0.0
+    },
+    "previous": {
+      "revenue": 8077950.0,
+      "orders": 89.0,
+      "buyers": 87.0,
+      "sessions": 6356.0,
+      "pv": 25662.0,
+      "signups": 79.0,
+      "aov": 90763.48314606742,
+      "cvr": 1.4002517306482065,
+      "coupon_used": 0.0,
+      "point_used": 0.0,
+      "cancel_amount": 0.0
+    },
+    "changes": {
+      "revenue_change_pct": -100.0,
+      "orders_change_pct": -92.13483146067416,
+      "buyers_change_pct": -91.95402298850574,
+      "sessions_change_pct": -100.0,
+      "pv_change_pct": -100.0,
+      "signups_change_pct": -91.13924050632912,
+      "aov_change_pct": -100.0,
+      "cvr_change_pct": -100.0,
+      "coupon_used_change_pct": null,
+      "point_used_change_pct": null,
+      "cancel_amount_change_pct": null
+    },
+    "category_drops": [],
+    "product_drops": [],
+    "stock_risks": [],
+    "device": []
+  },
+  "insight": {
+    "provider": "rule_based",
+    "headline": "2026-08-12 매출 0원, WoW -100.0%",
+    "summary": "주문수는 WoW -92.1%, 구매자 수는 -92.0%, 객단가는 -100.0%입니다. 주요 하락 상품과 재고/혜택 시그널을 함께 확인하는 구성이 적합합니다.",
+    "alerts": [
+      "매출이 전주 동일 요일 대비 -100.0% 하락했습니다."
+    ],
+    "causes": [
+      "주문수가 -92.1% 감소했습니다.",
+      "구매자 수가 -92.0% 감소했습니다.",
+      "객단가가 -100.0% 하락했습니다."
+    ],
+    "actions_today": [
+      "고가 상품 판매 비중과 쿠폰/프로모션 적용률을 함께 확인하세요."
+    ],
+    "actions_week": [
+      "GA4 상품조회/장바구니 데이터와 결합해 조회 대비 구매전환 낮은 상품을 분리하세요."
+    ],
+    "watch_next": [
+      "매출/주문수/구매자/객단가 WoW",
+      "쿠폰 주문 비중",
+      "품절/저재고 상품의 매출 기여도"
+    ],
+    "confidence": "medium",
+    "data_limits": [
+      "본 리포트는 BigQuery에 적재된 MSSQL 주문상품 마트 기준입니다.",
+      "재고는 주문 당시 재고가 아니라 현재/최근 적재 시점의 재고 신호일 수 있습니다.",
+      "GA4 상품조회/광고비/발송 데이터가 결합되면 원인 판단 정확도가 올라갑니다."
+    ],
+    "llm_error": "openrouter: RuntimeError: OPENROUTER_API_KEY missing"
+  }
+}
