@@ -27,11 +27,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # GitHub-hosted runners can already contain Microsoft repo entries.
+          # Remove any stale Ubuntu 22.04/jammy entry before apt update.
+          sudo rm -f /etc/apt/sources.list.d/mssql-release.list
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | \
+            xargs -0 -r sudo sed -i '/packages\.microsoft\.com\/ubuntu\/22\.04\/prod/d'
+
           sudo apt-get update
           sudo apt-get install -y curl ca-certificates gnupg unixodbc unixodbc-dev
-          curl -sSL -O https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb
-          sudo dpkg -i packages-microsoft-prod.deb
-          rm -f packages-microsoft-prod.deb
+
+          curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb
+          sudo dpkg -i /tmp/packages-microsoft-prod.deb
+          rm -f /tmp/packages-microsoft-prod.deb
+
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
           odbcinst -q -d
