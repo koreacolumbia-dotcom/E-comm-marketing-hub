@@ -28,12 +28,29 @@ jobs:
         run: |
           set -euo pipefail
 
-          # GitHub-hosted runners can already contain Microsoft repo entries.
-          # Remove any stale Ubuntu 22.04/jammy entry before apt update.
+          echo "[APT] Sources before cleanup"
+          grep -RniE 'packages\.microsoft\.com|jammy|22\.04' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true
+
+          # Remove any pre-existing Microsoft Ubuntu 22.04/jammy source BEFORE apt-get update.
+          # GitHub runner images may store these as either .list or deb822 .sources files.
+          while IFS= read -r badfile; do
+            [ -n "$badfile" ] || continue
+            echo "[APT] Removing stale source: $badfile"
+            sudo rm -f "$badfile"
+          done < <(grep -RIlE 'packages\.microsoft\.com/ubuntu/22\.04|Suites:[[:space:]]*jammy|[[:space:]]jammy[[:space:]]' /etc/apt/sources.list.d 2>/dev/null || true)
+
+          # Also sanitize the legacy monolithic sources.list if needed.
+          if [ -f /etc/apt/sources.list ]; then
+            sudo sed -i '/packages\.microsoft\.com\/ubuntu\/22\.04/d; /packages\.microsoft\.com.*jammy/d' /etc/apt/sources.list
+          fi
+
+          # Remove known Microsoft list names so 24.04 package setup can recreate them cleanly.
           sudo rm -f /etc/apt/sources.list.d/mssql-release.list
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | \
-            xargs -0 -r sudo sed -i '/packages\.microsoft\.com\/ubuntu\/22\.04\/prod/d'
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.sources
+
+          echo "[APT] Sources after cleanup"
+          grep -RniE 'packages\.microsoft\.com|jammy|22\.04' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true
 
           sudo apt-get update
           sudo apt-get install -y curl ca-certificates gnupg unixodbc unixodbc-dev
