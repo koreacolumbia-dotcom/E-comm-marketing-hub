@@ -1,0 +1,136 @@
+name: Performance Dashboard
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 0 * * *" # 09:20 KST
+
+concurrency:
+  group: performance-dashboard
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install SQL Server ODBC driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl gnupg unixodbc unixodbc-dev
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft-prod.gpg >/dev/null
+          curl -sSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list >/dev/null
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas numpy openpyxl pyodbc google-cloud-bigquery db-dtypes pyarrow
+
+      - name: Configure Google credentials
+        shell: bash
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GOOGLE_SA_JSON_B64:-}" ]; then
+            printf '%s' "$GOOGLE_SA_JSON_B64" | base64 -d > "$RUNNER_TEMP/gcp-key.json"
+          elif [ -n "${GCP_SA_KEY:-}" ]; then
+            printf '%s' "$GCP_SA_KEY" > "$RUNNER_TEMP/gcp-key.json"
+          else
+            echo "Missing Google service-account secret (GOOGLE_SA_JSON_B64 or GCP_SA_KEY)"
+            exit 1
+          fi
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-key.json" >> "$GITHUB_ENV"
+
+      - name: Resolve MSSQL password
+        shell: bash
+        env:
+          P1: ${{ secrets.MSSQL_PASSWORD }}
+          P2: ${{ secrets.MSSQL_PW }}
+          P3: ${{ secrets.CRM_PASSWORD }}
+          P4: ${{ secrets.DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          PW="${P1:-${P2:-${P3:-${P4:-}}}}"
+          if [ -z "$PW" ]; then
+            echo "Missing MSSQL password secret. Expected one of: MSSQL_PASSWORD, MSSQL_PW, CRM_PASSWORD, DB_PASSWORD"
+            exit 1
+          fi
+          echo "MSSQL_PASSWORD=$PW" >> "$GITHUB_ENV"
+
+      - name: Download performance builder
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/koreacolumbia-dotcom/CSK-ECOMM-Dashboard/main/build_performance_dashboard.py" -o build_performance_dashboard.py
+          python -m py_compile build_performance_dashboard.py
+
+      - name: Build performance dashboard
+        env:
+          GCP_PROJECT: columbia-ga4
+          GA4_DATASET: analytics_358593394
+          MSSQL_SERVER: 211.239.167.185
+          MSSQL_DATABASE: columbia_crm
+          MSSQL_USER: crmdata
+          OUT_DIR: reports
+        run: |
+          python -u build_performance_dashboard.py
+          test -s reports/performance_dashboard.html
+          test -s reports/performance_export.xlsx
+
+      - name: Add Performance menu to hub
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          if 'data-key="performance"' not in s:
+              anchor = '''        <div class="nav-item" data-key="utm_channel" data-target="reports/utm_channel/index.html" data-label="소스/매체 분석">'''
+              item = '''        <div class="nav-item" data-key="performance" data-target="reports/performance_dashboard.html" data-label="Performance Dashboard">\n          <i class="fa-solid fa-chart-pie"></i><span>Performance Dashboard</span>\n        </div>\n\n'''
+              s = s.replace(anchor, item + anchor, 1)
+              # Mobile tab: insert before utm_channel mobile tab when present.
+              mobile_anchor = '<div class="mo-tab" data-key="utm_channel"'
+              if mobile_anchor in s:
+                  mobile_item = '<div class="mo-tab" data-key="performance" data-target="reports/performance_dashboard.html" data-label="Performance Dashboard"><i class="fa-solid fa-chart-pie text-base"></i><div class="text-[10px]">성과</div></div>\n    '
+                  s = s.replace(mobile_anchor, mobile_item + mobile_anchor, 1)
+              p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit report and hub link
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html reports/performance_dashboard.html reports/performance_export.xlsx
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Update performance dashboard"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+            sleep $((attempt * 3))
+          done
+          exit 1
