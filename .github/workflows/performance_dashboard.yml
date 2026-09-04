@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout main
@@ -28,11 +28,13 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y curl gnupg unixodbc unixodbc-dev
-          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft-prod.gpg >/dev/null
-          curl -sSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list >/dev/null
+          sudo apt-get install -y curl ca-certificates gnupg unixodbc unixodbc-dev
+          curl -sSL -O https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb
+          sudo dpkg -i packages-microsoft-prod.deb
+          rm -f packages-microsoft-prod.deb
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
+          odbcinst -q -d
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -107,7 +109,6 @@ jobs:
               anchor = '''        <div class="nav-item" data-key="utm_channel" data-target="reports/utm_channel/index.html" data-label="소스/매체 분석">'''
               item = '''        <div class="nav-item" data-key="performance" data-target="reports/performance_dashboard.html" data-label="Performance Dashboard">\n          <i class="fa-solid fa-chart-pie"></i><span>Performance Dashboard</span>\n        </div>\n\n'''
               s = s.replace(anchor, item + anchor, 1)
-              # Mobile tab: insert before utm_channel mobile tab when present.
               mobile_anchor = '<div class="mo-tab" data-key="utm_channel"'
               if mobile_anchor in s:
                   mobile_item = '<div class="mo-tab" data-key="performance" data-target="reports/performance_dashboard.html" data-label="Performance Dashboard"><i class="fa-solid fa-chart-pie text-base"></i><div class="text-[10px]">성과</div></div>\n    '
