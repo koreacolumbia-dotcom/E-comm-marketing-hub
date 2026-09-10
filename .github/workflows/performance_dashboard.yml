@@ -31,20 +31,16 @@ jobs:
           echo "[APT] Sources before cleanup"
           grep -RniE 'packages\.microsoft\.com|jammy|22\.04' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true
 
-          # Remove any pre-existing Microsoft Ubuntu 22.04/jammy source BEFORE apt-get update.
-          # GitHub runner images may store these as either .list or deb822 .sources files.
           while IFS= read -r badfile; do
             [ -n "$badfile" ] || continue
             echo "[APT] Removing stale source: $badfile"
             sudo rm -f "$badfile"
           done < <(grep -RIlE 'packages\.microsoft\.com/ubuntu/22\.04|Suites:[[:space:]]*jammy|[[:space:]]jammy[[:space:]]' /etc/apt/sources.list.d 2>/dev/null || true)
 
-          # Also sanitize the legacy monolithic sources.list if needed.
           if [ -f /etc/apt/sources.list ]; then
             sudo sed -i '/packages\.microsoft\.com\/ubuntu\/22\.04/d; /packages\.microsoft\.com.*jammy/d' /etc/apt/sources.list
           fi
 
-          # Remove known Microsoft list names so 24.04 package setup can recreate them cleanly.
           sudo rm -f /etc/apt/sources.list.d/mssql-release.list
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.sources
@@ -60,7 +56,7 @@ jobs:
           rm -f /tmp/packages-microsoft-prod.deb
 
           sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
           odbcinst -q -d
 
       - name: Setup Python
@@ -107,10 +103,10 @@ jobs:
           fi
           echo "MSSQL_PASSWORD=$PW" >> "$GITHUB_ENV"
 
-      - name: Download performance builder
+      - name: Validate performance builder
         run: |
-          curl -fsSL "https://raw.githubusercontent.com/koreacolumbia-dotcom/CSK-ECOMM-Dashboard/main/build_performance_dashboard.py" -o build_performance_dashboard.py
-          python -m py_compile build_performance_dashboard.py
+          test -s scripts/build_performance_dashboard.py
+          python -m py_compile scripts/build_performance_dashboard.py
 
       - name: Build performance dashboard
         env:
@@ -121,7 +117,7 @@ jobs:
           MSSQL_USER: crmdata
           OUT_DIR: reports
         run: |
-          python -u build_performance_dashboard.py
+          python -u scripts/build_performance_dashboard.py
           test -s reports/performance_dashboard.html
           test -s reports/performance_export.xlsx
 
