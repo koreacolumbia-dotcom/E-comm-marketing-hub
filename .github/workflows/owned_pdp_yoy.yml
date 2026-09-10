@@ -67,9 +67,12 @@ jobs:
           set -euo pipefail
           HTML="reports/daily_digest/daily/${YMD}.html"
           JSON="reports/daily_digest/data/daily/${YMD}.json"
+          INDEX="reports/daily_digest/index.html"
           if [ -s "$HTML" ] \
              && [ -s "$JSON" ] \
+             && [ -s "$INDEX" ] \
              && grep -q "Current 7D vs prior-year comparable 7D" "$HTML" \
+             && grep -q "Current 7D vs prior-year comparable 7D" "$INDEX" \
              && grep -q '"pdp_series_yoy"' "$JSON" \
              && ! grep -q "OUTER · Mid/Heavy Down.*D1.*7D Avg.*</div>.*<div class=\"shrink-0\"><svg" "$HTML"; then
             echo "needed=false" >> "$GITHUB_OUTPUT"
@@ -109,7 +112,9 @@ jobs:
           python -u scripts/patch_owned_pdp_yoy.py
           test -s "reports/daily_digest/daily/${YMD}.html"
           test -s "reports/daily_digest/data/daily/${YMD}.json"
+          test -s "reports/daily_digest/index.html"
           grep -q "Current 7D vs prior-year comparable 7D" "reports/daily_digest/daily/${YMD}.html"
+          grep -q "Current 7D vs prior-year comparable 7D" "reports/daily_digest/index.html"
           grep -q '"pdp_series_yoy"' "reports/daily_digest/data/daily/${YMD}.json"
 
       - name: Commit patched Owned report
