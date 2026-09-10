@@ -67,7 +67,7 @@ jobs:
           set -euo pipefail
           HTML="reports/daily_digest/daily/${YMD}.html"
           JSON="reports/daily_digest/data/daily/${YMD}.json"
-          INDEX="reports/owned_pdp_yoy/index.html"
+          INDEX="reports/daily_digest/index.html"
           if [ -s "$HTML" ] \
              && [ -s "$JSON" ] \
              && [ -s "$INDEX" ] \
@@ -112,9 +112,9 @@ jobs:
           python -u scripts/patch_owned_pdp_yoy.py
           test -s "reports/daily_digest/daily/${YMD}.html"
           test -s "reports/daily_digest/data/daily/${YMD}.json"
-          test -s "reports/owned_pdp_yoy/index.html"
+          test -s "reports/daily_digest/index.html"
           grep -q "Current 7D vs prior-year comparable 7D" "reports/daily_digest/daily/${YMD}.html"
-          grep -q "Current 7D vs prior-year comparable 7D" "reports/owned_pdp_yoy/index.html"
+          grep -q "Current 7D vs prior-year comparable 7D" "reports/daily_digest/index.html"
           grep -q '"pdp_series_yoy"' "reports/daily_digest/data/daily/${YMD}.json"
 
       - name: Commit patched Owned report
