@@ -4,6 +4,11 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "20 0 * * *" # 09:20 KST
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/performance_dashboard.yml"
+      - "scripts/build_performance_dashboard.py"
 
 concurrency:
   group: performance-dashboard
