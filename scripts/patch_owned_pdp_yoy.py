@@ -197,7 +197,7 @@ def patch(end_date: dt.date) -> None:
     new_text, count = pattern.subn(replacement + "\n\n    ", text, count=1)
     if count != 1:
         raise SystemExit("[ERROR] Full PDP category section was not found in HTML")
-    report.write_text(new_text, encoding="utf-8")
+    report.write_text(new_text, encoding="utf-8")\n\n    # Keep the stable Owned report entry point in sync with the latest patched report.\n    index_path = REPORT_DIR.parent / "index.html"\n    index_path.write_text(new_text, encoding="utf-8")
 
     if data_path.exists():
         data = json.loads(data_path.read_text(encoding="utf-8"))
