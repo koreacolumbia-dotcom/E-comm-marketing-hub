@@ -186,11 +186,11 @@ def patch(end_date: dt.date) -> None:
     # Replace the entire PDP block, including any duplicated legacy single-year cards,
     # up to the next Search section. This is intentionally broader than the old regex.
     pattern = re.compile(
-        r'<div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4"(?:\s+data-pdp-yoy-section="true")?>\s*'
-        r'<div[^>]*>\s*(?:<div[^>]*>\s*)?'
-        r'<div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend \(Category\)</div>'
-        r'.*?(?=\s*<div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">\s*'
-        r'<div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">\s*'
+        r'<div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4"(?:\\s+data-pdp-yoy-section="true")?>'
+        r'(?=\\s*(?:<div[^>]*>\\s*){0,2}'
+        r'<div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend \\(Category\\)</div>)'
+        r'.*?(?=\\s*<div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">\\s*'
+        r'<div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">\\s*'
         r'<div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Search · New</div>)',
         re.S,
     )
