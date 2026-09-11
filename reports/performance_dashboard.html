@@ -75,7 +75,7 @@ function render(){
   });
 }
 document.querySelectorAll('.preset button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');const e=MAX_DATE;let s;if(btn.dataset.days)s=addDays(e,-(Number(btn.dataset.days)-1));else s=addDays(addMonths(e,-Number(btn.dataset.months)),1);if(s<MIN_DATE)s=MIN_DATE;startDate.value=s;endDate.value=e;render()}));
-applyBtn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));render()});metric.addEventListener('change',render);fetch('performance_data.json?v=20260911030507')
+applyBtn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));render()});metric.addEventListener('change',render);fetch('performance_data.json?v=20260911044225')
   .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
   .then(d=>{TY=d.ty||[];LY=d.ly||[];render();})
   .catch(err=>{
