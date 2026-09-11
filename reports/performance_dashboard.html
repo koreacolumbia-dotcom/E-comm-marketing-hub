@@ -114,13 +114,13 @@ function svgChart(ty,ly,metric){
 async function fetchPayloadFile(stem){
   if('DecompressionStream' in window){
     try{
-      const r=await fetch(stem+'.json.gz?v=20260911074037',{cache:'force-cache'});
+      const r=await fetch(stem+'.json.gz?v=20260911075031',{cache:'force-cache'});
       if(!r.ok)throw new Error('HTTP '+r.status);
       const stream=r.body.pipeThrough(new DecompressionStream('gzip'));
       return JSON.parse(await new Response(stream).text());
     }catch(err){console.warn('gzip payload fallback',stem,err);}
   }
-  const r=await fetch(stem+'.json?v=20260911074037',{cache:'force-cache'});
+  const r=await fetch(stem+'.json?v=20260911075031',{cache:'force-cache'});
   if(!r.ok)throw new Error('HTTP '+r.status);
   return r.json();
 }
