@@ -9,6 +9,8 @@ on:
     paths:
       - '.github/workflows/performance_dashboard.yml'
       - 'scripts/build_performance_dashboard_bq.py'
+      - 'scripts/build_performance_dashboard_cached.py'
+      - 'scripts/refresh_performance_source_medium_cache.py'
 
 concurrency:
   group: performance-dashboard
@@ -56,18 +58,31 @@ jobs:
           fi
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-key.json" >> "$GITHUB_ENV"
 
-      - name: Validate performance builder
+      - name: Validate performance scripts
         run: |
           test -s scripts/build_performance_dashboard_bq.py
+          test -s scripts/build_performance_dashboard_cached.py
+          test -s scripts/refresh_performance_source_medium_cache.py
           python -m py_compile scripts/build_performance_dashboard_bq.py
+          python -m py_compile scripts/build_performance_dashboard_cached.py
+          python -m py_compile scripts/refresh_performance_source_medium_cache.py
 
-      - name: Build performance dashboard (BigQuery only)
+      - name: Refresh daily source-medium cache
         env:
           GCP_PROJECT: columbia-ga4
           GA4_DATASET: analytics_358593394
           OUT_DIR: reports
         run: |
-          python -u scripts/build_performance_dashboard_bq.py
+          python -u scripts/refresh_performance_source_medium_cache.py
+          test -s reports/performance_source_medium_daily.csv
+
+      - name: Build performance dashboard from cache
+        env:
+          GCP_PROJECT: columbia-ga4
+          GA4_DATASET: analytics_358593394
+          OUT_DIR: reports
+        run: |
+          python -u scripts/build_performance_dashboard_cached.py
           test -s reports/performance_dashboard.html
           test -s reports/performance_export.xlsx
 
@@ -89,13 +104,13 @@ jobs:
               p.write_text(s, encoding='utf-8')
           PY
 
-      - name: Commit report and hub link
+      - name: Commit report, cache and hub link
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html reports/performance_dashboard.html reports/performance_export.xlsx
+          git add index.html reports/performance_dashboard.html reports/performance_export.xlsx reports/performance_source_medium_daily.csv
           if git diff --cached --quiet; then
             echo "No changes"
             exit 0
