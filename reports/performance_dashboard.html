@@ -36,7 +36,7 @@ button{cursor:pointer} button.active{border-color:var(--accent)} .preset{display
 <div class='card'><div class='k'>Purchases</div><div class='v' id='totalPurchases'>-</div><div class='yoy' id='purYoy'>-</div></div>
 <div class='card'><div class='k'>CVR</div><div class='v' id='totalCvr'>-</div><div class='yoy' id='cvrYoy'>-</div></div>
 </div>
-<div id='grid' class='grid'><div class='panel empty' id='dataLoading'>차트 데이터 준비 중...</div></div>
+<div id='grid' class='grid'><div class='panel empty' id='dataLoading'>최근 31일 데이터 준비 중...</div></div>
 <div class='note'>(not set) Source 또는 Medium은 제외. Top 10은 선택한 기간의 Revenue 기준으로 매번 다시 선정되며, 각 그래프는 TY와 전년 동일 날짜를 겹쳐서 보여줍니다.</div>
 </div>
 <script>
@@ -74,7 +74,30 @@ function render(){
   });
 }
 document.querySelectorAll('.preset button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');const e=MAX_DATE;let s;if(btn.dataset.days)s=addDays(e,-(Number(btn.dataset.days)-1));else s=addDays(addMonths(e,-Number(btn.dataset.months)),1);if(s<MIN_DATE)s=MIN_DATE;startDate.value=s;endDate.value=e;render()}));
-applyBtn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));render()});metric.addEventListener('change',render);function loadScript(src){
+applyBtn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));render()});metric.addEventListener('change',render);// Fast-path shim: cache each source/medium's daily values once instead of
+// filtering the complete TY/LY array again for every Top 10 chart.
+const __dailyIndexCache=new WeakMap();
+function __dailyIndex(rows){
+  let bySm=__dailyIndexCache.get(rows);
+  if(bySm)return bySm;
+  bySm=new Map();
+  rows.forEach(r=>{
+    let dates=bySm.get(r.sm);
+    if(!dates){dates=new Map();bySm.set(r.sm,dates);}
+    const prev=dates.get(r.date);
+    if(prev){prev.sessions+=r.sessions;prev.purchases+=r.purchases;prev.revenue+=r.revenue;}
+    else dates.set(r.date,{sessions:r.sessions,purchases:r.purchases,revenue:r.revenue});
+  });
+  __dailyIndexCache.set(rows,bySm);
+  return bySm;
+}
+daily=function(rows,sm,metric,s,e){
+  const dates=__dailyIndex(rows).get(sm),out=[];
+  for(let d=s;d<=e;d=addDays(d,1))out.push(dates?.get(d)?.[metric]||0);
+  return out;
+};
+
+function loadScript(src){
   return new Promise((resolve,reject)=>{
     const el=document.createElement('script');
     el.src=src;el.async=true;el.onload=resolve;el.onerror=reject;
@@ -86,29 +109,54 @@ function loadChartJs(){
   return loadScript('https://cdn.jsdelivr.net/npm/chart.js')
     .catch(()=>loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'));
 }
-async function loadPayload(){
+async function fetchPayloadFile(stem){
   if('DecompressionStream' in window){
     try{
-      const r=await fetch('performance_data.json.gz?v=20260911050844',{cache:'force-cache'});
+      const r=await fetch(stem+'.json.gz?v=20260911054521',{cache:'force-cache'});
       if(!r.ok)throw new Error('HTTP '+r.status);
       const stream=r.body.pipeThrough(new DecompressionStream('gzip'));
       return JSON.parse(await new Response(stream).text());
-    }catch(err){console.warn('gzip payload fallback',err);}
+    }catch(err){console.warn('gzip payload fallback',stem,err);}
   }
-  const r=await fetch('performance_data.json?v=20260911050844',{cache:'force-cache'});
+  const r=await fetch(stem+'.json?v=20260911054521',{cache:'force-cache'});
   if(!r.ok)throw new Error('HTTP '+r.status);
   return r.json();
 }
+const RECENT_START='2026-08-11';
+window.__performanceDataScope='recent';
+let fullPayloadPromise=null;
+function applyPayload(d,scope){TY=d.ty||[];LY=d.ly||[];window.__performanceDataScope=scope;}
+function ensureFullPayload(){
+  if(window.__performanceDataScope==='full')return Promise.resolve();
+  if(!fullPayloadPromise){
+    fullPayloadPromise=fetchPayloadFile('performance_data')
+      .then(d=>applyPayload(d,'full'))
+      .catch(err=>{fullPayloadPromise=null;throw err;});
+  }
+  return fullPayloadPromise;
+}
+const __renderCore=render;
+render=function(){
+  const s=document.getElementById('startDate').value;
+  if(window.__performanceDataScope!=='full' && s<RECENT_START){
+    grid.innerHTML='<div class="panel empty">6개월 데이터 불러오는 중...</div>';
+    ensureFullPayload().then(()=>render()).catch(err=>{
+      console.error('Full performance payload load failed',err);
+      grid.innerHTML='<div class="panel empty">전체 데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
+    });
+    return;
+  }
+  return __renderCore();
+};
 function startPerformanceDashboard(){
-  Promise.all([loadPayload(),loadChartJs()])
-    .then(([d])=>{TY=d.ty||[];LY=d.ly||[];render();})
+  Promise.all([fetchPayloadFile('performance_data_recent'),loadChartJs()])
+    .then(([d])=>{applyPayload(d,'recent');render();})
     .catch(err=>{
       console.error('Performance dashboard load failed',err);
       grid.innerHTML='<div class="panel empty">차트 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
     });
 }
-// Start only after the iframe itself has fully loaded. This means the parent
-// hub no longer waits on Chart.js or six-month data before hiding its loader.
-if(document.readyState==='complete')setTimeout(startPerformanceDashboard,0);
-else window.addEventListener('load',()=>setTimeout(startPerformanceDashboard,0),{once:true});
+// The script sits at the end of body, so this begins network work immediately
+// without blocking the iframe load event used by the parent hub.
+setTimeout(startPerformanceDashboard,0);
 </script></body></html>
