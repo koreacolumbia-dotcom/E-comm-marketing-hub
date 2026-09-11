@@ -1,0 +1,79 @@
+name: Patch Sidebar Scroll Once
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch_sidebar_scroll_once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch index sidebar scrolling
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          css_anchor = """    .sidebar{\n      background: rgba(255,255,255,0.72);\n      backdrop-filter: blur(16px);\n      border-right: 1px solid rgba(255,255,255,0.85);\n    }\n"""
+          css_extra = """    .sidebar-nav-scroll{\n      flex: 1 1 auto;\n      min-height: 0;\n      overflow-y: auto;\n      overflow-x: hidden;\n      overscroll-behavior: contain;\n      padding-right: 6px;\n      scrollbar-width: thin;\n      scrollbar-color: rgba(148,163,184,.45) transparent;\n    }\n    .sidebar-nav-scroll::-webkit-scrollbar{ width:6px; }\n    .sidebar-nav-scroll::-webkit-scrollbar-track{ background:transparent; }\n    .sidebar-nav-scroll::-webkit-scrollbar-thumb{\n      background: rgba(148,163,184,.38);\n      border-radius:999px;\n    }\n    .sidebar-nav-scroll::-webkit-scrollbar-thumb:hover{ background: rgba(100,116,139,.58); }\n"""
+          if '.sidebar-nav-scroll{' not in s:
+              if css_anchor not in s:
+                  raise SystemExit('sidebar CSS anchor not found')
+              s = s.replace(css_anchor, css_anchor + css_extra, 1)
+
+          old_aside = '<aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">'
+          new_aside = '<aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8 overflow-hidden">'
+          if old_aside in s:
+              s = s.replace(old_aside, new_aside, 1)
+
+          old_brand = '<div class="flex items-center gap-4 mb-10 px-2">'
+          new_brand = '<div class="flex items-center gap-4 mb-10 px-2 shrink-0">'
+          if old_brand in s:
+              s = s.replace(old_brand, new_brand, 1)
+
+          old_nav = '  <!-- NAV (PC) -->\n  <div>\n'
+          new_nav = '  <!-- NAV (PC) -->\n  <div class="sidebar-nav-scroll">\n'
+          if old_nav in s:
+              s = s.replace(old_nav, new_nav, 1)
+          elif 'class="sidebar-nav-scroll"' not in s:
+              raise SystemExit('PC nav anchor not found')
+
+          old_footer = '<div class="mt-auto pt-8 px-2">'
+          new_footer = '<div class="mt-auto pt-6 px-2 shrink-0">'
+          if old_footer in s:
+              s = s.replace(old_footer, new_footer, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          grep -q 'sidebar-nav-scroll' index.html
+          grep -q 'overflow-hidden' index.html
+
+      - name: Commit patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/patch_sidebar_scroll_once.yml
+          git add -A
+          git commit -m "Fix sidebar menu scrolling"
+          git push origin HEAD:main
