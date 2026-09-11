@@ -41,21 +41,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile scripts/build_decision_os.py scripts/harden_decision_os.py scripts/render_v2_safe.py
-          test -s reports/v2/data.json
+          python -m py_compile scripts/build_decision_os.py scripts/harden_decision_os.py
           python scripts/build_decision_os.py
           python scripts/harden_decision_os.py
-          python scripts/render_v2_safe.py
           test -s reports/decision_os/data.json
           test -s reports/decision_os/state.json
           test -s reports/decision_os/index.html
-          test -s reports/v2/index.html
 
       - name: Commit Decision OS outputs
         shell: bash
         run: |
           set -euo pipefail
-          git add reports/decision_os reports/v2
+          git add reports/decision_os
           if git diff --cached --quiet; then echo "[INFO] No Decision OS changes"; exit 0; fi
           git commit -m "Build and render Decision OS"
           for attempt in 1 2 3 4 5; do

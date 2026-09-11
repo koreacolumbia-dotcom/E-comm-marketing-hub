@@ -10,7 +10,6 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS = ROOT / "reports"
 OUT = REPORTS / "decision_os"
-V2 = REPORTS / "v2" / "data.json"
 KST = timezone(timedelta(hours=9))
 
 
@@ -276,10 +275,9 @@ def experiments(incidents: list[dict[str, Any]], products: list[dict[str, Any]])
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     now = datetime.now(KST)
-    v2 = load(V2, {})
-    rt = source("ga4_realtime", ["reports/realtime_alerts/alerts.json"], ["alerts", "observed_hour"])
+    rt = {"name": "ga4_realtime", "status": "disabled", "path": None, "required": [], "data": {}}
     canonical = source("canonical_commerce", ["reports/canonical/snapshot.json"], ["metrics"])
-    pdp = source("pdp", ["reports/pdp_opportunity/data.json", "reports/v2/data.json"])
+    pdp = source("pdp", ["reports/pdp_opportunity/data.json"])
     paid = source("paid_media", ["reports/paid_media/summary.json"])
     inventory = source("inventory_price", ["reports/commerce_ops/inventory.json"])
     admin_orders = source("admin_orders", ["reports/commerce_ops/orders_hourly.json"])
@@ -290,7 +288,7 @@ def main() -> int:
     connections = {x["name"]: x for x in [rt, canonical, pdp, paid, inventory, admin_orders, pg, margin, promo, weather]}
 
     alerts = rt["data"].get("alerts", []) if rt["status"] == "live" else []
-    metrics = canonical["data"].get("metrics", {}) if canonical["status"] == "live" else v2.get("metrics", {})
+    metrics = canonical["data"].get("metrics", {}) if canonical["status"] == "live" else {}
     aov = finite(metrics.get("aov")) or (finite(metrics.get("revenue")) / max(finite(metrics.get("orders")), 1))
     previous_state = load(OUT / "state.json", {})
     incidents = build_incidents(alerts, previous_state, aov)

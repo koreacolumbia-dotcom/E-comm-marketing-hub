@@ -55,7 +55,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install google-cloud-bigquery
-          python -m py_compile scripts/build_ga4_today_kpi.py scripts/render_pdp_priority_dashboard.py scripts/connect_ga4_today_pdp.py scripts/build_decision_os.py scripts/harden_decision_os.py scripts/render_v2_safe.py
+          python -m py_compile scripts/build_ga4_today_kpi.py scripts/render_pdp_priority_dashboard.py scripts/build_decision_os.py scripts/harden_decision_os.py
       - name: Build GA4 today KPI and PDP funnel
         shell: bash
         env:
@@ -74,19 +74,17 @@ jobs:
           test -s reports/pdp_opportunity/data.json
           test -s reports/pdp_opportunity/meta.json
           test -s reports/pdp_opportunity/index.html
-      - name: Connect to V2 and render
+      - name: Refresh Decision OS
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/connect_ga4_today_pdp.py
           python scripts/build_decision_os.py
           python scripts/harden_decision_os.py
-          python scripts/render_v2_safe.py
       - name: Commit outputs
         shell: bash
         run: |
           set -euo pipefail
-          git add reports/today_kpi reports/pdp_opportunity reports/v2 reports/decision_os
+          git add reports/today_kpi reports/pdp_opportunity reports/decision_os
           if git diff --cached --quiet; then echo "[INFO] No changes"; exit 0; fi
           git commit -m "Refresh GA4 today KPI and PDP funnel"
           for attempt in 1 2 3 4 5; do

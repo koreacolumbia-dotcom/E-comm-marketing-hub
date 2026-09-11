@@ -72,21 +72,12 @@ jobs:
           test -s reports/pdp_opportunity/data.json
           test -s reports/pdp_opportunity/index.html
 
-      - name: Rebuild Marketing Hub v2 with PDP data
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m py_compile scripts/dashboard_v2.py
-          python scripts/dashboard_v2.py
-          test -s reports/v2/data.json
-          test -s reports/v2/index.html
-
-      - name: Commit PDP and V2 outputs
+      - name: Commit PDP outputs
         shell: bash
         run: |
           set -euo pipefail
           rm -f gcp_service_account.json
-          git add reports/pdp_opportunity reports/v2 index.html
+          git add reports/pdp_opportunity index.html
           if git diff --cached --quiet; then
             echo "[INFO] No PDP changes"
           else
