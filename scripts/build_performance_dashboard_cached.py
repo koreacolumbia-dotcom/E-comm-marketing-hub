@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 """Build Performance Dashboard using the repo-local daily cache.
 
-The large 6-month TY/LY payload is written to a separate JSON file so the
-iframe HTML can finish loading immediately. The browser then fetches the data
-asynchronously and renders the charts without blocking the hub loading overlay.
+The large 6-month TY/LY payload is written separately so the iframe HTML can
+finish loading immediately. A gzip-compressed payload is preferred in modern
+browsers, with the plain JSON kept as a compatibility fallback.
 """
+import gzip
 import json
 import os
 from datetime import datetime, timezone
@@ -18,6 +19,7 @@ import build_performance_dashboard_bq as base
 OUT = Path(os.getenv("OUT_DIR", "reports"))
 CACHE = OUT / "performance_source_medium_daily.csv"
 DATA_JSON = OUT / "performance_data.json"
+DATA_GZ = OUT / "performance_data.json.gz"
 
 
 def cached_load(a, b):
@@ -52,10 +54,10 @@ def fast_render(cur, ly):
         "ty": json.loads(ty_json),
         "ly": json.loads(ly_json),
     }
-    DATA_JSON.write_text(
-        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-        encoding="utf-8",
-    )
+    payload_text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    DATA_JSON.write_text(payload_text, encoding="utf-8")
+    with gzip.open(DATA_GZ, "wt", encoding="utf-8", compresslevel=9) as f:
+        f.write(payload_text)
 
     # Keep the initial HTML light. Data arrives after iframe load.
     html = html[:ty_start] + "let TY=[];\nlet LY=[];" + html[constants_start:]
@@ -78,16 +80,39 @@ def fast_render(cur, ly):
         raise RuntimeError("Could not find dashboard initial render() call")
 
     version = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    loader = f"""fetch('performance_data.json?v={version}')
-  .then(r=>{{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}})
-  .then(d=>{{TY=d.ty||[];LY=d.ly||[];render();}})
-  .catch(err=>{{
+    loader = f"""async function loadPerformanceData(){{
+  try{{
+    let d;
+    if('DecompressionStream' in window){{
+      const r=await fetch('performance_data.json.gz?v={version}');
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const stream=r.body.pipeThrough(new DecompressionStream('gzip'));
+      d=JSON.parse(await new Response(stream).text());
+    }}else{{
+      const r=await fetch('performance_data.json?v={version}');
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      d=await r.json();
+    }}
+    TY=d.ty||[];LY=d.ly||[];render();
+  }}catch(err){{
     console.error('Performance data load failed',err);
-    grid.innerHTML='<div class=\"panel empty\">데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
-  }});"""
+    try{{
+      const r=await fetch('performance_data.json?v={version}');
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const d=await r.json();TY=d.ty||[];LY=d.ly||[];render();
+    }}catch(fallbackErr){{
+      console.error('Performance data fallback failed',fallbackErr);
+      grid.innerHTML='<div class=\"panel empty\">데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
+    }}
+  }}
+}}
+loadPerformanceData();"""
     html = html[:init_pos] + loader + html[init_pos + len("render();"):]
 
-    print(f"Split dashboard payload: {len(payload['ty']):,} TY + {len(payload['ly']):,} LY rows -> {DATA_JSON}")
+    print(
+        f"Split dashboard payload: {len(payload['ty']):,} TY + {len(payload['ly']):,} LY rows "
+        f"-> {DATA_JSON.name} / {DATA_GZ.name}"
+    )
     return html
 
 
