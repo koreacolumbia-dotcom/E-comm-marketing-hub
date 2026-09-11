@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 """Build Performance Dashboard using the repo-local daily cache.
 
-The large 6-month TY/LY payload is stored separately (gzip preferred), and the
-iframe shell has no render-blocking Chart.js request. This lets index.html hide
-its loading overlay immediately; data and chart code hydrate afterwards.
+The default dashboard ships only the latest 31 days for fast first paint.
+The full six-month TY/LY payload is fetched lazily only when an older range is
+requested. Chart.js is deferred and the client indexes daily series so Top 10
+charts do not repeatedly scan the complete payload.
 """
 import gzip
 import json
@@ -20,6 +21,8 @@ OUT = Path(os.getenv("OUT_DIR", "reports"))
 CACHE = OUT / "performance_source_medium_daily.csv"
 DATA_JSON = OUT / "performance_data.json"
 DATA_GZ = OUT / "performance_data.json.gz"
+DATA_RECENT_JSON = OUT / "performance_data_recent.json"
+DATA_RECENT_GZ = OUT / "performance_data_recent.json.gz"
 
 
 def cached_load(a, b):
@@ -40,6 +43,14 @@ def cached_load(a, b):
     return out
 
 
+def write_payload(path_json, path_gz, payload):
+    text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    path_json.write_text(text, encoding="utf-8")
+    with gzip.open(path_gz, "wt", encoding="utf-8", compresslevel=9) as f:
+        f.write(text)
+    return len(text.encode("utf-8"))
+
+
 def fast_render(cur, ly):
     html = original_render(cur, ly)
 
@@ -50,13 +61,17 @@ def fast_render(cur, ly):
     ty_json = html[ty_start + len("const TY="):ly_start].rstrip(";")
     ly_json = html[ly_start + len("\nconst LY="):constants_start].rstrip(";")
     payload = {"ty": json.loads(ty_json), "ly": json.loads(ly_json)}
-    payload_text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    DATA_JSON.write_text(payload_text, encoding="utf-8")
-    with gzip.open(DATA_GZ, "wt", encoding="utf-8", compresslevel=9) as f:
-        f.write(payload_text)
+
+    recent_start = max(base.DATA_START, base.END - pd.Timedelta(days=30)).strftime("%Y-%m-%d")
+    recent_payload = {
+        "ty": [r for r in payload["ty"] if r["date"] >= recent_start],
+        "ly": [r for r in payload["ly"] if r["date"] >= recent_start],
+    }
+    full_bytes = write_payload(DATA_JSON, DATA_GZ, payload)
+    recent_bytes = write_payload(DATA_RECENT_JSON, DATA_RECENT_GZ, recent_payload)
 
     # Keep initial HTML light and make the iframe's load event independent of
-    # Chart.js/CDN latency. The hub's full-screen loader can disappear at once.
+    # Chart.js/CDN latency. The hub can paint immediately while data hydrates.
     html = html[:ty_start] + "let TY=[];\nlet LY=[];" + html[constants_start:]
     html = html.replace(
         "<script src='https://cdn.jsdelivr.net/npm/chart.js'></script>\n",
@@ -65,11 +80,11 @@ def fast_render(cur, ly):
     )
     html = html.replace(
         "<div id='grid' class='grid'></div>",
-        "<div id='grid' class='grid'><div class='panel empty' id='dataLoading'>차트 데이터 준비 중...</div></div>",
+        "<div id='grid' class='grid'><div class='panel empty' id='dataLoading'>최근 31일 데이터 준비 중...</div></div>",
         1,
     )
 
-    # Rendering ten daily charts should be immediate rather than animated.
+    # Rendering ten charts should be immediate rather than animated.
     html = html.replace(
         "responsive:true,maintainAspectRatio:false,interaction:",
         "responsive:true,maintainAspectRatio:false,animation:false,interaction:",
@@ -81,7 +96,30 @@ def fast_render(cur, ly):
         raise RuntimeError("Could not find dashboard initial render() call")
 
     version = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    loader = f"""function loadScript(src){{
+    loader = f"""// Fast-path shim: cache each source/medium's daily values once instead of
+// filtering the complete TY/LY array again for every Top 10 chart.
+const __dailyIndexCache=new WeakMap();
+function __dailyIndex(rows){{
+  let bySm=__dailyIndexCache.get(rows);
+  if(bySm)return bySm;
+  bySm=new Map();
+  rows.forEach(r=>{{
+    let dates=bySm.get(r.sm);
+    if(!dates){{dates=new Map();bySm.set(r.sm,dates);}}
+    const prev=dates.get(r.date);
+    if(prev){{prev.sessions+=r.sessions;prev.purchases+=r.purchases;prev.revenue+=r.revenue;}}
+    else dates.set(r.date,{{sessions:r.sessions,purchases:r.purchases,revenue:r.revenue}});
+  }});
+  __dailyIndexCache.set(rows,bySm);
+  return bySm;
+}}
+daily=function(rows,sm,metric,s,e){{
+  const dates=__dailyIndex(rows).get(sm),out=[];
+  for(let d=s;d<=e;d=addDays(d,1))out.push(dates?.get(d)?.[metric]||0);
+  return out;
+}};
+
+function loadScript(src){{
   return new Promise((resolve,reject)=>{{
     const el=document.createElement('script');
     el.src=src;el.async=true;el.onload=resolve;el.onerror=reject;
@@ -93,36 +131,62 @@ function loadChartJs(){{
   return loadScript('https://cdn.jsdelivr.net/npm/chart.js')
     .catch(()=>loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'));
 }}
-async function loadPayload(){{
+async function fetchPayloadFile(stem){{
   if('DecompressionStream' in window){{
     try{{
-      const r=await fetch('performance_data.json.gz?v={version}',{{cache:'force-cache'}});
+      const r=await fetch(stem+'.json.gz?v={version}',{{cache:'force-cache'}});
       if(!r.ok)throw new Error('HTTP '+r.status);
       const stream=r.body.pipeThrough(new DecompressionStream('gzip'));
       return JSON.parse(await new Response(stream).text());
-    }}catch(err){{console.warn('gzip payload fallback',err);}}
+    }}catch(err){{console.warn('gzip payload fallback',stem,err);}}
   }}
-  const r=await fetch('performance_data.json?v={version}',{{cache:'force-cache'}});
+  const r=await fetch(stem+'.json?v={version}',{{cache:'force-cache'}});
   if(!r.ok)throw new Error('HTTP '+r.status);
   return r.json();
 }}
+const RECENT_START='{recent_start}';
+window.__performanceDataScope='recent';
+let fullPayloadPromise=null;
+function applyPayload(d,scope){{TY=d.ty||[];LY=d.ly||[];window.__performanceDataScope=scope;}}
+function ensureFullPayload(){{
+  if(window.__performanceDataScope==='full')return Promise.resolve();
+  if(!fullPayloadPromise){{
+    fullPayloadPromise=fetchPayloadFile('performance_data')
+      .then(d=>applyPayload(d,'full'))
+      .catch(err=>{{fullPayloadPromise=null;throw err;}});
+  }}
+  return fullPayloadPromise;
+}}
+const __renderCore=render;
+render=function(){{
+  const s=document.getElementById('startDate').value;
+  if(window.__performanceDataScope!=='full' && s<RECENT_START){{
+    grid.innerHTML='<div class=\"panel empty\">6개월 데이터 불러오는 중...</div>';
+    ensureFullPayload().then(()=>render()).catch(err=>{{
+      console.error('Full performance payload load failed',err);
+      grid.innerHTML='<div class=\"panel empty\">전체 데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
+    }});
+    return;
+  }}
+  return __renderCore();
+}};
 function startPerformanceDashboard(){{
-  Promise.all([loadPayload(),loadChartJs()])
-    .then(([d])=>{{TY=d.ty||[];LY=d.ly||[];render();}})
+  Promise.all([fetchPayloadFile('performance_data_recent'),loadChartJs()])
+    .then(([d])=>{{applyPayload(d,'recent');render();}})
     .catch(err=>{{
       console.error('Performance dashboard load failed',err);
       grid.innerHTML='<div class=\"panel empty\">차트 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
     }});
 }}
-// Start only after the iframe itself has fully loaded. This means the parent
-// hub no longer waits on Chart.js or six-month data before hiding its loader.
-if(document.readyState==='complete')setTimeout(startPerformanceDashboard,0);
-else window.addEventListener('load',()=>setTimeout(startPerformanceDashboard,0),{{once:true}});"""
+// The script sits at the end of body, so this begins network work immediately
+// without blocking the iframe load event used by the parent hub.
+setTimeout(startPerformanceDashboard,0);"""
     html = html[:init_pos] + loader + html[init_pos + len("render();"):]
 
     print(
-        f"Fast shell: {len(payload['ty']):,} TY + {len(payload['ly']):,} LY rows "
-        f"-> {DATA_JSON.name} / {DATA_GZ.name}; Chart.js deferred"
+        f"Fast shell: recent {len(recent_payload['ty']):,} TY + {len(recent_payload['ly']):,} LY rows "
+        f"({recent_bytes/1024:.1f} KiB JSON) first; full {len(payload['ty']):,} TY + {len(payload['ly']):,} LY rows "
+        f"({full_bytes/1024:.1f} KiB JSON) lazy; Chart.js deferred"
     )
     return html
 
