@@ -8,7 +8,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/performance_dashboard.yml'
-      - 'scripts/build_performance_dashboard.py'
+      - 'scripts/build_performance_dashboard_bq.py'
 
 concurrency:
   group: performance-dashboard
@@ -58,17 +58,16 @@ jobs:
 
       - name: Validate performance builder
         run: |
-          test -s scripts/build_performance_dashboard.py
-          python -m py_compile scripts/build_performance_dashboard.py
+          test -s scripts/build_performance_dashboard_bq.py
+          python -m py_compile scripts/build_performance_dashboard_bq.py
 
       - name: Build performance dashboard (BigQuery only)
         env:
           GCP_PROJECT: columbia-ga4
           GA4_DATASET: analytics_358593394
           OUT_DIR: reports
-          SKIP_MSSQL: "1"
         run: |
-          python -u scripts/build_performance_dashboard.py
+          python -u scripts/build_performance_dashboard_bq.py
           test -s reports/performance_dashboard.html
           test -s reports/performance_export.xlsx
 
