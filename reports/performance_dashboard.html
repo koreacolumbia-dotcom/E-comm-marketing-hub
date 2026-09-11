@@ -75,11 +75,31 @@ function render(){
   });
 }
 document.querySelectorAll('.preset button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');const e=MAX_DATE;let s;if(btn.dataset.days)s=addDays(e,-(Number(btn.dataset.days)-1));else s=addDays(addMonths(e,-Number(btn.dataset.months)),1);if(s<MIN_DATE)s=MIN_DATE;startDate.value=s;endDate.value=e;render()}));
-applyBtn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));render()});metric.addEventListener('change',render);fetch('performance_data.json?v=20260911044225')
-  .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-  .then(d=>{TY=d.ty||[];LY=d.ly||[];render();})
-  .catch(err=>{
+applyBtn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));render()});metric.addEventListener('change',render);async function loadPerformanceData(){
+  try{
+    let d;
+    if('DecompressionStream' in window){
+      const r=await fetch('performance_data.json.gz?v=20260911050717');
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const stream=r.body.pipeThrough(new DecompressionStream('gzip'));
+      d=JSON.parse(await new Response(stream).text());
+    }else{
+      const r=await fetch('performance_data.json?v=20260911050717');
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      d=await r.json();
+    }
+    TY=d.ty||[];LY=d.ly||[];render();
+  }catch(err){
     console.error('Performance data load failed',err);
-    grid.innerHTML='<div class="panel empty">데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
-  });
+    try{
+      const r=await fetch('performance_data.json?v=20260911050717');
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const d=await r.json();TY=d.ty||[];LY=d.ly||[];render();
+    }catch(fallbackErr){
+      console.error('Performance data fallback failed',fallbackErr);
+      grid.innerHTML='<div class="panel empty">데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
+    }
+  }
+}
+loadPerformanceData();
 </script></body></html>
