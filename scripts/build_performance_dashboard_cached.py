@@ -157,29 +157,59 @@ function ensureFullPayload(){{
   }}
   return fullPayloadPromise;
 }}
+function renderFastSummary(){{
+  const s=document.getElementById('startDate').value,e=document.getElementById('endDate').value;
+  const ty=TY.filter(r=>inRange(r,s,e)),ly=LY.filter(r=>inRange(r,s,e));
+  const t=aggregate(ty),l=aggregate(ly),tcvr=t.sessions?t.purchases/t.sessions:0,lcvr=l.sessions?l.purchases/l.sessions:0;
+  totalRevenue.textContent=fmtK(t.revenue); totalSessions.textContent=fmtN(t.sessions); totalPurchases.textContent=fmtN(t.purchases); totalCvr.textContent=(tcvr*100).toFixed(2)+'%';
+  revYoy.textContent=pctText(pct(t.revenue,l.revenue)); sesYoy.textContent=pctText(pct(t.sessions,l.sessions)); purYoy.textContent=pctText(pct(t.purchases,l.purchases)); cvrYoy.textContent=`YoY ${{((tcvr-lcvr)*100)>=0?'+':''}}${{((tcvr-lcvr)*100).toFixed(2)}}pp`;
+  periodText.textContent=`선택 기간: ${{s}} ~ ${{e}} · 전년 동일기간 비교`;
+  const tm=bySm(ty),lm=bySm(ly); const top=[...tm.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,10);
+  grid.innerHTML='';
+  if(!top.length){{grid.innerHTML='<div class=\"panel empty\">선택 기간에 데이터가 없습니다.</div>';return;}}
+  top.forEach(([sm,a],i)=>{{
+    const b=lm.get(sm)||{{sessions:0,purchases:0,revenue:0}},cvr=a.sessions?a.purchases/a.sessions:0,cvrLy=b.sessions?b.purchases/b.sessions:0;
+    const sec=document.createElement('section');sec.className='panel source-panel';
+    sec.innerHTML=`<div class='head'><div><div class='rank'>#${{i+1}}</div><h2>${{sm}}</h2></div><div class='mini'>Revenue ${{fmtK(a.revenue)}} · ${{pctText(pct(a.revenue,b.revenue))}}</div></div><div class='stats'><span>Sessions <b>${{fmtN(a.sessions)}}</b> <em>${{pctText(pct(a.sessions,b.sessions)).replace('YoY ','')}}</em></span><span>Purchases <b>${{fmtN(a.purchases)}}</b> <em>${{pctText(pct(a.purchases,b.purchases)).replace('YoY ','')}}</em></span><span>CVR <b>${{(cvr*100).toFixed(2)}}%</b> <em>${{((cvr-cvrLy)*100)>=0?'+':''}}${{((cvr-cvrLy)*100).toFixed(2)}}pp</em></span></div><div class='empty' style='padding:18px 8px'>차트 불러오는 중...</div>`;
+    grid.appendChild(sec);
+  }});
+}}
 const __renderCore=render;
 render=function(){{
   const s=document.getElementById('startDate').value;
   if(window.__performanceDataScope!=='full' && s<RECENT_START){{
     grid.innerHTML='<div class=\"panel empty\">6개월 데이터 불러오는 중...</div>';
-    ensureFullPayload().then(()=>render()).catch(err=>{{
+    ensureFullPayload().then(()=>{{
+      if(window.Chart)render();
+      else renderFastSummary();
+    }}).catch(err=>{{
       console.error('Full performance payload load failed',err);
       grid.innerHTML='<div class=\"panel empty\">전체 데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
     }});
     return;
   }}
+  if(!window.Chart){{renderFastSummary();return;}}
   return __renderCore();
 }};
-function startPerformanceDashboard(){{
-  Promise.all([fetchPayloadFile('performance_data_recent'),loadChartJs()])
-    .then(([d])=>{{applyPayload(d,'recent');render();}})
+async function startPerformanceDashboard(){{
+  try{{
+    const d=await fetchPayloadFile('performance_data_recent');
+    applyPayload(d,'recent');
+    renderFastSummary();
+  }}catch(err){{
+    console.error('Performance data load failed',err);
+    grid.innerHTML='<div class=\"panel empty\">데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
+    return;
+  }}
+  loadChartJs()
+    .then(()=>render())
     .catch(err=>{{
-      console.error('Performance dashboard load failed',err);
-      grid.innerHTML='<div class=\"panel empty\">차트 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
+      console.error('Chart.js load failed',err);
+      document.querySelectorAll('.source-panel .empty').forEach(el=>el.textContent='차트 라이브러리 로딩 실패 · 숫자 데이터는 정상 조회 가능');
     }});
 }}
-// The script sits at the end of body, so this begins network work immediately
-// without blocking the iframe load event used by the parent hub.
+// Begin data hydration immediately. The dashboard no longer waits for the
+// external Chart.js CDN before showing KPI cards and Top 10 source/medium rows.
 setTimeout(startPerformanceDashboard,0);"""
     html = html[:init_pos] + loader + html[init_pos + len("render();"):]
 
