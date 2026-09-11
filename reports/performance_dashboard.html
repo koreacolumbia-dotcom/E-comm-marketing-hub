@@ -15,7 +15,7 @@ button{cursor:pointer} button.active{border-color:var(--accent)} .preset{display
 .k{color:var(--muted);font-size:12px} .v{font-size:25px;font-weight:800;margin-top:8px} .yoy{font-size:12px;margin-top:5px;color:var(--muted)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px} .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px} .head h2{font-size:16px;margin:2px 0 0} .rank{color:var(--muted);font-size:11px} .mini{color:var(--muted);font-size:12px;text-align:right}
 .stats{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-bottom:10px} .stats b{color:var(--text);margin-left:4px} .stats em{font-style:normal;margin-left:4px;color:var(--muted)}
-.chartbox{height:260px} .note{color:var(--muted);font-size:11px;margin-top:16px} .empty{padding:30px;text-align:center;color:var(--muted)}
+.chartbox{height:250px;overflow:hidden}.trend-svg{display:block;width:100%;height:100%}.trend-grid{stroke:#1b2940;stroke-width:1}.trend-axis{fill:#91a0b8;font-size:10px}.trend-ty{fill:none;stroke:#4f8cff;stroke-width:2.2;vector-effect:non-scaling-stroke}.trend-ly{fill:none;stroke:#8b98ad;stroke-width:1.7;stroke-dasharray:6 5;vector-effect:non-scaling-stroke}.trend-legend{fill:#c7d2e5;font-size:10px} .note{color:var(--muted);font-size:11px;margin-top:16px} .empty{padding:30px;text-align:center;color:var(--muted)}
 @media(max-width:1000px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:1fr 1fr}.wrap{padding:16px}.chartbox{height:240px}}
 </style>
 </head>
@@ -70,12 +70,12 @@ function render(){
   top.forEach(([sm,a],i)=>{const b=lm.get(sm)||{sessions:0,purchases:0,revenue:0},cvr=a.sessions?a.purchases/a.sessions:0,cvrLy=b.sessions?b.purchases/b.sessions:0;
     const sec=document.createElement('section');sec.className='panel source-panel';sec.innerHTML=`<div class='head'><div><div class='rank'>#${i+1}</div><h2>${sm}</h2></div><div class='mini'>Revenue ${fmtK(a.revenue)} · ${pctText(pct(a.revenue,b.revenue))}</div></div><div class='stats'><span>Sessions <b>${fmtN(a.sessions)}</b> <em>${pctText(pct(a.sessions,b.sessions)).replace('YoY ','')}</em></span><span>Purchases <b>${fmtN(a.purchases)}</b> <em>${pctText(pct(a.purchases,b.purchases)).replace('YoY ','')}</em></span><span>CVR <b>${(cvr*100).toFixed(2)}%</b> <em>${((cvr-cvrLy)*100)>=0?'+':''}${((cvr-cvrLy)*100).toFixed(2)}pp</em></span></div><div class='chartbox'><canvas id='chart${i}'></canvas></div>`;grid.appendChild(sec);
     const tyD=daily(TY,sm,metric,s,e),lyD=daily(LY,sm,metric,s,e);
-    const ch=new Chart(document.getElementById('chart'+i),{type:'line',data:{labels:labs,datasets:[{label:'TY',data:tyD,borderWidth:2,tension:.2,pointRadius:0},{label:'LY',data:lyD,borderWidth:2,tension:.2,pointRadius:0,borderDash:[5,4]}]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#c7d2e5',boxWidth:14}},tooltip:{callbacks:{label:c=>metric==='revenue'?c.dataset.label+': '+fmtK(c.raw):c.dataset.label+': '+fmtN(c.raw)}}},scales:{x:{ticks:{color:'#91a0b8',maxTicksLimit:9},grid:{color:'#172235'}},y:{beginAtZero:true,ticks:{color:'#91a0b8',callback:v=>metric==='revenue'?'₩'+Intl.NumberFormat('ko-KR',{notation:'compact'}).format(v):Intl.NumberFormat('ko-KR',{notation:'compact'}).format(v)},grid:{color:'#172235'}}}}});charts.push(ch);
+    const ch=new Chart(document.getElementById('chart'+i),{type:'line',data:{labels:labs,datasets:[{label:'TY',data:tyD,borderWidth:2,tension:.2,pointRadius:1.2},{label:'LY',data:lyD,borderWidth:2,tension:.2,pointRadius:1.2,borderDash:[5,4]}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#c7d2e5',boxWidth:14}},tooltip:{callbacks:{label:c=>metric==='revenue'?c.dataset.label+': '+fmtK(c.raw):c.dataset.label+': '+fmtN(c.raw)}}},scales:{x:{ticks:{color:'#91a0b8',maxTicksLimit:9},grid:{color:'#172235'}},y:{beginAtZero:true,ticks:{color:'#91a0b8',callback:v=>metric==='revenue'?'₩'+Intl.NumberFormat('ko-KR',{notation:'compact'}).format(v):Intl.NumberFormat('ko-KR',{notation:'compact'}).format(v)},grid:{color:'#172235'}}}}});charts.push(ch);
   });
 }
 document.querySelectorAll('.preset button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');const e=MAX_DATE;let s;if(btn.dataset.days)s=addDays(e,-(Number(btn.dataset.days)-1));else s=addDays(addMonths(e,-Number(btn.dataset.months)),1);if(s<MIN_DATE)s=MIN_DATE;startDate.value=s;endDate.value=e;render()}));
-applyBtn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));render()});metric.addEventListener('change',render);// Fast-path shim: cache each source/medium's daily values once instead of
-// filtering the complete TY/LY array again for every Top 10 chart.
+applyBtn.addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));render()});metric.addEventListener('change',render);
+// Lightweight performance renderer: no external chart library.
 const __dailyIndexCache=new WeakMap();
 function __dailyIndex(rows){
   let bySm=__dailyIndexCache.get(rows);
@@ -96,29 +96,31 @@ daily=function(rows,sm,metric,s,e){
   for(let d=s;d<=e;d=addDays(d,1))out.push(dates?.get(d)?.[metric]||0);
   return out;
 };
-
-function loadScript(src){
-  return new Promise((resolve,reject)=>{
-    const el=document.createElement('script');
-    el.src=src;el.async=true;el.onload=resolve;el.onerror=reject;
-    document.head.appendChild(el);
-  });
-}
-function loadChartJs(){
-  if(window.Chart)return Promise.resolve();
-  return loadScript('https://cdn.jsdelivr.net/npm/chart.js')
-    .catch(()=>loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'));
+function esc(s){return String(s).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));}
+function compact(v){return Intl.NumberFormat('ko-KR',{notation:'compact',maximumFractionDigits:1}).format(v||0);}
+function svgChart(ty,ly,metric){
+  const W=640,H=220,L=48,R=12,T=16,B=28,PW=W-L-R,PH=H-T-B;
+  const max=Math.max(1,...ty,...ly);
+  const n=Math.max(ty.length,ly.length,1);
+  const x=i=>L+(n<=1?0:(i/(n-1))*PW);
+  const y=v=>T+PH-(Math.max(0,v)/max)*PH;
+  const pts=a=>a.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const grid=[0,.25,.5,.75,1].map(fr=>{
+    const yy=(T+PH-PH*fr).toFixed(1),val=max*fr;
+    return `<line class='trend-grid' x1='${L}' y1='${yy}' x2='${W-R}' y2='${yy}'/><text class='trend-axis' x='${L-6}' y='${Number(yy)+3}' text-anchor='end'>${metric==='revenue'?'₩':''}${compact(val)}</text>`;
+  }).join('');
+  return `<svg class='trend-svg' viewBox='0 0 ${W} ${H}' preserveAspectRatio='none' aria-label='TY LY trend chart'>${grid}<polyline class='trend-ty' points='${pts(ty)}'/><polyline class='trend-ly' points='${pts(ly)}'/><text class='trend-legend' x='${L}' y='${H-7}'>TY</text><text class='trend-legend' x='${L+34}' y='${H-7}'>LY ···</text></svg>`;
 }
 async function fetchPayloadFile(stem){
   if('DecompressionStream' in window){
     try{
-      const r=await fetch(stem+'.json.gz?v=20260911064248',{cache:'force-cache'});
+      const r=await fetch(stem+'.json.gz?v=20260911074037',{cache:'force-cache'});
       if(!r.ok)throw new Error('HTTP '+r.status);
       const stream=r.body.pipeThrough(new DecompressionStream('gzip'));
       return JSON.parse(await new Response(stream).text());
     }catch(err){console.warn('gzip payload fallback',stem,err);}
   }
-  const r=await fetch(stem+'.json?v=20260911064248',{cache:'force-cache'});
+  const r=await fetch(stem+'.json?v=20260911074037',{cache:'force-cache'});
   if(!r.ok)throw new Error('HTTP '+r.status);
   return r.json();
 }
@@ -135,8 +137,9 @@ function ensureFullPayload(){
   }
   return fullPayloadPromise;
 }
-function renderFastSummary(){
-  const s=document.getElementById('startDate').value,e=document.getElementById('endDate').value;
+function renderLight(){
+  const s=document.getElementById('startDate').value,e=document.getElementById('endDate').value,metric=document.getElementById('metric').value;
+  if(!s||!e||s>e||s<MIN_DATE||e>MAX_DATE){alert(`기간은 ${MIN_DATE} ~ ${MAX_DATE} 사이로 선택해줘.`);return;}
   const ty=TY.filter(r=>inRange(r,s,e)),ly=LY.filter(r=>inRange(r,s,e));
   const t=aggregate(ty),l=aggregate(ly),tcvr=t.sessions?t.purchases/t.sessions:0,lcvr=l.sessions?l.purchases/l.sessions:0;
   totalRevenue.textContent=fmtK(t.revenue); totalSessions.textContent=fmtN(t.sessions); totalPurchases.textContent=fmtN(t.purchases); totalCvr.textContent=(tcvr*100).toFixed(2)+'%';
@@ -145,48 +148,39 @@ function renderFastSummary(){
   const tm=bySm(ty),lm=bySm(ly); const top=[...tm.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,10);
   grid.innerHTML='';
   if(!top.length){grid.innerHTML='<div class="panel empty">선택 기간에 데이터가 없습니다.</div>';return;}
+  const frag=document.createDocumentFragment();
   top.forEach(([sm,a],i)=>{
     const b=lm.get(sm)||{sessions:0,purchases:0,revenue:0},cvr=a.sessions?a.purchases/a.sessions:0,cvrLy=b.sessions?b.purchases/b.sessions:0;
+    const tyD=daily(TY,sm,metric,s,e),lyD=daily(LY,sm,metric,s,e);
     const sec=document.createElement('section');sec.className='panel source-panel';
-    sec.innerHTML=`<div class='head'><div><div class='rank'>#${i+1}</div><h2>${sm}</h2></div><div class='mini'>Revenue ${fmtK(a.revenue)} · ${pctText(pct(a.revenue,b.revenue))}</div></div><div class='stats'><span>Sessions <b>${fmtN(a.sessions)}</b> <em>${pctText(pct(a.sessions,b.sessions)).replace('YoY ','')}</em></span><span>Purchases <b>${fmtN(a.purchases)}</b> <em>${pctText(pct(a.purchases,b.purchases)).replace('YoY ','')}</em></span><span>CVR <b>${(cvr*100).toFixed(2)}%</b> <em>${((cvr-cvrLy)*100)>=0?'+':''}${((cvr-cvrLy)*100).toFixed(2)}pp</em></span></div><div class='empty' style='padding:18px 8px'>차트 불러오는 중...</div>`;
-    grid.appendChild(sec);
+    sec.innerHTML=`<div class='head'><div><div class='rank'>#${i+1}</div><h2>${esc(sm)}</h2></div><div class='mini'>Revenue ${fmtK(a.revenue)} · ${pctText(pct(a.revenue,b.revenue))}</div></div><div class='stats'><span>Sessions <b>${fmtN(a.sessions)}</b> <em>${pctText(pct(a.sessions,b.sessions)).replace('YoY ','')}</em></span><span>Purchases <b>${fmtN(a.purchases)}</b> <em>${pctText(pct(a.purchases,b.purchases)).replace('YoY ','')}</em></span><span>CVR <b>${(cvr*100).toFixed(2)}%</b> <em>${((cvr-cvrLy)*100)>=0?'+':''}${((cvr-cvrLy)*100).toFixed(2)}pp</em></span></div><div class='chartbox'>${svgChart(tyD,lyD,metric)}</div>`;
+    frag.appendChild(sec);
   });
+  grid.appendChild(frag);
 }
-const __renderCore=render;
+const __renderLegacy=render;
 render=function(){
   const s=document.getElementById('startDate').value;
   if(window.__performanceDataScope!=='full' && s<RECENT_START){
     grid.innerHTML='<div class="panel empty">6개월 데이터 불러오는 중...</div>';
-    ensureFullPayload().then(()=>{
-      if(window.Chart)render();
-      else renderFastSummary();
-    }).catch(err=>{
+    ensureFullPayload().then(()=>requestAnimationFrame(renderLight)).catch(err=>{
       console.error('Full performance payload load failed',err);
       grid.innerHTML='<div class="panel empty">전체 데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
     });
     return;
   }
-  if(!window.Chart){renderFastSummary();return;}
-  return __renderCore();
+  requestAnimationFrame(renderLight);
 };
 async function startPerformanceDashboard(){
   try{
     const d=await fetchPayloadFile('performance_data_recent');
     applyPayload(d,'recent');
-    renderFastSummary();
+    requestAnimationFrame(renderLight);
   }catch(err){
     console.error('Performance data load failed',err);
     grid.innerHTML='<div class="panel empty">데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';
-    return;
   }
-  loadChartJs()
-    .then(()=>render())
-    .catch(err=>{
-      console.error('Chart.js load failed',err);
-      document.querySelectorAll('.source-panel .empty').forEach(el=>el.textContent='차트 라이브러리 로딩 실패 · 숫자 데이터는 정상 조회 가능');
-    });
 }
-// Begin data hydration immediately. The dashboard no longer waits for the
-// external Chart.js CDN before showing KPI cards and Top 10 source/medium rows.
 setTimeout(startPerformanceDashboard,0);
+
 </script></body></html>
