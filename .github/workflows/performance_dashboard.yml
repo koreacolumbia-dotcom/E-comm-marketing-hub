@@ -89,22 +89,36 @@ jobs:
           test -s reports/performance_data_recent.json.gz
           test -s reports/performance_export.xlsx
 
-      - name: Add Performance menu to hub
+      - name: Add Performance menu to hub and bust cache
         shell: bash
         run: |
           python - <<'PY'
+          from datetime import datetime, timezone
           from pathlib import Path
+          import re
+
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
+          version = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')
+          target = f'reports/performance_dashboard.html?v={version}'
+
           if 'data-key="performance"' not in s:
               anchor = '''        <div class="nav-item" data-key="utm_channel" data-target="reports/utm_channel/index.html" data-label="소스/매체 분석">'''
-              item = '''        <div class="nav-item" data-key="performance" data-target="reports/performance_dashboard.html" data-label="Performance Dashboard">\n          <i class="fa-solid fa-chart-pie"></i><span>Performance Dashboard</span>\n        </div>\n\n'''
+              item = f'''        <div class="nav-item" data-key="performance" data-target="{target}" data-label="Performance Dashboard">\n          <i class="fa-solid fa-chart-pie"></i><span>Performance Dashboard</span>\n        </div>\n\n'''
               s = s.replace(anchor, item + anchor, 1)
               mobile_anchor = '<div class="mo-tab" data-key="utm_channel"'
               if mobile_anchor in s:
-                  mobile_item = '<div class="mo-tab" data-key="performance" data-target="reports/performance_dashboard.html" data-label="Performance Dashboard"><i class="fa-solid fa-chart-pie text-base"></i><div class="text-[10px]">성과</div></div>\n    '
+                  mobile_item = f'<div class="mo-tab" data-key="performance" data-target="{target}" data-label="Performance Dashboard"><i class="fa-solid fa-chart-pie text-base"></i><div class="text-[10px]">성과</div></div>\n    '
                   s = s.replace(mobile_anchor, mobile_item + mobile_anchor, 1)
-              p.write_text(s, encoding='utf-8')
+          else:
+              s = re.sub(
+                  r'(data-key="performance"\s+data-target=")reports/performance_dashboard\.html(?:\?v=[^"]*)?("\s+data-label="Performance Dashboard")',
+                  rf'\1{target}\2',
+                  s,
+              )
+
+          p.write_text(s, encoding='utf-8')
+          print(f'Performance hub target: {target}')
           PY
 
       - name: Commit report, cache and hub link
