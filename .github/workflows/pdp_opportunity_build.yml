@@ -9,6 +9,14 @@ on:
         default: "30"
         type: choice
         options: ["7", "14", "30", "60", "90"]
+  schedule:
+    - cron: "40 0 * * *" # 09:40 KST daily
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/pdp_opportunity_build.yml'
+      - 'scripts/build_ga4_today_kpi.py'
+      - 'scripts/render_pdp_priority_dashboard.py'
 
 concurrency:
   group: pdp-opportunity-build-new
@@ -47,7 +55,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install google-cloud-bigquery
-          python -m py_compile scripts/build_ga4_today_kpi.py scripts/connect_ga4_today_pdp.py scripts/build_decision_os.py scripts/harden_decision_os.py scripts/render_v2_safe.py
+          python -m py_compile scripts/build_ga4_today_kpi.py scripts/render_pdp_priority_dashboard.py scripts/connect_ga4_today_pdp.py scripts/build_decision_os.py scripts/harden_decision_os.py scripts/render_v2_safe.py
       - name: Build GA4 today KPI and PDP funnel
         shell: bash
         env:
@@ -55,15 +63,17 @@ jobs:
           BQ_PROJECT: columbia-ga4
           BQ_LOCATION: asia-northeast3
           GA4_EVENTS_TABLE: columbia-ga4.analytics_358593394.events_*
-          PDP_LOOKBACK_DAYS: ${{ inputs.lookback_days }}
+          PDP_LOOKBACK_DAYS: ${{ inputs.lookback_days || '30' }}
           PDP_MIN_SESSIONS: "5"
         run: |
           set -euo pipefail
           test -n "$GOOGLE_SA_JSON_B64"
           python -u scripts/build_ga4_today_kpi.py
+          python -u scripts/render_pdp_priority_dashboard.py
           test -s reports/today_kpi/data.json
           test -s reports/pdp_opportunity/data.json
           test -s reports/pdp_opportunity/meta.json
+          test -s reports/pdp_opportunity/index.html
       - name: Connect to V2 and render
         shell: bash
         run: |
