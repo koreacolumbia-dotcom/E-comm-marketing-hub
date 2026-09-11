@@ -61,10 +61,10 @@ def build_pdp(client:bigquery.Client)->dict[str,Any]:
       SELECT event_name,user_pseudo_id,
         CONCAT(user_pseudo_id,'-',COALESCE(CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id') AS STRING),'0')) session_key,
         (SELECT value.string_value FROM UNNEST(event_params) WHERE key='page_location') page_location,
-        (SELECT ANY_VALUE(NULLIF(item_id,'')) FROM UNNEST(items) WHERE NULLIF(item_id,'') IS NOT NULL) item_id,
-        (SELECT ANY_VALUE(NULLIF(item_name,'')) FROM UNNEST(items) WHERE NULLIF(item_name,'') IS NOT NULL) item_name,
-        ecommerce.transaction_id,COALESCE(ecommerce.purchase_revenue,0) purchase_revenue
-      FROM `{table}`
+        NULLIF(item.item_id,'') item_id,NULLIF(item.item_name,'') item_name,
+        COALESCE(item.item_revenue,item.price*COALESCE(item.quantity,1),0) item_revenue
+      FROM `{table}` event
+      LEFT JOIN UNNEST(event.items) item ON TRUE
       WHERE REGEXP_CONTAINS(_TABLE_SUFFIX,r'^(?:intraday_)?\\d{{8}}$')
         AND DATE(TIMESTAMP_MICROS(event_timestamp),'Asia/Seoul') BETWEEN start_date AND CURRENT_DATE('Asia/Seoul')
         AND event_name IN ('view_item','add_to_cart','begin_checkout','purchase')
@@ -73,7 +73,7 @@ def build_pdp(client:bigquery.Client)->dict[str,Any]:
     ),sp AS (
       SELECT product_code,session_key,ANY_VALUE(item_name) product_name,
         LOGICAL_OR(event_name='view_item') viewed,LOGICAL_OR(event_name='add_to_cart') added,LOGICAL_OR(event_name='begin_checkout') checkout,LOGICAL_OR(event_name='purchase') purchased,
-        MAX(IF(event_name='purchase',purchase_revenue,0)) revenue
+        SUM(IF(event_name='purchase',item_revenue,0)) revenue
       FROM x WHERE product_code IS NOT NULL GROUP BY 1,2
     )
     SELECT product_code,ANY_VALUE(product_name) product_name,COUNTIF(viewed) pdp_sessions,COUNTIF(added) add_to_cart_sessions,
