@@ -26,8 +26,8 @@ button{cursor:pointer}button.active{border-color:var(--accent)}.preset{display:f
 <div class="sub">GA4 BigQuery only · 최대 최근 6개월 · 선택 기간 Revenue 기준 Top 10 Source / Medium · LY 동기간 비교</div>
 <div class="toolbar">
   <div class="field"><label>빠른 기간</label><div class="preset"><button data-days="31" class="active">최근 31일</button><button data-months="3">최근 3개월</button><button data-months="6">최근 6개월</button></div></div>
-  <div class="field"><label>시작일</label><input id="startDate" type="date" min="2026-03-12" max="2026-09-11" value="2026-08-12"></div>
-  <div class="field"><label>종료일</label><input id="endDate" type="date" min="2026-03-12" max="2026-09-11" value="2026-09-11"></div>
+  <div class="field"><label>시작일</label><input id="startDate" type="date" min="2026-03-13" max="2026-09-12" value="2026-08-13"></div>
+  <div class="field"><label>종료일</label><input id="endDate" type="date" min="2026-03-13" max="2026-09-12" value="2026-09-12"></div>
   <div class="field"><label>지표</label><select id="metric"><option value="revenue">Revenue</option><option value="sessions">Sessions</option><option value="purchases">Purchases</option></select></div>
   <button id="applyBtn">적용</button>
 </div>
@@ -42,7 +42,7 @@ button{cursor:pointer}button.active{border-color:var(--accent)}.preset{display:f
 <div class="note">(not set) Source 또는 Medium은 제외. 파란 실선은 TY / 회색 점선은 LY입니다.</div>
 </div>
 <script>
-const MIN_DATE='2026-03-12',MAX_DATE='2026-09-11',RECENT_START='2026-08-12',VERSION='20260912043607';
+const MIN_DATE='2026-03-13',MAX_DATE='2026-09-12',RECENT_START='2026-08-13',VERSION='20260913044942';
 let initial=null,full=null,fullPromise=null,fullIndex=null,renderSeq=0;
 const $=id=>document.getElementById(id);
 const fmtN=v=>Math.round(Number(v)||0).toLocaleString();
