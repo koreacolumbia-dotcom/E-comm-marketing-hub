@@ -313,6 +313,64 @@ $('metric').addEventListener('change',()=>{if(exactInitial())renderInitial();els
 """
 
 
+def pre_render_initial_graphs(html, initial):
+    """Put the first five default charts in the HTML so display never waits for JS."""
+    import html as html_lib
+
+    def n(v):
+        return f"{round(float(v or 0)):,}"
+
+    def won(v):
+        return "₩" + n(v)
+
+    def yoy(a, b):
+        return "YoY -" if not b else f"YoY {(float(a) / float(b) - 1) * 100:+.1f}%"
+
+    def path(values, maximum):
+        w, h, left, right, top, bottom = 760, 238, 58, 16, 16, 32
+        pw, ph = w - left - right, h - top - bottom
+        count = len(values)
+        parts = []
+        for i, value in enumerate(values):
+            x = left + (0 if count <= 1 else i / (count - 1) * pw)
+            y = top + ph - max(0, float(value or 0)) / maximum * ph
+            parts.append(f"{'M' if i == 0 else 'L'} {x:.1f} {y:.1f}")
+        return " ".join(parts)
+
+    cards = []
+    for i, item in enumerate(initial.get("top", [])[:5]):
+        ty, ly = item["ty"], item["ly"]
+        ty_values = item["series"]["ty"]["revenue"]
+        ly_values = item["series"]["ly"]["revenue"]
+        maximum = max([1] + ty_values + ly_values)
+        cvr = ty["purchases"] / ty["sessions"] if ty["sessions"] else 0
+        grid = "".join(
+            f'<line class="trend-grid" x1="58" y1="{16 + 190 - 190 * f}" x2="744" y2="{16 + 190 - 190 * f}"/>'
+            for f in [0, .25, .5, .75, 1]
+        )
+        chart = (
+            '<div class="legend"><span><i class="dot"></i>TY</span><span><i class="dot ly"></i>LY</span></div>'
+            '<svg class="trend-svg" viewBox="0 0 760 238" preserveAspectRatio="none">'
+            + grid
+            + f'<path class="trend-ty" d="{path(ty_values, maximum)}"/>'
+            + f'<path class="trend-ly" d="{path(ly_values, maximum)}"/>'
+            + f'<text class="trend-date" x="58" y="230">{initial["start"][5:]}</text>'
+            + f'<text class="trend-date" x="744" y="230" text-anchor="end">{initial["end"][5:]}</text>'
+            + '</svg>'
+        )
+        cards.append(
+            '<section class="panel source-panel">'
+            f'<div class="head"><div><div class="rank">#{i + 1}</div><h2>{html_lib.escape(item["sm"])}</h2></div>'
+            f'<div class="mini">Revenue {won(ty["revenue"])} · {yoy(ty["revenue"], ly["revenue"])}</div></div>'
+            f'<div class="stats"><span>Sessions <b>{n(ty["sessions"])}</b></span>'
+            f'<span>Purchases <b>{n(ty["purchases"])}</b></span>'
+            f'<span>CVR <b>{cvr * 100:.2f}%</b></span></div>'
+            f'<div class="chartbox">{chart}</div></section>'
+        )
+    loading = '<div id="grid" class="grid"><div class="panel empty">최근 3개월 Top 20 그래프 불러오는 중...</div></div>'
+    return html.replace(loading, '<div id="grid" class="grid">' + "".join(cards) + '</div>', 1)
+
+
 def fast_render(cur, ly):
     payload = {
         "ty": base.daily_payload(cur, "ty"),
@@ -342,6 +400,7 @@ def fast_render(cur, ly):
         .replace("__VERSION__", version)
         .replace("__INITIAL_PAYLOAD__", json.dumps(initial_payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/"))
     )
+    html = pre_render_initial_graphs(html, initial_payload)
 
     print(
         f"Performance payloads: initial-3m {initial_bytes/1024:.1f} KiB; "
