@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """Build a responsive Performance Dashboard from the repo-local daily cache.
 
-First entry uses a compact precomputed payload containing recent KPIs, Top 20
-source/medium aggregates and their 31-day TY/LY chart series. The complete
+First entry uses a compact precomputed payload containing three-month KPIs,
+Top 20 source/medium aggregates and their TY/LY daily chart series. The complete
 six-month row payload is loaded only when the user requests a longer/custom
 range. Charts use lightweight SVG with pointer hover/drag inspection.
 """
@@ -97,9 +97,9 @@ def build_series(rows, sm, dates):
     }
 
 
-def build_initial_payload(payload, recent_start, max_date):
-    ty = [r for r in payload["ty"] if recent_start <= r["date"] <= max_date]
-    ly = [r for r in payload["ly"] if recent_start <= r["date"] <= max_date]
+def build_initial_payload(payload, initial_start, max_date):
+    ty = [r for r in payload["ty"] if initial_start <= r["date"] <= max_date]
+    ly = [r for r in payload["ly"] if initial_start <= r["date"] <= max_date]
     ty_sm = by_sm(ty)
     ly_sm = by_sm(ly)
     top_sms = [
@@ -107,7 +107,7 @@ def build_initial_payload(payload, recent_start, max_date):
     ]
     dates = [
         d.strftime("%Y-%m-%d")
-        for d in pd.date_range(pd.Timestamp(recent_start), pd.Timestamp(max_date), freq="D")
+        for d in pd.date_range(pd.Timestamp(initial_start), pd.Timestamp(max_date), freq="D")
     ]
     top = []
     for sm in top_sms:
@@ -123,7 +123,7 @@ def build_initial_payload(payload, recent_start, max_date):
             }
         )
     return {
-        "start": recent_start,
+        "start": initial_start,
         "end": max_date,
         "dates": dates,
         "totals": {"ty": aggregate(ty), "ly": aggregate(ly)},
@@ -159,8 +159,8 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
 <h1>Performance Dashboard</h1>
 <div class="sub">GA4 BigQuery only · 최대 최근 6개월 · 선택 기간 Revenue 기준 Top 20 Source / Medium · LY 동기간 비교</div>
 <div class="toolbar">
-  <div class="field"><label>빠른 기간</label><div class="preset"><button data-days="31" class="active">최근 31일</button><button data-months="3">최근 3개월</button><button data-months="6">최근 6개월</button></div></div>
-  <div class="field"><label>시작일</label><input id="startDate" type="date" min="__MIN_DATE__" max="__MAX_DATE__" value="__RECENT_START__"></div>
+  <div class="field"><label>빠른 기간</label><div class="preset"><button data-days="31">최근 31일</button><button data-months="3" class="active">최근 3개월</button><button data-months="6">최근 6개월</button></div></div>
+  <div class="field"><label>시작일</label><input id="startDate" type="date" min="__MIN_DATE__" max="__MAX_DATE__" value="__INITIAL_START__"></div>
   <div class="field"><label>종료일</label><input id="endDate" type="date" min="__MIN_DATE__" max="__MAX_DATE__" value="__MAX_DATE__"></div>
   <div class="field"><label>지표</label><select id="metric"><option value="revenue">Revenue</option><option value="sessions">Sessions</option><option value="purchases">Purchases</option></select></div>
   <button id="applyBtn">적용</button>
@@ -172,11 +172,11 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
   <div class="card"><div class="k">Purchases</div><div class="v" id="totalPurchases">-</div><div class="yoy" id="purYoy">-</div></div>
   <div class="card"><div class="k">CVR</div><div class="v" id="totalCvr">-</div><div class="yoy" id="cvrYoy">-</div></div>
 </div>
-<div id="grid" class="grid"><div class="panel empty">최근 31일 데이터 불러오는 중...</div></div>
+<div id="grid" class="grid"><div class="panel empty">최근 3개월 Top 20 그래프 불러오는 중...</div></div>
 <div class="note">(not set) Source 또는 Medium은 제외. 파란 실선은 TY / 회색 점선은 LY. 그래프 위에서 마우스를 움직이거나 드래그하면 일자별 값을 볼 수 있습니다.</div>
 </div>
 <script>
-const MIN_DATE='__MIN_DATE__',MAX_DATE='__MAX_DATE__',RECENT_START='__RECENT_START__',VERSION='__VERSION__',TOP_N=20;
+const MIN_DATE='__MIN_DATE__',MAX_DATE='__MAX_DATE__',INITIAL_START='__INITIAL_START__',VERSION='__VERSION__',TOP_N=20;
 let initial=null,full=null,fullPromise=null,fullIndex=null,renderSeq=0;
 const $=id=>document.getElementById(id);
 const fmtN=v=>Math.round(Number(v)||0).toLocaleString();
@@ -248,14 +248,14 @@ async function renderDynamic(){
   updateKpis(t,l,s,e);grid.innerHTML='';if(!top.length){grid.innerHTML='<div class="panel empty">선택 기간에 데이터가 없습니다.</div>';notifyParent();return}
   const frag=document.createDocumentFragment();for(let i=0;i<top.length;i++){const [sm,a]=top[i],b=lm.get(sm)||{sessions:0,purchases:0,revenue:0};frag.appendChild(sourceCard(sm,a,b,seriesFrom(fullIndex.ty,sm,metric,s,e),seriesFrom(fullIndex.ly,sm,metric,s,e),metric,s,e,i))}grid.appendChild(frag);notifyParent();
 }
-function exactRecent(){return $('startDate').value===RECENT_START&&$('endDate').value===MAX_DATE}
+function exactInitial(){return $('startDate').value===INITIAL_START&&$('endDate').value===MAX_DATE}
 document.querySelectorAll('.preset button').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
   const e=MAX_DATE;let s;if(btn.dataset.days)s=addDays(e,-(Number(btn.dataset.days)-1));else s=addDays(addMonths(e,-Number(btn.dataset.months)),1);if(s<MIN_DATE)s=MIN_DATE;$('startDate').value=s;$('endDate').value=e;
-  if(exactRecent())renderInitial();else renderDynamic();
+  if(exactInitial())renderInitial();else renderDynamic();
 }));
-$('applyBtn').addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));if(exactRecent())renderInitial();else renderDynamic()});
-$('metric').addEventListener('change',()=>{if(exactRecent())renderInitial();else renderDynamic()});
+$('applyBtn').addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));if(exactInitial())renderInitial();else renderDynamic()});
+$('metric').addEventListener('change',()=>{if(exactInitial())renderInitial();else renderDynamic()});
 (async function start(){try{initial=await fetchPayload('performance_initial');renderInitial()}catch(err){console.error('Initial performance payload failed',err);$('grid').innerHTML='<div class="panel empty">데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';notifyParent()}})();
 </script>
 </body>
@@ -270,13 +270,14 @@ def fast_render(cur, ly):
     }
     min_date = base.DATA_START.strftime("%Y-%m-%d")
     max_date = base.END.strftime("%Y-%m-%d")
-    recent_start = max(base.DATA_START, base.END - pd.Timedelta(days=30)).strftime("%Y-%m-%d")
+    initial_start_ts = max(base.DATA_START, base.END - pd.DateOffset(months=3) + pd.Timedelta(days=1))
+    initial_start = initial_start_ts.strftime("%Y-%m-%d")
 
     recent_payload = {
-        "ty": [r for r in payload["ty"] if r["date"] >= recent_start],
-        "ly": [r for r in payload["ly"] if r["date"] >= recent_start],
+        "ty": [r for r in payload["ty"] if r["date"] >= initial_start],
+        "ly": [r for r in payload["ly"] if r["date"] >= initial_start],
     }
-    initial_payload = build_initial_payload(payload, recent_start, max_date)
+    initial_payload = build_initial_payload(payload, initial_start, max_date)
 
     full_bytes = write_payload(DATA_JSON, DATA_GZ, payload)
     recent_bytes = write_payload(DATA_RECENT_JSON, DATA_RECENT_GZ, recent_payload)
@@ -286,14 +287,14 @@ def fast_render(cur, ly):
     html = (
         HTML_TEMPLATE.replace("__MIN_DATE__", min_date)
         .replace("__MAX_DATE__", max_date)
-        .replace("__RECENT_START__", recent_start)
+        .replace("__INITIAL_START__", initial_start)
         .replace("__VERSION__", version)
     )
 
     print(
-        f"Performance payloads: initial {initial_bytes/1024:.1f} KiB; "
-        f"recent rows {recent_bytes/1024:.1f} KiB; full rows {full_bytes/1024:.1f} KiB. "
-        f"Initial tab uses precomputed Top {TOP_N}; full payload is lazy for 3/6 month and custom ranges."
+        f"Performance payloads: initial-3m {initial_bytes/1024:.1f} KiB; "
+        f"3m rows {recent_bytes/1024:.1f} KiB; full rows {full_bytes/1024:.1f} KiB. "
+        f"Initial tab uses precomputed 3-month Top {TOP_N}; full payload is lazy for 6-month and custom ranges."
     )
     return html
 
