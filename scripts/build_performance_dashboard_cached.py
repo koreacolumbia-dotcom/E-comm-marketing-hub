@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 """Build a responsive Performance Dashboard from the repo-local daily cache.
 
-First entry uses a tiny precomputed payload containing only recent KPIs, Top 10
+First entry uses a compact precomputed payload containing recent KPIs, Top 20
 source/medium aggregates and their 31-day TY/LY chart series. The complete
 six-month row payload is loaded only when the user requests a longer/custom
-range, keeping the Performance tab light on initial navigation.
+range. Charts use lightweight SVG with pointer hover/drag inspection.
 """
 import gzip
 import json
@@ -26,6 +26,7 @@ DATA_RECENT_JSON = OUT / "performance_data_recent.json"
 DATA_RECENT_GZ = OUT / "performance_data_recent.json.gz"
 INITIAL_JSON = OUT / "performance_initial.json"
 INITIAL_GZ = OUT / "performance_initial.json.gz"
+TOP_N = 20
 
 
 def cached_load(a, b):
@@ -102,7 +103,7 @@ def build_initial_payload(payload, recent_start, max_date):
     ty_sm = by_sm(ty)
     ly_sm = by_sm(ly)
     top_sms = [
-        sm for sm, _ in sorted(ty_sm.items(), key=lambda kv: kv[1]["revenue"], reverse=True)[:10]
+        sm for sm, _ in sorted(ty_sm.items(), key=lambda kv: kv[1]["revenue"], reverse=True)[:TOP_N]
     ]
     dates = [
         d.strftime("%Y-%m-%d")
@@ -142,12 +143,13 @@ HTML_TEMPLATE = r"""<!doctype html>
 body{min-height:100vh}.wrap{max-width:1500px;margin:auto;padding:28px}h1{margin:0 0 4px;font-size:28px}.sub{color:var(--muted);font-size:13px;margin-bottom:18px}
 .toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:16px}
 .field{display:flex;flex-direction:column;gap:5px}.field label{font-size:11px;color:var(--muted)}select,input,button{background:#0a1120;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
-button{cursor:pointer}button.active{border-color:var(--accent)}.preset{display:flex;gap:6px;flex-wrap:wrap}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+button{cursor:pointer}button.active{border-color:var(--accent);background:#101d34}.preset{display:flex;gap:6px;flex-wrap:wrap}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
 .card,.panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:18px}.k{color:var(--muted);font-size:12px}.v{font-size:25px;font-weight:800;margin-top:8px}.yoy{font-size:12px;margin-top:5px;color:var(--muted)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}.head h2{font-size:16px;margin:2px 0 0;overflow-wrap:anywhere}.rank{color:var(--muted);font-size:11px}.mini{color:var(--muted);font-size:12px;text-align:right}
 .stats{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-bottom:10px}.stats b{color:var(--text);margin-left:4px}.stats em{font-style:normal;margin-left:4px;color:var(--muted)}
-.chartbox{height:238px;width:100%;overflow:hidden;border-radius:10px;background:#09111f}.trend-svg{display:block;width:100%;height:100%}.trend-grid{stroke:#1c2b43;stroke-width:1}.trend-axis,.trend-date{fill:#91a0b8;font-size:10px}.trend-ty{fill:none;stroke:var(--accent);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}.trend-ly{fill:none;stroke:var(--ly);stroke-width:1.8;stroke-dasharray:7 5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.chartbox{height:238px;width:100%;overflow:hidden;border-radius:10px;background:#09111f;position:relative;touch-action:none;cursor:crosshair}.trend-svg{display:block;width:100%;height:100%}.trend-grid{stroke:#1c2b43;stroke-width:1}.trend-axis,.trend-date{fill:#91a0b8;font-size:10px}.trend-ty{fill:none;stroke:var(--accent);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}.trend-ly{fill:none;stroke:var(--ly);stroke-width:1.8;stroke-dasharray:7 5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .legend{display:flex;gap:14px;align-items:center;color:var(--muted);font-size:10px;margin:0 0 6px 52px}.dot{display:inline-block;width:18px;height:2px;vertical-align:middle;margin-right:5px;background:var(--accent)}.dot.ly{background:repeating-linear-gradient(90deg,var(--ly) 0 5px,transparent 5px 9px)}
+.hover-line{position:absolute;top:22px;bottom:26px;width:1px;background:rgba(255,255,255,.35);pointer-events:none;display:none}.chart-tip{position:absolute;z-index:4;display:none;pointer-events:none;min-width:145px;padding:8px 10px;border-radius:9px;background:rgba(4,9,17,.94);border:1px solid #334155;box-shadow:0 8px 22px rgba(0,0,0,.35);font-size:11px;line-height:1.55;color:var(--text);white-space:nowrap}.chart-tip .d{font-weight:800;margin-bottom:2px}.chart-tip .ty{color:#7aa7ff}.chart-tip .ly{color:#b5c0d1}.drag-hint{position:absolute;right:8px;top:7px;color:#6f8098;font-size:9px;pointer-events:none}
 .note{color:var(--muted);font-size:11px;margin-top:16px}.empty{padding:30px;text-align:center;color:var(--muted)}
 @media(max-width:1000px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:1fr 1fr}.wrap{padding:16px}.chartbox{height:225px}}
 </style>
@@ -155,7 +157,7 @@ button{cursor:pointer}button.active{border-color:var(--accent)}.preset{display:f
 <body>
 <div class="wrap">
 <h1>Performance Dashboard</h1>
-<div class="sub">GA4 BigQuery only · 최대 최근 6개월 · 선택 기간 Revenue 기준 Top 10 Source / Medium · LY 동기간 비교</div>
+<div class="sub">GA4 BigQuery only · 최대 최근 6개월 · 선택 기간 Revenue 기준 Top 20 Source / Medium · LY 동기간 비교</div>
 <div class="toolbar">
   <div class="field"><label>빠른 기간</label><div class="preset"><button data-days="31" class="active">최근 31일</button><button data-months="3">최근 3개월</button><button data-months="6">최근 6개월</button></div></div>
   <div class="field"><label>시작일</label><input id="startDate" type="date" min="__MIN_DATE__" max="__MAX_DATE__" value="__RECENT_START__"></div>
@@ -171,10 +173,10 @@ button{cursor:pointer}button.active{border-color:var(--accent)}.preset{display:f
   <div class="card"><div class="k">CVR</div><div class="v" id="totalCvr">-</div><div class="yoy" id="cvrYoy">-</div></div>
 </div>
 <div id="grid" class="grid"><div class="panel empty">최근 31일 데이터 불러오는 중...</div></div>
-<div class="note">(not set) Source 또는 Medium은 제외. 파란 실선은 TY / 회색 점선은 LY입니다.</div>
+<div class="note">(not set) Source 또는 Medium은 제외. 파란 실선은 TY / 회색 점선은 LY. 그래프 위에서 마우스를 움직이거나 드래그하면 일자별 값을 볼 수 있습니다.</div>
 </div>
 <script>
-const MIN_DATE='__MIN_DATE__',MAX_DATE='__MAX_DATE__',RECENT_START='__RECENT_START__',VERSION='__VERSION__';
+const MIN_DATE='__MIN_DATE__',MAX_DATE='__MAX_DATE__',RECENT_START='__RECENT_START__',VERSION='__VERSION__',TOP_N=20;
 let initial=null,full=null,fullPromise=null,fullIndex=null,renderSeq=0;
 const $=id=>document.getElementById(id);
 const fmtN=v=>Math.round(Number(v)||0).toLocaleString();
@@ -186,6 +188,7 @@ const addMonths=(s,n)=>{const d=new Date(s+'T00:00:00');d.setMonth(d.getMonth()+
 const inRange=(r,s,e)=>r.date>=s&&r.date<=e;
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function compact(v){return Intl.NumberFormat('ko-KR',{notation:'compact',maximumFractionDigits:1}).format(Number(v)||0)}
+function formatMetric(v,metric){return metric==='revenue'?fmtK(v):fmtN(v)}
 function aggregate(rows){return rows.reduce((a,r)=>{a.sessions+=Number(r.sessions)||0;a.purchases+=Number(r.purchases)||0;a.revenue+=Number(r.revenue)||0;return a},{sessions:0,purchases:0,revenue:0})}
 function bySm(rows){const m=new Map();for(const r of rows){let x=m.get(r.sm);if(!x){x={sessions:0,purchases:0,revenue:0};m.set(r.sm,x)}x.sessions+=Number(r.sessions)||0;x.purchases+=Number(r.purchases)||0;x.revenue+=Number(r.revenue)||0}return m}
 function pathFor(arr,W,H,L,R,T,B,max){const pw=W-L-R,ph=H-T-B,n=Math.max(arr.length,1);let p='';for(let i=0;i<arr.length;i++){const x=L+(n<=1?0:(i/(n-1))*pw),y=T+ph-(Math.max(0,Number(arr[i])||0)/max)*ph;p+=(i?' L ':'M ')+x.toFixed(1)+' '+y.toFixed(1)}return p}
@@ -193,85 +196,67 @@ function svgChart(ty,ly,metric,s,e){
   const W=760,H=238,L=58,R=16,T=16,B=32,max=Math.max(1,...ty,...ly),ph=H-T-B;
   const grid=[0,.25,.5,.75,1].map(fr=>{const y=T+ph-ph*fr,val=max*fr;return `<line class="trend-grid" x1="${L}" y1="${y}" x2="${W-R}" y2="${y}"/><text class="trend-axis" x="${L-7}" y="${y+3}" text-anchor="end">${metric==='revenue'?'₩':''}${compact(val)}</text>`}).join('');
   const days=Math.max(0,Math.round((new Date(e+'T00:00:00')-new Date(s+'T00:00:00'))/86400000)),mid=addDays(s,Math.floor(days/2));
-  return `<div class="legend"><span><i class="dot"></i>TY</span><span><i class="dot ly"></i>LY</span></div><svg class="trend-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}<path class="trend-ty" d="${pathFor(ty,W,H,L,R,T,B,max)}"/><path class="trend-ly" d="${pathFor(ly,W,H,L,R,T,B,max)}"/><text class="trend-date" x="${L}" y="${H-8}">${s.slice(5)}</text><text class="trend-date" x="${W/2}" y="${H-8}" text-anchor="middle">${mid.slice(5)}</text><text class="trend-date" x="${W-R}" y="${H-8}" text-anchor="end">${e.slice(5)}</text></svg>`;
+  return `<div class="legend"><span><i class="dot"></i>TY</span><span><i class="dot ly"></i>LY</span></div><div class="drag-hint">드래그/호버</div><svg class="trend-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}<path class="trend-ty" d="${pathFor(ty,W,H,L,R,T,B,max)}"/><path class="trend-ly" d="${pathFor(ly,W,H,L,R,T,B,max)}"/><text class="trend-date" x="${L}" y="${H-8}">${s.slice(5)}</text><text class="trend-date" x="${W/2}" y="${H-8}" text-anchor="middle">${mid.slice(5)}</text><text class="trend-date" x="${W-R}" y="${H-8}" text-anchor="end">${e.slice(5)}</text></svg><div class="hover-line"></div><div class="chart-tip"></div>`;
+}
+function bindChartInteraction(box,ty,ly,metric,s){
+  const tip=box.querySelector('.chart-tip'),line=box.querySelector('.hover-line'),n=Math.max(ty.length,ly.length,1);
+  const show=ev=>{
+    const rect=box.getBoundingClientRect(),padL=Math.min(58/760*rect.width,58),padR=Math.min(16/760*rect.width,16),usable=Math.max(1,rect.width-padL-padR);
+    let x=Math.max(padL,Math.min(rect.width-padR,ev.clientX-rect.left));
+    const idx=Math.max(0,Math.min(n-1,Math.round(((x-padL)/usable)*(n-1))));
+    const px=padL+(n<=1?0:(idx/(n-1))*usable),date=addDays(s,idx),tyv=Number(ty[idx])||0,lyv=Number(ly[idx])||0;
+    line.style.display='block';line.style.left=px+'px';tip.style.display='block';
+    tip.innerHTML=`<div class="d">${date}</div><div class="ty">TY ${formatMetric(tyv,metric)}</div><div class="ly">LY ${formatMetric(lyv,metric)}</div>`;
+    const tipW=160;tip.style.left=Math.max(6,Math.min(rect.width-tipW-6,px+10))+'px';tip.style.top='34px';
+  };
+  box.addEventListener('pointermove',show,{passive:true});
+  box.addEventListener('pointerdown',ev=>{try{box.setPointerCapture(ev.pointerId)}catch(e){}show(ev)});
+  box.addEventListener('pointerup',ev=>{try{box.releasePointerCapture(ev.pointerId)}catch(e){}});
+  box.addEventListener('pointerleave',()=>{line.style.display='none';tip.style.display='none'});
 }
 function updateKpis(t,l,s,e){
   const tcvr=t.sessions?t.purchases/t.sessions:0,lcvr=l.sessions?l.purchases/l.sessions:0;
   $('totalRevenue').textContent=fmtK(t.revenue);$('totalSessions').textContent=fmtN(t.sessions);$('totalPurchases').textContent=fmtN(t.purchases);$('totalCvr').textContent=(tcvr*100).toFixed(2)+'%';
   $('revYoy').textContent=pctText(pct(t.revenue,l.revenue));$('sesYoy').textContent=pctText(pct(t.sessions,l.sessions));$('purYoy').textContent=pctText(pct(t.purchases,l.purchases));$('cvrYoy').textContent=`YoY ${((tcvr-lcvr)*100)>=0?'+':''}${((tcvr-lcvr)*100).toFixed(2)}pp`;
-  $('periodText').textContent=`선택 기간: ${s} ~ ${e} · 전년 동일기간 비교`;
+  $('periodText').textContent=`선택 기간: ${s} ~ ${e} · 전년 동일기간 비교 · Revenue Top ${TOP_N}`;
 }
 function sourceCard(sm,a,b,tyD,lyD,metric,s,e,i){
   const cvr=a.sessions?a.purchases/a.sessions:0,cvrLy=b.sessions?b.purchases/b.sessions:0,sec=document.createElement('section');sec.className='panel source-panel';
   sec.innerHTML=`<div class="head"><div><div class="rank">#${i+1}</div><h2>${esc(sm)}</h2></div><div class="mini">Revenue ${fmtK(a.revenue)} · ${pctText(pct(a.revenue,b.revenue))}</div></div><div class="stats"><span>Sessions <b>${fmtN(a.sessions)}</b> <em>${pctText(pct(a.sessions,b.sessions)).replace('YoY ','')}</em></span><span>Purchases <b>${fmtN(a.purchases)}</b> <em>${pctText(pct(a.purchases,b.purchases)).replace('YoY ','')}</em></span><span>CVR <b>${(cvr*100).toFixed(2)}%</b> <em>${((cvr-cvrLy)*100)>=0?'+':''}${((cvr-cvrLy)*100).toFixed(2)}pp</em></span></div><div class="chartbox">${svgChart(tyD,lyD,metric,s,e)}</div>`;
+  bindChartInteraction(sec.querySelector('.chartbox'),tyD,lyD,metric,s);
   return sec;
 }
-function notifyParent(){
-  setTimeout(()=>{try{parent.postMessage({type:'dailyDigestResize',height:document.documentElement.scrollHeight},'*')}catch(e){}},30);
-}
+function notifyParent(){setTimeout(()=>{try{parent.postMessage({type:'dailyDigestResize',height:document.documentElement.scrollHeight},'*')}catch(e){}},30)}
 async function fetchPayload(stem){
-  if('DecompressionStream' in window){
-    try{
-      const r=await fetch(stem+'.json.gz?v='+VERSION,{cache:'force-cache'});
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      const stream=r.body.pipeThrough(new DecompressionStream('gzip'));
-      return JSON.parse(await new Response(stream).text());
-    }catch(err){console.warn('gzip fallback',stem,err)}
-  }
-  const r=await fetch(stem+'.json?v='+VERSION,{cache:'force-cache'});
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  return r.json();
+  if('DecompressionStream' in window){try{const r=await fetch(stem+'.json.gz?v='+VERSION,{cache:'force-cache'});if(!r.ok)throw new Error('HTTP '+r.status);const stream=r.body.pipeThrough(new DecompressionStream('gzip'));return JSON.parse(await new Response(stream).text())}catch(err){console.warn('gzip fallback',stem,err)}}
+  const r=await fetch(stem+'.json?v='+VERSION,{cache:'force-cache'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();
 }
 function renderInitial(){
-  if(!initial)return;
-  const metric=$('metric').value,s=initial.start,e=initial.end,t=initial.totals.ty,l=initial.totals.ly,grid=$('grid'),frag=document.createDocumentFragment();
-  updateKpis(t,l,s,e);grid.innerHTML='';
-  for(let i=0;i<initial.top.length;i++){
-    const x=initial.top[i];
-    frag.appendChild(sourceCard(x.sm,x.ty,x.ly,x.series.ty[metric],x.series.ly[metric],metric,s,e,i));
-  }
-  grid.appendChild(frag);notifyParent();
+  if(!initial)return;const metric=$('metric').value,s=initial.start,e=initial.end,t=initial.totals.ty,l=initial.totals.ly,grid=$('grid'),frag=document.createDocumentFragment();
+  updateKpis(t,l,s,e);grid.innerHTML='';for(let i=0;i<initial.top.length;i++){const x=initial.top[i];frag.appendChild(sourceCard(x.sm,x.ty,x.ly,x.series.ty[metric],x.series.ly[metric],metric,s,e,i))}grid.appendChild(frag);notifyParent();
 }
-function buildFullIndex(rows){
-  const root=new Map();
-  for(const r of rows){let m=root.get(r.sm);if(!m){m=new Map();root.set(r.sm,m)}let x=m.get(r.date);if(!x){x={sessions:0,purchases:0,revenue:0};m.set(r.date,x)}x.sessions+=Number(r.sessions)||0;x.purchases+=Number(r.purchases)||0;x.revenue+=Number(r.revenue)||0}
-  return root;
-}
+function buildFullIndex(rows){const root=new Map();for(const r of rows){let m=root.get(r.sm);if(!m){m=new Map();root.set(r.sm,m)}let x=m.get(r.date);if(!x){x={sessions:0,purchases:0,revenue:0};m.set(r.date,x)}x.sessions+=Number(r.sessions)||0;x.purchases+=Number(r.purchases)||0;x.revenue+=Number(r.revenue)||0}return root}
 function seriesFrom(index,sm,metric,s,e){const m=index.get(sm),out=[];for(let d=s;d<=e;d=addDays(d,1))out.push(m?.get(d)?.[metric]||0);return out}
-async function ensureFull(){
-  if(full)return;
-  if(!fullPromise)fullPromise=fetchPayload('performance_data').then(d=>{full=d;fullIndex={ty:buildFullIndex(d.ty||[]),ly:buildFullIndex(d.ly||[])};return d}).catch(e=>{fullPromise=null;throw e});
-  return fullPromise;
-}
+async function ensureFull(){if(full)return;if(!fullPromise)fullPromise=fetchPayload('performance_data').then(d=>{full=d;fullIndex={ty:buildFullIndex(d.ty||[]),ly:buildFullIndex(d.ly||[])};return d}).catch(e=>{fullPromise=null;throw e});return fullPromise}
 async function renderDynamic(){
   const seq=++renderSeq,s=$('startDate').value,e=$('endDate').value,metric=$('metric').value,grid=$('grid');
   if(!s||!e||s>e||s<MIN_DATE||e>MAX_DATE){alert(`기간은 ${MIN_DATE} ~ ${MAX_DATE} 사이로 선택해줘.`);return}
-  grid.innerHTML='<div class="panel empty">선택 기간 데이터 불러오는 중...</div>';notifyParent();
+  grid.innerHTML='<div class="panel empty">선택 기간 데이터와 Top 20 그래프 불러오는 중...</div>';notifyParent();
   try{await ensureFull()}catch(err){grid.innerHTML='<div class="panel empty">전체 데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';notifyParent();return}
   if(seq!==renderSeq)return;
-  const ty=(full.ty||[]).filter(r=>inRange(r,s,e)),ly=(full.ly||[]).filter(r=>inRange(r,s,e)),t=aggregate(ty),l=aggregate(ly),tm=bySm(ty),lm=bySm(ly),top=[...tm.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,10);
-  updateKpis(t,l,s,e);grid.innerHTML='';
-  if(!top.length){grid.innerHTML='<div class="panel empty">선택 기간에 데이터가 없습니다.</div>';notifyParent();return}
-  const frag=document.createDocumentFragment();
-  for(let i=0;i<top.length;i++){
-    const [sm,a]=top[i],b=lm.get(sm)||{sessions:0,purchases:0,revenue:0};
-    frag.appendChild(sourceCard(sm,a,b,seriesFrom(fullIndex.ty,sm,metric,s,e),seriesFrom(fullIndex.ly,sm,metric,s,e),metric,s,e,i));
-  }
-  grid.appendChild(frag);notifyParent();
+  const ty=(full.ty||[]).filter(r=>inRange(r,s,e)),ly=(full.ly||[]).filter(r=>inRange(r,s,e)),t=aggregate(ty),l=aggregate(ly),tm=bySm(ty),lm=bySm(ly),top=[...tm.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,TOP_N);
+  updateKpis(t,l,s,e);grid.innerHTML='';if(!top.length){grid.innerHTML='<div class="panel empty">선택 기간에 데이터가 없습니다.</div>';notifyParent();return}
+  const frag=document.createDocumentFragment();for(let i=0;i<top.length;i++){const [sm,a]=top[i],b=lm.get(sm)||{sessions:0,purchases:0,revenue:0};frag.appendChild(sourceCard(sm,a,b,seriesFrom(fullIndex.ty,sm,metric,s,e),seriesFrom(fullIndex.ly,sm,metric,s,e),metric,s,e,i))}grid.appendChild(frag);notifyParent();
 }
 function exactRecent(){return $('startDate').value===RECENT_START&&$('endDate').value===MAX_DATE}
 document.querySelectorAll('.preset button').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
-  const e=MAX_DATE;let s;if(btn.dataset.days)s=addDays(e,-(Number(btn.dataset.days)-1));else s=addDays(addMonths(e,-Number(btn.dataset.months)),1);if(s<MIN_DATE)s=MIN_DATE;
-  $('startDate').value=s;$('endDate').value=e;
+  const e=MAX_DATE;let s;if(btn.dataset.days)s=addDays(e,-(Number(btn.dataset.days)-1));else s=addDays(addMonths(e,-Number(btn.dataset.months)),1);if(s<MIN_DATE)s=MIN_DATE;$('startDate').value=s;$('endDate').value=e;
   if(exactRecent())renderInitial();else renderDynamic();
 }));
 $('applyBtn').addEventListener('click',()=>{document.querySelectorAll('.preset button').forEach(x=>x.classList.remove('active'));if(exactRecent())renderInitial();else renderDynamic()});
-$('metric').addEventListener('change',()=>{if(exactRecent())renderInitial();else if(full)renderDynamic()});
-(async function start(){
-  try{initial=await fetchPayload('performance_initial');renderInitial()}
-  catch(err){console.error('Initial performance payload failed',err);$('grid').innerHTML='<div class="panel empty">데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';notifyParent()}
-})();
+$('metric').addEventListener('change',()=>{if(exactRecent())renderInitial();else renderDynamic()});
+(async function start(){try{initial=await fetchPayload('performance_initial');renderInitial()}catch(err){console.error('Initial performance payload failed',err);$('grid').innerHTML='<div class="panel empty">데이터 로딩 실패 · 새로고침 후 다시 시도해주세요.</div>';notifyParent()}})();
 </script>
 </body>
 </html>
@@ -308,7 +293,7 @@ def fast_render(cur, ly):
     print(
         f"Performance payloads: initial {initial_bytes/1024:.1f} KiB; "
         f"recent rows {recent_bytes/1024:.1f} KiB; full rows {full_bytes/1024:.1f} KiB. "
-        "Initial tab uses precomputed Top 10 only; full payload is lazy."
+        f"Initial tab uses precomputed Top {TOP_N}; full payload is lazy for 3/6 month and custom ranges."
     )
     return html
 
