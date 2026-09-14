@@ -202,6 +202,7 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
 <div id="pager" class="pager"></div>
 <div class="note">광고비는 업로드된 매체 리포트의 총비용(VAT 제외) 기준입니다. GA ROAS는 리포트 GA 전환매출 ÷ 광고비, Media ROAS는 매체 전환매출 ÷ 광고비입니다. 파란 실선은 TY / 회색 점선은 LY.</div>
 </div>
+<script type="application/json" id="initialPayload">__INITIAL_PAYLOAD__</script>
 <script>
 const MIN_DATE='__MIN_DATE__',MAX_DATE='__MAX_DATE__',INITIAL_START='__INITIAL_START__',VERSION='__VERSION__',TOP_N=20;
 let initial=null,full=null,fullPromise=null,fullIndex=null,renderSeq=0;
@@ -263,6 +264,7 @@ function sourceCard(sm,a,b,tyD,lyD,metric,s,e,i){
 }
 function notifyParent(){setTimeout(()=>{try{parent.postMessage({type:'dailyDigestResize',height:document.documentElement.scrollHeight},'*')}catch(e){}},30)}
 async function fetchPayload(stem){
+  if(stem==='performance_initial'){const el=$('initialPayload');if(el&&el.textContent)return JSON.parse(el.textContent)}
   if('DecompressionStream' in window){try{const r=await fetch(stem+'.json.gz?v='+VERSION,{cache:'force-cache'});if(!r.ok)throw new Error('HTTP '+r.status);const stream=r.body.pipeThrough(new DecompressionStream('gzip'));return JSON.parse(await new Response(stream).text())}catch(err){console.warn('gzip fallback',stem,err)}}
   const r=await fetch(stem+'.json?v='+VERSION,{cache:'force-cache'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();
 }
@@ -338,6 +340,7 @@ def fast_render(cur, ly):
         .replace("__MAX_DATE__", max_date)
         .replace("__INITIAL_START__", initial_start)
         .replace("__VERSION__", version)
+        .replace("__INITIAL_PAYLOAD__", json.dumps(initial_payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/"))
     )
 
     print(
