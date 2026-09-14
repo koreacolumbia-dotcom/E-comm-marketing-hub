@@ -265,9 +265,21 @@ async function fetchPayload(stem){
   if('DecompressionStream' in window){try{const r=await fetch(stem+'.json.gz?v='+VERSION,{cache:'force-cache'});if(!r.ok)throw new Error('HTTP '+r.status);const stream=r.body.pipeThrough(new DecompressionStream('gzip'));return JSON.parse(await new Response(stream).text())}catch(err){console.warn('gzip fallback',stem,err)}}
   const r=await fetch(stem+'.json?v='+VERSION,{cache:'force-cache'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();
 }
+function renderCardBatches(items,makeCard,grid,seq){
+  let i=0;const BATCH=4;
+  function draw(){
+    if(seq!==renderSeq)return;
+    const frag=document.createDocumentFragment(),end=Math.min(i+BATCH,items.length);
+    for(;i<end;i++)frag.appendChild(makeCard(items[i],i));
+    grid.appendChild(frag);
+    if(i<items.length)requestAnimationFrame(draw);else notifyParent();
+  }
+  requestAnimationFrame(draw);
+}
 function renderInitial(){
-  if(!initial)return;const metric=$('metric').value,s=initial.start,e=initial.end,t=initial.totals.ty,l=initial.totals.ly,grid=$('grid'),frag=document.createDocumentFragment();
-  updateKpis(t,l,s,e);updatePaid(initial.ads||[]);grid.innerHTML='';for(let i=0;i<initial.top.length;i++){const x=initial.top[i];frag.appendChild(sourceCard(x.sm,x.ty,x.ly,x.series.ty[metric],x.series.ly[metric],metric,s,e,i))}grid.appendChild(frag);notifyParent();
+  if(!initial)return;const seq=++renderSeq,metric=$('metric').value,s=initial.start,e=initial.end,t=initial.totals.ty,l=initial.totals.ly,grid=$('grid');
+  updateKpis(t,l,s,e);updatePaid(initial.ads||[]);grid.innerHTML='';
+  renderCardBatches(initial.top,(x,i)=>sourceCard(x.sm,x.ty,x.ly,x.series.ty[metric],x.series.ly[metric],metric,s,e,i),grid,seq);
 }
 function buildFullIndex(rows){const root=new Map();for(const r of rows){let m=root.get(r.sm);if(!m){m=new Map();root.set(r.sm,m)}let x=m.get(r.date);if(!x){x={sessions:0,purchases:0,revenue:0};m.set(r.date,x)}x.sessions+=Number(r.sessions)||0;x.purchases+=Number(r.purchases)||0;x.revenue+=Number(r.revenue)||0}return root}
 function seriesFrom(index,sm,metric,s,e){const m=index.get(sm),out=[];for(let d=s;d<=e;d=addDays(d,1))out.push(m?.get(d)?.[metric]||0);return out}
@@ -280,7 +292,7 @@ async function renderDynamic(){
   if(seq!==renderSeq)return;
   const ty=(full.ty||[]).filter(r=>inRange(r,s,e)),ly=(full.ly||[]).filter(r=>inRange(r,s,e)),ads=(full.ads||[]).filter(r=>inRange(r,s,e)),t=aggregate(ty),l=aggregate(ly),tm=bySm(ty),lm=bySm(ly),top=[...tm.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,TOP_N);
   updateKpis(t,l,s,e);updatePaid(ads);grid.innerHTML='';if(!top.length){grid.innerHTML='<div class="panel empty">선택 기간에 데이터가 없습니다.</div>';notifyParent();return}
-  const frag=document.createDocumentFragment();for(let i=0;i<top.length;i++){const [sm,a]=top[i],b=lm.get(sm)||{sessions:0,purchases:0,revenue:0};frag.appendChild(sourceCard(sm,a,b,seriesFrom(fullIndex.ty,sm,metric,s,e),seriesFrom(fullIndex.ly,sm,metric,s,e),metric,s,e,i))}grid.appendChild(frag);notifyParent();
+  renderCardBatches(top,([sm,a],i)=>{const b=lm.get(sm)||{sessions:0,purchases:0,revenue:0};return sourceCard(sm,a,b,seriesFrom(fullIndex.ty,sm,metric,s,e),seriesFrom(fullIndex.ly,sm,metric,s,e),metric,s,e,i)},grid,seq);
 }
 function exactInitial(){return $('startDate').value===INITIAL_START&&$('endDate').value===MAX_DATE}
 document.querySelectorAll('.preset button').forEach(btn=>btn.addEventListener('click',()=>{
