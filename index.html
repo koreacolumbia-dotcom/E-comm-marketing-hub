@@ -706,80 +706,85 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
       if (!host || host.dataset.extras === "1") return;
       host.dataset.extras = "1";
       const q = s => host.querySelector(s);
-      const initialEl = q("#initialPayload");
-      if (!initialEl) return;
-      const initialData = JSON.parse(initialEl.textContent || "{}");
-      let fullDataPromise = null;
+      let initialData = null, fullPromise = null, currentRows = [];
       const addDays = (s,n) => { const d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
-      const datesBetween = (s,e) => { const a=[]; for(let d=s; d<=e; d=addDays(d,1)) a.push(d); return a; };
-      const fmt = v => Math.round(Number(v)||0).toLocaleString();
+      const addMonths = (s,n) => { const d=new Date(s+"T00:00:00"); d.setMonth(d.getMonth()+n); return d.toISOString().slice(0,10); };
+      const dates = (s,e) => { const a=[]; for(let d=s;d<=e;d=addDays(d,1))a.push(d); return a; };
+      const num = v => Math.round(Number(v)||0).toLocaleString();
+      const won = v => "₩"+num(v);
+      const pct = (a,b) => b ? (a/b-1)*100 : null;
+      const pctText = v => v==null ? "YoY -" : "YoY "+(v>=0?"+":"")+v.toFixed(1)+"%";
       const esc = s => String(s).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
-      const loadFull = async () => {
-        if (!fullDataPromise) fullDataPromise = (async () => {
-          if ("DecompressionStream" in window) {
-            const r=await fetch("reports/performance_data.json.gz?inline=20260914",{cache:"force-cache"});
-            if(r.ok){const stream=r.body.pipeThrough(new DecompressionStream("gzip"));return JSON.parse(await new Response(stream).text());}
-          }
-          const r=await fetch("reports/performance_data.json?inline=20260914",{cache:"force-cache"});
-          if(!r.ok) throw new Error("performance data load failed");
-          return r.json();
-        })();
-        return fullDataPromise;
+      const loadJson = async stem => {
+        if("DecompressionStream" in window){
+          try{const r=await fetch("reports/"+stem+".json.gz?v=20260914",{cache:"force-cache"});if(r.ok){const stream=r.body.pipeThrough(new DecompressionStream("gzip"));return JSON.parse(await new Response(stream).text());}}catch(e){}
+        }
+        const r=await fetch("reports/"+stem+".json?v=20260914",{cache:"force-cache"});if(!r.ok)throw new Error("data load failed");return r.json();
       };
-      const currentData = async () => {
-        const s=q("#startDate").value, e=q("#endDate").value;
-        if(s>=initialData.start && e<=initialData.end) return initialData;
-        return await loadFull();
+      const loadFull = () => fullPromise || (fullPromise=loadJson("performance_data"));
+      const path = (arr,max) => arr.map((v,i)=>{const x=58+(arr.length<=1?0:i/(arr.length-1)*686),y=16+190-Math.max(0,Number(v)||0)/max*190;return (i?"L ":"M ")+x.toFixed(1)+" "+y.toFixed(1);}).join("");
+      const chartHtml = (a,b,s,e,labels) => {
+        const max=Math.max(1,...a,...b);
+        const grid=[0,.25,.5,.75,1].map(fr=>{const y=206-190*fr;return '<line class="trend-grid" x1="58" y1="'+y+'" x2="744" y2="'+y+'"/><text class="trend-axis" x="51" y="'+(y+3)+'" text-anchor="end">'+Math.round(max*fr)+(labels.percent?"%":"")+'</text>';}).join("");
+        return '<div class="legend"><span><i class="dot"></i>'+labels.a+'</span><span><i class="dot ly"></i>'+labels.b+'</span></div><div class="drag-hint">드래그/호버</div><svg class="trend-svg" viewBox="0 0 760 238" preserveAspectRatio="none">'+grid+'<path class="trend-ty" d="'+path(a,max)+'"/><path class="trend-ly" d="'+path(b,max)+'"/><text class="trend-date" x="58" y="230">'+s.slice(5)+'</text><text class="trend-date" x="744" y="230" text-anchor="end">'+e.slice(5)+'</text></svg><div class="hover-line"></div><div class="chart-tip"></div>';
       };
-      const path = (arr,W,H,L,R,T,B,max) => arr.map((v,i)=>{
-        const x=L+(arr.length<=1?0:i/(arr.length-1)*(W-L-R));
-        const y=T+(H-T-B)-Math.max(0,Number(v)||0)/max*(H-T-B);
-        return (i?"L ":"M ")+x.toFixed(1)+" "+y.toFixed(1);
-      }).join("");
-      const renderRoas = async () => {
-        const box=q("#paidRoasChart"); if(!box) return;
-        const s=q("#startDate").value, e=q("#endDate").value;
-        box.innerHTML='<div class="empty">ROAS 계산 중...</div>';
-        try {
-          const data=await currentData();
-          const ads=(data.ads||[]).filter(r=>r.date>=s&&r.date<=e);
-          const ds=datesBetween(s,e), by=new Map();
-          ads.forEach(r=>{const x=by.get(r.date)||{spend:0,ga:0,media:0};x.spend+=Number(r.spend)||0;x.ga+=Number(r.report_ga_revenue)||0;x.media+=Number(r.platform_revenue)||0;by.set(r.date,x);});
-          const ga=ds.map(d=>{const x=by.get(d);return x&&x.spend?x.ga/x.spend*100:0});
-          const media=ds.map(d=>{const x=by.get(d);return x&&x.spend?x.media/x.spend*100:0});
-          const W=760,H=238,L=58,R=16,T=16,B=32,max=Math.max(1,...ga,...media);
-          const grid=[0,.25,.5,.75,1].map(fr=>{const y=T+(H-T-B)*(1-fr);return '<line class="trend-grid" x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'"/><text class="trend-axis" x="'+(L-7)+'" y="'+(y+3)+'" text-anchor="end">'+Math.round(max*fr)+'%</text>';}).join("");
-          box.innerHTML='<div class="legend"><span><i class="dot"></i>GA ROAS</span><span><i class="dot ly"></i>Media ROAS</span></div><div class="drag-hint">드래그/호버</div><svg class="trend-svg" viewBox="0 0 760 238" preserveAspectRatio="none">'+grid+'<path class="trend-ty" d="'+path(ga,W,H,L,R,T,B,max)+'"/><path class="trend-ly" d="'+path(media,W,H,L,R,T,B,max)+'"/><text class="trend-date" x="58" y="230">'+s.slice(5)+'</text><text class="trend-date" x="744" y="230" text-anchor="end">'+e.slice(5)+'</text></svg><div class="hover-line"></div><div class="chart-tip"></div>';
-          const tip=box.querySelector(".chart-tip"), line=box.querySelector(".hover-line");
-          const show=ev=>{const r=box.getBoundingClientRect(),x=Math.max(0,Math.min(r.width,ev.clientX-r.left)),i=Math.max(0,Math.min(ds.length-1,Math.round(x/r.width*(ds.length-1))));line.style.display="block";line.style.left=x+"px";tip.style.display="block";tip.style.left=Math.max(6,Math.min(r.width-170,x+10))+"px";tip.style.top="34px";tip.innerHTML='<div class="d">'+ds[i]+'</div><div class="ty">GA ROAS '+ga[i].toFixed(0)+'%</div><div class="ly">Media ROAS '+media[i].toFixed(0)+'%</div>';};
-          box.addEventListener("pointermove",show,{passive:true});
-          box.addEventListener("pointerdown",show);
-          box.addEventListener("pointerleave",()=>{line.style.display="none";tip.style.display="none";});
-        } catch(e) { box.innerHTML='<div class="empty">ROAS 데이터를 표시할 수 없습니다.</div>'; }
+      const bindTip = (box,a,b,ds,labels,formatter) => {
+        const tip=box.querySelector(".chart-tip"),line=box.querySelector(".hover-line");
+        const show=ev=>{const r=box.getBoundingClientRect(),x=Math.max(0,Math.min(r.width,ev.clientX-r.left)),i=Math.max(0,Math.min(ds.length-1,Math.round(x/r.width*(ds.length-1))));line.style.display="block";line.style.left=x+"px";tip.style.display="block";tip.style.left=Math.max(6,Math.min(r.width-175,x+10))+"px";tip.style.top="34px";tip.innerHTML='<div class="d">'+ds[i]+'</div><div class="ty">'+labels.a+" "+formatter(a[i])+'</div><div class="ly">'+labels.b+" "+formatter(b[i])+'</div>';};
+        box.addEventListener("pointermove",show,{passive:true});box.addEventListener("pointerdown",show);box.addEventListener("pointerleave",()=>{line.style.display="none";tip.style.display="none";});
+      };
+      const aggregate = rows => rows.reduce((a,r)=>{a.sessions+=Number(r.sessions)||0;a.purchases+=Number(r.purchases)||0;a.revenue+=Number(r.revenue)||0;return a;},{sessions:0,purchases:0,revenue:0});
+      const topFromFull = (data,s,e,metric) => {
+        const ty=(data.ty||[]).filter(r=>r.date>=s&&r.date<=e),ly=(data.ly||[]).filter(r=>r.date>=s&&r.date<=e),tm=new Map(),lm=new Map();
+        const add=(m,r)=>{const x=m.get(r.sm)||{sessions:0,purchases:0,revenue:0};x.sessions+=Number(r.sessions)||0;x.purchases+=Number(r.purchases)||0;x.revenue+=Number(r.revenue)||0;m.set(r.sm,x);};
+        ty.forEach(r=>add(tm,r));ly.forEach(r=>add(lm,r));const ds=dates(s,e);
+        return {totals:{ty:aggregate(ty),ly:aggregate(ly)},ads:(data.ads||[]).filter(r=>r.date>=s&&r.date<=e),items:[...tm.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,20).map(([sm,a])=>{const b=lm.get(sm)||{sessions:0,purchases:0,revenue:0},series=(rows)=>{const m=new Map();rows.filter(r=>r.sm===sm).forEach(r=>m.set(r.date,(m.get(r.date)||0)+(Number(r[metric])||0)));return ds.map(d=>m.get(d)||0)};return {sm,ty:a,ly:b,a:series(ty),b:series(ly)};}),ds};
+      };
+      const topFromInitial = (data,s,e,metric) => {
+        const i0=data.dates.indexOf(s),i1=data.dates.indexOf(e),ds=data.dates.slice(i0,i1+1);
+        const items=data.top.map(x=>{const av=x.series.ty[metric].slice(i0,i1+1),bv=x.series.ly[metric].slice(i0,i1+1);const sum=v=>v.reduce((a,b)=>a+(Number(b)||0),0);const ty={revenue:sum(x.series.ty.revenue.slice(i0,i1+1)),sessions:sum(x.series.ty.sessions.slice(i0,i1+1)),purchases:sum(x.series.ty.purchases.slice(i0,i1+1))},ly={revenue:sum(x.series.ly.revenue.slice(i0,i1+1)),sessions:sum(x.series.ly.sessions.slice(i0,i1+1)),purchases:sum(x.series.ly.purchases.slice(i0,i1+1))};return {sm:x.sm,ty,ly,a:av,b:bv};}).sort((a,b)=>b.ty.revenue-a.ty.revenue).slice(0,20);
+        return {totals:{ty:items.reduce((a,x)=>({revenue:a.revenue+x.ty.revenue,sessions:a.sessions+x.ty.sessions,purchases:a.purchases+x.ty.purchases}),{revenue:0,sessions:0,purchases:0}),ly:items.reduce((a,x)=>({revenue:a.revenue+x.ly.revenue,sessions:a.sessions+x.ly.sessions,purchases:a.purchases+x.ly.purchases}),{revenue:0,sessions:0,purchases:0})},ads:(data.ads||[]).filter(r=>r.date>=s&&r.date<=e),items,ds};
+      };
+      const renderPaid = ads => {
+        const sum=ads.reduce((a,r)=>{a.spend+=Number(r.spend)||0;a.ga+=Number(r.report_ga_revenue)||0;a.media+=Number(r.platform_revenue)||0;return a;},{spend:0,ga:0,media:0});
+        q("#totalSpend").textContent=won(sum.spend);q("#gaRoas").textContent=sum.spend?Math.round(sum.ga/sum.spend*100)+"%":"-";q("#mediaRoas").textContent=sum.spend?Math.round(sum.media/sum.spend*100)+"%":"-";
+        const groups=new Map();ads.forEach(r=>{const x=groups.get(r.channel)||{spend:0,ga:0,media:0};x.spend+=Number(r.spend)||0;x.ga+=Number(r.report_ga_revenue)||0;x.media+=Number(r.platform_revenue)||0;groups.set(r.channel,x);});
+        q("#paidGrid").innerHTML=[...groups.entries()].sort((a,b)=>b[1].spend-a[1].spend).map(([n,x])=>'<div class="paid-card"><h3>'+esc(n)+'</h3><div class="paid-row"><span>Ad Spend</span><b>'+won(x.spend)+'</b></div><div class="paid-row"><span>GA Revenue</span><b>'+won(x.ga)+'</b></div><div class="paid-row"><span>GA ROAS</span><b>'+(x.spend?Math.round(x.ga/x.spend*100):0)+'%</b></div><div class="paid-row"><span>Media ROAS</span><b>'+(x.spend?Math.round(x.media/x.spend*100):0)+'%</b></div></div>').join("");
+      };
+      const renderRoas = (ads,ds) => {
+        const m=new Map();ads.forEach(r=>{const x=m.get(r.date)||{spend:0,ga:0,media:0};x.spend+=Number(r.spend)||0;x.ga+=Number(r.report_ga_revenue)||0;x.media+=Number(r.platform_revenue)||0;m.set(r.date,x);});
+        const ga=ds.map(d=>{const x=m.get(d);return x&&x.spend?x.ga/x.spend*100:0}),media=ds.map(d=>{const x=m.get(d);return x&&x.spend?x.media/x.spend*100:0}),box=q("#paidRoasChart");
+        box.innerHTML=chartHtml(ga,media,ds[0],ds[ds.length-1],{a:"GA ROAS",b:"Media ROAS",percent:true});bindTip(box,ga,media,ds,{a:"GA ROAS",b:"Media ROAS"},v=>Math.round(v||0)+"%");
+      };
+      const render = async () => {
+        const s=q("#startDate").value,e=q("#endDate").value,metric=q("#metric").value;
+        const useInitial=initialData&&s>=initialData.start&&e<=initialData.end;
+        if(!useInitial)q("#periodText").textContent="6개월 데이터를 불러오는 중...";
+        const data=useInitial?topFromInitial(initialData,s,e,metric):topFromFull(await loadFull(),s,e,metric);
+        currentRows=data.items;
+        const t=data.totals.ty,l=data.totals.ly,tc=t.sessions?t.purchases/t.sessions:0,lc=l.sessions?l.purchases/l.sessions:0;
+        q("#totalRevenue").textContent=won(t.revenue);q("#totalSessions").textContent=num(t.sessions);q("#totalPurchases").textContent=num(t.purchases);q("#totalCvr").textContent=(tc*100).toFixed(2)+"%";
+        q("#revYoy").textContent=pctText(pct(t.revenue,l.revenue));q("#sesYoy").textContent=pctText(pct(t.sessions,l.sessions));q("#purYoy").textContent=pctText(pct(t.purchases,l.purchases));q("#cvrYoy").textContent="YoY "+((tc-lc)*100>=0?"+":"")+((tc-lc)*100).toFixed(2)+"pp";
+        q("#periodText").textContent="선택 기간: "+s+" ~ "+e+" · "+metric[0].toUpperCase()+metric.slice(1)+" · Top 20";
+        renderPaid(data.ads);renderRoas(data.ads,data.ds);
+        const grid=q("#grid"),pager=q("#pager"),size=10,pages=Math.ceil(data.items.length/size);
+        const draw=page=>{grid.innerHTML="";data.items.slice(page*size,(page+1)*size).forEach((x,j)=>{const rank=page*size+j+1,cvr=x.ty.sessions?x.ty.purchases/x.ty.sessions:0,sec=document.createElement("section");sec.className="panel source-panel";sec.innerHTML='<div class="head"><div><div class="rank">#'+rank+'</div><h2>'+esc(x.sm)+'</h2></div><div class="mini">Revenue '+won(x.ty.revenue)+' · '+pctText(pct(x.ty.revenue,x.ly.revenue))+'</div></div><div class="stats"><span>Sessions <b>'+num(x.ty.sessions)+'</b></span><span>Purchases <b>'+num(x.ty.purchases)+'</b></span><span>CVR <b>'+(cvr*100).toFixed(2)+'%</b></span></div><div class="chartbox">'+chartHtml(x.a,x.b,s,e,{a:"TY",b:"LY",percent:false})+'</div>';grid.appendChild(sec);bindTip(sec.querySelector(".chartbox"),x.a,x.b,data.ds,{a:"TY",b:"LY"},v=>metric==="revenue"?won(v):num(v));});pager.innerHTML="";for(let p=0;p<pages;p++){const b=document.createElement("button");b.textContent=p+1;if(p===page)b.className="active";b.onclick=()=>draw(p);pager.appendChild(b);}};
+        draw(0);
       };
       const exportExcel = async () => {
-        const s=q("#startDate").value, e=q("#endDate").value, metric=q("#metric").value;
-        const data=await currentData();
-        let rows=[];
-        if(data.top){
-          data.top.forEach((x,rank)=>x.series.ty[metric].forEach((v,i)=>{const d=data.dates[i];if(d>=s&&d<=e)rows.push([d,rank+1,x.sm,metric,v]);}));
-        } else {
-          const agg=new Map();
-          (data.ty||[]).filter(r=>r.date>=s&&r.date<=e).forEach(r=>{const k=r.sm;const a=agg.get(k)||{revenue:0,sessions:0,purchases:0};a.revenue+=Number(r.revenue)||0;a.sessions+=Number(r.sessions)||0;a.purchases+=Number(r.purchases)||0;agg.set(k,a);});
-          const top=[...agg.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,20).map(x=>x[0]);
-          (data.ty||[]).filter(r=>r.date>=s&&r.date<=e&&top.includes(r.sm)).forEach(r=>rows.push([r.date,top.indexOf(r.sm)+1,r.sm,metric,Number(r[metric])||0]));
-        }
-        const ads=(data.ads||[]).filter(r=>r.date>=s&&r.date<=e);
-        const table1='<table><tr><th>Date</th><th>Rank</th><th>Source / Medium</th><th>Metric</th><th>Value</th></tr>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+esc(v)+'</td>').join("")+'</tr>').join("")+'</table>';
-        const table2='<br><table><tr><th>Date</th><th>Paid Channel</th><th>Ad Spend</th><th>GA Revenue</th><th>Media Revenue</th><th>GA ROAS</th><th>Media ROAS</th></tr>'+ads.map(r=>{const spend=Number(r.spend)||0,ga=Number(r.report_ga_revenue)||0,media=Number(r.platform_revenue)||0;return '<tr><td>'+r.date+'</td><td>'+esc(r.channel)+'</td><td>'+spend+'</td><td>'+ga+'</td><td>'+media+'</td><td>'+(spend?ga/spend:0)+'</td><td>'+(spend?media/spend:0)+'</td></tr>';}).join("")+'</table>';
-        const blob=new Blob(["\ufeff<html><head><meta charset='utf-8'></head><body><h2>Performance "+s+" ~ "+e+"</h2>"+table1+table2+"</body></html>"],{type:"application/vnd.ms-excel"});
-        const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="performance_"+s+"_"+e+".xls";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+        const s=q("#startDate").value,e=q("#endDate").value,metric=q("#metric").value;
+        const table='<table><tr><th>Rank</th><th>Source / Medium</th><th>Revenue</th><th>Sessions</th><th>Purchases</th><th>CVR</th><th>Selected Metric</th></tr>'+currentRows.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(x.sm)+'</td><td>'+x.ty.revenue+'</td><td>'+x.ty.sessions+'</td><td>'+x.ty.purchases+'</td><td>'+(x.ty.sessions?x.ty.purchases/x.ty.sessions:0)+'</td><td>'+metric+'</td></tr>').join("")+'</table>';
+        const blob=new Blob(["\ufeff<html><head><meta charset='utf-8'></head><body><h2>Performance "+s+" ~ "+e+"</h2>"+table+"</body></html>"],{type:"application/vnd.ms-excel"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="performance_"+s+"_"+e+".xls";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
       };
-      q("#exportExcelBtn")?.addEventListener("click",()=>exportExcel().catch(()=>alert("엑셀 생성에 실패했습니다.")));
-      q("#applyBtn")?.addEventListener("click",()=>setTimeout(renderRoas,50));
-      q("#metric")?.addEventListener("change",()=>setTimeout(renderRoas,50));
-      host.querySelectorAll(".preset button").forEach(b=>b.addEventListener("click",()=>setTimeout(renderRoas,80)));
-      setTimeout(renderRoas,100);
+      const start = async () => {
+        initialData=await loadJson("performance_initial");
+        q("#exportExcelBtn").onclick=exportExcel;
+        q("#applyBtn").onclick=render;
+        q("#metric").onchange=render;
+        host.querySelectorAll(".preset button").forEach(b=>b.onclick=()=>{host.querySelectorAll(".preset button").forEach(x=>x.classList.remove("active"));b.classList.add("active");const e=initialData.end;let s=b.dataset.days?addDays(e,-30):addDays(addMonths(e,-Number(b.dataset.months)),1);q("#startDate").value=s;q("#endDate").value=e;render();});
+        render();
+      };
+      start().catch(e=>{q("#periodText").textContent="데이터를 표시할 수 없습니다.";console.error(e);});
     }
 
     async function navigate(target) {
