@@ -774,7 +774,7 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
       const exportExcel = async () => {
         const s=q("#startDate").value,e=q("#endDate").value,metric=q("#metric").value;
         const table='<table><tr><th>Rank</th><th>Source / Medium</th><th>Revenue</th><th>Sessions</th><th>Purchases</th><th>CVR</th><th>Selected Metric</th></tr>'+currentRows.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(x.sm)+'</td><td>'+x.ty.revenue+'</td><td>'+x.ty.sessions+'</td><td>'+x.ty.purchases+'</td><td>'+(x.ty.sessions?x.ty.purchases/x.ty.sessions:0)+'</td><td>'+metric+'</td></tr>').join("")+'</table>';
-        const blob=new Blob(["\ufeff<html><head><meta charset='utf-8'></head><body><h2>Performance "+s+" ~ "+e+"</h2>"+table+"</body></html>"],{type:"application/vnd.ms-excel"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="performance_"+s+"_"+e+".xls";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+        const content="\ufeff<html><head><meta charset='utf-8'></head><body><h2>Performance "+s+" ~ "+e+"</h2>"+table+"</body></html>",a=document.createElement("a");a.href="data:application/vnd.ms-excel;charset=utf-8,"+encodeURIComponent(content);a.download="performance_"+s+"_"+e+".xls";document.body.appendChild(a);a.click();a.remove();
       };
       const start = async () => {
         initialData=await loadJson("performance_initial");
