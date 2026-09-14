@@ -12,7 +12,7 @@ body{min-height:100vh}.wrap{max-width:1500px;margin:auto;padding:28px}h1{margin:
 .field{display:flex;flex-direction:column;gap:5px}.field label{font-size:11px;color:var(--muted)}select,input,button{background:#0a1120;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
 button{cursor:pointer}button.active{border-color:var(--accent);background:#101d34}.preset{display:flex;gap:6px;flex-wrap:wrap}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
 .card,.panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:18px}.k{color:var(--muted);font-size:12px}.v{font-size:25px;font-weight:800;margin-top:8px}.yoy{font-size:12px;margin-top:5px;color:var(--muted)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.paid-title{font-size:18px;margin:24px 0 10px}.paid-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px}.paid-card{background:#0b1321;border:1px solid var(--line);border-radius:13px;padding:14px}.paid-card h3{font-size:14px;margin:0 0 10px}.paid-row{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:6px}.paid-row b{color:var(--text)}.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}.head h2{font-size:16px;margin:2px 0 0;overflow-wrap:anywhere}.rank{color:var(--muted);font-size:11px}.mini{color:var(--muted);font-size:12px;text-align:right}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.pager{display:flex;justify-content:center;gap:7px;margin:18px 0 8px}.pager button{min-width:38px}.pager button.active{background:var(--accent);border-color:var(--accent);color:white}.paid-title{font-size:18px;margin:24px 0 10px}.paid-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px}.paid-card{background:#0b1321;border:1px solid var(--line);border-radius:13px;padding:14px}.paid-card h3{font-size:14px;margin:0 0 10px}.paid-row{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:6px}.paid-row b{color:var(--text)}.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}.head h2{font-size:16px;margin:2px 0 0;overflow-wrap:anywhere}.rank{color:var(--muted);font-size:11px}.mini{color:var(--muted);font-size:12px;text-align:right}
 .stats{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-bottom:10px}.stats b{color:var(--text);margin-left:4px}.stats em{font-style:normal;margin-left:4px;color:var(--muted)}
 .chartbox{height:238px;width:100%;overflow:hidden;border-radius:10px;background:#09111f;position:relative;touch-action:none;cursor:crosshair}.trend-svg{display:block;width:100%;height:100%}.trend-grid{stroke:#1c2b43;stroke-width:1}.trend-axis,.trend-date{fill:#91a0b8;font-size:10px}.trend-ty{fill:none;stroke:var(--accent);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}.trend-ly{fill:none;stroke:var(--ly);stroke-width:1.8;stroke-dasharray:7 5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .legend{display:flex;gap:14px;align-items:center;color:var(--muted);font-size:10px;margin:0 0 6px 52px}.dot{display:inline-block;width:18px;height:2px;vertical-align:middle;margin-right:5px;background:var(--accent)}.dot.ly{background:repeating-linear-gradient(90deg,var(--ly) 0 5px,transparent 5px 9px)}
@@ -46,10 +46,11 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
 <div id="paidGrid" class="paid-grid"><div class="paid-card empty">광고비 데이터 불러오는 중...</div></div>
 <h2 class="paid-title">Source / Medium Top 20</h2>
 <div id="grid" class="grid"><div class="panel empty">최근 3개월 Top 20 그래프 불러오는 중...</div></div>
+<div id="pager" class="pager"></div>
 <div class="note">광고비는 업로드된 매체 리포트의 총비용(VAT 제외) 기준입니다. GA ROAS는 리포트 GA 전환매출 ÷ 광고비, Media ROAS는 매체 전환매출 ÷ 광고비입니다. 파란 실선은 TY / 회색 점선은 LY.</div>
 </div>
 <script>
-const MIN_DATE='2026-03-14',MAX_DATE='2026-09-13',INITIAL_START='2026-06-14',VERSION='20260914025807',TOP_N=20;
+const MIN_DATE='2026-03-14',MAX_DATE='2026-09-13',INITIAL_START='2026-06-14',VERSION='20260914043259',TOP_N=20;
 let initial=null,full=null,fullPromise=null,fullIndex=null,renderSeq=0;
 const $=id=>document.getElementById(id);
 const fmtN=v=>Math.round(Number(v)||0).toLocaleString();
@@ -113,15 +114,16 @@ async function fetchPayload(stem){
   const r=await fetch(stem+'.json?v='+VERSION,{cache:'force-cache'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();
 }
 function renderCardBatches(items,makeCard,grid,seq){
-  let i=0;const BATCH=4;
-  function draw(){
+  const pager=$('pager'),PAGE_SIZE=5,totalPages=Math.max(1,Math.ceil(items.length/PAGE_SIZE));
+  function drawPage(page){
     if(seq!==renderSeq)return;
-    const frag=document.createDocumentFragment(),end=Math.min(i+BATCH,items.length);
-    for(;i<end;i++)frag.appendChild(makeCard(items[i],i));
-    grid.appendChild(frag);
-    if(i<items.length)requestAnimationFrame(draw);else notifyParent();
+    grid.innerHTML='';const frag=document.createDocumentFragment(),start=page*PAGE_SIZE,end=Math.min(start+PAGE_SIZE,items.length);
+    for(let i=start;i<end;i++)frag.appendChild(makeCard(items[i],i));
+    grid.appendChild(frag);pager.innerHTML='';
+    if(totalPages>1){for(let p=0;p<totalPages;p++){const b=document.createElement('button');b.textContent=String(p+1);if(p===page)b.className='active';b.addEventListener('click',()=>requestAnimationFrame(()=>drawPage(p)));pager.appendChild(b)}}
+    notifyParent();
   }
-  requestAnimationFrame(draw);
+  requestAnimationFrame(()=>drawPage(0));
 }
 function renderInitial(){
   if(!initial)return;const seq=++renderSeq,metric=$('metric').value,s=initial.start,e=initial.end,t=initial.totals.ty,l=initial.totals.ly,grid=$('grid');
