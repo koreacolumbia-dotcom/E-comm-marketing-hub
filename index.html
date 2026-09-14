@@ -646,7 +646,8 @@
         resolvedTarget = await resolveLatestDailyDigestTarget();
       }
 
-      showLoading(true);
+      if (key === "performance") showLoading(false);
+      else showLoading(true);
 
       const onLoadOnce = () => {
         showLoading(false);
