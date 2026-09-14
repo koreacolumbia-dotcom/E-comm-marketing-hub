@@ -270,7 +270,7 @@ async function fetchPayload(stem){
   const r=await fetch(stem+'.json?v='+VERSION,{cache:'force-cache'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();
 }
 function renderCardBatches(items,makeCard,grid,seq){
-  const pager=$('pager'),PAGE_SIZE=5,totalPages=Math.max(1,Math.ceil(items.length/PAGE_SIZE));
+  const pager=$('pager'),PAGE_SIZE=10,totalPages=Math.max(1,Math.ceil(items.length/PAGE_SIZE));
   function drawPage(page){
     if(seq!==renderSeq)return;
     grid.innerHTML='';const frag=document.createDocumentFragment(),start=page*PAGE_SIZE,end=Math.min(start+PAGE_SIZE,items.length);
@@ -315,7 +315,7 @@ $('metric').addEventListener('change',()=>{if(exactInitial())renderInitial();els
 
 
 def pre_render_initial_graphs(html, initial):
-    """Put the first five default charts in the HTML so display never waits for JS."""
+    """Put the first ten default charts in the HTML so display never waits for JS."""
     import html as html_lib
 
     def n(v):
@@ -339,7 +339,7 @@ def pre_render_initial_graphs(html, initial):
         return " ".join(parts)
 
     cards = []
-    for i, item in enumerate(initial.get("top", [])[:5]):
+    for i, item in enumerate(initial.get("top", [])[:10]):
         ty, ly = item["ty"], item["ly"]
         ty_values = item["series"]["ty"]["revenue"]
         ly_values = item["series"]["ly"]["revenue"]
