@@ -275,10 +275,10 @@ function renderCardBatches(items,makeCard,grid,seq){
     grid.innerHTML='';const frag=document.createDocumentFragment(),start=page*PAGE_SIZE,end=Math.min(start+PAGE_SIZE,items.length);
     for(let i=start;i<end;i++)frag.appendChild(makeCard(items[i],i));
     grid.appendChild(frag);pager.innerHTML='';
-    if(totalPages>1){for(let p=0;p<totalPages;p++){const b=document.createElement('button');b.textContent=String(p+1);if(p===page)b.className='active';b.addEventListener('click',()=>requestAnimationFrame(()=>drawPage(p)));pager.appendChild(b)}}
+    if(totalPages>1){for(let p=0;p<totalPages;p++){const b=document.createElement('button');b.textContent=String(p+1);if(p===page)b.className='active';b.addEventListener('click',()=>drawPage(p));pager.appendChild(b)}}
     notifyParent();
   }
-  requestAnimationFrame(()=>drawPage(0));
+  drawPage(0);
 }
 function renderInitial(){
   if(!initial)return;const seq=++renderSeq,metric=$('metric').value,s=initial.start,e=initial.end,t=initial.totals.ty,l=initial.totals.ly,grid=$('grid');
