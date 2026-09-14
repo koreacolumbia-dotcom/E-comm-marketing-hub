@@ -172,9 +172,10 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
 .hover-line{position:absolute;top:22px;bottom:26px;width:1px;background:rgba(255,255,255,.35);pointer-events:none;display:none}.chart-tip{position:absolute;z-index:4;display:none;pointer-events:none;min-width:145px;padding:8px 10px;border-radius:9px;background:rgba(4,9,17,.94);border:1px solid #334155;box-shadow:0 8px 22px rgba(0,0,0,.35);font-size:11px;line-height:1.55;color:var(--text);white-space:nowrap}.chart-tip .d{font-weight:800;margin-bottom:2px}.chart-tip .ty{color:#7aa7ff}.chart-tip .ly{color:#b5c0d1}.drag-hint{position:absolute;right:8px;top:7px;color:#6f8098;font-size:9px;pointer-events:none}
 .note{color:var(--muted);font-size:11px;margin-top:16px}.empty{padding:30px;text-align:center;color:var(--muted)}
 @media(max-width:1000px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:1fr 1fr}.paid-grid{grid-template-columns:1fr 1fr}.wrap{padding:16px}.chartbox{height:225px}}
-</style>
+.hubnav{position:fixed;left:0;top:0;bottom:0;width:230px;padding:22px 14px;overflow:auto;background:#050912;border-right:1px solid var(--line);z-index:10}.hubbrand{font-weight:900;font-size:17px;padding:0 10px 18px}.hubgroup{color:#61718a;font-size:10px;text-transform:uppercase;padding:18px 10px 6px}.hubnav a{display:block;color:#aab6c8;text-decoration:none;padding:10px;border-radius:9px;font-size:12px}.hubnav a:hover,.hubnav a.active{color:#fff;background:#14213a}.hubmain{margin-left:230px;min-width:0}@media(max-width:760px){.hubnav{position:sticky;top:0;width:100%;height:auto;display:flex;gap:6px;padding:9px;overflow-x:auto;white-space:nowrap}.hubbrand,.hubgroup{display:none}.hubnav a{flex:0 0 auto;padding:8px 10px}.hubmain{margin-left:0}}</style>
 </head>
 <body>
+<aside class="hubnav"><div class="hubbrand">CSK E-COMM</div><div class="hubgroup">Core</div><a href="../index.html#summary">Summary</a><a href="../index.html#daily">Owned.com Report</a><div class="hubgroup">Performance Analysis</div><a class="active" href="performance_dashboard.html">Performance Dashboard</a><a href="../index.html#pdp_priority">PDP 이탈 우선순위</a><a href="../index.html#utm_channel">소스/매체 분석</a><a href="../index.html#funnel">Funnel 분석</a><a href="../index.html#product_keyword">상품 성과</a><a href="../index.html#purchase_pattern">구매 패턴 분석</a><a href="../index.html#member">회원 분석</a><div class="hubgroup">CRM & AI</div><a href="../index.html#owned">OWNED MESSAGE</a><a href="../index.html#ai_agent">AI Agent</a><div class="hubgroup">Price & Competitor</div><a href="../index.html#price">네이버 최저가</a><a href="../index.html#competitor">경쟁사 분석</a><div class="hubgroup">VOC</div><a href="../index.html#voc">커뮤니티</a><a href="../index.html#crema">공식몰 리뷰</a><a href="../index.html#blogvoc">네이버 블로그</a></aside><main class="hubmain">
 <div class="wrap">
 <h1>Performance Dashboard</h1>
 <div class="sub">GA4 BigQuery + Paid media report · 최대 최근 6개월 · 선택 기간 Revenue 기준 Top 20 Source / Medium · LY 동기간 비교</div>
@@ -201,7 +202,7 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
 <div id="grid" class="grid"><div class="panel empty">최근 3개월 Top 20 그래프 불러오는 중...</div></div>
 <div id="pager" class="pager"></div>
 <div class="note">광고비는 업로드된 매체 리포트의 총비용(VAT 제외) 기준입니다. GA ROAS는 리포트 GA 전환매출 ÷ 광고비, Media ROAS는 매체 전환매출 ÷ 광고비입니다. 파란 실선은 TY / 회색 점선은 LY.</div>
-</div>
+</div></main>
 <script type="application/json" id="initialPayload">__INITIAL_PAYLOAD__</script>
 <script>
 const MIN_DATE='__MIN_DATE__',MAX_DATE='__MAX_DATE__',INITIAL_START='__INITIAL_START__',VERSION='__VERSION__',TOP_N=20;
