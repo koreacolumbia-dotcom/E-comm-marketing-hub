@@ -91,6 +91,28 @@ jobs:
           test -s reports/performance_data_recent.json.gz
           test -s reports/performance_export.xlsx
 
+      - name: Set default Performance range to 3 months
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('reports/performance_dashboard.html')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace(
+              '<button data-days="31" class="active">최근 31일</button><button data-months="3">최근 3개월</button>',
+              '<button data-days="31">최근 31일</button><button data-months="3" class="active">최근 3개월</button>'
+          )
+          s = s.replace('최근 31일 데이터 불러오는 중...', '최근 3개월 데이터 불러오는 중...')
+          old = "(async function start(){try{initial=await fetchPayload('performance_initial');renderInitial()}catch(err){"
+          new = "(async function start(){try{initial=await fetchPayload('performance_initial');const defaultBtn=document.querySelector('.preset button[data-months=\"3\"]');if(defaultBtn){defaultBtn.click()}else{renderInitial()}}catch(err){"
+          if old not in s:
+              raise SystemExit('Default start hook not found in performance_dashboard.html')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          print('Performance default range: recent 3 months')
+          PY
+
       - name: Add Performance menu to hub and bust cache
         shell: bash
         run: |
