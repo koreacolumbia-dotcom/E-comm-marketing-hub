@@ -646,20 +646,19 @@
         resolvedTarget = await resolveLatestDailyDigestTarget();
       }
 
-      if (key === "performance") {
-        window.location.href = toAbsHref(resolvedTarget);
-        return;
-      }
-
       showLoading(true);
 
       const onLoadOnce = () => {
         showLoading(false);
         frame.removeEventListener("load", onLoadOnce);
 
-        resizeIframeToContent();
-        setTimeout(resizeIframeToContent, 250);
-        setTimeout(resizeIframeToContent, 900);
+        if (key === "performance") {
+          frame.style.height = "1180px";
+        } else {
+          resizeIframeToContent();
+          setTimeout(resizeIframeToContent, 250);
+          setTimeout(resizeIframeToContent, 900);
+        }
       };
       frame.addEventListener("load", onLoadOnce);
 
@@ -690,7 +689,8 @@
         const data = event && event.data ? event.data : null;
         if (!data || data.type !== "dailyDigestResize") return;
         const nextHeight = Number(data.height || 0);
-        if (Number.isFinite(nextHeight) && nextHeight > 200) {
+        const currentKey = (window.location.hash || "").replace("#", "");
+        if (currentKey !== "performance" && Number.isFinite(nextHeight) && nextHeight > 200) {
           frame.style.height = (nextHeight + 16) + "px";
           setTimeout(resizeIframeToContent, 80);
         }
