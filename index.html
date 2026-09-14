@@ -646,6 +646,11 @@
         resolvedTarget = await resolveLatestDailyDigestTarget();
       }
 
+      if (key === "performance") {
+        window.location.href = toAbsHref(resolvedTarget);
+        return;
+      }
+
       showLoading(true);
 
       const onLoadOnce = () => {
