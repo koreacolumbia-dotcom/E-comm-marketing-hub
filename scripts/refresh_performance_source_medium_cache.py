@@ -61,7 +61,7 @@ def query(a, b):
         SUM(page_view) AS page_views
       FROM base
       WHERE ga_session_id IS NOT NULL
-      GROUP BY 1,2
+      GROUP BY 1,2,3
     )
     SELECT
       event_date, source, medium,
