@@ -36,16 +36,25 @@ def load_ad_rows():
     df = pd.read_csv(AD_CACHE)
     for c in ["spend", "platform_revenue", "report_ga_revenue"]:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
-    return [
-        {
-            "date": str(r.date)[:10],
+    rows = []
+    for r in df.itertuples(index=False):
+        actual = pd.Timestamp(str(r.date)[:10])
+        if base.DATA_START <= actual <= base.END:
+            period, display = "ty", actual
+        elif base.LY_START <= actual <= base.LY_END:
+            period, display = "ly", actual + pd.DateOffset(years=1)
+        else:
+            continue
+        rows.append({
+            "date": display.strftime("%Y-%m-%d"),
+            "actual_date": actual.strftime("%Y-%m-%d"),
+            "period": period,
             "channel": str(r.channel),
             "spend": round(float(r.spend), 2),
             "platform_revenue": round(float(r.platform_revenue), 2),
             "report_ga_revenue": round(float(r.report_ga_revenue), 2),
-        }
-        for r in df.itertuples(index=False)
-    ]
+        })
+    return rows
 
 
 def cached_load(a, b):
@@ -54,7 +63,7 @@ def cached_load(a, b):
         return base.load(a, b)
     df = pd.read_csv(CACHE)
     df["event_date"] = pd.to_datetime(df["event_date"])
-    for c in ["sessions", "purchases", "revenue"]:
+    for c in ["sessions", "users", "page_views", "purchases", "revenue"]:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
     df["source"] = df["source"].fillna("(direct)").astype(str)
     df["medium"] = df["medium"].fillna("(none)").astype(str)
@@ -78,9 +87,11 @@ def write_payload(path_json, path_gz, payload):
 
 
 def aggregate(rows):
-    out = {"sessions": 0, "purchases": 0, "revenue": 0.0}
+    out = {"sessions": 0, "users": 0, "page_views": 0, "purchases": 0, "revenue": 0.0}
     for r in rows:
         out["sessions"] += int(r.get("sessions", 0) or 0)
+        out["users"] += int(r.get("users", 0) or 0)
+        out["page_views"] += int(r.get("page_views", 0) or 0)
         out["purchases"] += int(r.get("purchases", 0) or 0)
         out["revenue"] += float(r.get("revenue", 0) or 0)
     out["revenue"] = round(out["revenue"], 2)
@@ -91,8 +102,10 @@ def by_sm(rows):
     out = {}
     for r in rows:
         sm = r["sm"]
-        a = out.setdefault(sm, {"sessions": 0, "purchases": 0, "revenue": 0.0})
+        a = out.setdefault(sm, {"sessions": 0, "users": 0, "page_views": 0, "purchases": 0, "revenue": 0.0})
         a["sessions"] += int(r.get("sessions", 0) or 0)
+        a["users"] += int(r.get("users", 0) or 0)
+        a["page_views"] += int(r.get("page_views", 0) or 0)
         a["purchases"] += int(r.get("purchases", 0) or 0)
         a["revenue"] += float(r.get("revenue", 0) or 0)
     for a in out.values():
@@ -106,13 +119,15 @@ def build_series(rows, sm, dates):
         if r["sm"] != sm:
             continue
         d = r["date"]
-        a = lookup.setdefault(d, {"sessions": 0, "purchases": 0, "revenue": 0.0})
+        a = lookup.setdefault(d, {"sessions": 0, "users": 0, "page_views": 0, "purchases": 0, "revenue": 0.0})
         a["sessions"] += int(r.get("sessions", 0) or 0)
+        a["users"] += int(r.get("users", 0) or 0)
+        a["page_views"] += int(r.get("page_views", 0) or 0)
         a["purchases"] += int(r.get("purchases", 0) or 0)
         a["revenue"] += float(r.get("revenue", 0) or 0)
     return {
         metric: [round(float(lookup.get(d, {}).get(metric, 0) or 0), 2) for d in dates]
-        for metric in ["revenue", "sessions", "purchases"]
+        for metric in ["revenue", "sessions", "users", "page_views", "purchases"]
     }
 
 
@@ -121,9 +136,16 @@ def build_initial_payload(payload, initial_start, max_date):
     ly = [r for r in payload["ly"] if initial_start <= r["date"] <= max_date]
     ty_sm = by_sm(ty)
     ly_sm = by_sm(ly)
-    top_sms = [
-        sm for sm, _ in sorted(ty_sm.items(), key=lambda kv: kv[1]["revenue"], reverse=True)[:TOP_N]
-    ]
+    top_sms = []
+    for window_start in [
+        max(initial_start, (pd.Timestamp(max_date) - pd.Timedelta(days=30)).strftime("%Y-%m-%d")),
+        max(initial_start, (pd.Timestamp(max_date) - pd.DateOffset(months=3) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")),
+        initial_start,
+    ]:
+        window_sm = by_sm([r for r in ty if r["date"] >= window_start])
+        for sm, _ in sorted(window_sm.items(), key=lambda kv: kv[1]["revenue"], reverse=True)[:TOP_N]:
+            if sm not in top_sms:
+                top_sms.append(sm)
     dates = [
         d.strftime("%Y-%m-%d")
         for d in pd.date_range(pd.Timestamp(initial_start), pd.Timestamp(max_date), freq="D")
@@ -133,8 +155,8 @@ def build_initial_payload(payload, initial_start, max_date):
         top.append(
             {
                 "sm": sm,
-                "ty": ty_sm.get(sm, {"sessions": 0, "purchases": 0, "revenue": 0}),
-                "ly": ly_sm.get(sm, {"sessions": 0, "purchases": 0, "revenue": 0}),
+                "ty": ty_sm.get(sm, {"sessions": 0, "users": 0, "page_views": 0, "purchases": 0, "revenue": 0}),
+                "ly": ly_sm.get(sm, {"sessions": 0, "users": 0, "page_views": 0, "purchases": 0, "revenue": 0}),
                 "series": {
                     "ty": build_series(ty, sm, dates),
                     "ly": build_series(ly, sm, dates),
@@ -387,7 +409,7 @@ def fast_render(cur, ly):
         "ty": [r for r in payload["ty"] if r["date"] >= initial_start],
         "ly": [r for r in payload["ly"] if r["date"] >= initial_start],
     }
-    initial_payload = build_initial_payload(payload, initial_start, max_date)
+    initial_payload = build_initial_payload(payload, min_date, max_date)
 
     full_bytes = write_payload(DATA_JSON, DATA_GZ, payload)
     recent_bytes = write_payload(DATA_RECENT_JSON, DATA_RECENT_GZ, recent_payload)
@@ -404,9 +426,9 @@ def fast_render(cur, ly):
     html = pre_render_initial_graphs(html, initial_payload)
 
     print(
-        f"Performance payloads: initial-3m {initial_bytes/1024:.1f} KiB; "
+        f"Performance payloads: initial-6m {initial_bytes/1024:.1f} KiB; "
         f"3m rows {recent_bytes/1024:.1f} KiB; full rows {full_bytes/1024:.1f} KiB. "
-        f"Initial tab uses precomputed 3-month Top {TOP_N}; full payload is lazy for 6-month and custom ranges."
+        f"Initial tab uses precomputed 1/3/6-month Top {TOP_N} union; full payload is only a fallback."
     )
     return html
 
