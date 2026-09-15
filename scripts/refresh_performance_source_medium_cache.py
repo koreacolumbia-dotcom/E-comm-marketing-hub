@@ -31,6 +31,7 @@ def query(a, b):
         TIMESTAMP_MICROS(event_timestamp) AS event_ts,
         user_pseudo_id,
         event_name,
+        IF(event_name='page_view', 1, 0) AS page_view,
         (SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id') AS ga_session_id,
         COALESCE(
           session_traffic_source_last_click.manual_campaign.source,
@@ -51,11 +52,13 @@ def query(a, b):
     ), sessions AS (
       SELECT
         event_date,
+        user_pseudo_id,
         CONCAT(user_pseudo_id, '-', CAST(ga_session_id AS STRING)) AS session_key,
         ARRAY_AGG(source IGNORE NULLS ORDER BY event_ts LIMIT 1)[SAFE_OFFSET(0)] AS source,
         ARRAY_AGG(medium IGNORE NULLS ORDER BY event_ts LIMIT 1)[SAFE_OFFSET(0)] AS medium,
         COUNT(DISTINCT IF(event_name='purchase', transaction_id, NULL)) AS purchases,
-        SUM(IF(event_name='purchase', revenue, 0)) AS revenue
+        SUM(IF(event_name='purchase', revenue, 0)) AS revenue,
+        SUM(page_view) AS page_views
       FROM base
       WHERE ga_session_id IS NOT NULL
       GROUP BY 1,2
@@ -63,6 +66,8 @@ def query(a, b):
     SELECT
       event_date, source, medium,
       COUNT(DISTINCT session_key) AS sessions,
+      COUNT(DISTINCT user_pseudo_id) AS users,
+      SUM(page_views) AS page_views,
       SUM(purchases) AS purchases,
       SUM(revenue) AS revenue
     FROM sessions
@@ -72,7 +77,7 @@ def query(a, b):
 
 def fetch(a, b):
     if a > b:
-        return pd.DataFrame(columns=["event_date","source","medium","sessions","purchases","revenue"])
+        return pd.DataFrame(columns=["event_date","source","medium","sessions","users","page_views","purchases","revenue"])
     print(f"BigQuery refresh {a.date()} ~ {b.date()}")
     df = bigquery.Client(project=PROJECT).query(query(a, b)).to_dataframe()
     if df.empty:
@@ -80,14 +85,14 @@ def fetch(a, b):
     df["event_date"] = pd.to_datetime(df["event_date"])
     df["source"] = df["source"].fillna("(direct)").astype(str)
     df["medium"] = df["medium"].fillna("(none)").astype(str)
-    for c in ["sessions","purchases","revenue"]:
+    for c in ["sessions","users","page_views","purchases","revenue"]:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
     return df
 
 
 def load_cache():
     if not CACHE.exists() or CACHE.stat().st_size == 0:
-        return pd.DataFrame(columns=["event_date","source","medium","sessions","purchases","revenue"])
+        return pd.DataFrame(columns=["event_date","source","medium","sessions","users","page_views","purchases","revenue"])
     df = pd.read_csv(CACHE)
     df["event_date"] = pd.to_datetime(df["event_date"])
     return df
@@ -101,7 +106,8 @@ def replace_range(cache, fresh, a, b):
 def main():
     cache = load_cache()
     required_start, required_end = LY_START, END
-    full_backfill = cache.empty or cache.event_date.min() > LY_START or cache.event_date.max() < (END - pd.Timedelta(days=7))
+    required_columns = {"users", "page_views"}
+    full_backfill = cache.empty or not required_columns.issubset(cache.columns) or cache.event_date.min() > LY_START or cache.event_date.max() < (END - pd.Timedelta(days=7))
 
     if full_backfill:
         print("Cache missing/incomplete: one-time backfill")
