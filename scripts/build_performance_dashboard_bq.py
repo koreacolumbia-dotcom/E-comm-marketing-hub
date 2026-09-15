@@ -26,6 +26,7 @@ def query(a, b):
         TIMESTAMP_MICROS(event_timestamp) AS event_ts,
         user_pseudo_id,
         event_name,
+        IF(event_name='page_view', 1, 0) AS page_view,
         (SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id') AS ga_session_id,
         COALESCE(
           session_traffic_source_last_click.manual_campaign.source,
@@ -51,19 +52,23 @@ def query(a, b):
     ), sessions AS (
       SELECT
         event_date,
+        user_pseudo_id,
         CONCAT(user_pseudo_id, '-', CAST(ga_session_id AS STRING)) AS session_key,
         ARRAY_AGG(source IGNORE NULLS ORDER BY event_ts LIMIT 1)[SAFE_OFFSET(0)] AS source,
         ARRAY_AGG(medium IGNORE NULLS ORDER BY event_ts LIMIT 1)[SAFE_OFFSET(0)] AS medium,
         ARRAY_AGG(campaign IGNORE NULLS ORDER BY event_ts LIMIT 1)[SAFE_OFFSET(0)] AS campaign,
         COUNT(DISTINCT IF(event_name='purchase', transaction_id, NULL)) AS purchases,
-        SUM(IF(event_name='purchase', revenue, 0)) AS revenue
+        SUM(IF(event_name='purchase', revenue, 0)) AS revenue,
+        SUM(page_view) AS page_views
       FROM base
       WHERE ga_session_id IS NOT NULL
-      GROUP BY 1,2
+      GROUP BY 1,2,3
     )
     SELECT
       event_date, source, medium, campaign,
       COUNT(DISTINCT session_key) AS sessions,
+      COUNT(DISTINCT user_pseudo_id) AS users,
+      SUM(page_views) AS page_views,
       SUM(purchases) AS purchases,
       SUM(revenue) AS revenue
     FROM sessions
@@ -75,7 +80,7 @@ def load(a, b):
     client = bigquery.Client(project=PROJECT)
     df = client.query(query(a, b)).to_dataframe()
     df["event_date"] = pd.to_datetime(df["event_date"])
-    for c in ["sessions", "purchases", "revenue"]:
+    for c in ["sessions", "users", "page_views", "purchases", "revenue"]:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
     df["source"] = df["source"].fillna("(direct)").astype(str)
     df["medium"] = df["medium"].fillna("(none)").astype(str)
@@ -85,7 +90,7 @@ def load(a, b):
 
 
 def daily_payload(df, period):
-    g = df.groupby(["event_date", "source_medium"], as_index=False)[["sessions", "purchases", "revenue"]].sum()
+    g = df.groupby(["event_date", "source_medium"], as_index=False)[["sessions", "users", "page_views", "purchases", "revenue"]].sum()
     if period == "ly":
         g["display_date"] = g["event_date"] + pd.DateOffset(years=1)
     else:
@@ -96,6 +101,8 @@ def daily_payload(df, period):
             "date": r["display_date"].strftime("%Y-%m-%d"),
             "sm": r["source_medium"],
             "sessions": int(round(float(r["sessions"]))),
+            "users": int(round(float(r["users"]))),
+            "page_views": int(round(float(r["page_views"]))),
             "purchases": int(round(float(r["purchases"]))),
             "revenue": round(float(r["revenue"]), 2),
         })
