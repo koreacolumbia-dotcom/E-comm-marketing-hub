@@ -594,11 +594,10 @@ def build_numeric_alerts(df: pd.DataFrame, max_alerts: int = 80) -> pd.DataFrame
     """Strict DoD numeric alerts. No narrative insights, only measurable alerts."""
     if df.empty:
         return pd.DataFrame()
+    # Numeric alerts must identify the actionable source / medium, not a broad
+    # channel such as "2. Paid". Keep the broader fields only for filtering.
     scopes = [
-        ("channel", ["channel_group"]),
-        ("media", ["channel_group", "media_family"]),
         ("source_medium", ["channel_group", "media_family", "source", "medium"]),
-        ("campaign", ["channel_group", "media_family", "source", "medium", "campaign"]),
     ]
     alerts = []
     for scope_name, scope_cols in scopes:
@@ -606,7 +605,10 @@ def build_numeric_alerts(df: pd.DataFrame, max_alerts: int = 80) -> pd.DataFrame
         if compare.empty:
             continue
         for _, row in compare.iterrows():
-            scope_label = " / ".join(str(row.get(c, "-")) for c in scope_cols)
+            scope_label = " / ".join(
+                str(row.get(c, "-")) for c in ("source", "medium")
+                if str(row.get(c, "-")).strip() not in {"", "-", "(not set)"}
+            ) or "소스 / 매체 미지정"
             for metric, rule in ALERT_RULES.items():
                 if metric not in compare.columns or f"prev_{metric}" not in compare.columns:
                     continue
@@ -642,6 +644,16 @@ def build_numeric_alerts(df: pd.DataFrame, max_alerts: int = 80) -> pd.DataFrame
     if alert_df.empty:
         return alert_df
     # Dedupe: same scope + metric can appear in multiple broader labels; keep highest score.
+    # Message/CRM and supporter traffic is intentionally omitted from drop
+    # alerts: scheduled sends and creator posting cadence create expected drops.
+    excluded_drop_categories = r"message|supporter|supporters|메시지|서포터즈"
+    drop_is_excluded = (
+        alert_df["direction"].eq("DOWN")
+        & alert_df["channel_group"].fillna("").astype(str).str.contains(
+            excluded_drop_categories, case=False, regex=True
+        )
+    )
+    alert_df = alert_df.loc[~drop_is_excluded]
     alert_df = alert_df.sort_values("score", ascending=False)
     alert_df = alert_df.drop_duplicates(["scope", "scope_label", "metric"], keep="first")
     return alert_df.head(max_alerts).reset_index(drop=True)
@@ -1245,7 +1257,61 @@ const alertMetricLabels={sessions:'세션',users:'사용자',signups:'회원가�
 function formatMetricValue(metric, value){if(metric==='revenue'||metric==='aov_per_buyer') return money(value); if(metric==='signup_cvr'||metric==='buy_cvr') return pct(value); if(metric==='avg_signup_user_pv'||metric==='pv_per_user') return one(value); return num(value);} 
 function formatMetricDelta(metric, value){if(metric==='revenue'||metric==='aov_per_buyer') return money(value); if(metric==='signup_cvr'||metric==='buy_cvr') return `${value>=0?'+':''}${n(value).toFixed(1)}%p`; if(metric==='avg_signup_user_pv'||metric==='pv_per_user') return `${value>=0?'+':''}${n(value).toFixed(1)}`; return `${value>=0?'+':''}${num(value)}`;}
 function alertScoreJs(curr, prev, metric, rule){if(prev<=0) return 0; if(rule.type==='point'){return Math.abs(curr-prev)/Math.max(n(rule.point||0.1),0.1);} const rate=Math.abs((curr/prev-1)*100); const absDelta=Math.abs(curr-prev); return (rate/Math.max(n(rule.rate||1),1)) + (absDelta/Math.max(n(rule.abs||1),1));}
-function buildAlerts(curArr, prevArr){if(document.getElementById('compareMode').value==='none') return []; const scopes=[{scope:'channel',keys:['channel_group']},{scope:'media',keys:['channel_group','media_name']},{scope:'source_medium',keys:['channel_group','media_name','source','medium']},{scope:'campaign',keys:['channel_group','media_name','source','medium','campaign']}]; const normalize=(arr)=>arr.map(r=>({...r, media_name:preferredMediaName(r)})); const curNorm=normalize(curArr), prevNorm=normalize(prevArr); const alerts=[]; scopes.forEach(sc=>{const curGrouped=groupBy(curNorm, sc.keys); const prevGrouped=groupBy(prevNorm, sc.keys); const prevMap=new Map(prevGrouped.map(row=>[sc.keys.map(k=>String(row[k]??'-')).join('||'), row])); curGrouped.forEach(row=>{const mapKey=sc.keys.map(k=>String(row[k]??'-')).join('||'); const prev=prevMap.get(mapKey); if(!prev) return; const scopeLabel=sc.keys.map(k=>String(row[k]??'-')).filter(v=>v && v!=='-' && v!=='(not set)').join(' / '); Object.entries(alertRules).forEach(([metric, rule])=>{const curr=n(row[metric]); const prevVal=n(prev[metric]); if(prevVal<=0) return; if(rule.minBaseMetric){const baseNow=n(row[rule.minBaseMetric]); const basePrev=n(prev[rule.minBaseMetric]); if(baseNow<n(rule.minBase||0) && basePrev<n(rule.minBase||0)) return;} if(rule.type==='point'){const maxSessions=Math.max(n(row.sessions), n(prev.sessions)); if(maxSessions<n(rule.min_sessions||0)) return; if(Math.abs(curr-prevVal)<n(rule.point||0)) return;} else {const rate=((curr/prevVal)-1)*100; if(Math.abs(rate)<n(rule.rate||0) || Math.abs(curr-prevVal)<n(rule.abs||0) || prevVal<n(rule.min_prev||0)) return;} const delta=curr-prevVal; const rate=prevVal?((curr/prevVal)-1)*100:0; alerts.push({scope:sc.scope, scope_label:scopeLabel||sc.scope, metric, metric_label:alertMetricLabels[metric]||metric, current:curr, previous:prevVal, delta, delta_rate:rate, direction:delta>=0?'UP':'DOWN', score:alertScoreJs(curr, prevVal, metric, rule)});});});}); const seen=new Set(); return alerts.sort((a,b)=>b.score-a.score).filter(a=>{const k=[a.scope,a.scope_label,a.metric].join('||'); if(seen.has(k)) return false; seen.add(k); return true;});} 
+function buildAlerts(curArr, prevArr){
+  if(document.getElementById('compareMode').value==='none') return [];
+  // Keep alerts actionable: always aggregate at detailed source / medium.
+  // Broader channel fields remain in the key so Message/Supporters drops can
+  // be excluded without merging unlike traffic buckets.
+  const scopes=[{scope:'source_medium',keys:['channel_group','media_name','source','medium']}];
+  const normalize=(arr)=>arr.map(r=>({...r, media_name:preferredMediaName(r)}));
+  const curNorm=normalize(curArr), prevNorm=normalize(prevArr);
+  const alerts=[];
+  scopes.forEach(sc=>{
+    const curGrouped=groupBy(curNorm, sc.keys);
+    const prevGrouped=groupBy(prevNorm, sc.keys);
+    const prevMap=new Map(prevGrouped.map(row=>[sc.keys.map(k=>String(row[k]??'-')).join('||'), row]));
+    curGrouped.forEach(row=>{
+      const mapKey=sc.keys.map(k=>String(row[k]??'-')).join('||');
+      const prev=prevMap.get(mapKey);
+      if(!prev) return;
+      const scopeLabel=['source','medium'].map(k=>String(row[k]??'-')).filter(v=>v&&v!=='-'&&v!=='(not set)').join(' / ')||'소스 / 매체 미지정';
+      Object.entries(alertRules).forEach(([metric, rule])=>{
+        const curr=n(row[metric]); const prevVal=n(prev[metric]);
+        if(prevVal<=0) return;
+        if(rule.minBaseMetric){
+          const baseNow=n(row[rule.minBaseMetric]); const basePrev=n(prev[rule.minBaseMetric]);
+          if(baseNow<n(rule.minBase||0)&&basePrev<n(rule.minBase||0)) return;
+        }
+        if(rule.type==='point'){
+          const maxSessions=Math.max(n(row.sessions),n(prev.sessions));
+          if(maxSessions<n(rule.min_sessions||0)) return;
+          if(Math.abs(curr-prevVal)<n(rule.point||0)) return;
+        }else{
+          const rate=((curr/prevVal)-1)*100;
+          if(Math.abs(rate)<n(rule.rate||0)||Math.abs(curr-prevVal)<n(rule.abs||0)||prevVal<n(rule.min_prev||0)) return;
+        }
+        const delta=curr-prevVal;
+        const direction=delta>=0?'UP':'DOWN';
+        const categoryText=`${row.channel_group||''} ${row.media_name||''}`;
+        if(direction==='DOWN'&&/(message|supporter|supporters|메시지|서포터즈)/i.test(categoryText)) return;
+        const rate=prevVal?((curr/prevVal)-1)*100:0;
+        alerts.push({
+          scope:sc.scope,scope_label:scopeLabel,metric,
+          metric_label:alertMetricLabels[metric]||metric,current:curr,
+          previous:prevVal,delta,delta_rate:rate,direction,
+          score:alertScoreJs(curr,prevVal,metric,rule)
+        });
+      });
+    });
+  });
+  const seen=new Set();
+  return alerts.sort((a,b)=>b.score-a.score).filter(a=>{
+    const k=[a.scope,a.scope_label,a.metric].join('||');
+    if(seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
 
 function makeSparkSvg(values, color){
   const vals=(values||[]).map(n).filter(v=>isFinite(v));
@@ -1312,8 +1378,8 @@ function renderAlerts(arr){
     mount.innerHTML=`<div class="alert-card neutral"><div class="alert-head"><span class="state-chip neutral">알림 없음</span></div><div class="alert-title">선택 기간 기준 유의미한 수치 변동이 없습니다.</div><div class="alert-desc">비교 기간이 없거나 변동 폭이 작은 경우 알림이 생성되지 않습니다.</div></div>`;
     return;
   }
-  const ups=alerts.filter(a=>a.direction==='UP').sort((a,b)=>b.score-a.score).slice(0,5);
-  const downs=alerts.filter(a=>a.direction==='DOWN').sort((a,b)=>b.score-a.score).slice(0,5);
+  const ups=alerts.filter(a=>a.direction==='UP').sort((a,b)=>b.score-a.score).slice(0,10);
+  const downs=alerts.filter(a=>a.direction==='DOWN').sort((a,b)=>b.score-a.score).slice(0,10);
   const emptyUp=`<div class="alert-card neutral"><div class="alert-head"><span class="state-chip neutral">급등 없음</span></div><div class="alert-title">유의미한 상승 항목이 없습니다.</div><div class="alert-desc">비교 기간 대비 기준값 이상 상승한 지표만 노출합니다.</div></div>`;
   const emptyDown=`<div class="alert-card neutral"><div class="alert-head"><span class="state-chip neutral">급락 없음</span></div><div class="alert-title">유의미한 하락 항목이 없습니다.</div><div class="alert-desc">비교 기간 대비 기준값 이상 하락한 지표만 노출합니다.</div></div>`;
   mount.innerHTML=`<div class="alerts-wrap">
