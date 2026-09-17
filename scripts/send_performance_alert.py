@@ -134,8 +134,8 @@ def main():
         return
     host = os.getenv("SMTP_HOST", "smtp.office365.com")
     port = int(os.getenv("SMTP_PORT", "587"))
-    user = os.getenv("SMTP_USER") or os.getenv("MAIL_USERNAME")
-    password = os.getenv("SMTP_PASSWORD") or os.getenv("MAIL_PASSWORD")
+    user = os.getenv("SMTP_USER") or os.getenv("MAIL_USERNAME") or os.getenv("SMTP_EMAIL") or os.getenv("EMAIL_USER")
+    password = os.getenv("SMTP_PASSWORD") or os.getenv("MAIL_PASSWORD") or os.getenv("EMAIL_PASSWORD")
     sender = os.getenv("SMTP_FROM") or user
     if not user or not password or not sender:
         raise SystemExit("SMTP credentials missing: SMTP_USER/SMTP_PASSWORD (or MAIL_USERNAME/MAIL_PASSWORD)")
