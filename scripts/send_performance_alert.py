@@ -18,7 +18,7 @@ STATE = OUT / "performance_alert_state.json"
 RECIPIENT = os.getenv("PERFORMANCE_ALERT_TO", "hugh.kang@columbia.com")
 DASHBOARD_URL = os.getenv("PERFORMANCE_DASHBOARD_URL", "https://koreacolumbia-dotcom.github.io/E-comm-marketing-hub/#performance")
 DRY_RUN = os.getenv("PERFORMANCE_ALERT_DRY_RUN", "").lower() in {"1", "true", "yes"}
-TODAY = date.today()
+TODAY = date.fromisoformat(os.getenv("REPORT_TODAY", date.today().isoformat()))
 EXPECTED = TODAY - timedelta(days=1)
 
 
