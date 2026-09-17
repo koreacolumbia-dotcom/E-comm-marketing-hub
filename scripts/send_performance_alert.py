@@ -18,6 +18,7 @@ STATE = OUT / "performance_alert_state.json"
 RECIPIENT = os.getenv("PERFORMANCE_ALERT_TO", "hugh.kang@columbia.com")
 DASHBOARD_URL = os.getenv("PERFORMANCE_DASHBOARD_URL", "https://koreacolumbia-dotcom.github.io/E-comm-marketing-hub/#performance")
 DRY_RUN = os.getenv("PERFORMANCE_ALERT_DRY_RUN", "").lower() in {"1", "true", "yes"}
+FORCE_TEST = os.getenv("PERFORMANCE_ALERT_FORCE_TEST", "").lower() in {"1", "true", "yes"}
 TODAY = date.fromisoformat(os.getenv("REPORT_TODAY", date.today().isoformat()))
 EXPECTED = TODAY - timedelta(days=1)
 
@@ -116,6 +117,8 @@ def render_html(alerts, ga_last, ad_last):
 def main():
     payload = json.loads(DATA.read_text(encoding="utf-8"))
     alerts, ga_last, ad_last = build_alerts(payload)
+    if FORCE_TEST:
+        add_alert(alerts, "warning", "테스트 발송", "발송 경로 정상", "수신 여부 확인", "Performance 알림 메일의 발송 경로와 HTML 디자인을 확인하기 위한 테스트입니다.")
     if not alerts:
         print("Performance alert: healthy, no email")
         return
@@ -124,7 +127,7 @@ def main():
     if STATE.exists():
         try: previous = json.loads(STATE.read_text(encoding="utf-8"))
         except Exception: pass
-    if previous.get("signature") == signature:
+    if not FORCE_TEST and previous.get("signature") == signature:
         print("Performance alert: duplicate state, no email")
         return
     html_body = render_html(alerts, ga_last, ad_last)
@@ -140,7 +143,7 @@ def main():
     if not user or not password or not sender:
         raise SystemExit("SMTP credentials missing: SMTP_USER/SMTP_PASSWORD (or MAIL_USERNAME/MAIL_PASSWORD)")
     msg = EmailMessage()
-    msg["Subject"] = f"[Performance 확인 필요] {EXPECTED.isoformat()} · {len(alerts)}개 이상 징후"
+    msg["Subject"] = (f"[TEST] Performance 알림 메일 · {EXPECTED.isoformat()}" if FORCE_TEST else f"[Performance 확인 필요] {EXPECTED.isoformat()} · {len(alerts)}개 이상 징후")
     msg["From"] = sender
     msg["To"] = RECIPIENT
     msg.set_content("Performance Dashboard 데이터 확인이 필요합니다. HTML 메일을 지원하는 환경에서 확인해주세요.")
@@ -149,7 +152,7 @@ def main():
         smtp.starttls(context=ssl.create_default_context())
         smtp.login(user, password)
         smtp.send_message(msg)
-    STATE.write_text(json.dumps({"signature": signature, "sent_at": datetime.now().isoformat(), "alerts": alerts}, ensure_ascii=False, indent=2), encoding="utf-8")
+    STATE.write_text(json.dumps({"signature": signature, "sent_at": datetime.now().isoformat(), "test": FORCE_TEST, "alerts": alerts}, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Performance alert sent to {RECIPIENT}: {len(alerts)} alerts")
 
 
