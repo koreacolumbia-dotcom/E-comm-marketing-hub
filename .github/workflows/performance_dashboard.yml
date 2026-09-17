@@ -77,7 +77,8 @@ jobs:
           OUT_DIR: reports
         run: |
           python -u scripts/refresh_performance_source_medium_cache.py
-          test -s reports/performance_source_medium_daily.csv reports/performance_alert_state.json
+          test -s reports/performance_source_medium_daily.csv
+          if [ -f reports/performance_alert_state.json ]; then git add reports/performance_alert_state.json; fi
 
       - name: Build performance dashboard from cache
         env:
