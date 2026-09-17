@@ -784,6 +784,9 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
       };
       const start = async () => {
         initialData=await loadJson("performance_initial");
+        const latestEnd=initialData.end, latestStart=addDays(addMonths(latestEnd,-3),1);
+        q("#endDate").value=latestEnd;q("#endDate").max=latestEnd;
+        q("#startDate").value=latestStart;q("#startDate").max=latestEnd;
         q("#exportExcelBtn").onclick=exportExcel;
         q("#applyBtn").onclick=render;
         q("#metric").onchange=()=>{q("#graphMetric").value=q("#metric").value;render();};q("#graphMetric").onchange=()=>{q("#metric").value=q("#graphMetric").value;render();};
