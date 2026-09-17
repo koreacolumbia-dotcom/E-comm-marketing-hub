@@ -12,6 +12,7 @@ on:
       - 'scripts/build_performance_dashboard_cached.py'
       - 'scripts/refresh_performance_source_medium_cache.py'
       - 'reports/performance_ad_spend_daily.csv'
+      - 'scripts/send_performance_alert.py'
 
 concurrency:
   group: performance-dashboard
@@ -63,9 +64,11 @@ jobs:
           test -s scripts/build_performance_dashboard_bq.py
           test -s scripts/build_performance_dashboard_cached.py
           test -s scripts/refresh_performance_source_medium_cache.py
+          test -s scripts/send_performance_alert.py
           python -m py_compile scripts/build_performance_dashboard_bq.py
           python -m py_compile scripts/build_performance_dashboard_cached.py
           python -m py_compile scripts/refresh_performance_source_medium_cache.py
+          python -m py_compile scripts/send_performance_alert.py
 
       - name: Refresh daily source-medium cache
         env:
@@ -74,7 +77,7 @@ jobs:
           OUT_DIR: reports
         run: |
           python -u scripts/refresh_performance_source_medium_cache.py
-          test -s reports/performance_source_medium_daily.csv
+          test -s reports/performance_source_medium_daily.csv reports/performance_alert_state.json
 
       - name: Build performance dashboard from cache
         env:
@@ -91,6 +94,29 @@ jobs:
           test -s reports/performance_data_recent.json
           test -s reports/performance_data_recent.json.gz
           test -s reports/performance_export.xlsx
+
+      - name: Send alert only when Performance data needs review
+        shell: bash
+        env:
+          PERFORMANCE_ALERT_TO: hugh.kang@columbia.com
+          PERFORMANCE_DASHBOARD_URL: https://koreacolumbia-dotcom.github.io/E-comm-marketing-hub/#performance
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SMTP_USER:-}${MAIL_USERNAME:-}${SMTP_EMAIL:-}${EMAIL_USER:-}" ] && [ -n "${SMTP_PASSWORD:-}${MAIL_PASSWORD:-}${EMAIL_PASSWORD:-}" ]; then
+            python -u scripts/send_performance_alert.py
+          else
+            echo "::warning::Performance alert email skipped because SMTP credentials are not configured."
+          fi
 
       - name: Set default Performance range to 3 months
         shell: bash
