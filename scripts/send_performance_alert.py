@@ -132,8 +132,8 @@ def main():
         (OUT / "performance_alert_preview.html").write_text(html_body, encoding="utf-8")
         print(f"Performance alert dry-run: {len(alerts)} alerts")
         return
-    host = os.getenv("SMTP_HOST", "smtp.office365.com")
-    port = int(os.getenv("SMTP_PORT", "587"))
+    host = os.getenv("SMTP_HOST") or "smtp.office365.com"
+    port = int(os.getenv("SMTP_PORT") or "587")
     user = os.getenv("SMTP_USER") or os.getenv("MAIL_USERNAME") or os.getenv("SMTP_EMAIL") or os.getenv("EMAIL_USER")
     password = os.getenv("SMTP_PASSWORD") or os.getenv("MAIL_PASSWORD") or os.getenv("EMAIL_PASSWORD")
     sender = os.getenv("SMTP_FROM") or user
