@@ -1418,6 +1418,7 @@ jobs:
           GA4_PROPERTY_ID: "358593394"
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
           LOOKBACK_DAYS: "365"
+          INCREMENTAL_REFRESH_DAYS: "4"
           INCREMENTAL: "1"
         run: |
           set -euo pipefail
@@ -1439,7 +1440,8 @@ jobs:
 
           # First run: this script queries the latest 365 days.
           # Next runs: if reports/utm_channel/data/utm_channel_daily.json exists,
-          # the script queries only YMD and merges/replaces that date into JSON/CSV/HTML.
+          # the script re-queries the latest few days to absorb delayed GA4 exports,
+          # then merges/replaces that range in JSON/CSV/HTML.
           START_DATE="$(TZ=Asia/Seoul date -d "${YMD} -364 days" '+%Y-%m-%d')"
           END_DATE="${YMD}"
 
