@@ -1529,7 +1529,9 @@ def merge_incremental(existing: pd.DataFrame, new_df: pd.DataFrame, start_date: 
 
     Daily GitHub Actions flow:
     - First run: no JSON exists -> query 365 days.
-    - Next runs: JSON exists -> query only end_date, replace that date, then rewrite JSON/CSV/HTML.
+    - Next runs: JSON exists -> re-query the latest few days, replace that range,
+      then rewrite JSON/CSV/HTML. Re-querying a short window is intentional because
+      GA4 daily BigQuery exports can arrive one or more days late.
     """
     new_df = normalize_metric_cols(new_df)
     if existing.empty:
@@ -1560,12 +1562,14 @@ def merge_incremental(existing: pd.DataFrame, new_df: pd.DataFrame, start_date: 
 def parse_args() -> argparse.Namespace:
     yesterday = (now_kst().date() - timedelta(days=1))
     lookback_days = int(os.getenv("LOOKBACK_DAYS", os.getenv("TARGET_DAYS", "365")))
+    incremental_refresh_days = int(os.getenv("INCREMENTAL_REFRESH_DAYS", "4"))
     default_start = yesterday - timedelta(days=max(1, lookback_days) - 1)
     p = argparse.ArgumentParser(description="Build UTM / Source-Medium numeric alert report")
     p.add_argument("--start-date", default=os.getenv("START_DATE", ymd(default_start)), help="YYYY-MM-DD. Full-load start date. Default: yesterday - 364 days")
     p.add_argument("--end-date", default=os.getenv("END_DATE", ymd(yesterday)), help="YYYY-MM-DD. Usually yesterday KST")
     p.add_argument("--lookback-days", type=int, default=lookback_days, help="First-load window and JSON retention days. Default 365")
-    p.add_argument("--incremental", action="store_true", default=os.getenv("INCREMENTAL", "1").strip().lower() not in ("0", "false", "no", "n"), help="If output JSON exists, query only --end-date and merge. Default on")
+    p.add_argument("--incremental-refresh-days", type=int, default=incremental_refresh_days, help="Number of latest days to re-query during incremental builds. Default 4")
+    p.add_argument("--incremental", action="store_true", default=os.getenv("INCREMENTAL", "1").strip().lower() not in ("0", "false", "no", "n"), help="If output JSON exists, re-query the latest incremental refresh window and merge. Default on")
     p.add_argument("--force-full", action="store_true", default=os.getenv("FORCE_FULL", "0").strip().lower() in ("1", "true", "yes", "y"), help="Ignore existing JSON and rebuild full --start-date ~ --end-date")
     p.add_argument("--project", default=DEFAULT_PROJECT)
     p.add_argument("--events-table", default=DEFAULT_TABLE)
@@ -1595,16 +1599,17 @@ def main() -> None:
         if args.incremental and not args.force_full:
             existing_df = load_existing_json(args.output_json)
             if not existing_df.empty:
-                query_start = args.end_date
+                refresh_days = max(1, args.incremental_refresh_days)
+                query_start = ymd(pd.to_datetime(args.end_date).date() - timedelta(days=refresh_days - 1))
                 query_end = args.end_date
-                build_mode = "incremental_yesterday"
+                build_mode = "incremental_recent_days"
 
         print(f"[UTM] Build mode: {build_mode}")
         print(f"[UTM] Query range: {query_start} ~ {query_end}")
         print(f"[UTM] Events table: {args.events_table}")
         sql = build_ga4_bq_sql(args.events_table, query_start, query_end)
         queried_df = run_bigquery(sql, args.project)
-        if build_mode == "incremental_yesterday":
+        if build_mode == "incremental_recent_days":
             df = merge_incremental(existing_df, queried_df, query_start, query_end, args.lookback_days)
         else:
             df = queried_df
@@ -1626,6 +1631,7 @@ def main() -> None:
         "query_end": query_end,
         "build_mode": build_mode,
         "lookback_days": args.lookback_days,
+        "incremental_refresh_days": args.incremental_refresh_days,
         "ga4_property_id": DEFAULT_PROPERTY_ID,
         "source": "GA4 BigQuery Export",
         "events_table": args.events_table,
