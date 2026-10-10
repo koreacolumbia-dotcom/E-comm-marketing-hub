@@ -22,43 +22,52 @@
     "signups": 98.0
   },
   "channels": {
-    "Organic": {
-      "sessions": 2114.0,
-      "orders": 21.0,
-      "revenue": 2064379.9994629999
-    },
-    "Paid AD": {
-      "sessions": 6334.0,
-      "orders": 67.0,
-      "revenue": 6006940.000632
-    },
-    "Owned": {
-      "sessions": 401.0,
-      "orders": 22.0,
-      "revenue": 1298879.999959
-    },
     "Awareness": {
       "sessions": 4123.0,
       "orders": 1.0,
       "revenue": 71600.000381
     },
-    "SNS": {
+    "Paid Ad": {
+      "sessions": 6334.0,
+      "orders": 67.0,
+      "revenue": 6006940.000632
+    },
+    "Organic Traffic": {
+      "sessions": 2114.0,
+      "orders": 21.0,
+      "revenue": 2064379.9994629999
+    },
+    "Official SNS": {
       "sessions": 23.0,
       "orders": 0.0,
       "revenue": 0.0
     },
-    "Other": {
-      "sessions": 0.0,
+    "Owned Channel": {
+      "sessions": 401.0,
+      "orders": 22.0,
+      "revenue": 1298879.999959
+    },
+    "etc": {
+      "sessions": 68.0,
       "orders": 0.0,
-      "revenue": 1.000240445137024e-06
+      "revenue": 0.0
     },
     "Total": {
       "sessions": 12929.0,
       "orders": 111.0,
-      "revenue": 9441800.000436
+      "revenue": 9441800.000435
     }
   },
-  "built_at_kst": "2026-03-25 19:42:46",
+  "admin_kpis": {
+    "sessions": 0.0,
+    "orders": 0.0,
+    "buyers": 0.0,
+    "revenue": 0.0,
+    "signups": 97.0,
+    "aov": 0.0,
+    "source": "admin_bq_daily_erp_login_users:sessions"
+  },
+  "built_at_kst": "2026-10-10 15:29:35",
   "meta": {
     "mode": "daily",
     "end_date": "2025-10-10",
@@ -69,7 +78,7 @@
     "compare_label": "WoW",
     "yoy_start": "2024-10-11",
     "yoy_end": "2024-10-11",
-    "rising_basis": "qty"
+    "rising_basis": "views"
   },
   "overall": {
     "current": {
@@ -91,6 +100,56 @@
       "cvr": 0.004696171908353494
     }
   },
+  "admin_overall": {
+    "current": {
+      "date_start": "2025-10-10",
+      "date_end": "2025-10-10",
+      "sessions": 0.0,
+      "pv": 0.0,
+      "signups": 97.0,
+      "orders": 0.0,
+      "buyers": 0.0,
+      "qty": 0.0,
+      "revenue": 0.0,
+      "erp_revenue": 0.0,
+      "total_price": 0.0,
+      "cancel_amount": 0.0,
+      "aov": 0.0,
+      "source": "admin_bq_daily_erp_login_users:sessions"
+    },
+    "prev": {
+      "date_start": "2025-10-03",
+      "date_end": "2025-10-03",
+      "sessions": 0.0,
+      "pv": 0.0,
+      "signups": 59.0,
+      "orders": 0.0,
+      "buyers": 0.0,
+      "qty": 0.0,
+      "revenue": 0.0,
+      "erp_revenue": 0.0,
+      "total_price": 0.0,
+      "cancel_amount": 0.0,
+      "aov": 0.0,
+      "source": "admin_bq_daily_erp_login_users:sessions"
+    },
+    "yoy": {
+      "date_start": "2024-10-11",
+      "date_end": "2024-10-11",
+      "sessions": 0.0,
+      "pv": 0.0,
+      "signups": 76.0,
+      "orders": 0.0,
+      "buyers": 0.0,
+      "qty": 0.0,
+      "revenue": 0.0,
+      "erp_revenue": 0.0,
+      "total_price": 0.0,
+      "cancel_amount": 0.0,
+      "aov": 0.0,
+      "source": "admin_bq_daily_erp_login_users:sessions"
+    }
+  },
   "signup_users": {
     "current": 98.0,
     "prev": 59.0,
@@ -98,65 +157,100 @@
   },
   "channel_snapshot": [
     {
-      "bucket": "Organic",
-      "sessions": 2114.0,
-      "transactions": 21.0,
-      "purchaseRevenue": 2064379.9994629999,
-      "cvr": 0.009933774834437087,
-      "rev_dod": 0.06338028169014084,
-      "rev_yoy": -0.2784982935153584
-    },
-    {
-      "bucket": "Paid AD",
-      "sessions": 6334.0,
-      "transactions": 67.0,
-      "purchaseRevenue": 6006940.000632,
-      "cvr": 0.010577833912219767,
-      "rev_dod": 0.25924453280318094,
-      "rev_yoy": 1.0491750242639923
-    },
-    {
-      "bucket": "Owned",
-      "sessions": 401.0,
-      "transactions": 22.0,
-      "purchaseRevenue": 1298879.999959,
-      "cvr": 0.05486284289276808,
-      "rev_dod": -0.3573717948717949,
-      "rev_yoy": -0.653114186851211
-    },
-    {
       "bucket": "Awareness",
       "sessions": 4123.0,
       "transactions": 1.0,
       "purchaseRevenue": 71600.000381,
-      "cvr": 0.00024254183846713557,
+      "session_dod": -0.19188553508428066,
+      "session_yoy": -0.22659913712249108,
+      "orders_dod": 0.0,
+      "orders_yoy": -0.8,
+      "revenue_dod": -0.6181536956636894,
+      "revenue_yoy": -0.8526958098902151,
       "rev_dod": -0.19188553508428066,
-      "rev_yoy": -0.3393686909149175
+      "rev_yoy": -0.22659913712249108
     },
     {
-      "bucket": "SNS",
+      "bucket": "Paid Ad",
+      "sessions": 6334.0,
+      "transactions": 67.0,
+      "purchaseRevenue": 6006940.000632,
+      "session_dod": 0.2589942357384218,
+      "session_yoy": 0.583104223944014,
+      "orders_dod": 0.5952380952380952,
+      "orders_yoy": 2.0454545454545454,
+      "revenue_dod": 0.5648982029093423,
+      "revenue_yoy": 1.3439796159479613,
+      "rev_dod": 0.2589942357384218,
+      "rev_yoy": 0.583104223944014
+    },
+    {
+      "bucket": "Organic Traffic",
+      "sessions": 2114.0,
+      "transactions": 21.0,
+      "purchaseRevenue": 2064379.9994629999,
+      "session_dod": 0.06338028169014084,
+      "session_yoy": -0.2784982935153584,
+      "orders_dod": 0.3125,
+      "orders_yoy": -0.16,
+      "revenue_dod": 0.5450789607559988,
+      "revenue_yoy": -0.5208597687033489,
+      "rev_dod": 0.06338028169014084,
+      "rev_yoy": -0.2784982935153584
+    },
+    {
+      "bucket": "Official SNS",
       "sessions": 23.0,
       "transactions": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -0.7850467289719626,
+      "session_yoy": -0.9368131868131868,
+      "orders_dod": 0.0,
+      "orders_yoy": -1.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": -1.0,
       "rev_dod": -0.7850467289719626,
       "rev_yoy": -0.9368131868131868
     },
     {
-      "bucket": "Other",
-      "sessions": 0.0,
+      "bucket": "Owned Channel",
+      "sessions": 401.0,
+      "transactions": 22.0,
+      "purchaseRevenue": 1298879.999959,
+      "session_dod": -0.3573717948717949,
+      "session_yoy": -0.653114186851211,
+      "orders_dod": -0.15384615384615385,
+      "orders_yoy": 0.6923076923076923,
+      "revenue_dod": 0.06270454273624101,
+      "revenue_yoy": -0.19780626978104868,
+      "rev_dod": -0.3573717948717949,
+      "rev_yoy": -0.653114186851211
+    },
+    {
+      "bucket": "etc",
+      "sessions": 68.0,
       "transactions": 0.0,
-      "purchaseRevenue": 1.000240445137024e-06,
-      "cvr": 0.0,
-      "rev_dod": 0.0,
-      "rev_yoy": -1.0
+      "purchaseRevenue": 0.0,
+      "session_dod": 0.19298245614035087,
+      "session_yoy": -0.7792207792207793,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
+      "rev_dod": 0.19298245614035087,
+      "rev_yoy": -0.7792207792207793
     },
     {
       "bucket": "Total",
       "sessions": 12929.0,
       "transactions": 111.0,
-      "purchaseRevenue": 9441800.000436,
-      "cvr": 0.008585350761853199,
+      "purchaseRevenue": 9441800.000435,
+      "session_dod": 0.007323724191663421,
+      "session_yoy": -0.08004838480148001,
+      "orders_dod": 0.3058823529411765,
+      "orders_yoy": 0.6818181818181818,
+      "revenue_dod": 0.433965129386104,
+      "revenue_yoy": -7692633.132834175,
       "rev_dod": 0.007323724191663421,
       "rev_yoy": -0.08004838480148001
     }
@@ -165,9 +259,14 @@
     {
       "sub_channel": "naver brand search",
       "sessions": 1774.0,
-      "transactions": 36.0,
+      "orders": 36.0,
       "purchaseRevenue": 2937880.000039,
-      "cvr": 0.020293122886133032,
+      "session_dod": 0.3635664873174481,
+      "session_yoy": 3.468513853904282,
+      "orders_dod": 0.8,
+      "orders_yoy": 3.0,
+      "revenue_dod": 0.7850988575968988,
+      "revenue_yoy": 2.0330573451782463,
       "dod": 0.3635664873174481,
       "yoy": 3.468513853904282,
       "has_yoy": true
@@ -175,9 +274,14 @@
     {
       "sub_channel": "naver search",
       "sessions": 274.0,
-      "transactions": 7.0,
+      "orders": 7.0,
       "purchaseRevenue": 1245409.999617,
-      "cvr": 0.025547445255474453,
+      "session_dod": 0.2626728110599078,
+      "session_yoy": 18.571428571428573,
+      "orders_dod": 2.5,
+      "orders_yoy": 1.0,
+      "revenue_dod": 5.857984566699985,
+      "revenue_yoy": 1.0,
       "dod": 0.2626728110599078,
       "yoy": 18.571428571428573,
       "has_yoy": true
@@ -185,9 +289,14 @@
     {
       "sub_channel": "criteo",
       "sessions": 949.0,
-      "transactions": 11.0,
+      "orders": 11.0,
       "purchaseRevenue": 771380.001169,
-      "cvr": 0.011591148577449948,
+      "session_dod": 1.0021097046413503,
+      "session_yoy": -0.02965235173824131,
+      "orders_dod": 1.2,
+      "orders_yoy": 2.6666666666666665,
+      "revenue_dod": 1.099621651008208,
+      "revenue_yoy": 0.3718299838824414,
       "dod": 1.0021097046413503,
       "yoy": -0.02965235173824131,
       "has_yoy": true
@@ -195,49 +304,59 @@
     {
       "sub_channel": "meta",
       "sessions": 1443.0,
-      "transactions": 6.0,
+      "orders": 6.0,
       "purchaseRevenue": 438999.999511,
-      "cvr": 0.004158004158004158,
+      "session_dod": 0.23862660944206007,
+      "session_yoy": -0.042468480424684804,
+      "orders_dod": 0.5,
+      "orders_yoy": 1.0,
+      "revenue_dod": 0.0006838372987002378,
+      "revenue_yoy": 0.7903751983722581,
       "dod": 0.23862660944206007,
-      "yoy": 1.4170854271356783,
+      "yoy": -0.042468480424684804,
       "has_yoy": true
     },
     {
-      "sub_channel": "google demand gen",
-      "sessions": 15.0,
-      "transactions": 0.0,
-      "purchaseRevenue": 0.0,
-      "cvr": 0.0,
-      "dod": -0.25,
-      "yoy": 1.0,
-      "has_yoy": false
-    },
-    {
-      "sub_channel": "google pmax",
-      "sessions": 638.0,
-      "transactions": 5.0,
+      "sub_channel": "google gdn",
+      "sessions": 653.0,
+      "orders": 5.0,
       "purchaseRevenue": 419570.000869,
-      "cvr": 0.007836990595611285,
-      "dod": 0.5714285714285714,
-      "yoy": -0.07402031930333818,
+      "session_dod": 0.5328638497652582,
+      "session_yoy": -0.05224963715529753,
+      "orders_dod": -0.2857142857142857,
+      "orders_yoy": -0.16666666666666666,
+      "revenue_dod": -0.5976814197645934,
+      "revenue_yoy": -0.44756349515667404,
+      "dod": 0.5328638497652582,
+      "yoy": -0.05224963715529753,
       "has_yoy": true
     },
     {
       "sub_channel": "google search",
       "sessions": 303.0,
-      "transactions": 1.0,
+      "orders": 1.0,
       "purchaseRevenue": 53999.999826,
-      "cvr": 0.0033003300330033004,
-      "dod": -0.07621951219512195,
+      "session_dod": -0.0790273556231003,
+      "session_yoy": 0.9056603773584906,
+      "orders_dod": -0.6666666666666666,
+      "orders_yoy": 1.0,
+      "revenue_dod": -0.6520618556882373,
+      "revenue_yoy": 1.0,
+      "dod": -0.0790273556231003,
       "yoy": 0.9056603773584906,
       "has_yoy": true
     },
     {
       "sub_channel": "google",
       "sessions": 80.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -0.024390243902439025,
+      "session_yoy": -0.6078431372549019,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": -0.024390243902439025,
       "yoy": -0.6078431372549019,
       "has_yoy": true
@@ -245,9 +364,14 @@
     {
       "sub_channel": "instagram",
       "sessions": 483.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -0.3401639344262295,
+      "session_yoy": 1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": -0.3401639344262295,
       "yoy": 1.0,
       "has_yoy": false
@@ -255,9 +379,14 @@
     {
       "sub_channel": "naver",
       "sessions": 361.0,
-      "transactions": 1.0,
+      "orders": 1.0,
       "purchaseRevenue": 139699.999601,
-      "cvr": 0.002770083102493075,
+      "session_dod": 0.24054982817869416,
+      "session_yoy": 1.0,
+      "orders_dod": 1.0,
+      "orders_yoy": 1.0,
+      "revenue_dod": 1.0,
+      "revenue_yoy": 1.0,
       "dod": 0.24054982817869416,
       "yoy": 1.0,
       "has_yoy": false
@@ -265,9 +394,14 @@
     {
       "sub_channel": "chatgpt.com",
       "sessions": 9.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": 0.8,
+      "session_yoy": 1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": 0.8,
       "yoy": 1.0,
       "has_yoy": false
@@ -275,9 +409,14 @@
     {
       "sub_channel": "(data not available)",
       "sessions": 2.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -0.75,
+      "session_yoy": 1.0,
+      "orders_dod": -1.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": -1.0,
+      "revenue_yoy": 0.0,
       "dod": -0.75,
       "yoy": 1.0,
       "has_yoy": false
@@ -285,9 +424,14 @@
     {
       "sub_channel": "insight.co.kr",
       "sessions": 1.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": 1.0,
+      "session_yoy": 1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": 1.0,
       "yoy": 1.0,
       "has_yoy": false
@@ -295,9 +439,14 @@
     {
       "sub_channel": "m.danawa.com",
       "sessions": 1.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": 1.0,
+      "session_yoy": 1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": 1.0,
       "yoy": 1.0,
       "has_yoy": false
@@ -305,21 +454,121 @@
     {
       "sub_channel": "prod.danawa.com",
       "sessions": 1.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": 1.0,
+      "session_yoy": 1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": 1.0,
       "yoy": 1.0,
       "has_yoy": false
     },
     {
+      "sub_channel": "accounts.kakao.com",
+      "sessions": 0.0,
+      "orders": 0.0,
+      "purchaseRevenue": 0.0,
+      "session_dod": 0.0,
+      "session_yoy": -1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
+      "dod": 0.0,
+      "yoy": -1.0,
+      "has_yoy": true
+    },
+    {
+      "sub_channel": "bing",
+      "sessions": 0.0,
+      "orders": 0.0,
+      "purchaseRevenue": 0.0,
+      "session_dod": -1.0,
+      "session_yoy": 0.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
+      "dod": -1.0,
+      "yoy": 0.0,
+      "has_yoy": false
+    },
+    {
+      "sub_channel": "dailytodaily.com",
+      "sessions": 0.0,
+      "orders": 0.0,
+      "purchaseRevenue": 0.0,
+      "session_dod": 0.0,
+      "session_yoy": -1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
+      "dod": 0.0,
+      "yoy": -1.0,
+      "has_yoy": true
+    },
+    {
+      "sub_channel": "damoang.net",
+      "sessions": 0.0,
+      "orders": 0.0,
+      "purchaseRevenue": 0.0,
+      "session_dod": 0.0,
+      "session_yoy": -1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
+      "dod": 0.0,
+      "yoy": -1.0,
+      "has_yoy": true
+    },
+    {
+      "sub_channel": "kauth.kakao.com",
+      "sessions": 0.0,
+      "orders": 0.0,
+      "purchaseRevenue": 0.0,
+      "session_dod": 0.0,
+      "session_yoy": -1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": -1.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": -1.0,
+      "dod": 0.0,
+      "yoy": -1.0,
+      "has_yoy": true
+    },
+    {
+      "sub_channel": "place.map.kakao.com",
+      "sessions": 0.0,
+      "orders": 0.0,
+      "purchaseRevenue": 0.0,
+      "session_dod": 0.0,
+      "session_yoy": -1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
+      "dod": 0.0,
+      "yoy": -1.0,
+      "has_yoy": true
+    },
+    {
       "sub_channel": "Total",
       "sessions": 6334.0,
-      "transactions": 67.0,
+      "orders": 67.0,
       "purchaseRevenue": 6006940.000632,
-      "cvr": 0.010577833912219767,
-      "dod": 0.25924453280318094,
-      "yoy": 1.0491750242639923,
+      "session_dod": 0.2589942357384218,
+      "session_yoy": 0.583104223944014,
+      "orders_dod": 0.5952380952380952,
+      "orders_yoy": 6.882352941176471,
+      "revenue_dod": 0.5648982029093423,
+      "revenue_yoy": 1.3439796159479613,
+      "dod": 0.2589942357384218,
+      "yoy": 0.583104223944014,
       "has_yoy": true
     }
   ],
@@ -558,20 +807,6 @@
       "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C64AE4498461.jpg"
     },
     {
-      "itemId": "C64XY7077100",
-      "itemName": "Y ColumbiaㅣDISNEY Half Snap",
-      "qty": 5,
-      "views": 262,
-      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C64XY7077100.jpg"
-    },
-    {
-      "itemId": "C66YU0369010",
-      "itemName": "Bonre Forest 20L Packable Backpack",
-      "qty": 5,
-      "views": 153,
-      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C66YU0369010.jpg"
-    },
-    {
       "itemId": "C56YU0154433",
       "itemName": "HAZY JOURNEY II WATERPROOF",
       "qty": 4,
@@ -579,11 +814,60 @@
       "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C56YU0154433.jpg"
     },
     {
-      "itemId": "C65YU0605010",
-      "itemName": "Homochitto Lake Dome Arm sleeve",
-      "qty": 4,
-      "views": 16,
-      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C65YU0605010.jpg"
+      "itemId": "C61YL6513010",
+      "itemName": "W’s Cone to Park Crew",
+      "qty": 3,
+      "views": 21,
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C61YL6513010.jpg"
+    },
+    {
+      "itemId": "C56YU9606191",
+      "itemName": "Cove Heights Park™ short socks",
+      "qty": 2,
+      "views": 8,
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C56YU9606191.jpg"
+    },
+    {
+      "itemId": "C61YM3502010",
+      "itemName": "M’s Cow Mountain 2L Jacket",
+      "qty": 2,
+      "views": 39,
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C61YM3502010.jpg"
+    },
+    {
+      "itemId": "C62YL6525011",
+      "itemName": "W’s Dana Cove OFZ ICE+ Crew",
+      "qty": 2,
+      "views": 12,
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C62YL6525011.jpg"
+    },
+    {
+      "itemId": "C66YU0369397",
+      "itemName": "Bonre Forest 20L Packable Backpack",
+      "qty": 2,
+      "views": 113,
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C66YU0369397.jpg"
+    },
+    {
+      "itemId": "C53AP3450010",
+      "itemName": "Seeker™ Legend 2.0 LS Tee",
+      "qty": 1,
+      "views": 27,
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C53AP3450010.jpg"
+    },
+    {
+      "itemId": "C53WE2939352",
+      "itemName": "OutDry Extreme™ Wyldwood™ Shell",
+      "qty": 1,
+      "views": 65,
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C53WE2939352.jpg"
+    },
+    {
+      "itemId": "C54PM0374011",
+      "itemName": "Maroon Lake Falls™ Jacket",
+      "qty": 1,
+      "views": 15,
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C54PM0374011.jpg"
     }
   ],
   "best_sellers_series": {
@@ -610,30 +894,6 @@
         ]
       },
       {
-        "itemId": "C64XY7077100",
-        "ys": [
-          1.0,
-          0.0,
-          0.0,
-          0.0,
-          0.0,
-          0.0,
-          5.0
-        ]
-      },
-      {
-        "itemId": "C66YU0369010",
-        "ys": [
-          3.0,
-          1.0,
-          2.0,
-          2.0,
-          3.0,
-          10.0,
-          5.0
-        ]
-      },
-      {
         "itemId": "C56YU0154433",
         "ys": [
           1.0,
@@ -646,7 +906,31 @@
         ]
       },
       {
-        "itemId": "C65YU0605010",
+        "itemId": "C61YL6513010",
+        "ys": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.0
+        ]
+      },
+      {
+        "itemId": "C56YU9606191",
+        "ys": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2.0
+        ]
+      },
+      {
+        "itemId": "C61YM3502010",
         "ys": [
           0.0,
           0.0,
@@ -654,61 +938,273 @@
           0.0,
           0.0,
           1.0,
-          4.0
+          2.0
+        ]
+      },
+      {
+        "itemId": "C62YL6525011",
+        "ys": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2.0
+        ]
+      },
+      {
+        "itemId": "C66YU0369397",
+        "ys": [
+          0.0,
+          1.0,
+          0.0,
+          1.0,
+          0.0,
+          2.0,
+          2.0
+        ]
+      },
+      {
+        "itemId": "C53AP3450010",
+        "ys": [
+          1.0,
+          1.0,
+          2.0,
+          3.0,
+          0.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "itemId": "C53WE2939352",
+        "ys": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      {
+        "itemId": "C54PM0374011",
+        "ys": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
         ]
       }
     ]
   },
   "rising": [
     {
-      "itemId": "C66PU2409010",
-      "itemName": "Price Stream Earphone Case",
+      "itemId": "C64XL8880100",
+      "itemName": "W ColumbiaㅣDISNEY Half Snap",
+      "qty": 22,
+      "views": 1562,
+      "revenue": 2618000.000835,
+      "delta": -505,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C54AE5941010",
+      "itemName": "Wallowa™ Panorama™ Reversible Jacket",
+      "qty": 6,
+      "views": 1354,
+      "revenue": 569999.999681,
+      "delta": 597,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C64XC7077100",
+      "itemName": "Tot ColumbiaㅣDISNEY Half Snap",
+      "qty": 18,
+      "views": 1294,
+      "revenue": 1242000.000022,
+      "delta": -425,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C64XY7077100",
+      "itemName": "Y ColumbiaㅣDISNEY Half Snap",
+      "qty": 6,
+      "views": 1157,
+      "revenue": 474000.001257,
+      "delta": -1371,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C66YU0369010",
+      "itemName": "Bonre Forest 20L Packable Backpack",
+      "qty": 26,
+      "views": 907,
+      "revenue": 1794000.0044860002,
+      "delta": -143,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C64WE5258010",
+      "itemName": "Arctic Crest Down Jacket",
+      "qty": 1,
+      "views": 888,
+      "revenue": 359000.00007,
+      "delta": 59,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C63YM3593010",
+      "itemName": "365 TREK 2L Rain Jacket",
+      "qty": 1,
+      "views": 845,
+      "revenue": 359000.000381,
+      "delta": 185,
+      "delta_label": "Views Δ",
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C63YM3593010.jpg"
+    },
+    {
+      "itemId": "C64XM5107100",
+      "itemName": "M ColumbiaㅣDISNEY Half Snap",
+      "qty": 6,
+      "views": 843,
+      "revenue": 714000.0000420001,
+      "delta": -144,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C64XM5107454",
+      "itemName": "M ColumbiaㅣDISNEY Half Snap",
+      "qty": 11,
+      "views": 813,
+      "revenue": 1308999.9987,
+      "delta": -192,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C56BM0225010",
+      "itemName": "FACET™ 75 EQUINOX™",
       "qty": 4,
-      "views": 13,
-      "revenue": 39999.999449,
-      "delta": 2.0,
-      "delta_label": "Qty ?",
-      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C66PU2409010.jpg"
+      "views": 746,
+      "revenue": 475999.999544,
+      "delta": 341,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    }
+  ],
+  "rising_prev_7d": [
+    {
+      "itemId": "C64XC7077100",
+      "itemName": "Tot ColumbiaㅣDISNEY Half Snap",
+      "qty": 4,
+      "views": 287,
+      "revenue": 275999.998576,
+      "delta": -1364,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C64XL8880100",
+      "itemName": "W ColumbiaㅣDISNEY Half Snap",
+      "qty": 4,
+      "views": 272,
+      "revenue": 476000.001528,
+      "delta": -1826,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C66YU0369010",
+      "itemName": "Bonre Forest 20L Packable Backpack",
+      "qty": 1,
+      "views": 126,
+      "revenue": 68999.999644,
+      "delta": -931,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C64XC7077454",
+      "itemName": "Tot ColumbiaㅣDISNEY Half Snap",
+      "qty": 1,
+      "views": 123,
+      "revenue": 68999.999644,
+      "delta": -572,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C64XM5107100",
+      "itemName": "M ColumbiaㅣDISNEY Half Snap",
+      "qty": 1,
+      "views": 121,
+      "revenue": 119000.000382,
+      "delta": -880,
+      "delta_label": "Views Δ",
+      "image_url": ""
     },
     {
       "itemId": "C64AR5760554",
       "itemName": "Helvetia II Printed Cropped Half Snap",
-      "qty": 3,
+      "qty": 2,
       "views": 97,
-      "revenue": 267000.000169,
-      "delta": 1.0,
-      "delta_label": "Qty ?",
-      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C64AR5760554.jpg"
-    },
-    {
-      "itemId": "C53AE9081010",
-      "itemName": "Wallowa™ Fleece Sweatpant",
-      "qty": 2,
-      "views": 42,
-      "revenue": 118000.000939,
-      "delta": 1.0,
-      "delta_label": "Qty ?",
+      "revenue": 177999.998756,
+      "delta": -714,
+      "delta_label": "Views Δ",
       "image_url": ""
     },
     {
-      "itemId": "C54FO9344011",
-      "itemName": "PFG Unted™ Fleece Full Zip",
+      "itemId": "C64AE5780191",
+      "itemName": "Helvetia II Half Snap Fleece",
       "qty": 2,
-      "views": 33,
-      "revenue": 118000.000939,
-      "delta": 1.0,
-      "delta_label": "Qty ?",
+      "views": 85,
+      "revenue": 157999.999022,
+      "delta": -351,
+      "delta_label": "Views Δ",
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C64AE5780191.jpg"
+    },
+    {
+      "itemId": "C64AE4498429",
+      "itemName": "Helvetia II Printed Half Snap Fleece",
+      "qty": 1,
+      "views": 76,
+      "revenue": 88999.999378,
+      "delta": -588,
+      "delta_label": "Views Δ",
       "image_url": ""
     },
     {
-      "itemId": "C65BI5371241",
-      "itemName": "CRESTWOOD MID WATERPROOF",
-      "qty": 2,
-      "views": 101,
-      "revenue": 222599.999869,
-      "delta": 1.0,
-      "delta_label": "Qty ?",
-      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C65BI5371241.jpg"
+      "itemId": "C54WE7451010",
+      "itemName": "Silver Leaf™ Stretch Insulated II Jacket",
+      "qty": 1,
+      "views": 74,
+      "revenue": 143000.000624,
+      "delta": -491,
+      "delta_label": "Views Δ",
+      "image_url": ""
+    },
+    {
+      "itemId": "C66YU0369060",
+      "itemName": "Bonre Forest 20L Packable Backpack",
+      "qty": 1,
+      "views": 61,
+      "revenue": 68999.999644,
+      "delta": -452,
+      "delta_label": "Views Δ",
+      "image_url": "https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C66YU0369060.jpg"
     }
   ],
   "pdp_series": {
@@ -724,87 +1220,199 @@
     "rows": [
       {
         "itemCategory": "OUTER · Padding/Slim Down",
-        "views_d1": 591.0,
-        "views_avg7d": 474.42857142857144,
-        "ys": []
+        "views_d1": 812.0,
+        "views_avg7d": 666.2857142857143,
+        "ys": [
+          585.0,
+          553.0,
+          577.0,
+          630.0,
+          693.0,
+          814.0,
+          812.0
+        ]
       },
       {
         "itemCategory": "OUTER · Mid/Heavy Down",
-        "views_d1": 201.0,
-        "views_avg7d": 222.85714285714286,
-        "ys": []
+        "views_d1": 270.0,
+        "views_avg7d": 286.57142857142856,
+        "ys": [
+          270.0,
+          248.0,
+          276.0,
+          277.0,
+          338.0,
+          327.0,
+          270.0
+        ]
       },
       {
         "itemCategory": "OUTER · Interchange",
-        "views_d1": 409.0,
-        "views_avg7d": 371.14285714285717,
-        "ys": []
+        "views_d1": 248.0,
+        "views_avg7d": 242.85714285714286,
+        "ys": [
+          231.0,
+          188.0,
+          256.0,
+          247.0,
+          204.0,
+          326.0,
+          248.0
+        ]
       },
       {
         "itemCategory": "OUTER · Rain",
-        "views_d1": 973.0,
-        "views_avg7d": 791.2857142857143,
-        "ys": []
+        "views_d1": 557.0,
+        "views_avg7d": 419.7142857142857,
+        "ys": [
+          365.0,
+          314.0,
+          398.0,
+          388.0,
+          418.0,
+          498.0,
+          557.0
+        ]
       },
       {
         "itemCategory": "FLEECE · Fleece Pullover",
-        "views_d1": 526.0,
-        "views_avg7d": 550.7142857142857,
-        "ys": []
+        "views_d1": 0.0,
+        "views_avg7d": 0.0,
+        "ys": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
       },
       {
         "itemCategory": "FLEECE · Jacket",
-        "views_d1": 130.0,
-        "views_avg7d": 104.28571428571429,
-        "ys": []
+        "views_d1": 146.0,
+        "views_avg7d": 128.14285714285714,
+        "ys": [
+          123.0,
+          128.0,
+          101.0,
+          98.0,
+          131.0,
+          170.0,
+          146.0
+        ]
       },
       {
         "itemCategory": "TOPS · Fleece Top",
-        "views_d1": 397.0,
-        "views_avg7d": 446.42857142857144,
-        "ys": []
+        "views_d1": 579.0,
+        "views_avg7d": 645.7142857142857,
+        "ys": [
+          697.0,
+          694.0,
+          644.0,
+          660.0,
+          638.0,
+          608.0,
+          579.0
+        ]
       },
       {
         "itemCategory": "TOPS · Round T-shirt",
-        "views_d1": 312.0,
-        "views_avg7d": 254.85714285714286,
-        "ys": []
+        "views_d1": 475.0,
+        "views_avg7d": 445.57142857142856,
+        "ys": [
+          469.0,
+          423.0,
+          411.0,
+          465.0,
+          346.0,
+          530.0,
+          475.0
+        ]
       },
       {
         "itemCategory": "TOPS · Polo/Zip Up",
-        "views_d1": 233.0,
-        "views_avg7d": 188.0,
-        "ys": []
+        "views_d1": 180.0,
+        "views_avg7d": 140.0,
+        "ys": [
+          123.0,
+          127.0,
+          115.0,
+          104.0,
+          170.0,
+          161.0,
+          180.0
+        ]
       },
       {
         "itemCategory": "PANTS · Pants",
-        "views_d1": 963.0,
-        "views_avg7d": 683.4285714285714,
-        "ys": []
+        "views_d1": 411.0,
+        "views_avg7d": 312.14285714285717,
+        "ys": [
+          272.0,
+          240.0,
+          274.0,
+          375.0,
+          308.0,
+          305.0,
+          411.0
+        ]
       },
       {
         "itemCategory": "FOOTWEAR · Boots",
-        "views_d1": 45.0,
-        "views_avg7d": 42.714285714285715,
-        "ys": []
+        "views_d1": 65.0,
+        "views_avg7d": 80.14285714285714,
+        "ys": [
+          96.0,
+          43.0,
+          79.0,
+          72.0,
+          102.0,
+          104.0,
+          65.0
+        ]
       },
       {
         "itemCategory": "FOOTWEAR · Omni-Max",
-        "views_d1": 20.0,
-        "views_avg7d": 24.0,
-        "ys": []
+        "views_d1": 33.0,
+        "views_avg7d": 36.714285714285715,
+        "ys": [
+          35.0,
+          32.0,
+          36.0,
+          50.0,
+          29.0,
+          42.0,
+          33.0
+        ]
       },
       {
         "itemCategory": "FOOTWEAR · Hiking",
-        "views_d1": 1009.0,
-        "views_avg7d": 853.7142857142857,
-        "ys": []
+        "views_d1": 1403.0,
+        "views_avg7d": 1118.142857142857,
+        "ys": [
+          911.0,
+          922.0,
+          843.0,
+          1093.0,
+          1149.0,
+          1506.0,
+          1403.0
+        ]
       },
       {
         "itemCategory": "FOOTWEAR · Sneakers",
-        "views_d1": 324.0,
-        "views_avg7d": 386.85714285714283,
-        "ys": []
+        "views_d1": 188.0,
+        "views_avg7d": 253.71428571428572,
+        "ys": [
+          320.0,
+          243.0,
+          234.0,
+          277.0,
+          285.0,
+          229.0,
+          188.0
+        ]
       }
     ]
   },
@@ -902,6 +1510,524 @@
       "count": 3
     }
   ],
+  "channel_detail_map": {
+    "Awareness": [
+      {
+        "sub_channel": "Paid Social · 메타광고",
+        "sessions": 4123.0,
+        "orders": 1.0,
+        "purchaseRevenue": 71600.000381,
+        "session_dod": -0.1912514711651628,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 1.0,
+        "revenue_dod": -0.6181536956636894,
+        "revenue_yoy": 1.0,
+        "dod": -0.1912514711651628,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "Paid Display · 시그널플레이광고",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": -1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": -1.0
+      },
+      {
+        "sub_channel": "Paid Display · 카카오광고",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": -1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": -1.0
+      },
+      {
+        "sub_channel": "Paid Video · 구글동영상광고",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -1.0,
+        "session_yoy": -1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": -1.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": -1.0,
+        "dod": -1.0,
+        "yoy": -1.0
+      }
+    ],
+    "Paid Ad": [
+      {
+        "sub_channel": "Paid Social · 메타광고",
+        "sessions": 1927.0,
+        "orders": 6.0,
+        "purchaseRevenue": 438999.999511,
+        "session_dod": 0.0158144438587243,
+        "session_yoy": 0.278699402786994,
+        "orders_dod": 0.5,
+        "orders_yoy": 1.0,
+        "revenue_dod": 0.0006838372987002378,
+        "revenue_yoy": 0.7903751983722581,
+        "dod": 0.0158144438587243,
+        "yoy": 0.278699402786994
+      },
+      {
+        "sub_channel": "Paid Search · 네이버브랜드검색광고",
+        "sessions": 1670.0,
+        "orders": 34.0,
+        "purchaseRevenue": 2785280.00063,
+        "session_dod": 0.38474295190713104,
+        "session_yoy": 3.206549118387909,
+        "orders_dod": 0.8888888888888888,
+        "orders_yoy": 2.7777777777777777,
+        "revenue_dod": 1.006136647156039,
+        "revenue_yoy": 1.8755136234893006,
+        "dod": 0.38474295190713104,
+        "yoy": 3.206549118387909
+      },
+      {
+        "sub_channel": "Paid Display · 크리테오광고",
+        "sessions": 949.0,
+        "orders": 11.0,
+        "purchaseRevenue": 771380.001169,
+        "session_dod": 1.0021097046413503,
+        "session_yoy": -0.02965235173824131,
+        "orders_dod": 1.2,
+        "orders_yoy": 2.6666666666666665,
+        "revenue_dod": 1.099621651008208,
+        "revenue_yoy": 0.3718299838824414,
+        "dod": 1.0021097046413503,
+        "yoy": -0.02965235173824131
+      },
+      {
+        "sub_channel": "Paid Omni Channel · 구글피맥스광고",
+        "sessions": 638.0,
+        "orders": 5.0,
+        "purchaseRevenue": 419570.000869,
+        "session_dod": 0.5714285714285714,
+        "session_yoy": -0.07402031930333818,
+        "orders_dod": -0.2857142857142857,
+        "orders_yoy": -0.16666666666666666,
+        "revenue_dod": -0.5976814197645934,
+        "revenue_yoy": -0.44756349515667404,
+        "dod": 0.5714285714285714,
+        "yoy": -0.07402031930333818
+      },
+      {
+        "sub_channel": "Paid Search · 네이버파워링크광고",
+        "sessions": 378.0,
+        "orders": 9.0,
+        "purchaseRevenue": 1398009.999026,
+        "session_dod": 0.21153846153846154,
+        "session_yoy": 26.0,
+        "orders_dod": 1.25,
+        "orders_yoy": 1.0,
+        "revenue_dod": 2.1845330249494586,
+        "revenue_yoy": 1.0,
+        "dod": 0.21153846153846154,
+        "yoy": 26.0
+      },
+      {
+        "sub_channel": "Paid Search · 구글검색광고",
+        "sessions": 303.0,
+        "orders": 1.0,
+        "purchaseRevenue": 53999.999826,
+        "session_dod": -0.07621951219512195,
+        "session_yoy": 0.9056603773584906,
+        "orders_dod": -0.6666666666666666,
+        "orders_yoy": 1.0,
+        "revenue_dod": -0.6520618556882373,
+        "revenue_yoy": 1.0,
+        "dod": -0.07621951219512195,
+        "yoy": 0.9056603773584906
+      },
+      {
+        "sub_channel": "Paid Display · 네이버배너광고",
+        "sessions": 203.0,
+        "orders": 1.0,
+        "purchaseRevenue": 139699.999601,
+        "session_dod": 0.38095238095238093,
+        "session_yoy": 1.0,
+        "orders_dod": 1.0,
+        "orders_yoy": 1.0,
+        "revenue_dod": 1.0,
+        "revenue_yoy": 1.0,
+        "dod": 0.38095238095238093,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "Paid Search · 네이버쇼핑검색광고",
+        "sessions": 158.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.09722222222222222,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.09722222222222222,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "Paid Ad · 구글기타광고",
+        "sessions": 80.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.024390243902439025,
+        "session_yoy": -0.6078431372549019,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.024390243902439025,
+        "yoy": -0.6078431372549019
+      },
+      {
+        "sub_channel": "Paid Display · 구글디멘드젠광고",
+        "sessions": 15.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.25,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.25,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "Paid Display · 타게팅게이츠광고",
+        "sessions": 9.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.8,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.8,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "Paid Display · 기타배너광고",
+        "sessions": 4.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.5,
+        "session_yoy": 0.3333333333333333,
+        "orders_dod": -1.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": -1.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.5,
+        "yoy": 0.3333333333333333
+      }
+    ],
+    "Organic Traffic": [
+      {
+        "sub_channel": "Direct · 직접유입",
+        "sessions": 1111.0,
+        "orders": 8.0,
+        "purchaseRevenue": 1317250.001056,
+        "session_dod": -0.08257638315441784,
+        "session_yoy": 0.24831460674157305,
+        "orders_dod": 0.14285714285714285,
+        "orders_yoy": 0.0,
+        "revenue_dod": 1.3074834472763637,
+        "revenue_yoy": -0.29166778642054064,
+        "dod": -0.08257638315441784,
+        "yoy": 0.24831460674157305
+      },
+      {
+        "sub_channel": "Referral · 네이버기타유입",
+        "sessions": 317.0,
+        "orders": 8.0,
+        "purchaseRevenue": 411729.999122,
+        "session_dod": 0.19172932330827067,
+        "session_yoy": -0.3996212121212121,
+        "orders_dod": 1.0,
+        "orders_yoy": 0.6,
+        "revenue_dod": 0.15091965872497504,
+        "revenue_yoy": -0.45649003018794987,
+        "dod": 0.19172932330827067,
+        "yoy": -0.3996212121212121
+      },
+      {
+        "sub_channel": "Organic Search · 구글자연검색",
+        "sessions": 265.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.5588235294117647,
+        "session_yoy": 0.25,
+        "orders_dod": -1.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": -1.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.5588235294117647,
+        "yoy": 0.25
+      },
+      {
+        "sub_channel": "Organic Search · 네이버사이트자연검색",
+        "sessions": 146.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.6545454545454545,
+        "session_yoy": -0.8517766497461929,
+        "orders_dod": 0.0,
+        "orders_yoy": -1.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": -1.0,
+        "dod": 1.6545454545454545,
+        "yoy": -0.8517766497461929
+      },
+      {
+        "sub_channel": "Organic Search · 다음자연검색",
+        "sessions": 98.0,
+        "orders": 3.0,
+        "purchaseRevenue": 175500.000503,
+        "session_dod": 0.3424657534246575,
+        "session_yoy": -0.19008264462809918,
+        "orders_dod": 2.0,
+        "orders_yoy": 1.0,
+        "revenue_dod": 0.18581080973863215,
+        "revenue_yoy": 1.0,
+        "dod": 0.3424657534246575,
+        "yoy": -0.19008264462809918
+      },
+      {
+        "sub_channel": "Referral · 기타추천유입",
+        "sessions": 51.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.32,
+        "session_yoy": -0.15,
+        "orders_dod": -1.0,
+        "orders_yoy": -1.0,
+        "revenue_dod": -1.0,
+        "revenue_yoy": -1.0,
+        "dod": -0.32,
+        "yoy": -0.15
+      },
+      {
+        "sub_channel": "Organic Search · 네이버쇼핑자연검색",
+        "sessions": 38.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.15151515151515152,
+        "session_yoy": 6.6,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.15151515151515152,
+        "yoy": 6.6
+      },
+      {
+        "sub_channel": "Referral · 다음기타유입",
+        "sessions": 37.0,
+        "orders": 2.0,
+        "purchaseRevenue": 159899.998782,
+        "session_dod": 0.48,
+        "session_yoy": -0.27450980392156865,
+        "orders_dod": 1.0,
+        "orders_yoy": 1.0,
+        "revenue_dod": 1.0,
+        "revenue_yoy": 1.0,
+        "dod": 0.48,
+        "yoy": -0.27450980392156865
+      },
+      {
+        "sub_channel": "Organic Search · 기타자연검색",
+        "sessions": 20.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.1111111111111111,
+        "session_yoy": -0.3103448275862069,
+        "orders_dod": -1.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": -1.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.1111111111111111,
+        "yoy": -0.3103448275862069
+      },
+      {
+        "sub_channel": "Referral · 구글기타유입",
+        "sessions": 16.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": 1.6666666666666667,
+        "orders_dod": -1.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": -1.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": 1.6666666666666667
+      },
+      {
+        "sub_channel": "Social · 페이스북자연유입",
+        "sessions": 15.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.6739130434782609,
+        "session_yoy": 0.6666666666666666,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.6739130434782609,
+        "yoy": 0.6666666666666666
+      },
+      {
+        "sub_channel": "YouTube · 유튜브자연유입",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": -1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": -1.0
+      }
+    ],
+    "Official SNS": [
+      {
+        "sub_channel": "Instagram Offical Account · 인스타그램 공식계정",
+        "sessions": 23.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.7745098039215687,
+        "session_yoy": -0.9368131868131868,
+        "orders_dod": 0.0,
+        "orders_yoy": -1.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": -1.0,
+        "dod": -0.7745098039215687,
+        "yoy": -0.9368131868131868
+      },
+      {
+        "sub_channel": "Instagram Offical Shop · 인스타그램 샵",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -1.0,
+        "session_yoy": 0.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -1.0,
+        "yoy": 0.0
+      }
+    ],
+    "Owned Channel": [
+      {
+        "sub_channel": "LMS · 문자메시지유입",
+        "sessions": 134.0,
+        "orders": 2.0,
+        "purchaseRevenue": 132019.99997900001,
+        "session_dod": -0.6564102564102564,
+        "session_yoy": -0.8499440089585666,
+        "orders_dod": -0.7142857142857143,
+        "orders_yoy": 0.0,
+        "revenue_dod": -0.6821858453451825,
+        "revenue_yoy": -0.6743222240922867,
+        "dod": -0.6564102564102564,
+        "yoy": -0.8499440089585666
+      },
+      {
+        "sub_channel": "Kakao Channel · 카카오톡채널메시지",
+        "sessions": 121.0,
+        "orders": 6.0,
+        "purchaseRevenue": 378999.998913,
+        "session_dod": 0.03418803418803419,
+        "session_yoy": -0.047244094488188976,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.2,
+        "revenue_dod": 0.273179250511984,
+        "revenue_yoy": -0.44308931280055935,
+        "dod": 0.03418803418803419,
+        "yoy": -0.047244094488188976
+      },
+      {
+        "sub_channel": "Kakao Alimtalk · 카카오톡알림톡",
+        "sessions": 115.0,
+        "orders": 14.0,
+        "purchaseRevenue": 787860.001067,
+        "session_dod": 0.09523809523809523,
+        "session_yoy": -0.008620689655172414,
+        "orders_dod": 0.07692307692307693,
+        "orders_yoy": 1.3333333333333333,
+        "revenue_dod": 0.5473721458517675,
+        "revenue_yoy": 0.47746835622628664,
+        "dod": 0.09523809523809523,
+        "yoy": -0.008620689655172414
+      },
+      {
+        "sub_channel": "Email · 이메일유입",
+        "sessions": 31.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.5833333333333333,
+        "session_yoy": 0.7222222222222222,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 1.5833333333333333,
+        "yoy": 0.7222222222222222
+      },
+      {
+        "sub_channel": "Kakao Coupon · 카카오톡쿠폰",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": -1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": -1.0
+      }
+    ],
+    "etc": [
+      {
+        "sub_channel": "미분류",
+        "sessions": 68,
+        "orders": 0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.19298245614035087,
+        "session_yoy": -0.7792207792207793,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.19298245614035087,
+        "yoy": -0.7792207792207793
+      }
+    ]
+  },
   "other_detail": [],
   "paid_media_compare": [
     {
@@ -909,66 +2035,754 @@
       "target_roas": 0.0,
       "budget": 273333.0,
       "roas": 10.748354571306795,
-      "cvr": 0.020293122886133032,
-      "revenue": 2937880.000039,
-      "orders": 36.0,
-      "sessions": 1774.0,
-      "is_top_level": false
+      "cvr": 0.020293122886133032
     },
     {
       "channel": "naver search",
       "target_roas": 0.0,
       "budget": 374783.63636363635,
       "roas": 3.3230106087359497,
-      "cvr": 0.025547445255474453,
-      "revenue": 1245409.999617,
-      "orders": 7.0,
-      "sessions": 274.0,
-      "is_top_level": false
+      "cvr": 0.025547445255474453
     },
     {
       "channel": "criteo",
       "target_roas": 0.0,
       "budget": 0.0,
       "roas": 0.0,
-      "cvr": 0.011591148577449948,
-      "revenue": 771380.001169,
-      "orders": 11.0,
-      "sessions": 949.0,
-      "is_top_level": false
-    },
-    {
-      "channel": "google pmax",
-      "target_roas": 0.0,
-      "budget": 279707.68000000005,
-      "roas": 1.5000303204724301,
-      "cvr": 0.007836990595611285,
-      "revenue": 419570.000869,
-      "orders": 5.0,
-      "sessions": 638.0,
-      "is_top_level": false
-    },
-    {
-      "channel": "google search",
-      "target_roas": 0.0,
-      "budget": 154436.80000000002,
-      "roas": 0.3496575934362794,
-      "cvr": 0.0033003300330033004,
-      "revenue": 53999.999826,
-      "orders": 1.0,
-      "sessions": 303.0,
-      "is_top_level": false
+      "cvr": 0.011591148577449948
     },
     {
       "channel": "meta",
       "target_roas": 0.0,
       "budget": 265593.44000000006,
       "roas": 1.6529022686366046,
-      "cvr": 0.004158004158004158,
-      "revenue": 438999.999511,
-      "orders": 6.0,
-      "sessions": 1443.0,
-      "is_top_level": true
+      "cvr": 0.004158004158004158
+    },
+    {
+      "channel": "google gdn",
+      "target_roas": 0.0,
+      "budget": 279707.68000000005,
+      "roas": 1.5000303204724301,
+      "cvr": 0.007656967840735069
+    },
+    {
+      "channel": "google search",
+      "target_roas": 0.0,
+      "budget": 154436.80000000002,
+      "roas": 0.3496575934362794,
+      "cvr": 0.0033003300330033004
+    },
+    {
+      "channel": "google",
+      "target_roas": 0.0,
+      "budget": 434144.4800000001,
+      "roas": 0.0,
+      "cvr": 0.0
+    },
+    {
+      "channel": "naver",
+      "target_roas": 0.0,
+      "budget": 648116.6363636364,
+      "roas": 0.21554762177500877,
+      "cvr": 0.002770083102493075
+    }
+  ],
+  "weather_forecast": {
+    "location": "Seoul",
+    "status": "ok",
+    "source": "KMA API Hub",
+    "days": [
+      {
+        "date": "2025-10-11",
+        "label": "Sat",
+        "min_temp": null,
+        "max_temp": null,
+        "pop": null,
+        "weather": "-",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-10-12",
+        "label": "Sun",
+        "min_temp": null,
+        "max_temp": null,
+        "pop": null,
+        "weather": "-",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-10-13",
+        "label": "Mon",
+        "min_temp": null,
+        "max_temp": null,
+        "pop": null,
+        "weather": "-",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-10-14",
+        "label": "Tue",
+        "min_temp": 11.0,
+        "max_temp": 20.0,
+        "pop": 20,
+        "weather": "맑음",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-10-15",
+        "label": "Wed",
+        "min_temp": 8.0,
+        "max_temp": 21.0,
+        "pop": 10,
+        "weather": "맑음",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-10-16",
+        "label": "Thu",
+        "min_temp": 11.0,
+        "max_temp": 22.0,
+        "pop": 20,
+        "weather": "구름많음",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-10-17",
+        "label": "Fri",
+        "min_temp": 13.0,
+        "max_temp": 23.0,
+        "pop": 20,
+        "weather": "구름많음",
+        "weather_emoji": "🌤️"
+      }
+    ],
+    "generated_at": "2026-10-10 15:22:19",
+    "error": ""
+  },
+  "brand_powerlink_status": [
+    {
+      "brand": "컬럼비아",
+      "query": "컬럼비아",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "경량구스다운 EARLY BIRD",
+      "main_copy": "리버포인트 경량 구스다운",
+      "sub_copy": "20% 할인 혜택으로 만나보세요",
+      "tags": [
+        "#New Arrivals",
+        "#BEST",
+        "#온라인 단독"
+      ],
+      "cards": [
+        "등산화",
+        "플리스",
+        "디즈니 컬렉션"
+      ],
+      "keyword_highlights": [
+        "#New Arrivals",
+        "#BEST",
+        "#온라인 단독",
+        "등산화",
+        "플리스",
+        "디즈니 컬렉션"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=%EC%BB%AC%EB%9F%BC%EB%B9%84%EC%95%84",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/컬럼비아.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260828_194%2F1787908597258ONBuo_PNG%2F6a9151f503cb3b831cc89910.png&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260828_194%2F1787908597258ONBuo_PNG%2F6a9151f503cb3b831cc89910.png&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "등산화",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260917_117%2F1789623499576zjklN_PNG%2F6aab7ccb0cf785b39acc5a1e.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "플리스",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260917_28%2F1789623499580hyLbu_PNG%2F6aab7ccb0cf785b39acc5a20.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "디즈니 컬렉션",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260930_296%2F17907483703022gim3_PNG%2F6abca6d2a05161dacf030130.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": false,
+      "change_label": "",
+      "changed_parts": [],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
+    },
+    {
+      "brand": "노스페이스",
+      "query": "노스페이스",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "편안함에 머무는 순간",
+      "main_copy": "캠핑의 편안한 무드를 담은 박보검의",
+      "sub_copy": "캠프코지 플리스 자켓",
+      "tags": [
+        "신상품",
+        "베스트랭킹",
+        "온라인전용",
+        "액티비티"
+      ],
+      "cards": [
+        "가을 자켓",
+        "경량 패딩",
+        "맨투맨"
+      ],
+      "keyword_highlights": [
+        "신상품",
+        "베스트랭킹",
+        "온라인전용",
+        "액티비티",
+        "가을 자켓",
+        "경량 패딩"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=%EB%85%B8%EC%8A%A4%ED%8E%98%EC%9D%B4%EC%8A%A4",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/노스페이스.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261007_161%2F1791354713757CtCGm_JPEG%2F6ac5e7598442f0ecb93bf396.jpg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261007_161%2F1791354713757CtCGm_JPEG%2F6ac5e7598442f0ecb93bf396.jpg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "가을 자켓",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261007_208%2F1791355484738MzWu1_JPEG%2F6ac5ea5c521d228930eadaca.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "경량 패딩",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261007_33%2F1791355484746AmvNg_JPEG%2F6ac5ea5c521d228930eadac9.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "맨투맨",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261007_148%2F1791355484741zGIT2_JPEG%2F6ac5ea5c521d228930eadac8.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": false,
+      "change_label": "",
+      "changed_parts": [],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
+    },
+    {
+      "brand": "뉴발란스",
+      "query": "뉴발란스",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "정려원의 House Of 204",
+      "main_copy": "204 하우스에서 함께하는 정려원의 하루",
+      "sub_copy": "FW 가을 시즌 컬러의 204L 신규 출시",
+      "tags": [
+        "740",
+        "530",
+        "1906",
+        "509"
+      ],
+      "cards": [
+        "BEST",
+        "NEW",
+        "런칭캘린더"
+      ],
+      "keyword_highlights": [
+        "740",
+        "530",
+        "1906",
+        "509",
+        "BEST",
+        "NEW"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=%EB%89%B4%EB%B0%9C%EB%9E%80%EC%8A%A4",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/뉴발란스.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260916_164%2F1789541678324beN28_JPEG%2F6aaa3d2eb1411ab61ebb3e9f.jpg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260916_164%2F1789541678324beN28_JPEG%2F6aaa3d2eb1411ab61ebb3e9f.jpg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "BEST",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260916_231%2F1789523187126u89na_JPEG%2F6aa9f4f36e20dcd66c398657.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "NEW",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260916_39%2F1789537627284AjYEN_JPEG%2F6aaa2d5b77e10fd0dcf59856.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "런칭캘린더",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260916_155%2F17895218170991IX3Y_JPEG%2F6aa9ef990d77bfc95e792dec.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": true,
+      "change_label": "변동",
+      "changed_parts": [
+        "대표문구",
+        "서브카피",
+        "대표 이미지"
+      ],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
+    },
+    {
+      "brand": "아크테릭스",
+      "query": "아크테릭스",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "가을 하이킹을 위한 쉘재킷",
+      "main_copy": "새로 입고된 방수·방풍 재킷으로",
+      "sub_copy": "가을 하이킹을 떠나보세요",
+      "tags": [
+        "System0",
+        "쉘자켓",
+        "매장찾기",
+        "뉴스레터"
+      ],
+      "cards": [
+        "아톰 후디",
+        "아톰 후디",
+        "맨티스26"
+      ],
+      "keyword_highlights": [
+        "System0",
+        "쉘자켓",
+        "매장찾기",
+        "뉴스레터",
+        "아톰 후디",
+        "맨티스26"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=%EC%95%84%ED%81%AC%ED%85%8C%EB%A6%AD%EC%8A%A4",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/아크테릭스.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260929_286%2F1790644194360nSqNh_JPEG%2F6abb0fe277e10fd0dcf6ae4e.jpeg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260929_286%2F1790644194360nSqNh_JPEG%2F6abb0fe277e10fd0dcf6ae4e.jpeg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "아톰 후디",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261001_196%2F1790822081922R7XWs_JPEG%2F6abdc6c1d9d48d547b2c6738.jpeg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "아톰 후디",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261001_48%2F1790822081918MKqzn_JPEG%2F6abdc6c1d9d48d547b2c6737.jpeg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "맨티스26",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261001_77%2F1790822081921Cm8SP_JPEG%2F6abdc6c1d9d48d547b2c6736.jpeg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": false,
+      "change_label": "",
+      "changed_parts": [],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
+    },
+    {
+      "brand": "블랙야크",
+      "query": "블랙야크",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "블랙야크 스톤마스터",
+      "main_copy": "가벼움이 만든 퍼포먼스",
+      "sub_copy": "MOVE LIGHT. GO HIGH.",
+      "tags": [
+        "터프쉴드팬츠",
+        "트레일러닝",
+        "고어텍스 이벤트"
+      ],
+      "cards": [
+        "헤비 다운",
+        "라이트 다운",
+        "패딩 자켓"
+      ],
+      "keyword_highlights": [
+        "터프쉴드팬츠",
+        "트레일러닝",
+        "고어텍스 이벤트",
+        "헤비 다운",
+        "라이트 다운",
+        "패딩 자켓"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=%EB%B8%94%EB%9E%99%EC%95%BC%ED%81%AC",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/블랙야크.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260917_155%2F1789632055757dwuvE_JPEG%2F6aab9e37c4d5c0a27dcb6fce.jpeg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260917_155%2F1789632055757dwuvE_JPEG%2F6aab9e37c4d5c0a27dcb6fce.jpeg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "헤비 다운",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260917_20%2F1789632332689KA6ik_PNG%2F6aab9f4cf110a48d9c88d885.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "라이트 다운",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260917_228%2F17896323326929hKoB_PNG%2F6aab9f4cf110a48d9c88d884.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "패딩 자켓",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260917_118%2F17896323326867GzMV_PNG%2F6aab9f4cf110a48d9c88d883.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": false,
+      "change_label": "",
+      "changed_parts": [],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
+    },
+    {
+      "brand": "아이더",
+      "query": "아이더",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "그래티넘 라이트 다운",
+      "main_copy": "가볍게, 따뜻하게, 편안하게",
+      "sub_copy": "어디서 무얼하든 그래티넘 라이트 다운",
+      "tags": [
+        "바람막이",
+        "플리스자켓",
+        "가방"
+      ],
+      "cards": [
+        "경량패딩",
+        "헤비다운",
+        "트레킹화"
+      ],
+      "keyword_highlights": [
+        "바람막이",
+        "플리스자켓",
+        "가방",
+        "경량패딩",
+        "헤비다운",
+        "트레킹화"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=%EC%95%84%EC%9D%B4%EB%8D%94",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/아이더.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260827_178%2F1787808066014s9plm_PNG%2F6a8fc9410a15e1bfcd3e2cbb.png&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260827_178%2F1787808066014s9plm_PNG%2F6a8fc9410a15e1bfcd3e2cbb.png&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "경량패딩",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260827_276%2F1787808066043tUnVc_PNG%2F6a8fc9410a15e1bfcd3e2cc0.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "헤비다운",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260827_178%2F1787808065980Y9xVm_PNG%2F6a8fc9410a15e1bfcd3e2cc2.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "트레킹화",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260827_194%2F1787808065979hsT4w_PNG%2F6a8fc9410a15e1bfcd3e2cbe.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": false,
+      "change_label": "",
+      "changed_parts": [],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
+    },
+    {
+      "brand": "K2",
+      "query": "K2",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "K2 알파카 파카다운",
+      "main_copy": "40도의 일교차를 이기는 알파카로 따뜻하게",
+      "sub_copy": "처음 만나는 알파카 플리스 다운",
+      "tags": [
+        "등산화",
+        "플라이하이크",
+        "알파카파카",
+        "씬에어"
+      ],
+      "cards": [
+        "경량패딩",
+        "트레킹화",
+        "바람막이"
+      ],
+      "keyword_highlights": [
+        "등산화",
+        "플라이하이크",
+        "알파카파카",
+        "씬에어",
+        "경량패딩",
+        "트레킹화"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=K2",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/K2.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260929_132%2F1790656748207w2e1k_PNG%2F6abb40ecb1411ab61ebc84f6.png&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260929_132%2F1790656748207w2e1k_PNG%2F6abb40ecb1411ab61ebc84f6.png&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "경량패딩",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260918_184%2F1789694762490s5zcJ_PNG%2F6aac932a0cf785b39acc70dc.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "트레킹화",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260825_274%2F1787637534256Wh6hy_PNG%2F6a8d2f1e61a48d54e1fd682a.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "바람막이",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260921_224%2F1789980014764yLJLe_PNG%2F6ab0ed6e77e10fd0dcf627af.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": true,
+      "change_label": "변동",
+      "changed_parts": [
+        "대표 이미지"
+      ],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
+    },
+    {
+      "brand": "디스커버리",
+      "query": "디스커버리",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "디스커버리 에어웰 경량패딩",
+      "main_copy": "경량 원단과 발수 발풍 기능까지",
+      "sub_copy": "일상을 가벼운 온기로 채우다",
+      "tags": [
+        "멤버십 혜택",
+        "포인트 적립"
+      ],
+      "cards": [
+        "슈즈",
+        "경량패딩",
+        "후리스"
+      ],
+      "keyword_highlights": [
+        "멤버십 혜택",
+        "포인트 적립",
+        "슈즈",
+        "경량패딩",
+        "후리스"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=%EB%94%94%EC%8A%A4%EC%BB%A4%EB%B2%84%EB%A6%AC",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/디스커버리.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260930_165%2F1790738568870ryaPD_PNG%2F6abc8088570d91be7ba81ad4.png&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260930_165%2F1790738568870ryaPD_PNG%2F6abc8088570d91be7ba81ad4.png&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "슈즈",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261008_113%2F1791426120016hj8ec_PNG%2F6ac6fe473eba811e4a0764e2.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "경량패딩",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261008_195%2F17914261200074Vxm9_PNG%2F6ac6fe473eba811e4a0764e4.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "후리스",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20261008_173%2F1791426120011IUVDS_PNG%2F6ac6fe473eba811e4a0764e3.png&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": true,
+      "change_label": "변동",
+      "changed_parts": [
+        "대표문구",
+        "서브카피",
+        "대표 이미지"
+      ],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
+    },
+    {
+      "brand": "밀레",
+      "query": "밀레",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "밀레 공식 온라인 스토어",
+      "main_copy": "경량다운의 새로운 기준, MT 에어볼",
+      "sub_copy": "100g대 초경량에 강화된 내구성까지",
+      "tags": [
+        "여성",
+        "남성",
+        "드라이나믹",
+        "SALE"
+      ],
+      "cards": [
+        "경량다운",
+        "등산화",
+        "가을자켓"
+      ],
+      "keyword_highlights": [
+        "여성",
+        "남성",
+        "드라이나믹",
+        "SALE",
+        "경량다운",
+        "등산화"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=%EB%B0%80%EB%A0%88",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/밀레.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260908_206%2F1788854621450OMgd7_JPEG%2F6a9fc15d5be529b9f3b558d7.jpg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260908_206%2F1788854621450OMgd7_JPEG%2F6a9fc15d5be529b9f3b558d7.jpg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "경량다운",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260908_276%2F1788854621447UiAbH_JPEG%2F6a9fc15d5be529b9f3b558d9.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "등산화",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260908_218%2F1788854621447viTMc_JPEG%2F6a9fc15d5be529b9f3b558d8.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "가을자켓",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260908_229%2F1788854621442jMvsx_JPEG%2F6a9fc15d5be529b9f3b558da.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": false,
+      "change_label": "",
+      "changed_parts": [],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
+    },
+    {
+      "brand": "네파",
+      "query": "네파",
+      "status": "ok",
+      "status_label": "수집 성공",
+      "headline": "네파 에어써밋",
+      "main_copy": "도시라는 야생에서도",
+      "sub_copy": "에어써밋이라면, NEVER PANIC",
+      "tags": [
+        "바람막이",
+        "신상 모아보기",
+        "등산화",
+        "신규혜택"
+      ],
+      "cards": [
+        "에어써밋 라이트",
+        "젤로 경량다운",
+        "에어써밋 다운"
+      ],
+      "keyword_highlights": [
+        "바람막이",
+        "신상 모아보기",
+        "등산화",
+        "신규혜택",
+        "에어써밋 라이트",
+        "젤로 경량다운"
+      ],
+      "collected_at": "2026-10-10 15:22:19",
+      "source": "https://search.naver.com/search.naver?query=%EB%84%A4%ED%8C%8C",
+      "capture_path": "reports/daily_digest/data/powerlink_captures/네파.png",
+      "capture_method": "playwright_element:desktop",
+      "hero_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260929_50%2F1790673998294KN7Kc_JPEG%2F6abb844ea05161dacf02dcd0.jpg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "thumb_area_image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260929_50%2F1790673998294KN7Kc_JPEG%2F6abb844ea05161dacf02dcd0.jpg&type=o&size=472x472&ttype=input&autoRotate=true",
+      "cards_detail": [
+        {
+          "name": "에어써밋 라이트",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260929_236%2F1790673998285DVGFQ_JPEG%2F6abb844ea05161dacf02dcd1.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "젤로 경량다운",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260929_23%2F1790673887379NG4vf_JPEG%2F6abb83df14978560fb34d434.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        },
+        {
+          "name": "에어써밋 다운",
+          "image": "https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260929_207%2F1790673887377ooF7P_JPEG%2F6abb83df14978560fb34d432.jpg&type=o&size=232x152&ttype=input&autoRotate=true",
+          "alt": ""
+        }
+      ],
+      "change_flag": false,
+      "change_label": "",
+      "changed_parts": [],
+      "ab_flag": false,
+      "ab_label": "",
+      "ab_variant_count": 0,
+      "ab_changed_parts": [],
+      "ab_variants": [],
+      "winner_flag": false,
+      "winner_label": "",
+      "winner_parts": []
     }
   ]
 }
