@@ -183,6 +183,8 @@ def build(listings_path: Path, sellers_path: Path, output: Path, max_age_days: i
         columbia_rows = [r for r in recent if is_columbia(r["brand"])]
         other_brands = Counter(r["brand"] for r in recent if r["brand"] and not is_columbia(r["brand"]))
         style_counts = Counter(r["product_code"] for r in columbia_rows if r["product_code"])
+        category_counts = Counter(r["category"] for r in columbia_rows if r["category"])
+        names_by_code = {r["product_code"]: r["product_name"] for r in columbia_rows if r["product_code"] and r["product_name"]}
         prices = [r["price_krw"] for r in columbia_rows if isinstance(r["price_krw"], int)]
         last_seen_dates = [read_date(r["observed_at"]) for r in rows]
         last_seen_dates = [x for x in last_seen_dates if x is not None]
@@ -207,6 +209,10 @@ def build(listings_path: Path, sellers_path: Path, output: Path, max_age_days: i
             "current_columbia_listings": len(columbia_rows),
             "current_columbia_unique_codes": len(style_counts),
             "columbia_focus_codes": ", ".join(f"{code}({count})" for code, count in style_counts.most_common(5)),
+            "columbia_focus_products": " / ".join(f"{code} {names_by_code.get(code, '')}({count})" for code, count in style_counts.most_common(5)),
+            "columbia_focus_categories": ", ".join(f"{cat}({count})" for cat, count in category_counts.most_common(5)),
+            "columbia_c7_current_listing_count": sum(r["product_code"].upper().startswith("C7") for r in columbia_rows),
+            "columbia_c4_c6_carryover_listing_count": sum(r["product_code"].upper().startswith(("C4", "C5", "C6")) for r in columbia_rows),
             "columbia_min_price_krw": min(prices) if prices else "",
             "columbia_median_price_krw": int(median(prices)) if prices else "",
             "other_brands_observed": ", ".join(sorted(other_brands)),
@@ -224,6 +230,8 @@ def build(listings_path: Path, sellers_path: Path, output: Path, max_age_days: i
              "store_url", "verified_at", "verification_status", "last_observed_at",
              "historical_listings", "current_columbia_listings",
              "current_columbia_unique_codes", "columbia_focus_codes",
+             "columbia_focus_products", "columbia_focus_categories",
+             "columbia_c7_current_listing_count", "columbia_c4_c6_carryover_listing_count",
              "columbia_min_price_krw", "columbia_median_price_krw",
              "other_brands_observed", "other_brand_listing_count",
              "address_status", "identity_status"], master)
@@ -258,7 +266,7 @@ def build(listings_path: Path, sellers_path: Path, output: Path, max_age_days: i
             html.escape(r["business_address"] or "미확인") + " " + link(r["business_info_url"], "근거"),
             html.escape(r["return_address"] or "미확인") + " " + link(r["return_info_url"], "근거"),
             str(r["current_columbia_listings"]),
-            html.escape(r["columbia_focus_codes"] or "미확인"),
+            html.escape(r["columbia_focus_products"] or r["columbia_focus_codes"] or "미확인"),
             html.escape(r["other_brands_observed"] or "미확인"),
             link(r["store_url"], "스토어"),
             html.escape(r["last_observed_at"] or "미확인"),
