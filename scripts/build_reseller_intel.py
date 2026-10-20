@@ -148,6 +148,8 @@ def build(listings_path: Path, sellers_path: Path, output: Path, max_age_days: i
             malformed_dates += 1
         elif now - observation > timedelta(days=max_age_days):
             state = "과거 데이터"
+        elif not (row["source_url"] or row["product_url"]) or not row["source_type"] or row["verification_status"] not in {"verified_public", "verified_export"}:
+            state = "근거 미검증"
         else:
             state = "최신 관측"
         row["freshness"] = state
@@ -184,8 +186,9 @@ def build(listings_path: Path, sellers_path: Path, output: Path, max_age_days: i
         prices = [r["price_krw"] for r in columbia_rows if isinstance(r["price_krw"], int)]
         last_seen_dates = [read_date(r["observed_at"]) for r in rows]
         last_seen_dates = [x for x in last_seen_dates if x is not None]
-        business_address = p.get("business_address", "") if safe_url(p.get("business_info_url", "")) else ""
-        return_address = p.get("return_address", "") if safe_url(p.get("return_info_url", "")) else ""
+        address_verified = p.get("verification_status", "") == "verified_public"
+        business_address = p.get("business_address", "") if address_verified and safe_url(p.get("business_info_url", "")) else ""
+        return_address = p.get("return_address", "") if address_verified and safe_url(p.get("return_info_url", "")) else ""
         master.append({
             "seller_name": seller_name,
             "seller_id": p.get("seller_id") or representative.get("seller_id", ""),
