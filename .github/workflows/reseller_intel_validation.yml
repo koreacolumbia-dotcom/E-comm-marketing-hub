@@ -1,0 +1,35 @@
+name: Reseller Intel Validation
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/build_reseller_intel.py'
+      - 'scripts/mark_naver_price_legacy.py'
+      - 'naver_crawl_columbia_official_auto.py'
+      - 'tests/test_reseller_intel.py'
+      - 'data/reseller_intel/**'
+      - '.github/workflows/reseller_intel_validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile code
+        run: |
+          python -m py_compile scripts/build_reseller_intel.py
+          python -m py_compile scripts/mark_naver_price_legacy.py
+          python -m py_compile naver_crawl_columbia_official_auto.py
+      - name: Unit tests
+        run: python -m unittest discover -s tests -p 'test_reseller_intel.py' -v
+      - name: Empty source warns instead of producing fake live prices
+        run: |
+          python scripts/build_reseller_intel.py
+          python -c "import json; assert json.load(open('reports/reseller_intel/meta.json'))['status'] == 'REQUIRES_CURRENT_SOURCE'"
