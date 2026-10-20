@@ -336,13 +336,19 @@ def load_cache(cache_dir: str, style_code: str, ttl_hours: int = 12) -> Optional
         return None
 
     try:
-        mtime = os.path.getmtime(path)
-        age_sec = time.time() - mtime
-        if age_sec > ttl_hours * 3600:
-            return None
-
         with open(path, "r", encoding="utf-8") as f:
             payload = json.load(f)
+
+        # Checkout changes file mtimes: only actual saved_at is valid.
+        saved_at = payload.get("saved_at")
+        if not saved_at:
+            return None
+        saved_dt = datetime.fromisoformat(str(saved_at).replace("Z", "+00:00"))
+        if saved_dt.tzinfo is None:
+            saved_dt = saved_dt.replace(tzinfo=timezone.utc)
+        age_sec = (datetime.now(timezone.utc) - saved_dt.astimezone(timezone.utc)).total_seconds()
+        if age_sec < 0 or age_sec > ttl_hours * 3600:
+            return None
 
         items = payload.get("items")
         if isinstance(items, list):
@@ -357,7 +363,7 @@ def save_cache(cache_dir: str, style_code: str, items: List[Dict[str, Any]]) -> 
     path = cache_path(cache_dir, style_code)
     try:
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"items": items, "saved_at": datetime.now().isoformat()}, f, ensure_ascii=False)
+            json.dump({"items": items, "saved_at": datetime.now(timezone.utc).isoformat()}, f, ensure_ascii=False)
     except Exception:
         pass
 
@@ -2212,6 +2218,9 @@ def main():
     parser.add_argument("--official_delay", type=float, default=0.4, help="공식몰 페이지 요청 간 딜레이(초)")
 
     args = parser.parse_args()
+
+    if datetime.now(timezone.utc) >= datetime(2026, 8, 1, tzinfo=timezone.utc):
+        raise SystemExit("[RETIRED] Naver Shopping Search API ended 2026-07-31. Old cached prices are NOT current. See data/reseller_intel/README.md")
 
     log("🚀 SCRIPT START")
     log(f"📌 CWD: {os.getcwd()}")
