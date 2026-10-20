@@ -650,44 +650,14 @@ jobs:
           print(f"[CHECK] funnel_path={funnel_path} seeded={funnel_seeded} count={funnel_cnt} note={funnel_note}")
           PY
 
-      - name: Run Naver Lowest Price crawler
+      - name: Mark legacy Naver price report as archived (Shopping API retired)
         if: ${{ steps.modes.outputs.run_price == 'true' }}
-        continue-on-error: true
-        env:
-          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        continue-on-error: false
         shell: bash
         run: |
           set -euo pipefail
-          if [ -f "naver_crawl_columbia_official_auto.py" ]; then
-            echo "[INFO] Run Official Mall Price Monitor with official mall crawling"
-            python -u naver_crawl_columbia_official_auto.py \
-              --crawl_official \
-              --official_seed_file official_seed_urls.txt \
-              --official_out_csv 공식몰가격_auto.csv \
-              --official_max_pages 50 \
-              --official_scroll_times 10 \
-              --limit 999999 \
-              --trim_images \
-              --output_csv result_official_auto.csv \
-              --output_html reports/naver_lowest_price.html \
-              --history_dir . \
-              --cache_dir .naver_cache \
-              || true
-          elif [ -f "naver_crawl_columbia_c6c7_title_min.py" ]; then
-            echo "[WARN] naver_crawl_columbia_official_auto.py not found. Fallback to CSV-based Naver Lowest Price crawler."
-            python -u naver_crawl_columbia_c6c7_title_min.py \
-              --limit 999999 \
-              --output_html reports/naver_lowest_price.html \
-              --history_dir . \
-              --cache_dir .naver_cache \
-              || true
-          else
-            echo "[ERROR] Naver price monitor script not found."
-            exit 1
-          fi
-          ls -la reports/naver_lowest_price.html || true
-          ls -la 공식몰가격_auto.csv result_official_auto.csv || true
+          python -u scripts/mark_naver_price_legacy.py
+          test -f reports/naver_price_status.json
 
       - name: Run Hero banner crawler
         if: ${{ steps.modes.outputs.run_hero == 'true' }}
