@@ -658,6 +658,8 @@ jobs:
           set -euo pipefail
           python -u scripts/mark_naver_price_legacy.py
           test -f reports/naver_price_status.json
+          python -u scripts/build_reseller_intel.py --max-age-days 3
+          test -f reports/reseller_intel/meta.json
 
       - name: Run Hero banner crawler
         if: ${{ steps.modes.outputs.run_hero == 'true' }}
