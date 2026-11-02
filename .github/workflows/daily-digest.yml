@@ -26,8 +26,8 @@ on:
           - "true"
 
   schedule:
-    # 09:30 KST daily -> Daily Digest + email
-    - cron: "30 0 * * *"
+    # 08:30 KST daily -> build Daily Digest and send email before 10:00 KST
+    - cron: "30 23 * * *"
 
 concurrency:
   group: daily-digest
