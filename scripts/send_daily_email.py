@@ -48,7 +48,9 @@ def read_bytes(path: str) -> bytes:
         return b""
 
 
-def build_subject(kst_stamp: str, mode_daily: bool, mode_voc: bool, mode_blog: bool) -> str:
+def build_subject(kst_stamp: str, mode_daily: bool, mode_voc: bool, mode_blog: bool, mode_weekly: bool = False, report_period: str = "") -> str:
+    if mode_weekly:
+        return f"[CSK E-COMM] Weekly Digest (7D: {report_period}) - {kst_stamp}".strip()
     mode = "FULL"
     if mode_daily:
         mode = "DAILY ONLY"
@@ -89,14 +91,19 @@ def build_email_cover_html(
     hub_url: str,
     inline_img_cid: str | None,
     missing_reason: str | None = None,
+    mode_weekly: bool = False,
+    report_period: str = "",
 ) -> str:
+    digest_type = "Weekly" if mode_weekly else "Daily"
+    report_label = "집계 기간" if mode_weekly else "기준일"
+    report_display = report_period if mode_weekly else report_date
     btn_primary = (
         f'<a href="{html_escape(daily_url)}" '
         f'style="display:inline-block;background:#002d72;color:#fff;text-decoration:none;'
-        f'font-weight:800;font-size:13px;padding:10px 14px;border-radius:12px;">Open Daily Report</a>'
+        f'font-weight:800;font-size:13px;padding:10px 14px;border-radius:12px;">Open {digest_type} Report</a>'
         if daily_url else
         '<span style="display:inline-block;background:#94a3b8;color:#fff;font-weight:800;'
-        'font-size:13px;padding:10px 14px;border-radius:12px;">Daily link unavailable</span>'
+        f'font-size:13px;padding:10px 14px;border-radius:12px;">{digest_type} link unavailable</span>'
     )
     btn_secondary = (
         f'<a href="{html_escape(hub_url)}" '
@@ -128,7 +135,7 @@ def build_email_cover_html(
           </tr>
           <tr>
             <td style="border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#ffffff;">
-              <img src="cid:{inline_img_cid}" alt="Daily Digest Preview"
+              <img src="cid:{inline_img_cid}" alt="{digest_type} Digest Preview"
                    style="display:block;width:100%;max-width:900px;height:auto;border:0;margin:0;" />
             </td>
           </tr>
@@ -155,9 +162,9 @@ def build_email_cover_html(
                  style="max-width:900px;width:100%;background:#ffffff;border:1px solid #eef2f7;border-radius:18px;">
             <tr>
               <td style="padding:18px 18px 14px;">
-                <div style="font-size:18px;font-weight:900;">CSK E-COMM · Daily Digest</div>
+                <div style="font-size:18px;font-weight:900;">CSK E-COMM · {digest_type} Digest</div>
                 <div style="margin-top:6px;font-size:13px;color:#64748b;font-weight:700;">
-                  기준일: <span style="color:#0f172a;font-weight:900;">{html_escape(report_date)}</span>
+                  {report_label}: <span style="color:#0f172a;font-weight:900;">{html_escape(report_display)}</span>
                 </div>
                 <div style="margin-top:14px;">
                   {btn_primary}
@@ -177,7 +184,7 @@ def build_email_cover_html(
             {preview_block}
             <tr>
               <td style="font-size:11px;color:#94a3b8;line-height:1.6;">
-                첨부: DailyDigest_{html_escape(report_date)}.html (원본) / (옵션) DailyDigest_{html_escape(report_date)}.png
+                첨부: {digest_type}Digest_{html_escape(report_date)}.html (원본) / (옵션) {digest_type}Digest_{html_escape(report_date)}.png
               </td>
             </tr>
           </table>
@@ -270,46 +277,54 @@ def main():
     mode_daily = env("MODE_DAILY_ONLY").lower() == "true"
     mode_voc = env("MODE_VOC_ONLY").lower() == "true"
     mode_blog = env("MODE_BLOG_ONLY").lower() == "true"
-    subject = build_subject(kst_stamp, mode_daily, mode_voc, mode_blog)
+    mode_weekly = env("REPORT_MODE", "daily").strip().lower() == "weekly"
 
     report_date = env("REPORT_DATE") or kst_yesterday_ymd()
+    date_end = datetime.strptime(report_date, "%Y-%m-%d")
+    report_period = f"{(date_end - timedelta(days=6)).strftime('%Y-%m-%d')} ~ {report_date}" if mode_weekly else report_date
+    subject = build_subject(kst_stamp, mode_daily, mode_voc, mode_blog, mode_weekly, report_period)
 
-    default_html_path = f"reports/daily_digest/daily/{report_date}.html"
+    report_folder = "weekly" if mode_weekly else "daily"
+    report_file_stem = f"END_{report_date}" if mode_weekly else report_date
+    digest_type = "Weekly" if mode_weekly else "Daily"
+    default_html_path = f"reports/daily_digest/{report_folder}/{report_file_stem}.html"
     html_path = env("DAILY_DIGEST_HTML_PATH") or default_html_path
     html_report = read_text(html_path)
 
-    default_png_path = f"reports/daily_digest/daily/{report_date}.png"
+    default_png_path = f"reports/daily_digest/{report_folder}/{report_file_stem}.png"
     png_path = env("DAILY_DIGEST_PNG_PATH") or default_png_path
     png_bytes = read_bytes(png_path)
 
     base = hub_url.rstrip("/") if hub_url else ""
-    daily_url = f"{base}/{default_html_path}" if base else ""
+    report_url = f"{base}/{default_html_path}" if base else ""
     hub_link = f"{base}/reports/daily_digest/index.html" if base else ""
 
     attachments: list[tuple[str, str, bytes]] = []
 
     missing_reason = None
     if not html_report:
-        missing_reason = f"Daily report HTML 파일을 찾지 못했습니다. (expected: {html_path})"
+        missing_reason = f"{digest_type} report HTML 파일을 찾지 못했습니다. (expected: {html_path})"
     else:
-        base_href = f"{base}/reports/daily_digest/" if base else ""
+        base_href = f"{base}/reports/daily_digest/{report_folder}/" if base else ""
         html_for_attach = inject_base_href(html_report, base_href)
-        attachments.append((f"DailyDigest_{report_date}.html", "html", html_for_attach.encode("utf-8")))
+        attachments.append((f"{digest_type}Digest_{report_date}.html", "html", html_for_attach.encode("utf-8")))
 
     inline_cid = None
     if png_bytes:
         inline_cid = make_msgid(domain="csk.local")[1:-1]  # remove <>
-        attachments.append((f"DailyDigest_{report_date}.png", "png", png_bytes))
+        attachments.append((f"{digest_type}Digest_{report_date}.png", "png", png_bytes))
 
     html_body = build_email_cover_html(
         report_date=report_date,
-        daily_url=daily_url,
+        daily_url=report_url,
         hub_url=hub_link,
         inline_img_cid=inline_cid,
         missing_reason=missing_reason,
+        mode_weekly=mode_weekly,
+        report_period=report_period,
     )
 
-    text_fallback = f"CSK E-COMM Daily Digest {report_date}\nDaily: {daily_url}\nHub: {hub_link}"
+    text_fallback = f"CSK E-COMM {digest_type} Digest {report_period}\nReport: {report_url}\nHub: {hub_link}"
 
     send_email_mixed_with_inline_image(
         host=smtp_host,
