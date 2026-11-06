@@ -140,6 +140,12 @@ jobs:
           echo "kst=$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')" >> "$GITHUB_OUTPUT"
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+          # Monday (Asia/Seoul) sends the prior Monday-Sunday report.
+          if [ "$(TZ=Asia/Seoul date '+%u')" = "1" ]; then
+            echo "digest_mode=weekly" >> "$GITHUB_OUTPUT"
+          else
+            echo "digest_mode=daily" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Debug KMA secret presence
         if: ${{ always() }}
@@ -153,7 +159,7 @@ jobs:
           print("KMA key length:", len(v))
           PY
 
-      - name: Build Daily Digest (yesterday only)
+      - name: Build Daily or Weekly Digest (through yesterday)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
         shell: bash
@@ -161,6 +167,7 @@ jobs:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+          DAILY_DIGEST_REPORT_MODE: ${{ steps.set_time.outputs.digest_mode }}
 
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
@@ -212,15 +219,20 @@ jobs:
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
 
-          mkdir -p reports/daily_digest/daily reports/daily_digest/data/daily
+          mkdir -p reports/daily_digest/{daily,weekly} reports/daily_digest/data/{daily,weekly}
 
-          echo "[INFO] Purge old outputs for ${YMD}"
-          rm -f "reports/daily_digest/daily/${YMD}.html" \
-                "reports/daily_digest/data/daily/${YMD}.json" || true
-
-          echo "[INFO] Build only: ${YMD}"
-          export GA4_START_DATE="${YMD}"
+          echo "[INFO] Purge old ${DAILY_DIGEST_REPORT_MODE} outputs for ${YMD}"
+          if [ "${DAILY_DIGEST_REPORT_MODE}" = "weekly" ]; then
+            rm -f "reports/daily_digest/weekly/END_${YMD}.html" \
+                  "reports/daily_digest/data/weekly/END_${YMD}.json" || true
+            export GA4_START_DATE="$(date -d "${YMD} -6 days" '+%Y-%m-%d')"
+          else
+            rm -f "reports/daily_digest/daily/${YMD}.html" \
+                  "reports/daily_digest/data/daily/${YMD}.json" || true
+            export GA4_START_DATE="${YMD}"
+          fi
           export GA4_END_DATE="${YMD}"
+          echo "[INFO] Build ${DAILY_DIGEST_REPORT_MODE}: ${GA4_START_DATE} ~ ${GA4_END_DATE}"
 
           # 패치 버전 실행
           python -u daily_digest_live_final.py --out-dir reports/daily_digest
@@ -229,17 +241,23 @@ jobs:
           ls -la reports/daily_digest/daily | tail -n 40 || true
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
 
-      - name: Render yesterday Daily Digest PNG
+      - name: Render Daily or Weekly Digest PNG
         if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
         shell: bash
         env:
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+          REPORT_MODE: ${{ steps.set_time.outputs.digest_mode }}
         run: |
           set -euo pipefail
 
-          HTML="reports/daily_digest/daily/${YMD}.html"
-          PNG="reports/daily_digest/daily/${YMD}.png"
+          if [ "${REPORT_MODE}" = "weekly" ]; then
+            HTML="reports/daily_digest/weekly/END_${YMD}.html"
+            PNG="reports/daily_digest/weekly/END_${YMD}.png"
+          else
+            HTML="reports/daily_digest/daily/${YMD}.html"
+            PNG="reports/daily_digest/daily/${YMD}.png"
+          fi
 
           if [ ! -f "$HTML" ]; then
             echo "[WARN] Daily HTML not found for PNG render: $HTML"
@@ -293,7 +311,7 @@ jobs:
           echo "[ERROR] failed to push after retries"
           exit 1
 
-      - name: Send daily email (yesterday daily report PNG)
+      - name: Send Daily or Weekly Digest email
         if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
         continue-on-error: true
         env:
@@ -309,9 +327,14 @@ jobs:
 
           export KST_STAMP="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S KST')"
           export REPORT_DATE="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
-          export DAILY_DIGEST_PNG_PATH="reports/daily_digest/daily/${REPORT_DATE}.png"
-          export DAILY_DIGEST_HTML_PATH="reports/daily_digest/daily/${REPORT_DATE}.html"
-          export MODE_DAILY="yesterday"
+          export REPORT_MODE="${{ steps.set_time.outputs.digest_mode }}"
+          if [ "${REPORT_MODE}" = "weekly" ]; then
+            export DAILY_DIGEST_PNG_PATH="reports/daily_digest/weekly/END_${REPORT_DATE}.png"
+            export DAILY_DIGEST_HTML_PATH="reports/daily_digest/weekly/END_${REPORT_DATE}.html"
+          else
+            export DAILY_DIGEST_PNG_PATH="reports/daily_digest/daily/${REPORT_DATE}.png"
+            export DAILY_DIGEST_HTML_PATH="reports/daily_digest/daily/${REPORT_DATE}.html"
+          fi
 
           if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASS:-}" ] || [ -z "${DAILY_RECIPIENTS:-}" ]; then
             echo "[WARN] SMTP or DAILY_RECIPIENTS config missing -> skip daily email"
