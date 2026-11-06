@@ -47,6 +47,7 @@ DEFAULT_PROPERTY_ID = os.getenv("GA4_PROPERTY_ID", "358593394")
 # ================================================================
 CHANNEL_CASE_SQL = r"""
 CASE
+  WHEN REGEXP_CONTAINS(session_source_medium, r'(?i).*(instagram).*') AND REGEXP_CONTAINS(session_source_medium, r'(?i).*(referral).*') THEN '3. Organic Traffic'
   WHEN REGEXP_CONTAINS(session_source_medium, r'(?i).*(instagram).*') AND REGEXP_CONTAINS(session_source_medium, r'(?i).*(story).*') THEN '4. Official SNS'
   WHEN REGEXP_CONTAINS(session_source_medium, r'(?i).*(benz).*') THEN '3. Organic Traffic'
 
@@ -64,7 +65,6 @@ CASE
 
   WHEN REGEXP_CONTAINS(session_source_medium, r'(?i).*(igshopping).*') THEN '4. Official SNS'
   WHEN REGEXP_CONTAINS(session_source_medium, r'(?i).*(facebook).*') AND REGEXP_CONTAINS(session_source_medium, r'(?i).*(referral).*') THEN '3. Organic Traffic'
-  WHEN REGEXP_CONTAINS(session_source_medium, r'(?i).*(instagram).*') AND REGEXP_CONTAINS(session_source_medium, r'(?i).*(referral).*') THEN '4. Official SNS'
   WHEN REGEXP_CONTAINS(session_source_medium, r'(?i).*(meta|facebook|instagram|ig|fb).*') THEN '2. Paid Ad'
 
   WHEN REGEXP_CONTAINS(session_source_medium, r'(?i).*(google / cpc).*') AND REGEXP_CONTAINS(session_campaign, r'(?i).*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demandgen).*') THEN '1. Awareness'
