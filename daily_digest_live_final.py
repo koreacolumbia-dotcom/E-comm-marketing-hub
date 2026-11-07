@@ -2090,12 +2090,14 @@ def map_default_channel_group_to_bucket(default_channel_group: str = "") -> str:
         return "Owned Channel"
     if dcg in {"organic social"}:
         return "Official SNS"
-    if dcg in {"paid search", "paid social", "display", "paid shopping"}:
-        return "Paid Ad"
-    if dcg in {"video", "organic video", "affiliates", "cross-network", "audio", "paid video"}:
-        return "Awareness"
-    if dcg in {"direct", "organic search", "organic shopping", "referral", "unassigned"}:
+    if dcg in {"direct", "organic search", "organic shopping", "organic video", "referral"}:
         return "Organic Traffic"
+    if dcg in {"paid search", "paid social", "display", "paid shopping", "paid video", "cross-network", "paid other"}:
+        return "Paid Ad"
+    if dcg in {"video", "affiliates", "audio"}:
+        return "Awareness"
+    # GA4 Unassigned is NOT evidence of organic traffic.
+    # Keep it as etc until source/medium can reliably identify its origin.
     return ""
 
 
@@ -3377,20 +3379,31 @@ def fetch_platform_spend_map(start: dt.date, end: dt.date) -> Dict[str, float]:
     return {k: float(v or 0) for k, v in manual.items()}
 
 def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, pd.DataFrame]:
-    dims = ["sessionSourceMedium", "sessionCampaignName"]
+    dims = ["sessionSourceMedium", "sessionCampaignName", "sessionDefaultChannelGroup"]
     session_metric = "sessions"
     mets = [session_metric, "transactions", "purchaseRevenue"]
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         try:
             df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
         except Exception:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["sessionSourceMedium"], mets, limit=250000)
-            df['sessionCampaignName'] = ''
+            # Preserve the existing two-/one-dimension compatibility path.
+            try:
+                df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims[:2], mets, limit=250000)
+            except Exception:
+                df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["sessionSourceMedium"], mets, limit=250000)
         if df.empty:
             return pd.DataFrame(columns=dims + mets)
+        for c in dims:
+            if c not in df.columns:
+                df[c] = ""
+            df[c] = df[c].fillna("").astype(str)
         for c in mets:
-            df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
-        df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+            df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
+        df["bucket"] = df.apply(
+            lambda r: classify_looker_channel(
+                r["sessionSourceMedium"], r["sessionCampaignName"], r["sessionDefaultChannelGroup"]
+            ), axis=1
+        )
         return df
     cur = fetch(w.cur_start, w.cur_end)
     prev = fetch(w.prev_start, w.prev_end)
@@ -3401,13 +3414,23 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
         out = df[df["bucket"] == bucket].copy()
         if out.empty:
             return out
-        out["sub"] = out.apply(
-            lambda r: classify_channel_detail_label(
-                str(r.get("sessionSourceMedium", "")),
-                str(r.get("sessionCampaignName", "")),
-            ),
-            axis=1,
-        )
+        if bucket == "etc":
+            # Expose raw source/medium and campaign; do not hide unidentified traffic.
+            def unresolved_label(row: pd.Series) -> str:
+                sm = str(row.get("sessionSourceMedium", "") or "").strip() or "(not set)"
+                campaign = str(row.get("sessionCampaignName", "") or "").strip()
+                if campaign.lower() in {"", "(not set)", "(not provided)"}:
+                    return f"미분류 · {sm}"
+                return f"미분류 · {sm} · {campaign[:80]}"
+            out["sub"] = out.apply(unresolved_label, axis=1)
+        else:
+            out["sub"] = out.apply(
+                lambda r: classify_channel_detail_label(
+                    str(r.get("sessionSourceMedium", "")),
+                    str(r.get("sessionCampaignName", "")),
+                ),
+                axis=1,
+            )
         return out
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
