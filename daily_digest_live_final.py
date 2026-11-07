@@ -2109,6 +2109,14 @@ def classify_looker_channel(source_medium: str, campaign: str = "", default_chan
     bucket = _classify_from_looker_rules(_LOOKER_CHANNEL_MAJOR_RULES, _LOOKER_CHANNEL_MAJOR_FALLBACK, source_medium, campaign)
     # Normalize numbered Looker labels to report labels used by the HTML renderer.
     bucket = re.sub(r'^\s*\d+\.\s*', '', bucket or '').strip()
+    # Explicit paid mediums take precedence over generic "social" / "organic"
+    # fallback rules for newly encountered advertising platforms.
+    paid_medium = re.search(
+        r"\s/\s*(?:paid(?:[_ -]?(?:social|search|display|video))?|ppc|cpm|cpv|sponsored)\s*$",
+        source_medium or "", re.IGNORECASE,
+    )
+    if paid_medium and bucket in {"Organic Traffic", "etc"}:
+        return "Paid Ad"
     if bucket:
         return bucket
     return map_default_channel_group_to_bucket(default_channel_group) or "etc"
