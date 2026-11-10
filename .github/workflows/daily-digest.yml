@@ -313,7 +313,8 @@ jobs:
 
       - name: Send Daily or Weekly Digest email
         if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
-        continue-on-error: true
+        # Do not report a green workflow when the report mail actually fails.
+        continue-on-error: false
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
           SMTP_PORT: ${{ vars.SMTP_PORT }}
@@ -337,21 +338,20 @@ jobs:
           fi
 
           if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASS:-}" ] || [ -z "${DAILY_RECIPIENTS:-}" ]; then
-            echo "[WARN] SMTP or DAILY_RECIPIENTS config missing -> skip daily email"
-            exit 0
+            echo "[ERROR] SMTP or DAILY_RECIPIENTS config missing -> cannot send report"
+            exit 1
           fi
 
           if [ ! -f "${DAILY_DIGEST_PNG_PATH}" ] && [ ! -f "${DAILY_DIGEST_HTML_PATH}" ]; then
-            echo "[WARN] Neither PNG nor HTML report exists -> skip daily email"
-            ls -la reports/daily_digest/daily || true
-            exit 0
+            echo "[ERROR] Neither PNG nor HTML report exists -> cannot send report"
+            exit 1
           fi
 
           if [ -f "scripts/send_daily_email.py" ]; then
-            python -u scripts/send_daily_email.py || true
+            python -u scripts/send_daily_email.py
           elif [ -f "send_daily_email.py" ]; then
-            python -u send_daily_email.py || true
+            python -u send_daily_email.py
           else
-            echo "[WARN] send_daily_email.py not found -> skip daily email"
-            exit 0
+            echo "[ERROR] send_daily_email.py not found"
+            exit 1
           fi
