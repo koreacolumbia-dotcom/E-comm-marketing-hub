@@ -2103,8 +2103,15 @@ def map_default_channel_group_to_bucket(default_channel_group: str = "") -> str:
 
 def classify_looker_channel(source_medium: str, campaign: str = "", default_channel_group: str = "") -> str:
     """채널 대분류: uploaded '1. 채널 대분류.rtf' CASE logic."""
-    # Instagram referral is organic even if a source label contains story/feed.
-    if re.search(r"instagram", source_medium or "", re.IGNORECASE) and re.search(r"\breferral\b", source_medium or "", re.IGNORECASE):
+    # Explicit referral and creator-program UTM classifications, without treating unknowns as organic.
+    sm = (source_medium or "").strip().lower()
+    if re.search(r"instagram", sm) and re.search(r"\breferral\b", sm):
+        return "Organic Traffic"
+    if re.fullmatch(r"\s*creator_crew\s*/\s*creator_crew\s*", sm):
+        return "Organic Traffic"
+    if re.fullmatch(r"\s*seeding\s*/\s*seeding\s*", sm):
+        return "Organic Traffic"
+    if re.fullmatch(r"\s*perplexity\s*/\s*(?:referral|\(not set\))?\s*", sm):
         return "Organic Traffic"
     bucket = _classify_from_looker_rules(_LOOKER_CHANNEL_MAJOR_RULES, _LOOKER_CHANNEL_MAJOR_FALLBACK, source_medium, campaign)
     # Normalize numbered Looker labels to report labels used by the HTML renderer.
@@ -2117,7 +2124,9 @@ def classify_looker_channel(source_medium: str, campaign: str = "", default_chan
     )
     if paid_medium and bucket in {"Organic Traffic", "etc"}:
         return "Paid Ad"
-    if bucket:
+    # The Looker rules return a literal "etc" fallback, so use GA4's reliable
+    # default channel group before finalizing unresolved traffic.
+    if bucket and bucket != "etc":
         return bucket
     return map_default_channel_group_to_bucket(default_channel_group) or "etc"
 
