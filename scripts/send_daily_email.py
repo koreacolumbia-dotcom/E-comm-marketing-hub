@@ -4,6 +4,7 @@
 import os
 import re
 import smtplib
+import time
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -247,12 +248,29 @@ def send_email_mixed_with_inline_image(
             part.add_header("Content-Disposition", "attachment", filename=filename)
         msg.attach(part)
 
-    with smtplib.SMTP(host, port, timeout=30) as s:
-        s.ehlo()
-        s.starttls()
-        s.ehlo()
-        s.login(user, password)
-        s.sendmail(user, to_list, msg.as_string())
+    # SMTP can close intermittent TLS/auth connections. Retry only failures
+    # that occur before attempting sendmail, to avoid duplicate deliveries.
+    for attempt in range(1, 4):
+        try:
+            with smtplib.SMTP(host, port, timeout=30) as smtp:
+                smtp.ehlo()
+                smtp.starttls()
+                smtp.ehlo()
+                smtp.login(user, password)
+                # If submission fails after sendmail starts, propagate it rather
+                # than retrying a potentially delivered message.
+                smtp.sendmail(user, to_list, msg.as_string())
+            return
+        except (smtplib.SMTPAuthenticationError, smtplib.SMTPSenderRefused,
+                smtplib.SMTPRecipientsRefused):
+            # Permanent authentication/address problems must be visible.
+            raise
+        except (smtplib.SMTPServerDisconnected, TimeoutError, ConnectionError, OSError) as exc:
+            if attempt == 3:
+                print(f"[ERROR] SMTP delivery failed after {attempt} attempts: {type(exc).__name__}")
+                raise
+            print(f"[WARN] SMTP connection failed on attempt {attempt}/3: {type(exc).__name__}; retrying")
+            time.sleep(15 * attempt)
 
 
 def main():
