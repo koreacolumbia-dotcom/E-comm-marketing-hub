@@ -4,6 +4,7 @@
 import os
 import re
 import smtplib
+import ssl
 import time
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
@@ -248,30 +249,51 @@ def send_email_mixed_with_inline_image(
             part.add_header("Content-Disposition", "attachment", filename=filename)
         msg.attach(part)
 
-    # SMTP can close intermittent TLS/auth connections. Retry only failures
-    # that occur before attempting sendmail, to avoid duplicate deliveries.
-    for attempt in range(1, 4):
-        send_started = False
-        try:
-            with smtplib.SMTP(host, port, timeout=30) as smtp:
-                smtp.ehlo()
-                smtp.starttls()
-                smtp.ehlo()
-                smtp.login(user, password)
-                # Never automatically resend after submission has started,
-                # because the server may already have accepted the message.
-                send_started = True
-                smtp.sendmail(user, to_list, msg.as_string())
-            return
-        except (smtplib.SMTPAuthenticationError, smtplib.SMTPSenderRefused,
-                smtplib.SMTPRecipientsRefused):
-            raise
-        except (smtplib.SMTPServerDisconnected, TimeoutError, ConnectionError, OSError) as exc:
-            if send_started or attempt == 3:
-                print(f"[ERROR] SMTP delivery failed (attempt {attempt}/3): {type(exc).__name__}")
+    # Gmail supports both STARTTLS (587) and implicit TLS (465).
+    # A connection can be closed during AUTH on one transport, so try the
+    # alternate TLS transport before abandoning the report.
+    ports = [port]
+    if host.lower() == "smtp.gmail.com" and port in (465, 587):
+        ports.append(465 if port == 587 else 587)
+
+    for active_port in ports:
+        for attempt in range(1, 3):
+            send_started = False
+            try:
+                context = ssl.create_default_context()
+                if active_port == 465:
+                    smtp_connection = smtplib.SMTP_SSL(
+                        host, active_port, timeout=45, context=context
+                    )
+                else:
+                    smtp_connection = smtplib.SMTP(host, active_port, timeout=45)
+
+                with smtp_connection as smtp:
+                    smtp.ehlo()
+                    if active_port != 465:
+                        smtp.starttls(context=context)
+                        smtp.ehlo()
+                    smtp.login(user, password)
+                    # Do not resend if submission may already have begun.
+                    send_started = True
+                    smtp.sendmail(user, to_list, msg.as_string())
+                print(f"[OK] SMTP accepted message on port {active_port}")
+                return
+            except (smtplib.SMTPAuthenticationError, smtplib.SMTPSenderRefused,
+                    smtplib.SMTPRecipientsRefused):
                 raise
-            print(f"[WARN] SMTP connection failed before submission (attempt {attempt}/3): {type(exc).__name__}; retrying")
-            time.sleep(15 * attempt)
+            except (smtplib.SMTPException, TimeoutError, ConnectionError, OSError) as exc:
+                print(
+                    f"[WARN] SMTP port {active_port}, attempt {attempt}/2 "
+                    f"failed: {type(exc).__name__}"
+                )
+                if send_started:
+                    # Delivery is uncertain; never risk sending duplicates.
+                    raise
+                if attempt < 2:
+                    time.sleep(10)
+                elif active_port == ports[-1]:
+                    raise
 
 
 def main():
