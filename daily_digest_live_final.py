@@ -3092,7 +3092,11 @@ def get_category_pdp_view_trend_bq(
     if bigquery is None or not BQ_EVENTS_TABLE:
         return empty, {}
 
-    bq = bigquery.Client()
+    try:
+        bq = bigquery.Client()
+    except Exception as e:
+        print(f"[WARN] PDP BigQuery client initialization failed: {type(e).__name__}: {e}")
+        return empty, {}
 
     def fetch_period(target_end: dt.date) -> pd.DataFrame:
         start_suffix = (target_end - dt.timedelta(days=6)).strftime("%Y%m%d")
