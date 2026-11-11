@@ -2012,6 +2012,57 @@ def get_yoy_marketing_calendar(w: "DigestWindow") -> dict:
                     payload["messages"].append(row)
         payload["events"].sort(key=lambda r: (r["date"], r.get("title", "")))
         payload["messages"].sort(key=lambda r: (r["date"], r.get("title", "")))
+        payload["event_covered"] = payload["covered"]
+        payload["message_covered"] = payload["covered"]
+
+        # 2025 Owned message records are authoritative for actual send dates,
+        # attributed sessions, message revenue, send costs and ROAS.
+        # Supersede sales-deck message estimates; retain sales-deck EVENTS.
+        owned_path = file_path.with_name("owned_message_2025.json")
+        try:
+            with owned_path.open("r", encoding="utf-8") as f:
+                owned = json.load(f)
+            coverage = owned.get("coverage", {})
+            c_start = dt.date.fromisoformat(str(coverage["start"]))
+            c_end = dt.date.fromisoformat(str(coverage["end"]))
+            owned_covered = c_start <= sunday and monday <= c_end
+            for gap in coverage.get("excluded_gaps", []):
+                if ".." not in gap:
+                    continue
+                gap_start, gap_end = gap.split("..", 1)
+                try:
+                    # A KAKAO/LMS data gap hides messages only if the whole
+                    # comparison week lies within the uncovered interval.
+                    if monday >= dt.date.fromisoformat(gap_start) and sunday <= dt.date.fromisoformat(gap_end):
+                        owned_covered = False
+                except ValueError:
+                    pass
+            if owned_covered:
+                payload["messages"] = []
+                verified_messages = []
+                for row in owned.get("entries", []):
+                    try:
+                        day = dt.date.fromisoformat(str(row["date"]))
+                    except (KeyError, ValueError, TypeError):
+                        continue
+                    if row.get("status") == "confirmed":
+                        verified_messages.append((day, row))
+                    if monday <= day <= sunday:
+                        payload["messages"].append(row)
+                payload["messages"].sort(key=lambda r: (r["date"], r.get("channel", ""), r.get("title", "")))
+                payload["message_covered"] = True
+            else:
+                # Do not use uncertain PPT message records as proven sends.
+                payload["messages"] = [
+                    row for row in payload["messages"] if row.get("status") != "confirmed"
+                ]
+                verified_messages = []
+                payload["message_covered"] = False
+            payload["covered"] = payload["event_covered"] or payload["message_covered"]
+            payload["source"] += " · 트래픽현황 2026 (2025 비교기준)"
+        except Exception as e:
+            print(f"[WARN] LY Owned message history unavailable: {type(e).__name__}: {e}")
+
         before = [(day, row) for day, row in verified_messages if day < monday]
         after = [(day, row) for day, row in verified_messages if day > sunday]
         if before:
@@ -2032,6 +2083,13 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
     confirmed_sends = sum(
         item.get("status") == "confirmed" for item in info["messages"]
     )
+    proven = [row for row in info["messages"] if row.get("status") == "confirmed"]
+    total_traffic = sum(int(row.get("sessions") or 0) for row in proven)
+    total_message_revenue = sum(int(row.get("message_revenue") or 0) for row in proven)
+    owned_summary = (
+        f"발송 {confirmed_sends}건 · 유입 {total_traffic:,} 세션 · "
+        f"메시지 매출 {total_message_revenue:,}원"
+    )
 
     def fmt_day(raw):
         try:
@@ -2043,7 +2101,34 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
         rows = []
         for item in entries:
             status = item.get("status", "")
-            status_text = "실행 확인" if status == "confirmed" else "계획 · 미확인"
+            status_text = (
+                ("발송 확인" if status == "confirmed" else "발송 미확인")
+                if kind == "message" else
+                ("실행 확인" if status == "confirmed" else "계획 · 미확인")
+            )
+            title_label = str(item.get("title", "") or "")
+            detail_label = str(item.get("detail", "") or "")
+            if kind == "message" and item.get("channel"):
+                title_label = f"{item.get('channel')} · {title_label}"
+                if status == "confirmed":
+                    metrics = []
+                    for metric, label, suffix in (
+                        ("sent_count", "발송", "건"),
+                        ("sessions", "유입", "세션"),
+                        ("message_revenue", "매출", "원"),
+                        ("send_cost", "발송비", "원"),
+                    ):
+                        raw = item.get(metric)
+                        if raw is not None:
+                            metrics.append(f"{label} {int(round(float(raw))):,}{suffix}")
+                    roas = item.get("roas_multiple")
+                    if roas is not None:
+                        metrics.append(f"ROAS {float(roas)*100:,.1f}%")
+                    elif item.get("send_cost") is None:
+                        metrics.append("비용 미제공 · ROAS 산정 제외")
+                    detail_label = " · ".join(metrics)
+                else:
+                    detail_label = "원장에 발송수·성과 미입력 · 실제 발송 여부 미확인"
             status_cls = (
                 "bg-emerald-50 text-emerald-700 border-emerald-200"
                 if status == "confirmed" else
@@ -2058,10 +2143,10 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
               <div class="w-20 shrink-0 pt-0.5 text-[11px] font-black tabular-nums {color}">{esc_v(date_label)}</div>
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-[13px] font-extrabold text-slate-900">{esc_v(item.get('title', ''))}</span>
+                  <span class="text-[13px] font-extrabold text-slate-900">{esc_v(title_label)}</span>
                   <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold {status_cls}">{status_text}</span>
                 </div>
-                <div class="mt-1 text-xs leading-5 text-slate-600">{esc_v(item.get('detail', ''))}</div>
+                <div class="mt-1 text-xs leading-5 text-slate-600">{esc_v(detail_label)}</div>
                 <div class="mt-1 text-[10px] font-semibold text-slate-400">출처: {esc_v(item.get('source', ''))}</div>
               </div>
             </div>""")
@@ -2069,21 +2154,21 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
 
     event_html = line_items(info["events"], "event")
     message_html = line_items(info["messages"], "message")
-    if not info["covered"]:
-        warning = (
-            "해당 전년 주차는 제공된 W44–W52 자료 범위 밖입니다. "
-            "행사와 CRM 발송 이력은 원본 자료가 추가되면 표시됩니다."
+    if not info.get("event_covered", info["covered"]):
+        event_html = (
+            "<p class='py-4 text-xs text-slate-500'>해당 전년 주차의 행사 자료는 미제공입니다.</p>"
         )
-        event_html = f"<p class='py-4 text-xs text-slate-500'>{esc_v(warning)}</p>"
-        message_html = event_html
-    else:
-        if not event_html:
-            event_html = "<p class='py-4 text-xs text-slate-500'>해당 주차 행사 일정이 자료에 기록되지 않았습니다.</p>"
-        if not message_html:
-            message_html = (
-                "<p class='py-4 text-xs text-slate-500'>해당 주차에 기록된 CRM 발송 내역이 없습니다. "
-                "실제 발송이 없었다는 의미는 아닙니다.</p>"
-            )
+    elif not event_html:
+        event_html = "<p class='py-4 text-xs text-slate-500'>해당 주차의 행사 기록이 자료에 없습니다.</p>"
+    if not info.get("message_covered", info["covered"]):
+        message_html = (
+            "<p class='py-4 text-xs text-slate-500'>해당 주차의 발송 실적 원천 자료 미확인.</p>"
+        )
+    elif not message_html:
+        message_html = (
+            "<p class='py-4 text-xs text-slate-500'>트래픽현황 원장에 해당 주차 발송 기록이 없습니다. "
+            "실제 발송 0건을 뜻하지는 않습니다.</p>"
+        )
 
     adjacent = ""
     if info["covered"]:
@@ -2114,7 +2199,7 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
             <div class="text-xs font-extrabold tracking-widest text-slate-600 uppercase">작년 동일 주차 마케팅 캘린더</div>
           </div>
           <div class="mt-2 text-lg font-black text-slate-900">{esc_v(start.strftime('%Y.%m.%d'))} – {esc_v(end.strftime('%m.%d'))}</div>
-          <div class="mt-1 text-[11px] text-slate-500">현재 보고서의 전년 동일요일 기준 · 월요일–일요일 · 세일즈 미팅 자료</div>
+          <div class="mt-1 text-[11px] text-slate-500">전년 동일요일 주간 · 행사: 세일즈 미팅 / 메시지: 트래픽현황 원장</div>
         </div>
         <div class="flex flex-wrap gap-2">
           <span class="rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-extrabold text-blue-700">행사 {len(info['events'])}건</span>
@@ -2132,15 +2217,17 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
         <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
           <div class="flex items-center justify-between border-b border-slate-100 pb-2">
             <span class="text-[12px] font-black tracking-wide text-[#0f766e]">CRM / MESSAGE SEND</span>
-            <span class="text-[10px] font-bold text-slate-400">카카오 · LMS · 알림</span>
+            <span class="text-[10px] font-bold text-slate-400">KAKAO · LMS · EDM</span>
           </div>
+          <div class="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700">{esc_v(owned_summary)}</div>
           {message_html}
         </div>
       </div>
       {adjacent}
       <div class="mt-3 text-[10px] leading-4 text-slate-400">
-        출처: 2025년 E-COMM Sales Meeting W44–W52 · 슬라이드 위치 개별 표기.
-        ‘계획 · 미확인’은 실제 발송·집행 완료로 간주하지 않습니다.
+        출처: 행사·프로모션은 2025 E-COMM Sales Meeting W44–W52, 온드 메시지는
+        트래픽현황_2026_서머리복구_세션YoY.xlsx의 ‘2025 비교기준’ 시트.
+        비용 미제공 EDM은 ROAS에서 제외하며 원장 공란을 미발송 0건으로 간주하지 않습니다.
       </div>
     </section>
     """
