@@ -1967,6 +1967,186 @@ def build_window(end_date: dt.date, mode: str) -> DigestWindow:
 
 
 # =========================
+# Historical marketing context (verified 2025 sales-meeting slides)
+# =========================
+def get_yoy_marketing_calendar(w: "DigestWindow") -> dict:
+    """Align each Daily/Weekly report to the previous-year MON-SUN marketing week.
+
+    Keep retrospective performance evidence distinct from planned CRM sends.
+    Dates are sourced from W44-W52 sales meeting decks and maintained in a
+    source-traced JSON file. No guessing beyond the source's coverage.
+    """
+    monday = w.yoy_end - dt.timedelta(days=w.yoy_end.weekday())
+    sunday = monday + dt.timedelta(days=6)
+    payload = {
+        "start": ymd(monday),
+        "end": ymd(sunday),
+        "events": [],
+        "messages": [],
+        "previous_message": None,
+        "next_message": None,
+        "covered": False,
+        "source": "2025 E-COMM Sales Meeting W44–W52",
+    }
+    file_path = Path(__file__).resolve().parent / "reports" / "daily_digest" / "data" / "marketing_calendar_2025.json"
+    try:
+        with file_path.open("r", encoding="utf-8") as f:
+            doc = json.load(f)
+        coverage = doc.get("coverage", {})
+        c_start = dt.date.fromisoformat(str(coverage.get("start", "")))
+        c_end = dt.date.fromisoformat(str(coverage.get("end", "")))
+        payload["covered"] = c_start <= sunday and monday <= c_end
+        verified_messages = []
+        for row in doc.get("entries", []):
+            try:
+                day = dt.date.fromisoformat(str(row["date"]))
+                end = dt.date.fromisoformat(str(row.get("end_date", row["date"])))
+            except (KeyError, ValueError, TypeError):
+                continue
+            if row.get("kind") == "message" and row.get("status") == "confirmed":
+                verified_messages.append((day, row))
+            if day <= sunday and end >= monday:
+                if row.get("kind") == "event":
+                    payload["events"].append(row)
+                elif row.get("kind") == "message":
+                    payload["messages"].append(row)
+        payload["events"].sort(key=lambda r: (r["date"], r.get("title", "")))
+        payload["messages"].sort(key=lambda r: (r["date"], r.get("title", "")))
+        before = [(day, row) for day, row in verified_messages if day < monday]
+        after = [(day, row) for day, row in verified_messages if day > sunday]
+        if before:
+            payload["previous_message"] = max(before, key=lambda p: p[0])[1]
+        if after:
+            payload["next_message"] = min(after, key=lambda p: p[0])[1]
+    except Exception as e:
+        print(f"[WARN] LY Marketing Calendar unavailable: {type(e).__name__}: {e}")
+    return payload
+
+
+def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
+    """Read-only, print-safe, no JS. Sits just below existing five GA KPI cards."""
+    info = get_yoy_marketing_calendar(w)
+    esc_v = escape_html
+    start = dt.date.fromisoformat(info["start"])
+    end = dt.date.fromisoformat(info["end"])
+    confirmed_sends = sum(
+        item.get("status") == "confirmed" for item in info["messages"]
+    )
+
+    def fmt_day(raw):
+        try:
+            return dt.date.fromisoformat(str(raw)).strftime("%m/%d")
+        except (ValueError, TypeError):
+            return "--/--"
+
+    def line_items(entries, kind):
+        rows = []
+        for item in entries:
+            status = item.get("status", "")
+            status_text = "실행 확인" if status == "confirmed" else "계획 · 미확인"
+            status_cls = (
+                "bg-emerald-50 text-emerald-700 border-emerald-200"
+                if status == "confirmed" else
+                "bg-amber-50 text-amber-700 border-amber-200"
+            )
+            date_label = fmt_day(item.get("date"))
+            if item.get("end_date") and item["end_date"] != item.get("date"):
+                date_label += "–" + fmt_day(item["end_date"])
+            color = "text-[#2457d6]" if kind == "event" else "text-[#0f766e]"
+            rows.append(f"""
+            <div class="flex gap-3 border-b border-slate-100 py-3 last:border-0">
+              <div class="w-20 shrink-0 pt-0.5 text-[11px] font-black tabular-nums {color}">{esc_v(date_label)}</div>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-[13px] font-extrabold text-slate-900">{esc_v(item.get('title', ''))}</span>
+                  <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold {status_cls}">{status_text}</span>
+                </div>
+                <div class="mt-1 text-xs leading-5 text-slate-600">{esc_v(item.get('detail', ''))}</div>
+                <div class="mt-1 text-[10px] font-semibold text-slate-400">출처: {esc_v(item.get('source', ''))}</div>
+              </div>
+            </div>""")
+        return "".join(rows)
+
+    event_html = line_items(info["events"], "event")
+    message_html = line_items(info["messages"], "message")
+    if not info["covered"]:
+        warning = (
+            "해당 전년 주차는 제공된 W44–W52 자료 범위 밖입니다. "
+            "행사와 CRM 발송 이력은 원본 자료가 추가되면 표시됩니다."
+        )
+        event_html = f"<p class='py-4 text-xs text-slate-500'>{esc_v(warning)}</p>"
+        message_html = event_html
+    else:
+        if not event_html:
+            event_html = "<p class='py-4 text-xs text-slate-500'>해당 주차 행사 일정이 자료에 기록되지 않았습니다.</p>"
+        if not message_html:
+            message_html = (
+                "<p class='py-4 text-xs text-slate-500'>해당 주차에 기록된 CRM 발송 내역이 없습니다. "
+                "실제 발송이 없었다는 의미는 아닙니다.</p>"
+            )
+
+    adjacent = ""
+    if info["covered"]:
+        nearby = []
+        for direction, key in (("직전 발송", "previous_message"), ("이후 발송", "next_message")):
+            row = info.get(key)
+            if not row:
+                continue
+            nearby.append(
+                f"<span class='inline-block mr-4'>"
+                f"<b class='text-slate-700'>{direction}</b> "
+                f"{esc_v(fmt_day(row.get('date')))} · {esc_v(row.get('title', ''))}</span>"
+            )
+        if nearby:
+            adjacent = (
+                "<div class='mt-3 rounded-xl border border-slate-200 bg-slate-50 "
+                "px-3 py-2 text-[11px] text-slate-500'>"
+                "<b class='mr-2 text-slate-600'>주간 전후 실제 발송</b>"
+                + " ".join(nearby) + "</div>"
+            )
+
+    return f"""
+    <section id="ly-marketing-context" class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-full bg-[#173c71] px-2.5 py-1 text-[10px] font-black tracking-widest text-white">LAST YEAR</span>
+            <div class="text-xs font-extrabold tracking-widest text-slate-600 uppercase">작년 동일 주차 마케팅 캘린더</div>
+          </div>
+          <div class="mt-2 text-lg font-black text-slate-900">{esc_v(start.strftime('%Y.%m.%d'))} – {esc_v(end.strftime('%m.%d'))}</div>
+          <div class="mt-1 text-[11px] text-slate-500">현재 보고서의 전년 동일요일 기준 · 월요일–일요일 · 세일즈 미팅 자료</div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <span class="rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-extrabold text-blue-700">행사 {len(info['events'])}건</span>
+          <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-extrabold text-emerald-700">발송 확인 {confirmed_sends}건</span>
+        </div>
+      </div>
+      <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-[12px] font-black tracking-wide text-[#2457d6]">EVENT / PROMOTION</span>
+            <span class="text-[10px] font-bold text-slate-400">온사이트 · 외부몰 · 콘텐츠</span>
+          </div>
+          {event_html}
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-[12px] font-black tracking-wide text-[#0f766e]">CRM / MESSAGE SEND</span>
+            <span class="text-[10px] font-bold text-slate-400">카카오 · LMS · 알림</span>
+          </div>
+          {message_html}
+        </div>
+      </div>
+      {adjacent}
+      <div class="mt-3 text-[10px] leading-4 text-slate-400">
+        출처: 2025년 E-COMM Sales Meeting W44–W52 · 슬라이드 위치 개별 표기.
+        ‘계획 · 미확인’은 실제 발송·집행 완료로 간주하지 않습니다.
+      </div>
+    </section>
+    """
+
+
+# =========================
 # Data fetchers (3-way)
 # =========================
 def get_overall_kpis(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, Dict[str, float]]:
@@ -4487,6 +4667,7 @@ def render_page_html(
         kpi_group_title("GA KPI", "GA4 기준")
         + f'<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">{ga_kpis_cards}</div>'
     )
+    ly_marketing_calendar_html = render_yoy_marketing_calendar_html(w, esc)
 
     trend_tabs = [
         ("7d", "7D", trend_svgs.get("7d", "")),
@@ -4828,6 +5009,8 @@ def render_page_html(
     {weather_section_html}
 
     {kpis_cards_html}
+
+    {ly_marketing_calendar_html}
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
