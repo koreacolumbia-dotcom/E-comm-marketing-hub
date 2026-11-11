@@ -1,0 +1,55 @@
+name: Refresh Digest Screenshot
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "reports/daily_digest/data/marketing_calendar_2025.json"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-digest-screenshot
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install screenshot renderer
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Render existing layout with updated marketing calendar
+        run: |
+          python scripts/render_daily_png.py reports/daily_digest/daily/2026-11-10.html reports/daily_digest/daily/2026-11-10.png
+          python scripts/render_daily_png.py reports/daily_digest/weekly/END_2026-11-08.html reports/daily_digest/weekly/END_2026-11-08.png
+      - name: Upload HTML and PNG QA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-original-layout-digest
+          path: |
+            reports/daily_digest/daily/2026-11-10.html
+            reports/daily_digest/daily/2026-11-10.png
+            reports/daily_digest/weekly/END_2026-11-08.html
+            reports/daily_digest/weekly/END_2026-11-08.png
+          retention-days: 7
+      - name: Commit updated screenshots
+        run: |
+          git config user.name "csk-digest-bot"
+          git config user.email "csk-digest-bot@users.noreply.github.com"
+          git add reports/daily_digest/daily/2026-11-10.png reports/daily_digest/weekly/END_2026-11-08.png
+          if git diff --cached --quiet; then
+            echo "No new screenshot changes"
+          else
+            git commit -m "Regenerate original-layout digest screenshots with LY calendar"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
