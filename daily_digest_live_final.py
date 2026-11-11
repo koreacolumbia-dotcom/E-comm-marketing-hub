@@ -5955,13 +5955,13 @@ def main():
             f.write(html_weekly)
         print(f"[OK] Wrote: {out_weekly}")
     else:
-        daily_window = build_window(latest_end, "daily")
-        yoy_target = daily_window.yoy_end
         prev_day = latest_end - dt.timedelta(days=1)
     
-        dates = sorted(set([prev_day, latest_end, yoy_target]))
+        # Refresh D-1 and D-2. Each current report already queries its YoY comparison,
+        # so rebuilding historical same-weekday HTML daily only delays delivery.
+        dates = sorted({prev_day, latest_end})
         print(
-            f"[INFO] Daily-only targeted rebuild mode: prev={ymd(prev_day)}, latest={ymd(latest_end)}, yoy={ymd(yoy_target)} | "
+            f"[INFO] Refresh provisional GA4 daily attribution: {ymd(prev_day)} ~ {ymd(latest_end)} | "
             "existing other daily/weekly outputs are kept as-is"
         )
     
@@ -5969,7 +5969,7 @@ def main():
     
         for d in all_dates:
             out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
-            force_rebuild = d in {latest_end, yoy_target}
+            force_rebuild = True
     
             if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_daily):
                 print(f"[SKIP] Exists (Daily): {out_daily}")
@@ -5978,6 +5978,22 @@ def main():
                 with open(out_daily, "w", encoding="utf-8") as f:
                     f.write(html_daily)
                 print(f"[OK] Wrote: {out_daily} (force={force_rebuild})")
+
+    # Recompute Monday's preliminary 7-day report every Wednesday after
+    # GA4's typical data-processing window. Keep the same URL and do not
+    # send a second Weekly Digest email.
+    if report_mode == "daily" and today_kst.weekday() == 2:
+        last_sunday = today_kst - dt.timedelta(days=3)
+        out_weekly = os.path.join(weekly_dir, f"END_{ymd(last_sunday)}.html")
+        if os.path.exists(out_weekly):
+            print(f"[INFO] Refresh weekly attribution: {ymd(last_sunday)}")
+            html_weekly, _bundle = build_one(
+                client, end_date=last_sunday, mode="weekly",
+                image_map=image_map, logo_b64=logo_b64,
+            )
+            with open(out_weekly, "w", encoding="utf-8") as f:
+                f.write(html_weekly)
+            print(f"[OK] Refreshed: {out_weekly}")
 
     hub_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
