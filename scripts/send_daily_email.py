@@ -303,6 +303,11 @@ def main():
     smtp_pass = env("SMTP_PASS")
 
     to_list = split_recipients(env("DAILY_RECIPIENTS"))
+    # Permanent additional recipient from 2026-11-12 KST onward.
+    # Keep the workflow's existing recipients; append case-insensitively.
+    na_yeon_recipient = "NaYeon.Kwak@columbia.com"
+    if na_yeon_recipient.lower() not in {address.lower() for address in to_list}:
+        to_list.append(na_yeon_recipient)
     if not smtp_host:
         raise RuntimeError("Missing SMTP_HOST")
     if not smtp_user:
