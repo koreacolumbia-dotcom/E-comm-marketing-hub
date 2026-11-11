@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "reports/daily_digest/data/marketing_calendar_2025.json"
+      - "reports/daily_digest/data/owned_message_2025.json"
 
 permissions:
   contents: write
@@ -27,6 +28,18 @@ jobs:
         run: |
           python -m pip install playwright
           python -m playwright install --with-deps chromium
+      - name: Validate report generator syntax and source data
+        run: |
+          python -m py_compile daily_digest_live_final.py
+          python - <<'PY'
+          import json
+          with open('reports/daily_digest/data/owned_message_2025.json',encoding='utf-8') as f:
+              rows=json.load(f)['entries']
+          week=[r for r in rows if '2025-11-10'<=r['date']<='2025-11-16' and r['status']=='confirmed']
+          assert len(week)==2, week
+          assert sum(r.get('sessions') or 0 for r in week)==4995, week
+          print('[OK] LY Owned source verified: 2 sends, 4,995 sessions')
+          PY
       - name: Render existing layout with updated marketing calendar
         run: |
           python scripts/render_daily_png.py reports/daily_digest/daily/2026-11-10.html reports/daily_digest/daily/2026-11-10.png
