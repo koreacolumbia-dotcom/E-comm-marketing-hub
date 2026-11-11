@@ -26,8 +26,9 @@ on:
           - "true"
 
   schedule:
-    # 02:00 KST daily (17:00 UTC previous day): advance start to account for observed GitHub Actions schedule delays; target email delivery by 09:00 KST
-    - cron: "0 17 * * *"
+    # 02:13 KST daily (17:13 UTC previous day). Avoid the top-of-hour scheduler load.
+    # GitHub schedule is best-effort; target email delivery remains before 09:00 KST.
+    - cron: "13 17 * * *"
 
 concurrency:
   group: daily-digest
