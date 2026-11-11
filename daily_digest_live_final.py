@@ -2993,35 +2993,127 @@ PDP_CATEGORY_MAP = {
     },
 }
 
+def pdp_compare_svg(
+    xlabels: List[str],
+    ys: List[float],
+    ys_yoy: Optional[List[float]] = None,
+    yoy_labels: Optional[List[str]] = None,
+    width: int = 310,
+    height: int = 112,
+) -> str:
+    """Small two-line PDP graph: shared absolute view scale, TY solid and LY dashed."""
+    current = [float(v or 0) for v in (ys or [])]
+    previous = [float(v or 0) for v in ys_yoy] if ys_yoy is not None else None
+    if not current:
+        return ""
+    n = len(current)
+    pad_l, pad_r, pad_t, pad_b = 37, 10, 9, 23
+    inner_w = width - pad_l - pad_r
+    inner_h = height - pad_t - pad_b
+    top = max(current + (previous or []) + [1.0]) * 1.12
+
+    def xy(i, value):
+        return (pad_l + inner_w * i / max(n - 1, 1),
+                pad_t + inner_h * (1.0 - max(0.0, float(value)) / top))
+
+    grid = "".join(
+        f"<line x1='{pad_l}' y1='{pad_t + inner_h * frac:.1f}' "
+        f"x2='{width - pad_r}' y2='{pad_t + inner_h * frac:.1f}' "
+        f"stroke='#e2e8f0' stroke-width='1'/>"
+        for frac in (0, 0.5, 1)
+    )
+    ticks = "".join(
+        f"<text x='{pad_l - 5}' y='{pad_t + inner_h * frac + 3:.1f}' "
+        f"text-anchor='end' font-size='9' fill='#64748b'>"
+        f"{int(round(top * (1-frac))):,}</text>"
+        for frac in (0, 0.5, 1)
+    )
+    axis_days = [0, n // 2, n - 1] if n >= 3 else list(range(n))
+    x_axis = "".join(
+        f"<text x='{xy(i, 0)[0]:.1f}' y='{height - 4}' "
+        f"text-anchor='middle' font-size='9' fill='#64748b'>"
+        f"{esc(xlabels[i] if i < len(xlabels) else '--')}</text>"
+        for i in dict.fromkeys(axis_days)
+    )
+
+    def make_line(values, labels, color, dashed=False):
+        if values is None:
+            return ""
+        dots = []
+        for i, value in enumerate(values[:n]):
+            x, y = xy(i, value)
+            label = labels[i] if labels and i < len(labels) else str(i + 1)
+            dots.append(
+                f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.6' "
+                f"fill='{color}'><title>{esc(label)}: {value:,.0f} views</title></circle>"
+            )
+        points = " ".join(
+            f"{xy(i, value)[0]:.1f},{xy(i, value)[1]:.1f}"
+            for i, value in enumerate(values[:n])
+        )
+        dash = "stroke-dasharray='5 4'" if dashed else ""
+        return (
+            f"<polyline points='{points}' fill='none' stroke='{color}' "
+            f"stroke-width='2.4' {dash} stroke-linejoin='round'/>"
+            + "".join(dots)
+        )
+
+    current_line = make_line(current, xlabels, "#0f766e")
+    yoy_line = make_line(previous, yoy_labels or [], "#64748b", dashed=True)
+    label = "PDP 조회수 7일 추이, 올해 실선"
+    if previous is not None:
+        label += ", 작년 동기간 점선"
+    return (
+        f"<svg role='img' aria-label='{esc(label)}' width='{width}' height='{height}' "
+        f"viewBox='0 0 {width} {height}' xmlns='http://www.w3.org/2000/svg' "
+        f"style='display:block;max-width:100%;height:auto'>"
+        + f"<title>{esc(label)}</title>"
+        + grid + ticks + x_axis + yoy_line + current_line + "</svg>"
+    )
+
+
 def pdp_cache_path(end_date: dt.date) -> str:
     return os.path.join(OUT_DIR, "cache", "pdp", f"{ymd(end_date)}.json")
 
-def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dict]:
+def get_category_pdp_view_trend_bq(
+    end_date: dt.date, yoy_end_date: Optional[dt.date] = None,
+) -> Tuple[pd.DataFrame, dict]:
+    """Each category's 7D PDP views: current and LY same-weekday curves on one scale."""
+    yoy_end_date = yoy_end_date or pick_yoy_same_weekday(end_date)
     axis_dates = [end_date - dt.timedelta(days=i) for i in range(6, -1, -1)]
-    xlabels = [d.strftime('%m/%d') for d in axis_dates]
+    yoy_dates = [yoy_end_date - dt.timedelta(days=i) for i in range(6, -1, -1)]
+    xlabels = [d.strftime("%m/%d") for d in axis_dates]
+    yoy_labels = [d.strftime("%m/%d") for d in yoy_dates]
+    empty = pd.DataFrame(columns=[
+        "itemCategory", "views_d1", "views_avg7d", "views_avg7d_yoy",
+        "yoy_pct", "has_yoy", "trend_svg",
+    ])
 
     if bigquery is None or not BQ_EVENTS_TABLE:
-        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]), {}
+        return empty, {}
 
-    try:
-        bq = bigquery.Client()
+    bq = bigquery.Client()
 
-        start_suffix = (end_date - dt.timedelta(days=6)).strftime('%Y%m%d')
-        end_suffix = end_date.strftime('%Y%m%d')
-        lookup_start = (end_date - dt.timedelta(days=30)).strftime('%Y%m%d')
-        lookup_end = end_date.strftime('%Y%m%d')
-
+    def fetch_period(target_end: dt.date) -> pd.DataFrame:
+        start_suffix = (target_end - dt.timedelta(days=6)).strftime("%Y%m%d")
+        end_suffix = target_end.strftime("%Y%m%d")
+        lookup_start = (target_end - dt.timedelta(days=30)).strftime("%Y%m%d")
+        lookup_end = end_suffix
         sql = f"""
         WITH item_lookup AS (
           SELECT
             items.item_id AS item_id,
-            ANY_VALUE(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END) AS c1_norm,
-            ANY_VALUE(CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END) AS c2_norm
-          FROM `{BQ_EVENTS_TABLE}`
+            ANY_VALUE(CASE WHEN items.item_category = 'SALE'
+                       THEN items.item_category2 ELSE items.item_category END) AS c1_norm,
+            ANY_VALUE(CASE WHEN items.item_category = 'SALE'
+                       THEN items.item_category3 ELSE items.item_category2 END) AS c2_norm
+          FROM {chr(96)}{BQ_EVENTS_TABLE}{chr(96)}
           CROSS JOIN UNNEST(items) AS items
           WHERE _TABLE_SUFFIX BETWEEN '{lookup_start}' AND '{lookup_end}'
             AND items.item_id IS NOT NULL
-            AND (items.item_category IS NOT NULL OR items.item_category2 IS NOT NULL OR items.item_category3 IS NOT NULL)
+            AND (items.item_category IS NOT NULL
+                 OR items.item_category2 IS NOT NULL
+                 OR items.item_category3 IS NOT NULL)
           GROUP BY 1
         ),
         pdp AS (
@@ -3030,7 +3122,7 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
             l.c1_norm AS c1,
             l.c2_norm AS c2,
             COUNT(*) AS views
-          FROM `{BQ_EVENTS_TABLE}`
+          FROM {chr(96)}{BQ_EVENTS_TABLE}{chr(96)}
           CROSS JOIN UNNEST(items) AS items
           JOIN item_lookup l ON l.item_id = items.item_id
           WHERE _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
@@ -3041,57 +3133,87 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
         SELECT d, UPPER(IFNULL(c1,'')) AS c1, IFNULL(c2,'') AS c2, views
         FROM pdp
         """
-
         df = bq.query(sql, location=BQ_LOCATION or None).to_dataframe()
-        if df.empty:
-            return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]), {}
+        if not df.empty:
+            df["d"] = pd.to_datetime(df["d"], errors="coerce").dt.date
+            df = df.dropna(subset=["d"]).copy()
+            df["c1"] = df["c1"].astype(str).str.strip().str.upper()
+            df["c2"] = df["c2"].astype(str).str.strip()
+            df["views"] = pd.to_numeric(df["views"], errors="coerce").fillna(0.0)
+        return df
 
-        df['d'] = pd.to_datetime(df['d'], errors='coerce').dt.date
-        df = df.dropna(subset=['d'])
-        df['c1'] = df['c1'].astype(str).str.strip().str.upper()
-        df['c2'] = df['c2'].astype(str).str.strip()
-        df['views'] = pd.to_numeric(df['views'], errors='coerce').fillna(0.0)
-
-        rows = []
-        for c1, subs in PDP_CATEGORY_MAP.items():
-            for sub_label, c2_list in subs.items():
-                ys = []
-                for d in axis_dates:
-                    m = (df['d'] == d) & (df['c1'] == c1)
-                    if c2_list:
-                        m = m & (df['c2'].isin(c2_list))
-                    else:
-                        m = m & (df['c2'] == sub_label)
-                    ys.append(float(df.loc[m, 'views'].sum()))
-
-                d1 = ys[-1] if ys else 0.0
-                avg7 = (sum(ys) / len(ys)) if ys else 0.0
-                rows.append({
-                    'itemCategory': f"{c1} · {sub_label}",
-                    'views_d1': float(d1),
-                    'views_avg7d': float(avg7),
-                    'ys': list(ys),
-                    'trend_svg': spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
-                })
-
-        pdp_series = {
-            "x": xlabels,
-            "rows": [
-                {
-                    "itemCategory": r["itemCategory"],
-                    "views_d1": r["views_d1"],
-                    "views_avg7d": r["views_avg7d"],
-                    "ys": r["ys"]
-                } for r in rows
-            ]
-        }
-
-        return pd.DataFrame(rows)[["itemCategory", "views_d1", "views_avg7d", "trend_svg"]], pdp_series
-
+    try:
+        current_df = fetch_period(end_date)
     except Exception as e:
-        print(f"[WARN] PDP Category Trend BigQuery failed: {type(e).__name__}: {e}")
-        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]), {}
+        print(f"[WARN] PDP current trend BigQuery failed: {type(e).__name__}: {e}")
+        return empty, {}
 
+    if current_df.empty:
+        return empty, {}
+
+    try:
+        yoy_df = fetch_period(yoy_end_date)
+    except Exception as e:
+        print(f"[WARN] PDP LY trend BigQuery failed: {type(e).__name__}: {e}")
+        yoy_df = pd.DataFrame()
+
+    has_yoy = not yoy_df.empty
+
+    def series_for_category(df, dates, c1, sub_label, c2_list):
+        ys = []
+        for day in dates:
+            mask = (df["d"] == day) & (df["c1"] == c1)
+            if c2_list:
+                mask = mask & df["c2"].isin(c2_list)
+            else:
+                mask = mask & (df["c2"] == sub_label)
+            ys.append(float(df.loc[mask, "views"].sum()))
+        return ys
+
+    rows = []
+    for c1, subs in PDP_CATEGORY_MAP.items():
+        for sub_label, c2_list in subs.items():
+            ys = series_for_category(current_df, axis_dates, c1, sub_label, c2_list)
+            ys_yoy = (
+                series_for_category(yoy_df, yoy_dates, c1, sub_label, c2_list)
+                if has_yoy else None
+            )
+            avg_cur = sum(ys) / len(ys)
+            avg_ly = sum(ys_yoy) / len(ys_yoy) if ys_yoy is not None else None
+            yoy_pct = (avg_cur / avg_ly - 1) * 100 if avg_ly and avg_ly > 0 else None
+            rows.append({
+                "itemCategory": f"{c1} · {sub_label}",
+                "views_d1": ys[-1],
+                "views_avg7d": avg_cur,
+                "views_avg7d_yoy": avg_ly,
+                "yoy_pct": yoy_pct,
+                "has_yoy": has_yoy,
+                "ys": ys,
+                "ys_yoy": ys_yoy,
+                "trend_svg": pdp_compare_svg(xlabels, ys, ys_yoy, yoy_labels),
+            })
+
+    pdp_series = {
+        "x": xlabels,
+        "yoy_x": yoy_labels,
+        "yoy_end_date": ymd(yoy_end_date),
+        "has_yoy": has_yoy,
+        "rows": [{
+            "itemCategory": row["itemCategory"],
+            "views_d1": row["views_d1"],
+            "views_avg7d": row["views_avg7d"],
+            "views_avg7d_yoy": row["views_avg7d_yoy"],
+            "yoy_pct": row["yoy_pct"],
+            "has_yoy": row["has_yoy"],
+            "ys": row["ys"],
+            "ys_yoy": row["ys_yoy"],
+        } for row in rows],
+    }
+    cols = [
+        "itemCategory", "views_d1", "views_avg7d", "views_avg7d_yoy",
+        "yoy_pct", "has_yoy", "trend_svg",
+    ]
+    return pd.DataFrame(rows)[cols], pdp_series
 
 def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dict[str, pd.DataFrame]:
     lookback_start = end_date - dt.timedelta(days=13)
@@ -3798,11 +3920,18 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
     pdp_rows = []
     for row in pdp_series.get("rows", []):
         ys = row.get("ys") or [0.0] * max(len(pdp_series.get("x", [])), 7)
+        ys_yoy = row.get("ys_yoy")
         pdp_rows.append({
             "itemCategory": row.get("itemCategory", ""),
             "views_d1": row.get("views_d1", 0.0),
             "views_avg7d": row.get("views_avg7d", 0.0),
-            "trend_svg": spark_svg(pdp_series.get("x", ["--"]*7), ys, width=260, height=70, stroke="#0f766e")
+            "views_avg7d_yoy": row.get("views_avg7d_yoy"),
+            "yoy_pct": row.get("yoy_pct"),
+            "has_yoy": ys_yoy is not None,
+            "trend_svg": pdp_compare_svg(
+                pdp_series.get("x", ["--"] * 7), ys, ys_yoy,
+                pdp_series.get("yoy_x", []),
+            ),
         })
     category_pdp_trend = pd.DataFrame(pdp_rows)
 
@@ -4201,11 +4330,22 @@ def render_page_html(
     pdp_rows = ""
     if category_pdp_trend is not None and (not category_pdp_trend.empty):
         for r in category_pdp_trend.itertuples(index=False):
+            has_ly = bool(getattr(r, "has_yoy", False))
+            ly_avg = getattr(r, "views_avg7d_yoy", None)
+            yoy_pct = getattr(r, "yoy_pct", None)
+            ly_comparison = "전년 동기간 데이터 없음"
+            if has_ly:
+                ly_comparison = f"LY 7D Avg {fmt_int(ly_avg or 0)}"
+                if yoy_pct is not None and pd.notna(yoy_pct):
+                    ly_comparison += f" · YoY {float(yoy_pct):+.1f}%"
+                else:
+                    ly_comparison += " · YoY N/A (LY=0)"
             pdp_rows += f"""
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemCategory", "") or "")}</div>
                 <div class="text-xs text-slate-500">D1 {fmt_int(getattr(r, "views_d1", 0))} · 7D Avg {fmt_int(getattr(r, "views_avg7d", 0))}</div>
+                <div class="text-xs text-slate-500">{esc(ly_comparison)}</div>
               </div>
               <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
             </div>
@@ -4781,7 +4921,13 @@ def render_page_html(
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend (Category)</div>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend (Category) · 7D YoY</div>
+        <div class="flex items-center gap-3 text-xs text-slate-500">
+          <span><span style="display:inline-block;width:24px;border-top:3px solid #0f766e;vertical-align:middle;margin-right:5px"></span>{w.cur_end.year} 현재</span>
+          <span><span style="display:inline-block;width:24px;border-top:3px dashed #64748b;vertical-align:middle;margin-right:5px"></span>{w.yoy_end.year} 동요일</span>
+        </div>
+      </div>
       <div class="mt-3 space-y-2">{pdp_rows}</div>
     </div>
 
@@ -5783,7 +5929,7 @@ def build_one(
     if missing:
         write_missing_image_skus(MISSING_SKU_OUT, missing)
 
-    category_pdp_trend, pdp_series = get_category_pdp_view_trend_bq(end_date=end_date)
+    category_pdp_trend, pdp_series = get_category_pdp_view_trend_bq(end_date=end_date, yoy_end_date=w.yoy_end)
     search = get_search_trends(client, end_date=end_date)
     weather_forecast = get_weekly_weather_forecast(end_date=end_date)
     brand_powerlink_status = enrich_brandsearch_status_with_prev_day(fetch_brand_powerlink_snapshot(), end_date=end_date)
