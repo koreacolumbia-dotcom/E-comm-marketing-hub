@@ -2998,8 +2998,8 @@ def pdp_compare_svg(
     ys: List[float],
     ys_yoy: Optional[List[float]] = None,
     yoy_labels: Optional[List[str]] = None,
-    width: int = 310,
-    height: int = 112,
+    width: int = 260,
+    height: int = 70,
 ) -> str:
     """Small two-line PDP graph: shared absolute view scale, TY solid and LY dashed."""
     current = [float(v or 0) for v in (ys or [])]
@@ -3007,7 +3007,7 @@ def pdp_compare_svg(
     if not current:
         return ""
     n = len(current)
-    pad_l, pad_r, pad_t, pad_b = 37, 10, 9, 23
+    pad_l, pad_r, pad_t, pad_b = 36, 10, 10, 22
     inner_w = width - pad_l - pad_r
     inner_h = height - pad_t - pad_b
     top = max(current + (previous or []) + [1.0]) * 1.12
