@@ -269,6 +269,17 @@ jobs:
           python -u scripts/render_daily_png.py "$HTML" "$PNG" || true
           ls -la "$PNG" || true
 
+          # Wednesday GA4 reconciliation: keep the published weekly PNG in
+          # sync with its refreshed HTML, without sending another email.
+          if [ "$(TZ=Asia/Seoul date '+%u')" = "3" ] && [ "${REPORT_MODE}" = "daily" ]; then
+            WEEK_END="$(date -d "${YMD} -2 days" '+%Y-%m-%d')"
+            WEEK_HTML="reports/daily_digest/weekly/END_${WEEK_END}.html"
+            WEEK_PNG="reports/daily_digest/weekly/END_${WEEK_END}.png"
+            if [ -f "${WEEK_HTML}" ]; then
+              python -u scripts/render_daily_png.py "${WEEK_HTML}" "${WEEK_PNG}" || true
+            fi
+          fi
+
       - name: Commit & push Daily Digest results
         if: ${{ always() }}
         continue-on-error: true
