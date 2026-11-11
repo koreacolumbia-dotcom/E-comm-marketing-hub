@@ -2362,11 +2362,24 @@ def map_default_channel_group_to_bucket(default_channel_group: str = "") -> str:
     return ""
 
 
+def is_instagram_referral(source_medium: str) -> bool:
+    """Recognize unpaid Instagram link referrals, including l./lm./m.instagram.com."""
+    raw = (source_medium or "").strip().lower()
+    source, sep, medium = raw.partition("/")
+    if not sep:
+        return False
+    source, medium = source.strip(), medium.strip()
+    return medium == "referral" and (
+        source == "ig" or source == "instagram" or source.endswith(".instagram.com")
+        or source == "instagram.com"
+    )
+
+
 def classify_looker_channel(source_medium: str, campaign: str = "", default_channel_group: str = "") -> str:
     """채널 대분류: uploaded '1. 채널 대분류.rtf' CASE logic."""
     # Explicit referral and creator-program UTM classifications, without treating unknowns as organic.
     sm = (source_medium or "").strip().lower()
-    if re.search(r"instagram", sm) and re.search(r"\breferral\b", sm):
+    if is_instagram_referral(sm):
         return "Organic Traffic"
     if re.fullmatch(r"\s*creator_crew\s*/\s*creator_crew\s*", sm):
         return "Organic Traffic"
@@ -2404,6 +2417,9 @@ def classify_looker_channel_minor(source_medium: str, campaign: str = "") -> str
 
 def classify_channel_detail_label(source_medium: str, campaign: str = "") -> str:
     """Display label for bucket drill-down: 중분류 · 소분류, based on uploaded RTF files."""
+    # Display a dedicated Organic entry instead of burying Instagram in "기타추천유입".
+    if is_instagram_referral(source_medium):
+        return "Referral · 인스타그램 레퍼럴"
     mid = (classify_looker_channel_middle(source_medium, campaign) or "").strip()
     minor = (classify_looker_channel_minor(source_medium, campaign) or "").strip()
     if mid and minor and mid != minor:
@@ -3860,7 +3876,14 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
         merged['dod'] = merged['session_dod']
         merged['yoy'] = merged['session_yoy']
         detail = merged.rename(columns={'sub':'sub_channel','sessions_cur':'sessions','transactions_cur':'orders','revenue_cur':'purchaseRevenue'})[['sub_channel','sessions','orders','purchaseRevenue','session_dod','session_yoy','orders_dod','orders_yoy','revenue_dod','revenue_yoy','dod','yoy']]
-        out_map[bucket] = detail.sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).head(12).reset_index(drop=True)
+        ranked = detail.sort_values(['sessions','purchaseRevenue'], ascending=[False,False])
+        if bucket == "Organic Traffic":
+            # Keep Instagram referral visible regardless of daily rank (even if tiny).
+            is_ig = ranked["sub_channel"].eq("Referral · 인스타그램 레퍼럴")
+            ranked = pd.concat([ranked.loc[is_ig], ranked.loc[~is_ig].head(11)], ignore_index=True)
+        else:
+            ranked = ranked.head(12)
+        out_map[bucket] = ranked.reset_index(drop=True)
     return out_map
 
 def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
@@ -4414,10 +4437,27 @@ def render_page_html(
                 f"<div class='text-right metric-inline'>{metric_delta_slots('cs-yoy', float(getattr(r, 'session_yoy', getattr(r, 'rev_yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0))}</div>",
             ], bold=(bucket == "Total"), row_class=row_class, row_attrs=row_attrs)
 
-    def build_bucket_detail_rows(df: pd.DataFrame) -> str:
+    def build_bucket_detail_rows(df: pd.DataFrame, bucket: str = "") -> str:
         rows = ""
+        if bucket == "Organic Traffic" and (
+            df is None or df.empty
+            or "Referral · 인스타그램 레퍼럴" not in set(df["sub_channel"].astype(str))
+        ):
+            # Historical cached bundles do not retain raw sessionSourceMedium.
+            # Show an explicit unverified placeholder, NEVER invent zero sessions.
+            rows = (
+                "<tr class='bg-teal-50/50'>"
+                "<td class='px-2 py-2 border-b border-slate-100 font-extrabold text-teal-800'>"
+                "Referral · 인스타그램 레퍼럴 <span class='text-[10px] text-slate-500'>(원천 재집계 필요)</span></td>"
+                "<td class='px-2 py-2 border-b border-slate-100 text-right text-slate-400'>—</td>"
+                "<td class='px-2 py-2 border-b border-slate-100 text-right text-slate-400'>—</td>"
+                "<td class='px-2 py-2 border-b border-slate-100 text-right text-slate-400'>—</td>"
+                "<td class='px-2 py-2 border-b border-slate-100 text-right text-slate-400'>—</td>"
+                "<td class='px-2 py-2 border-b border-slate-100 text-right text-slate-400'>—</td>"
+                "</tr>"
+            )
         if df is None or df.empty:
-            return "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"
+            return rows or "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"
         for r in df.itertuples(index=False):
             rows += table_row([
                 esc(getattr(r, "sub_channel", "")),
@@ -4454,11 +4494,11 @@ def render_page_html(
             "title": f"{bucket} Detail",
             "description": f"Breakdown by source / medium for {bucket}.",
             "diag_html": f"<div class='mt-2 flex flex-wrap items-center gap-2 text-xs'>{''.join(diag_bits)}</div>",
-            "sessions_rows": build_bucket_detail_rows(df),
+            "sessions_rows": build_bucket_detail_rows(df, bucket),
             "revenue_rows": build_bucket_detail_rows(
                 df.sort_values(["purchaseRevenue", "sessions"], ascending=[False, False]).reset_index(drop=True)
                 if df is not None and (not df.empty)
-                else pd.DataFrame()
+                else pd.DataFrame(), bucket
             ),
         }
     channel_detail_payload_json = _json.dumps(channel_detail_payload, ensure_ascii=False).replace("</", "<\\/")
@@ -5196,7 +5236,7 @@ def render_page_html(
           <span><span style="display:inline-block;width:24px;border-top:3px dashed #64748b;vertical-align:middle;margin-right:5px"></span>{w.yoy_end.year} 동요일</span>
         </div>
       </div>
-      <div class="mt-3 space-y-2">{pdp_rows}</div>
+      <div class="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">{pdp_rows}</div>
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
