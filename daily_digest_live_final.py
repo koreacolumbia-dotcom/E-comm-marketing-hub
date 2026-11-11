@@ -2147,7 +2147,6 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
                   <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold {status_cls}">{status_text}</span>
                 </div>
                 <div class="mt-1 text-xs leading-5 text-slate-600">{esc_v(detail_label)}</div>
-                <div class="mt-1 text-[10px] font-semibold text-slate-400">출처: {esc_v(item.get('source', ''))}</div>
               </div>
             </div>""")
         return "".join(rows)
@@ -2199,7 +2198,7 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
             <div class="text-xs font-extrabold tracking-widest text-slate-600 uppercase">작년 동일 주차 마케팅 캘린더</div>
           </div>
           <div class="mt-2 text-lg font-black text-slate-900">{esc_v(start.strftime('%Y.%m.%d'))} – {esc_v(end.strftime('%m.%d'))}</div>
-          <div class="mt-1 text-[11px] text-slate-500">전년 동일요일 주간 · 행사: 세일즈 미팅 / 메시지: 트래픽현황 원장</div>
+          <div class="mt-1 text-[11px] text-slate-500">전년 동일요일 주간 · 행사 및 CRM 발송 성과</div>
         </div>
         <div class="flex flex-wrap gap-2">
           <span class="rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-extrabold text-blue-700">행사 {len(info['events'])}건</span>
@@ -2224,11 +2223,6 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
         </div>
       </div>
       {adjacent}
-      <div class="mt-3 text-[10px] leading-4 text-slate-400">
-        출처: 행사·프로모션은 2025 E-COMM Sales Meeting W44–W52, 온드 메시지는
-        트래픽현황_2026_서머리복구_세션YoY.xlsx의 ‘2025 비교기준’ 시트.
-        비용 미제공 EDM은 ROAS에서 제외하며 원장 공란을 미발송 0건으로 간주하지 않습니다.
-      </div>
     </section>
     """
 
