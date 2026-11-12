@@ -1,12 +1,7 @@
 name: Daily Digest
 
 on:
-  # One-time on-demand recovery run when this workflow is updated.
-  # Report output commits do not match this path, so no recursive loop.
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/daily-digest.yml"
+  # Avoid an unsolicited full-team email whenever this workflow is edited.
   workflow_dispatch:
     inputs:
       reason:
@@ -32,9 +27,11 @@ on:
           - "true"
 
   schedule:
-    # 02:13 KST daily (17:13 UTC previous day). Avoid the top-of-hour scheduler load.
-    # GitHub schedule is best-effort; target email delivery remains before 09:00 KST.
-    - cron: "13 17 * * *"
+    # 07:15 KST: morning build + email (22:15 UTC on previous day).
+    # 14:20 KST: silent GA4 channel-attribution reconciliation (05:20 UTC).
+    # GitHub scheduled starts are best-effort, not a guaranteed delivery timestamp.
+    - cron: "15 22 * * *"
+    - cron: "20 5 * * *"
 
 concurrency:
   group: daily-digest
@@ -77,7 +74,9 @@ jobs:
           fi
 
           echo "run_daily=true" >> "$GITHUB_OUTPUT"
-          if [ "$DAILY_HUB_ONLY" = "true" ]; then
+          # Afternoon schedule refreshes HTML/PNG/JSON but never emails the team.
+          # On-demand "daily_hub_only" also rebuilds without email.
+          if [ "$DAILY_HUB_ONLY" = "true" ] || { [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=Asia/Seoul date '+%H')" -ge 12 ]; }; then
             echo "send_daily_email=false" >> "$GITHUB_OUTPUT"
           else
             echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
