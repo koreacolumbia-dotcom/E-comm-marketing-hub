@@ -4792,6 +4792,35 @@ def render_page_html(
     )
     ly_marketing_calendar_html = render_yoy_marketing_calendar_html(w, esc)
 
+    # GA4 can temporarily return (not set)/(other) for session attribution.
+    # Expose the quality risk instead of moving unknown sessions to Paid/Organic.
+    etc_quality_html = ""
+    if channel_snapshot is not None and not channel_snapshot.empty:
+        try:
+            row_total = channel_snapshot.loc[channel_snapshot["bucket"] == "Total"]
+            row_etc = channel_snapshot.loc[channel_snapshot["bucket"] == "etc"]
+            total_sessions = float(row_total.iloc[0]["sessions"]) if not row_total.empty else 0.0
+            etc_sessions = float(row_etc.iloc[0]["sessions"]) if not row_etc.empty else 0.0
+            bucket_sum = float(channel_snapshot.loc[channel_snapshot["bucket"] != "Total", "sessions"].sum())
+            if total_sessions > 0:
+                etc_share = etc_sessions / total_sessions
+                mismatch_share = abs(bucket_sum - total_sessions) / total_sessions
+                if etc_share >= 0.05 or mismatch_share >= 0.03:
+                    etc_quality_html = (
+                        "<div class='mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4'>"
+                        "<div class='text-xs font-black tracking-wide text-amber-900'>"
+                        "GA4 채널 귀속 잠정 집계 · 재확인 필요</div>"
+                        "<div class='mt-2 text-sm text-amber-900'>"
+                        f"ETC {fmt_int(etc_sessions)}세션 ({etc_share:.1%}) · "
+                        f"채널 합계와 GA 총세션 차이 {bucket_sum - total_sessions:+,.0f}세션. "
+                        "GA4의 (not set)/(other) 귀속 지연 가능성이 있으므로 "
+                        "Paid/Organic 비중은 재집계 전 잠정치입니다. "
+                        "미확인 채널은 임의 재분류하지 않았습니다.</div>"
+                        "</div>"
+                    )
+        except (KeyError, IndexError, TypeError, ValueError):
+            pass
+
     trend_tabs = [
         ("7d", "7D", trend_svgs.get("7d", "")),
         ("14d", "14D", trend_svgs.get("14d", "")),
@@ -5134,6 +5163,8 @@ def render_page_html(
     {kpis_cards_html}
 
     {ly_marketing_calendar_html}
+
+    {etc_quality_html}
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
