@@ -1,6 +1,12 @@
 name: Daily Digest
 
 on:
+  # One-time on-demand recovery run when this workflow is updated.
+  # Report output commits do not match this path, so no recursive loop.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/daily-digest.yml"
   workflow_dispatch:
     inputs:
       reason:
@@ -119,6 +125,22 @@ jobs:
           pip install openpyxl matplotlib pytrends
 
           python -m playwright install --with-deps chromium
+
+      - name: Smoke-test PDP YoY chart before report build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile daily_digest_live_final.py
+          python - <<'PY'
+          from daily_digest_live_final import pdp_compare_svg
+          svg = pdp_compare_svg(
+              ['11/05','11/06','11/07','11/08','11/09','11/10','11/11'],
+              [2,3,4,5,4,3,2], [1,1,1,2,3,2,1],
+              ['11/06','11/07','11/08','11/09','11/10','11/11','11/12'],
+          )
+          assert "<svg" in svg and "polyline" in svg and "11/11" in svg
+          print("[OK] 7D PDP YoY SVG function renders.")
+          PY
 
       - name: Ensure reports dir
         shell: bash
