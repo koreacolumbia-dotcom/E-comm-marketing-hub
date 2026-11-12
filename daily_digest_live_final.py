@@ -3279,6 +3279,8 @@ def pdp_compare_svg(
     height: int = 70,
 ) -> str:
     """Small two-line PDP graph: shared absolute view scale, TY solid and LY dashed."""
+    # SVG labels must be escaped locally; render_page_html's esc() is not in this scope.
+    from html import escape as esc
     current = [float(v or 0) for v in (ys or [])]
     previous = [float(v or 0) for v in ys_yoy] if ys_yoy is not None else None
     if not current:
