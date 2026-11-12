@@ -341,13 +341,46 @@ def main():
     png_path = env("DAILY_DIGEST_PNG_PATH") or default_png_path
     png_bytes = read_bytes(png_path)
 
+    # Production contract: HTML and a valid PNG must both be attached.
+    # Fail before opening SMTP rather than silently sending a links-only email.
+    if not html_report:
+        raise RuntimeError(f"Required HTML attachment is missing: {html_path}")
+    if not png_bytes or not png_bytes.startswith(bytes.fromhex("89504e470d0a1a0a")):
+        raise RuntimeError(f"Required PNG attachment is missing or invalid: {png_path}")
+
     base = hub_url.rstrip("/") if hub_url else ""
     report_url = f"{base}/{default_html_path}" if base else ""
     hub_link = f"{base}/reports/daily_digest/index.html" if base else ""
 
     attachments: list[tuple[str, str, bytes]] = []
 
+    # Detect early GA4 attribution anomalies without guessing their channels.
     missing_reason = None
+    try:
+        import json
+        cache_path = f"reports/daily_digest/data/{report_folder}/{report_file_stem}.json"
+        with open(cache_path, "r", encoding="utf-8") as quality_file:
+            quality_bundle = json.load(quality_file)
+        rows = quality_bundle.get("channel_snapshot") or []
+        total_row = next((r for r in rows if r.get("bucket") == "Total"), {})
+        etc_row = next((r for r in rows if r.get("bucket") == "etc"), {})
+        total_sessions = float(total_row.get("sessions") or 0)
+        etc_sessions = float(etc_row.get("sessions") or 0)
+        bucket_sum = sum(float(r.get("sessions") or 0) for r in rows if r.get("bucket") != "Total")
+        etc_share = etc_sessions / total_sessions if total_sessions else 0
+        mismatch_share = abs(bucket_sum - total_sessions) / total_sessions if total_sessions else 0
+        if total_sessions and (etc_share >= 0.05 or mismatch_share >= 0.03):
+            missing_reason = (
+                f"GA4 유입 채널 잠정 집계: ETC {etc_sessions:,.0f}세션 "
+                f"({etc_share:.1%}), 채널 합계와 GA 전체 세션 차이 "
+                f"{bucket_sum - total_sessions:+,.0f}세션. "
+                "유입 정보 (not set)/(other) 미확정 가능성이 있어 채널별 수치는 "
+                "재집계 전 잠정값입니다. 임의로 Paid/Organic에 배분하지 않았습니다."
+            )
+            print(f"[WARN] GA4 channel attribution anomaly: {missing_reason}")
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        print(f"[WARN] Cannot inspect GA4 channel QA cache: {type(exc).__name__}")
+
     if not html_report:
         missing_reason = f"{digest_type} report HTML 파일을 찾지 못했습니다. (expected: {html_path})"
     else:
