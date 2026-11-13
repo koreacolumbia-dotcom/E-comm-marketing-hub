@@ -1,7 +1,11 @@
 name: Daily Digest
 
 on:
-  # Avoid an unsolicited full-team email whenever this workflow is edited.
+  # Recovery run from this file's commit. Production artifacts are outside this path.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/daily-digest.yml"
   workflow_dispatch:
     inputs:
       reason:
@@ -183,7 +187,7 @@ jobs:
 
       - name: Build Daily or Weekly Digest (through yesterday)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
@@ -225,13 +229,13 @@ jobs:
           set -euo pipefail
 
           if [ -z "${GA4_PROPERTY_ID:-}" ]; then
-            echo "[WARN] GA4_PROPERTY_ID is empty. skip."
-            exit 0
+            echo "[ERROR] GA4_PROPERTY_ID is empty; abort report build."
+            exit 1
           fi
 
           if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
-            echo "[WARN] GOOGLE_SA_JSON_B64 is empty. skip."
-            exit 0
+            echo "[ERROR] GOOGLE_SA_JSON_B64 is empty; abort report build."
+            exit 1
           fi
 
           if [ -z "${DAILY_DIGEST_KMA_SERVICE_KEY:-}" ]; then
@@ -264,8 +268,8 @@ jobs:
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
 
       - name: Render Daily or Weekly Digest PNG
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
-        continue-on-error: true
+        if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
+        continue-on-error: false
         shell: bash
         env:
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
@@ -281,14 +285,15 @@ jobs:
             PNG="reports/daily_digest/daily/${YMD}.png"
           fi
 
-          if [ ! -f "$HTML" ]; then
-            echo "[WARN] Daily HTML not found for PNG render: $HTML"
+          if [ ! -s "$HTML" ]; then
+            echo "[ERROR] Daily HTML missing before PNG render: $HTML"
             ls -la reports/daily_digest/daily || true
-            exit 0
+            exit 1
           fi
 
-          python -u scripts/render_daily_png.py "$HTML" "$PNG" || true
-          ls -la "$PNG" || true
+          python -u scripts/render_daily_png.py "$HTML" "$PNG"
+          test -s "$PNG"
+          ls -la "$PNG"
 
           # Wednesday GA4 reconciliation: keep the published weekly PNG in
           # sync with its refreshed HTML, without sending another email.
@@ -297,13 +302,13 @@ jobs:
             WEEK_HTML="reports/daily_digest/weekly/END_${WEEK_END}.html"
             WEEK_PNG="reports/daily_digest/weekly/END_${WEEK_END}.png"
             if [ -f "${WEEK_HTML}" ]; then
-              python -u scripts/render_daily_png.py "${WEEK_HTML}" "${WEEK_PNG}" || true
+              python -u scripts/render_daily_png.py "${WEEK_HTML}" "${WEEK_PNG}"
             fi
           fi
 
       - name: Commit & push Daily Digest results
-        if: ${{ always() }}
-        continue-on-error: true
+        if: ${{ success() }}
+        continue-on-error: false
         shell: bash
         run: |
           set -euo pipefail
@@ -345,7 +350,7 @@ jobs:
           exit 1
 
       - name: Send Daily or Weekly Digest email
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
+        if: ${{ success() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
         # Do not report a green workflow when the report mail actually fails.
         continue-on-error: false
         env:
@@ -375,8 +380,8 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "${DAILY_DIGEST_PNG_PATH}" ] && [ ! -f "${DAILY_DIGEST_HTML_PATH}" ]; then
-            echo "[ERROR] Neither PNG nor HTML report exists -> cannot send report"
+          if [ ! -s "${DAILY_DIGEST_PNG_PATH}" ] || [ ! -s "${DAILY_DIGEST_HTML_PATH}" ]; then
+            echo "[ERROR] Both PNG and HTML attachments are required -> cannot send report"
             exit 1
           fi
 
