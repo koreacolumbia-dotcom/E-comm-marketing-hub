@@ -34,7 +34,7 @@ on:
     # 07:15 KST: morning build + email (22:15 UTC on previous day).
     # 14:20 KST: silent GA4 channel-attribution reconciliation (05:20 UTC).
     # GitHub scheduled starts are best-effort, not a guaranteed delivery timestamp.
-    - cron: "15 22 * * *"
+    - cron: "15 21 * * *"
     - cron: "20 5 * * *"
 
 concurrency:
@@ -261,7 +261,19 @@ jobs:
           echo "[INFO] Build ${DAILY_DIGEST_REPORT_MODE}: ${GA4_START_DATE} ~ ${GA4_END_DATE}"
 
           # 패치 버전 실행
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest
+          built=false
+          for attempt in 1 2 3; do
+            echo "[INFO] build attempt $attempt/3"
+            if python -u daily_digest_live_final.py --out-dir reports/daily_digest; then
+              built=true
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep 45; fi
+          done
+          if [ "$built" != "true" ]; then
+            echo "[ERROR] build failed after three attempts; no email"
+            exit 1
+          fi
 
           echo "[INFO] Outputs:"
           ls -la reports/daily_digest/daily | tail -n 40 || true
@@ -382,6 +394,11 @@ jobs:
 
           if [ ! -s "${DAILY_DIGEST_PNG_PATH}" ] || [ ! -s "${DAILY_DIGEST_HTML_PATH}" ]; then
             echo "[ERROR] Both PNG and HTML attachments are required -> cannot send report"
+            exit 1
+          fi
+
+          if ! printf '%s' "$DAILY_RECIPIENTS" | grep -qi 'NaYeon.Kwak@columbia.com'; then
+            echo "[ERROR] required recipient NaYeon.Kwak@columbia.com missing"
             exit 1
           fi
 
