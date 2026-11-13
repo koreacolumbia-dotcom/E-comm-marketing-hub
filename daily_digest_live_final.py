@@ -949,7 +949,32 @@ def run_report(
     if order_bys:
         req.order_bys = order_bys
 
-    resp = client.run_report(req)
+    # GA4 transient failures must not abort the entire digest on the first attempt.
+    # Never return cached/empty data on exhaustion: fail closed to avoid stale reports.
+    from google.api_core import exceptions as google_exceptions
+    import random
+    import time
+
+    retryable = (
+        google_exceptions.DeadlineExceeded,
+        google_exceptions.ServiceUnavailable,
+        google_exceptions.ResourceExhausted,
+        google_exceptions.InternalServerError,
+        google_exceptions.TooManyRequests,
+    )
+    max_attempts = max(1, int(os.getenv("DAILY_DIGEST_GA4_MAX_ATTEMPTS", "5")))
+    timeout_seconds = max(30, int(os.getenv("DAILY_DIGEST_GA4_TIMEOUT_SECONDS", "120")))
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = client.run_report(req, timeout=timeout_seconds)
+            break
+        except retryable as exc:
+            if attempt == max_attempts:
+                print(f"[ERROR] GA4 run_report exhausted {max_attempts} attempts for {start_date}..{end_date}: {exc}", flush=True)
+                raise
+            wait_seconds = min(60.0, 2.0 ** attempt) + random.uniform(0, 1)
+            print(f"[WARN] GA4 transient failure {type(exc).__name__} for {start_date}..{end_date}; attempt {attempt}/{max_attempts}, retry in {wait_seconds:.1f}s", flush=True)
+            time.sleep(wait_seconds)
     rows = []
     for r in resp.rows:
         row = {}
