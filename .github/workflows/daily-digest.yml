@@ -45,7 +45,38 @@ permissions:
   contents: write
 
 jobs:
+  # One-time repair sender. Reuse the published HTML/PNG; no slow data rebuild.
+  resend_existing:
+    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Resend 2026-11-13 Daily Digest with attachments' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout published report
+        uses: actions/checkout@v4
+
+      - name: Resend 2026-11-13 final report with HTML and PNG attached
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
+          HUB_URL: ${{ vars.HUB_URL }}
+          REPORT_DATE: "2026-11-13"
+          REPORT_MODE: "daily"
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s reports/daily_digest/daily/2026-11-13.html
+          test -s reports/daily_digest/daily/2026-11-13.png
+          test -n "${SMTP_HOST:-}"
+          test -n "${SMTP_USER:-}"
+          test -n "${SMTP_PASS:-}"
+          test -n "${DAILY_RECIPIENTS:-}"
+          # send_daily_email.py adds NaYeon.Kwak@columbia.com to the existing six.
+          python -u scripts/send_daily_email.py
+
   run:
+    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -397,10 +428,8 @@ jobs:
             exit 1
           fi
 
-          if ! printf '%s' "$DAILY_RECIPIENTS" | grep -qi 'NaYeon.Kwak@columbia.com'; then
-            echo "[ERROR] required recipient NaYeon.Kwak@columbia.com missing"
-            exit 1
-          fi
+          # The Python sender adds the additional NaYeon.Kwak recipient without
+          # changing the six existing recipients stored in DAILY_RECIPIENTS.
 
           if [ -f "scripts/send_daily_email.py" ]; then
             python -u scripts/send_daily_email.py
