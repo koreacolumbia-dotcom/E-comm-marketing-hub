@@ -1,0 +1,28 @@
+name: Export existing Daily Digest files
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-digest-once.yml'
+  workflow_dispatch:
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify originals
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s reports/daily_digest/daily/2026-11-13.html
+          test -s reports/daily_digest/daily/2026-11-13.png
+          file reports/daily_digest/daily/2026-11-13.png
+      - name: Upload originals for connected Gmail
+        uses: actions/upload-artifact@v4
+        with:
+          name: DailyDigest-2026-11-13-originals
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            reports/daily_digest/daily/2026-11-13.html
+            reports/daily_digest/daily/2026-11-13.png
