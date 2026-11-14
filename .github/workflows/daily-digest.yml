@@ -223,8 +223,11 @@ jobs:
           echo "kst=$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')" >> "$GITHUB_OUTPUT"
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-          # Monday (Asia/Seoul) sends the prior Monday-Sunday report.
-          if [ "$(TZ=Asia/Seoul date '+%u')" = "1" ]; then
+          # The 14:00 rerun always refreshes YESTERDAY's daily report,
+          # including Sundays reviewed on Monday. Keep Monday morning weekly.
+          if { [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 5 * * *" ]; } || [ "${{ github.event_name }}" = "push" ]; then
+            echo "digest_mode=daily" >> "$GITHUB_OUTPUT"
+          elif [ "$(TZ=Asia/Seoul date '+%u')" = "1" ]; then
             echo "digest_mode=weekly" >> "$GITHUB_OUTPUT"
           else
             echo "digest_mode=daily" >> "$GITHUB_OUTPUT"
