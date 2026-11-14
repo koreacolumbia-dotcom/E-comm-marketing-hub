@@ -45,6 +45,31 @@ permissions:
   contents: write
 
 jobs:
+  # One-time byte-for-byte bundle to hand off to connected Gmail.
+  export_existing:
+    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Export 2026-11-13 Daily Digest attachments for Gmail' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout final report
+        uses: actions/checkout@v4
+      - name: Verify existing HTML and PNG bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s reports/daily_digest/daily/2026-11-13.html
+          test -s reports/daily_digest/daily/2026-11-13.png
+          file reports/daily_digest/daily/2026-11-13.png
+          sha256sum reports/daily_digest/daily/2026-11-13.{html,png}
+      - name: Export report originals
+        uses: actions/upload-artifact@v4
+        with:
+          name: DailyDigest_2026-11-13_HTML_PNG
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            reports/daily_digest/daily/2026-11-13.html
+            reports/daily_digest/daily/2026-11-13.png
+
   # One-time repair sender. Reuse the published HTML/PNG; no slow data rebuild.
   resend_existing:
     if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Resend 2026-11-13 Daily Digest with attachments' }}
