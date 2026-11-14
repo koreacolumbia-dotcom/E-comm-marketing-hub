@@ -32,10 +32,10 @@ on:
 
   schedule:
     # 07:15 KST: morning build + email (22:15 UTC on previous day).
-    # 14:20 KST: silent GA4 channel-attribution reconciliation (05:20 UTC).
+    # 14:00 KST: silent GA4 channel-attribution reconciliation (05:00 UTC).
     # GitHub scheduled starts are best-effort, not a guaranteed delivery timestamp.
     - cron: "15 21 * * *"
-    - cron: "20 5 * * *"
+    - cron: "0 5 * * *"
 
 concurrency:
   group: daily-digest
@@ -101,7 +101,8 @@ jobs:
           python -u scripts/send_daily_email.py
 
   run:
-    if: ${{ github.event_name != 'push' }}
+    # One-time silent refresh for today; normal future refreshes use the schedule.
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'Refresh 2026-11-13 Daily Digest silently' }}
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -136,7 +137,7 @@ jobs:
           echo "run_daily=true" >> "$GITHUB_OUTPUT"
           # Afternoon schedule refreshes HTML/PNG/JSON but never emails the team.
           # On-demand "daily_hub_only" also rebuilds without email.
-          if [ "$DAILY_HUB_ONLY" = "true" ] || { [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=Asia/Seoul date '+%H')" -ge 12 ]; }; then
+          if [ "$DAILY_HUB_ONLY" = "true" ] || [ "${{ github.event_name }}" = "push" ] || { [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 5 * * *" ]; }; then
             echo "send_daily_email=false" >> "$GITHUB_OUTPUT"
           else
             echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
