@@ -69,7 +69,8 @@ def scalar_query(client: Any, sql: str, date: dt.date,
         query_parameters=[bigquery.ScalarQueryParameter("report_date", "DATE", date.isoformat())])
     query = client.query(sql, job_config=cfg,
                          location=os.environ.get("BQ_LOCATION", "asia-northeast3"))
-    return dict(next(iter(query.result())))
+    row = next(iter(query.result()))
+    return dict(row.items())
 
 
 def probe(day: dt.date, client: Any, project: str, mart_dataset: str,
