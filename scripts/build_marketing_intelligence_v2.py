@@ -108,14 +108,20 @@ def quality_product(path: Path, meta_path: Path, report_day: dt.date,
         score = n(item.get("opportunity_score"))
         if score is None or not (0 <= score <= 100):
             score = 0
+        # High PDP exposure with zero purchase can be a real commercial problem
+        # or a broken item_id/event join. Verification precedes conversion advice.
+        measurement_watch = sessions >= 500 and purchases == 0
         candidates.append({
             "code": sku, "name": name, "category": category,
             "sessions": int(sessions), "cart_sessions": int(carts),
             "purchase_sessions": int(purchases), "atc_rate": round(atc_rate, 2),
             "purchase_rate": round(purchase_rate, 2), "priority_score": round(score, 1),
+            "measurement_watch": measurement_watch,
             "source_period": f"{raw.get('data_start')} ~ {raw.get('data_end')}",
-            "reason": "PDP→Cart 전환 낮음" if atc_rate < 8 else "PDP→구매 전환 낮음",
-            "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
+            "reason": ("상품별 구매 이벤트/상품코드 매칭 검증 필요" if measurement_watch else
+                       "PDP→Cart 전환 낮음" if atc_rate < 8 else "PDP→구매 전환 낮음"),
+            "validation": ("동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조" if measurement_watch else
+                           "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능")
         })
     candidates.sort(key=lambda x: (-x["priority_score"], -x["sessions"], x["code"]))
     status.update(status="ready", candidates=candidates[:8])
@@ -215,6 +221,15 @@ def actions_from_sources(v1: dict[str, Any], product: dict[str, Any],
                                  row.get("hypothesis", ""), row.get("validation", ""),
                                  row.get("owner", "이커머스")))
     for item in product["candidates"][:4]:
+        if item.get("measurement_watch"):
+            result.append(new_action(
+                "PRODUCT_QA_" + item["code"], "P0", "DATA",
+                f"{item['name']} 상품별 이벤트 정합성 검증",
+                f"지난 30일 PDP 세션 {item['sessions']:,}, 상품 구매 세션 0 "
+                f"(기준 {item['source_period']})",
+                "미판매 가능성과 GA4 item_id 조인·구매 태깅 누락 가능성을 구분해야 함",
+                item["validation"], "데이터/이커머스"))
+            continue
         result.append(new_action(
             "PRODUCT_" + item["code"], "P1", "PRODUCT",
             f"{item['name']} 상세페이지 개선 검토",
