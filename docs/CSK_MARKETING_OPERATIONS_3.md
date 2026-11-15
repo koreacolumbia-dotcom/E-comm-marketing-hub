@@ -42,3 +42,15 @@
 - 광고 예산, 고객 메시지 발송, ETL 삭제/쓰기, 데이터 파일 덮어쓰기를 자동화하지 않습니다.
 - GitHub Pages 게시 완료는 별도 확인합니다. Actions에서 보고서 생성 성공을 확인했다고 외부 웹 공개까지 주장하지 않습니다.
 
+
+## 3.0 확장: 경쟁사 가격/신상품/광고 소재/크리에이터 크루
+
+**경쟁사 가격**: `reports/competitor_intel/brand_summary.csv`와 `checkpoint_<brand>_status.json`을 연결합니다. 체크포인트 최신일, 완료 여부, 브랜드별 수집 상품 수 일치 여부를 검증합니다. 표시되는 브랜드별 평균가는 **상품 카테고리·시즌·가격대가 다르므로** 동종 SKU의 가격 격차나 가격 대응안을 증명하지 않습니다. 현재는 참고용 브랜드 집계만 공개하고, 개별 상품별 시계열은 미래 별도 승인된 구조화 소스가 필요합니다.
+
+**신상품 추적**: `config/product_launches_2026.json`의 `launches` 배열에 실제 출시일·SKU·상품명을 출처 검증 후 추가합니다. 예: `{"sku":"C74YM3674342","name":"상품명","launch_date":"2026-11-01"}`. 실제 일별 상품 KPI는 비공개 `private_data/csk_signals/sku_daily_aggregate.json`의 rows(date,sku,pdp_sessions,orders,revenue)에서 계산합니다. 7/14/30일 *모든 날짜가 완결*되어야 각 기간 성과를 표시하며 SKU·날짜 중복이나 누락은 차단합니다.
+
+**광고 소재 피로도**: 비공개 `private_data/csk_signals/creative_daily_aggregate.json`에 rows(date,platform,creative_id,impressions,clicks)를 수집합니다. 앞 7일과 뒤 7일 모두 해당 소재·날짜의 연속 집계가 있으며 각 기간 2천회 이상 노출돼야 CTR 전후를 검토합니다. CTR -25% 이상이면 검증 후보로 표시할 뿐, 노출 위치·빈도·타깃·입찰·계절성 확인 전에는 소재 문제나 광고비 변경을 확정하지 않습니다.
+
+**크리에이터 크루**: 비공개 `private_data/csk_signals/creator_crew_aggregate.json`의 rows(mission,format,creator_count,posts,views,engagements,cash_cost_krw,estimated)를 미션·릴스/피드 그룹별로 연결합니다. 최소 3명 이상 그룹만 공개하고, estimated=true는 실제 성과 합계에서 제외합니다. `engagements_per_view_pct`는 조회수 기준 참여/조회 비율로, Reach 기반 참여율과 혼동하지 않습니다. `cash_only_cpv_krw`는 현금성 활동비만 계산하므로 제품 제공·운영 인건비를 포함한 전체 CPV가 아닙니다. **개별 크루 이름, 계정, 연락처, URL, 팔로워 개인정보를 공개하지 마세요.**
+
+네 개 확장 기능은 관련 원천이 없을 때 숫자를 생성하지 않고 `not_connected`, `launch_registry_missing` 등으로 표시합니다.
