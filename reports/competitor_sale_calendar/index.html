@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>CSK 경쟁사 세일 캘린더</title>
+<style>
+:root{--navy:#1d365b;--light:#f5f7fb;--line:#e1e7f0;--muted:#6e809b;--ink:#203451}
+*{box-sizing:border-box}body{margin:0;background:var(--light);font:14px/1.55 system-ui,-apple-system,"Noto Sans KR",sans-serif;color:var(--ink)}
+main{max-width:1380px;margin:auto;padding:26px 20px 60px}h1{font-size:28px;letter-spacing:-.6px;margin:2px 0 7px}h2{font-size:17px;margin:0 0 12px}p{margin:5px 0;color:var(--muted)}
+header,.filters,.nav,.row{display:flex;align-items:center;justify-content:space-between;gap:13px;flex-wrap:wrap}
+.small{font-size:12px;color:var(--muted)}.overline{font-size:11px;letter-spacing:.14em;font-weight:800;color:#687e9e}
+.panel,.stat{background:#fff;border:1px solid var(--line);border-radius:15px}
+.panel{padding:16px}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0}
+.stat{padding:16px}.stat strong{display:block;font-size:23px;margin:6px 0}.stat span{font-size:12px;color:var(--muted)}
+button,select,input{font:inherit;border:1px solid var(--line);border-radius:9px;background:#fff;padding:9px 11px;color:var(--ink)}
+button{cursor:pointer}button:hover{border-color:#7f9bbd}input{max-width:175px}
+.nav b{font-size:20px;min-width:125px;text-align:center}.layout{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(305px,1fr);gap:15px;margin-top:16px;align-items:start}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-bottom:7px}.week span{text-align:center;font-weight:700;color:var(--muted);font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line);border-radius:8px;overflow:hidden}
+.day{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-height:104px;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0;text-align:left;padding:6px;min-width:0}
+.day:hover{background:#f4f8ff}.day.dim{background:#fafbfc}.day.sel{outline:2px solid #4c76ac;outline-offset:-2px;z-index:1;background:#eff6ff}
+.day .num{font-size:12px;font-weight:800;display:inline-grid;place-items:center;width:24px;height:24px}.day.today .num{background:var(--navy);color:#fff;border-radius:7px}
+.chip{padding:2px 5px;border-left:3px solid #437dae;background:#e8f1fa;border-radius:4px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-size:10px;color:#2c5c84}
+.chip.obs{background:#fff4e7;border:1px dashed #d8a473;border-left:3px solid #c58537;color:#925b26}
+.sidebar{display:grid;gap:14px}.tag{display:inline-block;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;color:#39628b;background:#eaf1f9}
+.tag.obs{background:#fff0de;color:#996022}.event{border-top:1px solid var(--line);padding:12px 0}.event:first-child{border:0}.event b{font-size:14px}.event .meta{margin-top:5px;font-size:12px;color:var(--muted)}
+.event .offer{color:#2a6295;font-weight:800;margin:3px 0}a{color:#285d9b;text-decoration:none;font-size:12px;font-weight:700}a:hover{text-decoration:underline}
+#monthEvents{max-height:430px;overflow:auto}.pill{padding:4px 8px;color:#587393;border-radius:30px;background:#eef3fa;font-size:12px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:12px 4px 0;color:var(--muted);font-size:12px}
+.legend i{display:inline-block;width:11px;height:11px;background:#d4e7f8;border-radius:3px;margin-right:4px}.legend i.obs{background:#fff3e5;border:1px dashed #c58537}
+.notice{font-size:12px;color:#728399;margin-top:18px;line-height:1.8}.empty{font-size:13px;color:#8695a8;padding:13px 0}
+@media(max-width:930px){.layout{grid-template-columns:1fr}.sidebar{grid-template-columns:1fr 1fr}}
+@media(max-width:650px){main{padding:16px 9px 42px}h1{font-size:22px}.stats{grid-template-columns:repeat(2,1fr)}.stat strong{font-size:20px}.layout,.sidebar{grid-template-columns:1fr}.filters{justify-content:stretch}.filters>*{flex:1;min-width:90px}.nav{justify-content:center}.day{min-height:75px;padding:3px}.chip{font-size:9px;padding:2px 3px}.chip:nth-of-type(n+3){display:none}.panel{padding:10px}}
+</style></head><body>
+<main>
+<header><div><div class="overline">CSK · COMPETITOR PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
+<p>공식 행사 일정과 할인 배너 관측 기록을 월별로 확인하세요.</p></div>
+<div style="text-align:right"><span class="pill" id="state">확인 중</span><p class="small" id="updated"></p></div></header>
+<div class="stats">
+<div class="stat"><span>해당 월 공식 기간 확인</span><strong id="dated">—</strong><span>실제 행사 기간</span></div>
+<div class="stat"><span>해당 월 할인 배너</span><strong id="observed">—</strong><span>수집 관측 이벤트</span></div>
+<div class="stat"><span>관련 브랜드</span><strong id="brands">—</strong><span>필터 적용 후</span></div>
+<div class="stat"><span>최신 배너 수집일</span><strong id="last">—</strong><span>기준일과 별개</span></div>
+</div>
+<div class="panel row">
+ <div class="nav"><button id="prev" aria-label="이전 달">‹</button><b id="monthTitle">2026. 11</b><button id="next" aria-label="다음 달">›</button><button id="current">기준월</button></div>
+ <div class="filters">
+ <select id="brand" aria-label="브랜드 선택"><option value="">전체 브랜드</option></select>
+ <select id="type" aria-label="이벤트 유형"><option value="">전체 유형</option><option value="verified">기간 확인</option><option value="observation">배너 관측</option></select>
+ <input id="keyword" aria-label="행사 검색" type="search" placeholder="행사명 검색">
+ </div>
+</div>
+<div class="layout">
+<section class="panel">
+ <div class="week"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+ <div class="grid" id="calendar" aria-label="경쟁사 세일 월간 달력"></div>
+ <div class="legend"><span><i></i> 공식 세일 기간 확인</span><span><i class="obs"></i> 수집일에만 관측</span></div>
+</section>
+<aside class="sidebar">
+<section class="panel"><div class="row"><h2 id="dateTitle">날짜별 행사</h2><span class="pill" id="dayCount">—</span></div><div id="dayList" aria-live="polite"></div></section>
+<section class="panel"><div class="row"><h2>이달의 세일·혜택</h2><span class="pill" id="monthCount">—</span></div><p class="small">기간 미확인 배너는 실제 수집된 날짜에만 표시합니다.</p><div id="monthEvents"></div></section>
+</aside></div>
+<p class="notice">기간을 확인한 공식 행사만 시작일부터 종료일까지 표시합니다. 행사 종료일이 없거나 홍보 배너만 수집되었다면 미래 날짜에 임의로 연장하지 않습니다. 수집 기록이 없다는 것은 세일이 없다는 의미가 아닙니다.</p>
+</main>
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id)},data=null,year=2026,month=11,selected='2026-11-15';
+function iso(y,m,d){return String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
+function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]})}
+function short(s){return s?String(Number(s.slice(5,7)))+'/'+String(Number(s.slice(8,10))):'—'}
+function pretty(s){return s?s.replace(/-/g,'.'):'미확인'}
+function filtered(e){
+if($('brand').value&&e.brand!==$('brand').value)return false;
+if($('type').value==='verified'&&e.kind==='observed_banner')return false;
+if($('type').value==='observation'&&e.kind!=='observed_banner')return false;
+var q=$('keyword').value.toLowerCase().trim();
+return !q||(e.title+' '+e.brand_name+' '+(e.benefit||'')).toLowerCase().indexOf(q)!==-1;
+}
+function applies(e,day){if(e.kind==='verified_period')return e.start_date<=day&&day<=e.end_date;
+if(e.kind==='verified_start')return day===e.start_date;
+return (e.observed_on||[]).indexOf(day)!==-1}
+function dayEvents(day){return data.events.filter(function(e){return filtered(e)&&applies(e,day)}).sort(function(a,b){return (a.kind==='observed_banner'?1:0)-(b.kind==='observed_banner'?1:0)})}
+function monthly(){var a=iso(year,month,1),b=iso(year,month,new Date(Date.UTC(year,month,0)).getUTCDate());
+return data.events.filter(function(e){if(!filtered(e))return false;
+if(e.kind==='verified_period')return e.start_date<=b&&e.end_date>=a;
+if(e.kind==='verified_start')return e.start_date>=a&&e.start_date<=b;
+return (e.observed_on||[]).some(function(x){return x>=a&&x<=b})})}
+function eventCard(e){
+var verified=e.kind!=='observed_banner';
+var when=e.kind==='verified_period'?pretty(e.start_date)+' ~ '+pretty(e.end_date):
+ e.kind==='verified_start'?pretty(e.start_date)+' 시작 / 종료일 미확인':
+ '관측: '+(e.observed_on||[]).map(short).join(', ');
+var source=e.source_url&&e.source_url.indexOf('https://')===0?
+ '<a rel="noopener noreferrer" target="_blank" href="'+esc(e.source_url)+'">공식 근거 확인</a>':'<span class="small">행사 상세 링크 확인 필요</span>';
+return '<div class="event"><div><span class="tag">'+esc(e.brand_name)+'</span> <span class="tag'+(verified?'':' obs')+'">'+(verified?'기간 확인':'관측')+'</span></div>'+
+ '<b>'+esc(e.title)+'</b>'+(e.benefit?'<div class="offer">'+esc(e.benefit)+'</div>':'')+
+ '<div class="meta">'+esc(when)+'</div><div class="meta">'+esc(e.note||'')+'</div>'+source+'</div>';
+}
+function showDay(){
+$('dateTitle').textContent=pretty(selected)+' 세일';
+var list=dayEvents(selected);$('dayCount').textContent=list.length+'건';
+$('dayList').innerHTML=list.length?list.map(eventCard).join(''):'<p class="empty">이 날짜에 확인된 세일 기록이 없습니다. 미확인은 행사 없음과 다릅니다.</p>';
+}
+function render(){
+if(!data)return;
+$('monthTitle').textContent=year+'. '+String(month).padStart(2,'0');
+var first=new Date(Date.UTC(year,month-1,1)).getUTCDay(),total=new Date(Date.UTC(year,month,0)).getUTCDate(),oldTotal=new Date(Date.UTC(year,month-1,0)).getUTCDate();
+var count=Math.ceil((first+total)/7)*7,host=$('calendar');host.innerHTML='';
+for(var i=0;i<count;i++){
+var d=i-first+1,y=year,m=month,actual=d;
+if(d<1){m=month===1?12:month-1;y=month===1?year-1:year;actual=oldTotal+d}
+if(d>total){m=month===12?1:month+1;y=month===12?year+1:year;actual=d-total}
+var stamp=iso(y,m,actual),ev=dayEvents(stamp),b=document.createElement('button');
+b.type='button';b.className='day'+(m!==month?' dim':'')+(stamp===selected?' sel':'')+(stamp===data.as_of?' today':'');
+b.setAttribute('aria-label',stamp+' '+ev.length+'개');
+b.innerHTML='<span class="num">'+actual+'</span>'+ev.slice(0,3).map(function(x){return '<span title="'+esc(x.title)+'" class="chip'+(x.kind==='observed_banner'?' obs':'')+'">'+esc(x.brand_name+' · '+x.title)+'</span>'}).join('')+
+(ev.length>3?'<span class="small">+'+(ev.length-3)+'개</span>':'');
+(function(day,yy,mm){b.onclick=function(){selected=day;year=yy;month=mm;render()}})(stamp,y,m);
+host.appendChild(b);
+}
+var all=monthly(),ver=all.filter(function(e){return e.kind!=='observed_banner'}),obs=all.filter(function(e){return e.kind==='observed_banner'});
+$('dated').textContent=ver.length;$('observed').textContent=obs.length;$('brands').textContent=new Set(all.map(function(e){return e.brand})).size;
+$('last').textContent=short(data.freshness.last_snapshot);$('monthCount').textContent=all.length+'건';
+$('monthEvents').innerHTML=all.length?all.sort(function(a,b){return (a.kind==='observed_banner'?1:0)-(b.kind==='observed_banner'?1:0)}).map(eventCard).join(''):'<p class="empty">해당 조건의 기록이 없습니다.</p>';
+showDay();
+}
+function move(diff){month+=diff;if(month===0){month=12;year--}if(month===13){month=1;year++}selected=iso(year,month,1);render()}
+$('prev').onclick=function(){move(-1)};$('next').onclick=function(){move(1)};
+$('current').onclick=function(){year=Number(data.as_of.slice(0,4));month=Number(data.as_of.slice(5,7));selected=data.as_of;render()};
+['brand','type','keyword'].forEach(function(id){$(id).addEventListener(id==='keyword'?'input':'change',render)});
+fetch('./latest.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(function(value){
+if(value.schema_version!==1||!Array.isArray(value.events))throw Error('Schema invalid');
+data=value;year=Number(data.as_of.slice(0,4));month=Number(data.as_of.slice(5,7));selected=data.as_of;
+$('state').textContent=data.status==='fresh'?'최근 수집 확인':data.status==='stale'?'수집 갱신 지연':'배너 데이터 없음';
+$('updated').textContent='기준 '+pretty(data.as_of)+' · 최신 수집 '+pretty(data.freshness.last_snapshot)+' · 관측일 '+data.freshness.snapshot_days+'일';
+Array.from(new Set(data.events.map(function(e){return e.brand}))).sort().forEach(function(key){
+var item=data.events.find(function(e){return e.brand===key}),opt=document.createElement('option');opt.value=key;opt.textContent=item.brand_name;$('brand').appendChild(opt)});
+render();
+}).catch(function(err){$('state').textContent='데이터 오류';$('dayList').innerHTML='<p class="empty">집계 데이터를 불러오지 못했습니다.</p>';console.error(err)});
+})();
+</script></body></html>
