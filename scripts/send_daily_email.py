@@ -234,6 +234,12 @@ def send_email_mixed_with_inline_image(
 
     msg.attach(related)
 
+    # The CID image above is embedded in the MIME related part, so it displays
+    # inside the email body even when external images are blocked. Keep a
+    # separate PNG attachment for downloading the complete report.
+    if inline_png_cid and inline_png_bytes:
+        assert f"cid:{inline_png_cid}" in html_body, "Inline PNG CID missing from HTML body"
+
     for filename, subtype, b in attachments:
         if not b:
             continue
