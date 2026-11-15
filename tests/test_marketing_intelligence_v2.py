@@ -60,6 +60,24 @@ class Intelligence2Tests(unittest.TestCase):
             self.assertEqual(result["status"], "waiting")
             self.assertFalse(result["candidates"])
 
+    def test_high_views_zero_purchase_prioritizes_event_matching(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            p, m = self.product_files(folder)
+            data = json.loads(p.read_text())
+            data["products"][0]["purchase_sessions"] = 0
+            data["rows"][0]["purchase_sessions"] = 0
+            p.write_text(json.dumps(data), encoding="utf-8")
+            product = quality_product(p, m, DAY, DAY)
+            self.assertTrue(product["candidates"][0]["measurement_watch"])
+            self.assertIn("매칭", product["candidates"][0]["reason"])
+            v1 = {"actions": []}
+            media = {"status": "traffic_only"}
+            crm = {"status": "aggregate_available_private"}
+            actions = actions_from_sources(v1, product, media, crm)
+            self.assertEqual(actions[0]["id"], "PRODUCT_QA_C75XE1234010")
+            self.assertEqual(actions[0]["priority"], "P0")
+
     def test_product_no_future_data(self):
         with tempfile.TemporaryDirectory() as temp:
             p, m = self.product_files(Path(temp), "2026-11-17")
