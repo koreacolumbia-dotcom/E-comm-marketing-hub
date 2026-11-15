@@ -117,6 +117,7 @@ def launch_report(report_day: dt.date, registry: Path = LAUNCH_REGISTRY,
         return {"status": "daily_sku_source_missing", "items": [],
                 "note": "신상품 출시일만 있고 SKU별 일자별 PDP/주문/매출 실측 원천 없음"}
     index: dict[tuple[str, dt.date], dict] = {}
+    duplicate_days: set[tuple[str, dt.date]] = set()
     for x in rows:
         if not isinstance(x, dict):
             continue
@@ -125,7 +126,10 @@ def launch_report(report_day: dt.date, registry: Path = LAUNCH_REGISTRY,
         ss, oo, rr = [num(x.get(k)) for k in ("pdp_sessions", "orders", "revenue")]
         if (date and re.fullmatch(r"[A-Z0-9_-]{5,40}", sku) and
                 None not in (ss,oo,rr) and ss >= 0 and oo >= 0 and rr >= 0):
-            index[(sku,date)] = {"sessions": ss, "orders": oo, "revenue": rr}
+            if (sku,date) in index:
+                duplicate_days.add((sku,date))
+            else:
+                index[(sku,date)] = {"sessions": ss, "orders": oo, "revenue": rr}
     data = []
     for entry in entries[:25]:
         if not isinstance(entry, dict):
@@ -141,6 +145,9 @@ def launch_report(report_day: dt.date, registry: Path = LAUNCH_REGISTRY,
                 continue
             dates = [launch + dt.timedelta(days=i) for i in range(horizon)]
             values = [index.get((sku,d)) for d in dates]
+            if any((sku,d) in duplicate_days for d in dates):
+                windows[f"d{horizon}"] = {"status": "duplicate_sku_day"}
+                continue
             if any(v is None for v in values):
                 windows[f"d{horizon}"] = {"status": "missing_daily_data"}
                 continue
@@ -162,6 +169,7 @@ def creative_fatigue(report_day: dt.date, path: Path = CREATIVE_SOURCE) -> dict[
         return {"status": "not_connected", "flags": [],
                 "note": "Meta/Google 소재별 14일 노출·클릭 원본 미연결"}
     groups: dict[tuple[str,str], dict[str,list]] = {}
+    seen_daily: set[tuple[str,str,dt.date]] = set()
     for entry in rows:
         if not isinstance(entry, dict):
             continue
@@ -178,6 +186,10 @@ def creative_fatigue(report_day: dt.date, path: Path = CREATIVE_SOURCE) -> dict[
         if not (0 <= lag <= 13):
             continue
         row = groups.setdefault((platform,creative), {"before": [], "after": []})
+        if (platform,creative,date) in seen_daily:
+            return {"status": "duplicate_creative_day", "flags": [],
+                    "note": "동일 소재·매체·날짜 중복 원본. 소재 데이터 재집계 전 판단 차단"}
+        seen_daily.add((platform,creative,date))
         bucket = "after" if lag <= 6 else "before"
         row[bucket].append((date,exposures,clicks))
     flags = []
