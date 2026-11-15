@@ -134,6 +134,20 @@ class Intelligence2Tests(unittest.TestCase):
         queue = make_queue(current, previous, None, DAY)
         self.assertEqual([x["id"] for x in queue], ["PRODUCT_C123"])
 
+    def test_data_source_failures_become_action_tickets(self):
+        product = {"status": "waiting", "candidates": []}
+        media = {"status": "blocked"}
+        crm = {"status": "not_connected"}
+        integrations = {"paid_cost": {"status": "stale", "latest_date": "2026-04-06"},
+                        "warehouse": {"order_mart": "stale", "crm": "stale",
+                                      "inventory": "connection_error"}}
+        todo = actions_from_sources({"actions": []}, product, media, crm, integrations)
+        codes = {x["id"]: x for x in todo}
+        self.assertIn("PAID_COST_FRESHNESS", codes)
+        self.assertIn("WAREHOUSE_ETL_FRESHNESS", codes)
+        self.assertIn("MSSQL_STOCK_ACCESS", codes)
+        self.assertEqual(codes["WAREHOUSE_ETL_FRESHNESS"]["priority"], "P0")
+
     def test_end_to_end_missing_data_fail_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)
