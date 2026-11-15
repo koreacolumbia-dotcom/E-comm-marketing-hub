@@ -223,7 +223,7 @@ def actions_from_sources(v1: dict[str, Any], product: dict[str, Any],
     for item in product["candidates"][:4]:
         if item.get("measurement_watch"):
             result.append(new_action(
-                "PRODUCT_QA_" + item["code"], "P0", "DATA",
+                "PRODUCT_" + item["code"], "P0", "DATA",
                 f"{item['name']} 상품별 이벤트 정합성 검증",
                 f"지난 30일 PDP 세션 {item['sessions']:,}, 상품 구매 세션 0 "
                 f"(기준 {item['source_period']})",
