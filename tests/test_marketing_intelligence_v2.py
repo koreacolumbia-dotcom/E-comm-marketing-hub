@@ -75,7 +75,7 @@ class Intelligence2Tests(unittest.TestCase):
             media = {"status": "traffic_only"}
             crm = {"status": "aggregate_available_private"}
             actions = actions_from_sources(v1, product, media, crm)
-            self.assertEqual(actions[0]["id"], "PRODUCT_QA_C75XE1234010")
+            self.assertEqual(actions[0]["id"], "PRODUCT_C75XE1234010")
             self.assertEqual(actions[0]["priority"], "P0")
 
     def test_product_no_future_data(self):
