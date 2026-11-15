@@ -215,7 +215,8 @@ def new_action(code: str, priority: str, domain: str, title: str,
 
 
 def actions_from_sources(v1: dict[str, Any], product: dict[str, Any],
-                         media: dict[str, Any], crm: dict[str, Any]) -> list[dict[str, Any]]:
+                         media: dict[str, Any], crm: dict[str, Any],
+                         integrations: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     result = []
     for row in v1.get("actions", []):
         if not isinstance(row, dict) or not row.get("code"):
@@ -257,6 +258,36 @@ def actions_from_sources(v1: dict[str, Any], product: dict[str, Any],
             "비공개 환경에서 회원별 구매 이력을 집계하고 30인 이상 그룹 통계만 접근 제한 저장. "
             "캠페인 발송은 승인 이후 별도 실행",
             "CRM/데이터 담당"))
+    if integrations:
+        cost = integrations.get("paid_cost") or {}
+        warehouse = integrations.get("warehouse") or {}
+        if cost.get("status") not in ("fresh_unreconciled",):
+            result.append(new_action(
+                "PAID_COST_FRESHNESS", "P0", "PAID",
+                "광고비 원본 자동 수집 재개",
+                "비용 내역 상태: " + str(cost.get("status", "미연결")) +
+                " / 최신 비용일 " + str(cost.get("latest_date") or "미확인"),
+                "매체 API/대행사 파일 갱신 또는 광고비 적재 작업이 중단됐을 가능성",
+                "날짜별 PMax·Criteo·Meta·Naver 실비용 원본을 갱신하고 플랫폼 합계·통화·세금 포함 여부를 대조",
+                "퍼포먼스 대행사/매체 담당"))
+        if warehouse.get("order_mart") not in ("ready",) or warehouse.get("crm") not in ("ready",):
+            result.append(new_action(
+                "WAREHOUSE_ETL_FRESHNESS", "P0", "DATA",
+                "MSSQL → BigQuery 주문·CRM 적재 갱신",
+                "주문상품 원천 " + str(warehouse.get("order_mart", "미확인")) +
+                " / CRM 원천 " + str(warehouse.get("crm", "미확인")),
+                "원천 ETL 일정에서 MSSQL 동기화 미실행 또는 테이블 업데이트 지연 가능성",
+                "기존 ETL의 run_etl=false 경로와 원천 modified_time을 확인하고, 증분 적재·보존 범위·중복 및 덮어쓰기 영향 검증 후 운영 ETL 재개",
+                "데이터 엔지니어/BigQuery 담당"))
+        if warehouse.get("inventory") in ("connection_error", "auth_missing", "driver_missing", "query_error"):
+            result.append(new_action(
+                "MSSQL_STOCK_ACCESS", "P0", "DATA",
+                "MSSQL 실재고 조회 접근 문제 해결",
+                "실재고 읽기 전용 상태: " + str(warehouse.get("inventory")),
+                "GitHub Actions 러너의 MSSQL 네트워크·포트·IP 허용·ODBC 연결 문제 가능성",
+                "DB 인바운드 ACL·VPN/프록시·SQL Server 리스너·허용된 접속 IP 확인. "
+                "쓰기 권한이나 재고 수량 공개는 필요하지 않음",
+                "인프라/DBA 담당"))
     dedup = {}
     for x in result:
         dedup[x["id"]] = x
@@ -320,7 +351,8 @@ def compile_report(day: dt.date, now_day: dt.date,
     products = quality_product(pdp_path, meta_path, day, now_day)
     media = agency(obj, qa)
     crm = crm_readiness(crm_path, day)
-    todos = actions_from_sources(v1, products, media, crm)
+    integrations = build_integrations(day, daily_root=daily_root)
+    todos = actions_from_sources(v1, products, media, crm, integrations)
     queue = make_queue(todos, prior_state, overrides, day)
     return {
         "version": "2.0", "report_date": day.isoformat(),
@@ -328,7 +360,7 @@ def compile_report(day: dt.date, now_day: dt.date,
         "status": v1["status"], "quality": qa,
         "metrics": v1.get("metrics", []),
         "product": products, "agency": media, "crm": crm,
-        "integrations": build_integrations(day, daily_root=daily_root),
+        "integrations": integrations,
         "actions": queue,
         "action_stats": {
             "open": sum(x["status"] == "OPEN" for x in queue),
