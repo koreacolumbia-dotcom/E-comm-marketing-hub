@@ -124,6 +124,16 @@ class Intelligence2Tests(unittest.TestCase):
         q4 = make_queue(current, {"actions": q3}, override, day2)
         self.assertEqual(q4[0]["observations"], 2)
 
+    def test_legacy_product_qa_ticket_migrates_without_duplicates(self):
+        current = [{"id": "PRODUCT_C123", "priority": "P0", "domain": "DATA",
+                    "title": "상품 태깅 검증", "observation": "0", "hypothesis": "이슈",
+                    "validation": "원본 대조", "owner": "데이터"}]
+        previous = {"actions": [{"id": "PRODUCT_QA_C123", "priority": "P0",
+                                "status": "OPEN", "last_seen": "2026-11-14",
+                                "observations": 1}]}
+        queue = make_queue(current, previous, None, DAY)
+        self.assertEqual([x["id"] for x in queue], ["PRODUCT_C123"])
+
     def test_end_to_end_missing_data_fail_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)
