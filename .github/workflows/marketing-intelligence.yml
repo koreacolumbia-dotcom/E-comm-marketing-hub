@@ -6,7 +6,7 @@ on:
     - cron: "45 0 * * *"
   workflow_dispatch:
   push:
-    branches: [main, fix/csk-channel-total-deltas-20261115]
+    branches: [main]
     paths:
       - ".github/workflows/marketing-intelligence.yml"
       - "scripts/build_marketing_intelligence.py"
@@ -40,7 +40,7 @@ jobs:
       - name: Unit tests
         run: python -m unittest discover -s tests -p test_marketing_intelligence.py -v
       - name: Generate source-backed intelligence
-        if: github.event_name != 'push'
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -57,7 +57,7 @@ jobs:
           print("QA:", p["status"])
           PY
       - name: Publish aggregate-only briefing
-        if: github.event_name != 'push'
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
