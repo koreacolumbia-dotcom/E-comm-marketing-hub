@@ -158,6 +158,7 @@ jobs:
             python -u scripts/render_daily_png.py "reports/daily_digest/daily/$day.html" "reports/daily_digest/daily/$day.png"
             test -s "reports/daily_digest/daily/$day.html"
             test -s "reports/daily_digest/daily/$day.png"
+            python -u scripts/validate_daily_digest.py --date "$day" --require-pdp
           done
       - name: Publish revised reports without sending mail
         shell: bash
