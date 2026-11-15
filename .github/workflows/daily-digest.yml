@@ -449,6 +449,15 @@ jobs:
             fi
           fi
 
+      - name: Quality gate — block invalid Daily Digest and email
+        if: ${{ success() && steps.modes.outputs.run_daily == 'true' && steps.set_time.outputs.digest_mode == 'daily' }}
+        shell: bash
+        env:
+          REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
+        run: |
+          set -euo pipefail
+          python -u scripts/validate_daily_digest.py --date "$REPORT_DATE" --require-pdp
+
       - name: Commit & push Daily Digest results
         if: ${{ success() }}
         continue-on-error: false
