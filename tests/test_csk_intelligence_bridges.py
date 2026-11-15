@@ -9,6 +9,7 @@ from scripts.csk_intelligence_bridges import (
     build, experiment_results, paid_spend_health, warehouse_health
 )
 from scripts.build_secure_csk_signals import freshness, probe, safe_id, write_probe
+from scripts.probe_mssql_inventory_readonly import analyze_stock, candidate_skus, connection_config, probe_inventory
 
 DAY = dt.date(2026, 11, 14)
 
@@ -137,6 +138,48 @@ class ExperimentTests(unittest.TestCase):
             r = experiment_results(DAY, cfg, folder)
             self.assertEqual(r["items"][0]["status"], "awaiting_full_window")
             self.assertFalse(r["items"][0]["causal_claim"])
+
+
+class MSSQLStockTests(unittest.TestCase):
+    def test_stock_candidate_select_is_bounded(self):
+        with tempfile.TemporaryDirectory() as temp:
+            f = Path(temp) / "pdp.json"
+            f.write_text(json.dumps({"products": [
+                {"product_code": "C74YM3674342", "opportunity_score": 100},
+                {"product_code": "C71XM4875265", "opportunity_score": 99},
+                {"product_code": "C71XM4875265", "opportunity_score": 98}
+            ]}))
+            self.assertEqual(candidate_skus(f, max_skus=2),
+                             ["C74YM3674342", "C71XM4875265"])
+
+    def test_analyze_stock_does_not_infer_product_catalogue(self):
+        r = analyze_stock([("C74YM3674342", 4, 1),
+                           ("C71XM4875265", 3, 0)],
+                          ["C74YM3674342", "C71XM4875265", "C75XY1234010"])
+        self.assertEqual(r["matched_sku_count"], 2)
+        self.assertIn("C71XM4875265", r["detail"]["no_positive_sizes_in_source"])
+        self.assertIn("C75XY1234010", r["detail"]["not_in_stock_table"])
+
+    def test_stock_probe_blocks_unconnected_mssql(self):
+        from unittest.mock import patch
+        with patch("scripts.probe_mssql_inventory_readonly.connection_config", return_value=None):
+            r = probe_inventory(DAY, ["C74YM3674342"])
+        self.assertEqual(r["status"], "auth_missing")
+        self.assertEqual(r["matched_sku_count"], 0)
+
+    def test_current_stock_is_not_historical_causal_evidence(self):
+        with tempfile.TemporaryDirectory() as temp:
+            p, stock = Path(temp) / "warehouse.json", Path(temp) / "stock.json"
+            p.write_text(json.dumps({"date": DAY.isoformat(),
+                  "order_mart": {"status": "stale"},
+                  "inventory": {"status": "incomplete"},
+                  "crm": {"status": "stale"}}))
+            stock.write_text(json.dumps({"date": DAY.isoformat(), "status": "ready",
+                 "as_of_kst": "2026-11-15T20:00:00+09:00"}))
+            out = warehouse_health(DAY, p, stock)
+            self.assertEqual(out["inventory"], "ready_current_only")
+            self.assertIn("과거 재고", " ".join(out["notes"]))
+            self.assertFalse(out["product_source_valid"])
 
 
 if __name__ == "__main__":

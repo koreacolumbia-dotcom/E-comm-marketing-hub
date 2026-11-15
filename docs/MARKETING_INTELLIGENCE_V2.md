@@ -48,3 +48,11 @@ DONE은 담당자가 실제로 검증을 완료한 뒤에만 지정해야 합니
 **성과 검증**: config/marketing_intelligence_experiments.json에 실제 개선 실행일과 추적 과제를 등록하세요. 예를 들면 experiments 배열 원소에 id, title, start_date, window_days:7(또는 14)을 입력합니다. 시작일 이전 7일과 이후 7일의 동일 요일을 비교하고 전일부가 모두 존재해야 결과를 생성합니다. 주문·매출·구매율 전후 결과는 observational_only이며, 실험 통제군 없는 환경에서는 인과효과로 인정하지 않습니다. 유효한 실행일이 없다면 기본 배열은 비워 둡니다.
 
 **실패 시 처리**: CRM/광고/재고 연동 오류가 생겨도 완성되지 않은 지표를 0으로 출력하거나 기존 액션을 자동 완료하지 않습니다. 2.0 공개 화면에는 원천 신선도, 권한, 부분 연동 상태를 함께 보여줍니다. 기존 데일리 리포트 발송·광고 예산·CRM 캠페인에는 영향을 주지 않습니다.
+
+## MSSQL 재고 읽기 전용 검사 추가
+
+- 매일 BigQuery 신선도 점검 후 기존 MSSQL 접속 secrets가 모두 있는 경우 `dbo.TB_ProductSizeStock`의 상위 PDP 후보 상품 최대 8개를 조회합니다. UPDATE/INSERT/DELETE/DDL이 없고, ProductCode 파라미터가 있는 SELECT만 사용합니다.
+- 연결을 위해 GitHub Actions 런너에서 Microsoft ODBC Driver 18과 pyodbc를 설치합니다. 비밀값·재고 수량·상품별 사이즈별 데이터는 로그나 공개 리포트에 저장하지 않습니다.
+- 확인 상태: `ready_current_only`는 *조회 실행 당시* 재고 접근이 가능하다는 의미이며, 과거 보고일의 재고 상태를 증명하지 않습니다. 연결/권한/DB 스키마 문제는 별도 오류 상태로 보존합니다.
+- `private_data/csk_signals/inventory_status.json`에 일시적 접속 상태만 만들고 커밋하기 전에 제거합니다. 실제 재고 수량과 CRM 인원은 GitHub에 저장되지 않습니다.
+- 자동 광고 예산 변경, CRM 발송, MSSQL/BigQuery 쓰기와 ETL 대량 갱신은 여전히 비활성 상태로 둡니다. 기존 자동 ETL 갱신 활성화는 데이터 덮어쓰기 영향 검증 후 별도 승인 대상으로 분리합니다.

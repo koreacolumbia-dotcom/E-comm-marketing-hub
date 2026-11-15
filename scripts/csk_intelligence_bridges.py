@@ -13,6 +13,7 @@ from typing import Any
 
 PAID_FILE = Path("reports/daily_digest/data/paid_media_spend_history.csv")
 WAREHOUSE_FILE = Path("private_data/csk_signals/warehouse_status.json")
+STOCK_FILE = Path("private_data/csk_signals/inventory_status.json")
 EXPERIMENT_FILE = Path("config/marketing_intelligence_experiments.json")
 DAILY = Path("reports/daily_digest/data/daily")
 MAX_COST_LAG_DAYS = 2
@@ -101,7 +102,8 @@ def paid_spend_health(report_day: dt.date, path: Path = PAID_FILE) -> dict[str, 
     return result
 
 
-def warehouse_health(day: dt.date, path: Path = WAREHOUSE_FILE) -> dict[str, Any]:
+def warehouse_health(day: dt.date, path: Path = WAREHOUSE_FILE,
+                     stock_path: Path = STOCK_FILE) -> dict[str, Any]:
     result = {
         "status": "not_connected", "order_mart": "not_checked",
         "crm": "not_checked", "inventory": "not_checked",
@@ -122,13 +124,24 @@ def warehouse_health(day: dt.date, path: Path = WAREHOUSE_FILE) -> dict[str, Any
             st = str(row.get("status") or "not_checked")
             result[feature] = st if st in {"ready", "stale", "missing", "schema_mismatch",
                                           "not_checked", "query_error", "incomplete", "auth_missing"} else "query_error"
+    stock = read_json(stock_path)
+    if stock is not None and stock.get("date") == day.isoformat():
+        state = stock.get("status")
+        asof = iso_day(stock.get("as_of_kst"))
+        if state == "ready" and asof is not None and asof >= day:
+            result["inventory"] = "ready_current_only"
+            result["notes"].append(
+                "실재고 원본은 MSSQL에서 현재 시점 조회됨. 보고일의 과거 재고·매출 감소 원인으로 단정 금지")
+        elif state in {"auth_missing", "driver_missing", "connection_error",
+                       "schema_mismatch", "no_matching_rows", "query_error"}:
+            result["inventory"] = state
     result["product_source_valid"] = result["order_mart"] == "ready"
     result["crm_source_valid"] = result["crm"] == "ready"
     result["status"] = ("ready" if result["product_source_valid"] and result["crm_source_valid"]
                         else "partial")
     if result["order_mart"] != "ready":
         result["notes"].append("상품 어드민 주문 데이터로 매출 하락 원인을 분해할 수 없음")
-    if result["inventory"] != "ready":
+    if result["inventory"] not in ("ready", "ready_current_only"):
         result["notes"].append("완전한 실재고 원본 미확인 — 품절을 실제 원인으로 단정하지 않음")
     if result["crm"] != "ready":
         result["notes"].append("CRM 원본 집계 불충분 — 고객 타깃 인원 추정 금지")
