@@ -53,7 +53,11 @@ def finite(v: Any) -> float | None:
 
 
 def slim(value: Any, max_chars: int = 130) -> str:
-    return re.sub(r"[\r\n\x00-\x1f]+", " ", str(value or "")).strip()[:max_chars]
+    text = re.sub(r"[\r\n\x00-\x1f]+", " ", str(value or "")).strip()
+    text = re.sub(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "[EMAIL REDACTED]", text)
+    text = re.sub(r"(?<![0-9])01[016789][- ]?[0-9]{3,4}[- ]?[0-9]{4}(?![0-9])",
+                  "[PHONE REDACTED]", text)
+    return text[:max_chars]
 
 
 def date_span(first: dt.date, last: dt.date, date: dt.date, end: dt.date | None) -> bool:
@@ -81,7 +85,9 @@ def calendar_context(report_day: dt.date, current_daily: dict[str, Any] | None,
             start = parse_day(entry.get("date"))
             end = parse_day(entry.get("end_date"))
             if (start and date_span(week_start, report_day, start, end)
-                    and entry.get("status") in ("confirmed", "planned")):
+                    and entry.get("status") in ("confirmed", "planned")
+                    and (entry.get("status") != "confirmed" or
+                         str(entry.get("source") or "").strip())):
                 found.append({
                     "date": start.isoformat(), "status": entry["status"],
                     "kind": slim(entry.get("kind"), 24),
@@ -116,6 +122,10 @@ def calendar_context(report_day: dt.date, current_daily: dict[str, Any] | None,
             status = entry.get("status")
             if status not in ("confirmed", "planned"):
                 continue
+            if origin == "owned_message_2025" and status == "confirmed" and (
+                    finite(entry.get("sent_count")) or 0) <= 0:
+                # A planned record without confirmed delivery is not a sent message.
+                status = "planned"
             # Do not add CRM message_revenue or ROAS from overlapping sources:
             # attribution may differ and events can duplicate.
             events.append({
