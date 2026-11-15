@@ -250,8 +250,6 @@ def observed_events(rows: list[dict]) -> list[dict]:
         if not group["benefit"] and row["benefit"]:
             group["benefit"]=row["benefit"]
         # First-party landing text can override junk HTML plan_start/plan_end.
-        if (row["source_type"] if "source_type" in row else False):
-            pass
         if row["url"] and row["landing_status"]=="ok":
             text=" ".join([row["title"],row["landing_summary"]])
             # Requires an explicit sale-oriented landing-title and a tight
@@ -276,7 +274,6 @@ def build(as_of:dt.date, root:Path=ROOT, registry:Path=REGISTRY, lookback:int=MA
     documented=read_registry(registry,as_of)
     events=documented+observed_events(rows)
     events.sort(key=lambda x:(x["brand"],x["kind"],x.get("start_date") or x.get("first_seen") or "",x["title"]))
-    covered=[date(x[:8]) for x in []] # no synthesized capture days
     captures=sorted({dt.datetime.strptime(re.match(OBS_RE, f).group(1),"%Y%m%d").date().isoformat()
                     for f in files if OBS_RE.match(f)})
     most_recent=captures[-1] if captures else None
