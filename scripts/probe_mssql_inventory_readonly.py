@@ -148,7 +148,7 @@ def probe_inventory(day: dt.date, skus: list[str]) -> dict[str, Any]:
             "COUNT(DISTINCT CASE WHEN ISNULL(ProductStock, 0) > 0 "
             "THEN CAST(ProductSize AS varchar(50)) END) AS positive_size_count "
             "FROM dbo.TB_ProductSizeStock "
-            "WHERE UPPER(LTRIM(RTRIM(CAST(ProductCode AS varchar(100))))) IN (" +
+            "WHERE ProductCode IN (" +
             placeholders + ") "
             "GROUP BY UPPER(LTRIM(RTRIM(CAST(ProductCode AS varchar(100)))))"
         )
