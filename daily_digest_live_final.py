@@ -2631,10 +2631,14 @@ def get_channel_snapshot_3way(
         "purchaseRevenue": float(out["purchaseRevenue"].sum() if not out.empty else 0),
         "session_dod": pct_change(os_cur, os_prev),
         "session_yoy": pct_change(os_cur, os_yoy),
-        "orders_dod": pct_change(float(out["transactions"].sum() if not out.empty else 0), float(m["transactions_prev"].sum() if not m.empty else 0)),
-        "orders_yoy": pct_change(float(out["transactions"].sum() if not out.empty else 0), float(m["transactions_yoy"].sum() if not m.empty else 0)),
-        "revenue_dod": pct_change(float(out["purchaseRevenue"].sum() if not out.empty else 0), float(m["revenue_prev"].sum() if not m.empty else 0)),
-        "revenue_yoy": pct_change(float(out["purchaseRevenue"].sum() if not out.empty else 0), float(m["revenue_yoy"].sum() if not m.empty else 0)),
+        # Use the unmodified authoritative GA overall totals. The m["revenue_yoy"]
+        # column above now holds YoY growth RATES, not prior-year revenue.
+        # Summing those percentages as a revenue denominator caused bogus
+        # Total-row growth (e.g. many millions of percent).
+        "orders_dod": pct_change(float(oc.get("transactions", 0) or 0), float(op.get("transactions", 0) or 0)),
+        "orders_yoy": pct_change(float(oc.get("transactions", 0) or 0), float(oy.get("transactions", 0) or 0)),
+        "revenue_dod": pct_change(float(oc.get("purchaseRevenue", 0) or 0), float(op.get("purchaseRevenue", 0) or 0)),
+        "revenue_yoy": pct_change(float(oc.get("purchaseRevenue", 0) or 0), float(oy.get("purchaseRevenue", 0) or 0)),
         "rev_dod": pct_change(os_cur, os_prev),
         "rev_yoy": pct_change(os_cur, os_yoy),
     }])
