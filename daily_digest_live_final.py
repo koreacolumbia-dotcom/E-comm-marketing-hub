@@ -3469,7 +3469,16 @@ def get_category_pdp_view_trend_bq(
         if missing:
             intraday_table = BQ_EVENTS_TABLE.replace("events_*", "events_intraday_*")
             if intraday_table != BQ_EVENTS_TABLE:
-                intraday_sql = sql.replace(BQ_EVENTS_TABLE, intraday_table)
+                # Keep the 30-day product-category lookup on finalized daily
+                # exports; replace ONLY the PDP event source with intraday.
+                # Intraday tables usually lack the complete historical item
+                # category lookup, so replacing both sources returns no rows.
+                intraday_sql = sql
+                daily_from = f"FROM {chr(96)}{BQ_EVENTS_TABLE}{chr(96)}"
+                if intraday_sql.count(daily_from) != 2:
+                    raise ValueError("PDP SQL source shape changed; cannot safely construct intraday fallback")
+                head, tail = intraday_sql.rsplit(daily_from, 1)
+                intraday_sql = head + f"FROM {chr(96)}{intraday_table}{chr(96)}" + tail
                 try:
                     intraday_df = bq.query(intraday_sql, location=BQ_LOCATION or None).to_dataframe()
                     if not intraday_df.empty:
