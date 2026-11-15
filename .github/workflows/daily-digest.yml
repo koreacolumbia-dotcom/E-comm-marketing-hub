@@ -8,6 +8,14 @@ on:
       - ".github/workflows/daily-digest.yml"
   workflow_dispatch:
     inputs:
+      recovery_only:
+        description: "Rebuild Nov 13-14 without sending any email"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
       reason:
         description: "Manual run reason (optional)"
         required: false
@@ -101,7 +109,7 @@ jobs:
           python -u scripts/send_daily_email.py
 
   backfill_etc:
-    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Rebuild PDP with historical lookup Nov 13-14 no email' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.recovery_only == 'true') || (github.event_name == 'push' && github.event.head_commit.message == 'Rebuild PDP with historical lookup Nov 13-14 no email') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -175,7 +183,7 @@ jobs:
 
   run:
     # One-time silent refresh for today; normal future refreshes use the schedule.
-    if: ${{ github.event_name != 'push' || (github.event.head_commit.message == 'Refresh 2026-11-13 Daily Digest silently' || github.event.head_commit.message == 'Recover 2026-11-14 Daily Digest and email') }}
+    if: ${{ (github.event_name != 'workflow_dispatch' || inputs.recovery_only != 'true') && (github.event_name != 'push' || (github.event.head_commit.message == 'Refresh 2026-11-13 Daily Digest silently' || github.event.head_commit.message == 'Recover 2026-11-14 Daily Digest and email')) }}
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
