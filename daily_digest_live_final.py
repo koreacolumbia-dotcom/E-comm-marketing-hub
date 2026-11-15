@@ -2548,6 +2548,11 @@ def get_channel_snapshot_3way(
         df["bucket"] = df["sessionDefaultChannelGroup"].apply(
             lambda x: map_default_channel_group_to_bucket(str(x)) or "etc"
         )
+        # Surface raw GA4 channel-group values to diagnose ETC without
+        # silently assigning Unassigned/(other) to a guessed channel.
+        diag = df.groupby(["sessionDefaultChannelGroup", "bucket"], dropna=False)["sessions"].sum()
+        print(f"[CHANNEL_DIAG] {ymd(start)}..{ymd(end)} raw default groups: {diag.to_dict()}", flush=True)
+        print(f"[CHANNEL_DIAG] raw grouped sessions={pd.to_numeric(df['sessions'], errors='coerce').sum():,.0f}", flush=True)
         for metric in mets:
             df[metric] = pd.to_numeric(df[metric], errors="coerce").fillna(0.0)
         return df
