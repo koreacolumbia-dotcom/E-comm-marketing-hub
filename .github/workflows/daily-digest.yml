@@ -1,7 +1,7 @@
 name: Daily Digest
 
 on:
-  # Recovery run from workflow commit (2026-11-15 KST). Production artifacts are outside this path.
+  # Explicit recovery push rebuilds and emails the exact prior-day report.
   push:
     branches: [main]
     paths:
@@ -102,7 +102,7 @@ jobs:
 
   run:
     # One-time silent refresh for today; normal future refreshes use the schedule.
-    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'Refresh 2026-11-13 Daily Digest silently' }}
+    if: ${{ github.event_name != 'push' || (github.event.head_commit.message == 'Refresh 2026-11-13 Daily Digest silently' || github.event.head_commit.message == 'Recover 2026-11-14 Daily Digest and email') }}
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -137,7 +137,7 @@ jobs:
           echo "run_daily=true" >> "$GITHUB_OUTPUT"
           # Afternoon schedule refreshes HTML/PNG/JSON but never emails the team.
           # On-demand "daily_hub_only" also rebuilds without email.
-          if [ "$DAILY_HUB_ONLY" = "true" ] || [ "${{ github.event_name }}" = "push" ] || { [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 5 * * *" ]; }; then
+          if [ "$DAILY_HUB_ONLY" = "true" ] || { [ "${{ github.event_name }}" = "push" ] && [ "${{ github.event.head_commit.message }}" != "Recover 2026-11-14 Daily Digest and email" ]; } || { [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 5 * * *" ]; }; then
             echo "send_daily_email=false" >> "$GITHUB_OUTPUT"
           else
             echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
