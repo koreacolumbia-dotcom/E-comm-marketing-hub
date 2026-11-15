@@ -48,7 +48,5 @@
 - [OPEN] P1 · PRODUCT · Amaze Puff Hooded Jacket 상세페이지 개선 검토 (최근 관측 2026-11-14; 담당 이커머스/MD)
 - [OPEN] P1 · PRODUCT · SNOWTROT PEAK ODX 상세페이지 개선 검토 (최근 관측 2026-11-14; 담당 이커머스/MD)
 - [OPEN] P2 · CRM · CRM 세그먼트 집계 연동 (최근 관측 2026-11-14; 담당 CRM/데이터 담당)
-- [OPEN] P0 · DATA · CSC1938 Dually Mountain Outerchange 상품별 이벤트 정합성 검증 (최근 관측 2026-11-14; 담당 데이터/이커머스)
-- [OPEN] P0 · DATA · M`s MT.Hood Down Jacket 상품별 이벤트 정합성 검증 (최근 관측 2026-11-14; 담당 데이터/이커머스)
 
 원천과 제약: 인과 설명은 가설, 기간이 다른 상품 데이터는 당일 증감 원인에 사용하지 않음
