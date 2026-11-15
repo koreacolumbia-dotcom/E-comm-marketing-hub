@@ -6463,7 +6463,9 @@ def main():
         print('[WARN] google-cloud-bigquery not installed; PDP Trend will be empty. Install: pip install google-cloud-bigquery')
 
     today_kst = dt.datetime.now(ZoneInfo("Asia/Seoul")).date()
-    latest_end = today_kst - dt.timedelta(days=1)
+    latest_end = dt.date.fromisoformat(os.environ["DAILY_DIGEST_END_DATE_OVERRIDE"]) if os.getenv("DAILY_DIGEST_END_DATE_OVERRIDE") else today_kst - dt.timedelta(days=1)
+    if latest_end >= today_kst:
+        raise SystemExit("ERROR: report end date must be before today (KST)")
 
     logo_b64 = load_logo_base64(LOGO_PATH)
     image_map = load_image_map_from_excel_urls(IMAGE_XLS_PATH)
