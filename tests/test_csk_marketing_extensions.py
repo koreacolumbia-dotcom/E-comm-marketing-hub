@@ -85,6 +85,24 @@ class LaunchTests(unittest.TestCase):
                              "missing_daily_data")
 
 
+    def test_duplicate_sku_day_blocks_launch_window(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder)
+            reg,metrics=base/"reg.json",base/"sku.json"
+            reg.write_text(json.dumps({"launches":[{"sku":"C74YM3674342",
+                          "name":"Launch","launch_date":"2026-11-08"}]}))
+            rows=[]
+            for i in range(7):
+                d=dt.date(2026,11,8)+dt.timedelta(days=i)
+                rows.append({"date":d.isoformat(),"sku":"C74YM3674342",
+                             "pdp_sessions":100,"orders":2,"revenue":200000})
+            rows.append(dict(rows[0]))
+            metrics.write_text(json.dumps({"rows":rows}))
+            result=launch_report(DAY,reg,metrics)
+            self.assertEqual(result["items"][0]["windows"]["d7"]["status"],
+                             "duplicate_sku_day")
+
+
 class CreativeTests(unittest.TestCase):
     def test_ctr_drop_is_hypothesis_not_confirmed_fatigue(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -102,6 +120,16 @@ class CreativeTests(unittest.TestCase):
             self.assertEqual(len(r["flags"]),1)
             self.assertLess(r["flags"][0]["ctr_change_pct"],-25)
             self.assertEqual(r["flags"][0]["status"],"creative_fatigue_hypothesis")
+
+    def test_duplicate_creative_day_blocks_ctr_fatigue_claim(self):
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder)/"creatives.json"
+            row={"date":"2026-11-14","platform":"meta",
+                 "creative_id":"CREATIVE_X","impressions":2000,"clicks":50}
+            p.write_text(json.dumps({"rows":[row,row]}))
+            out=creative_fatigue(DAY,p)
+            self.assertEqual(out["status"],"duplicate_creative_day")
+            self.assertFalse(out["flags"])
 
     def test_missing_creatives_are_not_claimed_healthy(self):
         with tempfile.TemporaryDirectory() as folder:
