@@ -101,7 +101,7 @@ jobs:
           python -u scripts/send_daily_email.py
 
   backfill_etc:
-    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Backfill Nov 13-14 ETC diagnostics without email' }}
+    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Rebuild Nov 13-14 channels and PDP without email' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
