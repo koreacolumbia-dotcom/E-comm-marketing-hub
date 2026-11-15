@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "report_date": "2026-11-14",
-  "generated_at_kst": "2026-11-15T20:29:53+09:00",
+  "generated_at_kst": "2026-11-15T20:31:14+09:00",
   "status": "PARTIAL",
   "quality": {
     "overall": true,
@@ -89,9 +89,10 @@
         "atc_rate": 0.1,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
+        "measurement_watch": true,
         "source_period": "2026-10-17 ~ 2026-11-15",
-        "reason": "PDP→Cart 전환 낮음",
-        "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
+        "reason": "상품별 구매 이벤트/상품코드 매칭 검증 필요",
+        "validation": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조"
       },
       {
         "code": "C71XM4875265",
@@ -103,9 +104,10 @@
         "atc_rate": 0.13,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
+        "measurement_watch": true,
         "source_period": "2026-10-17 ~ 2026-11-15",
-        "reason": "PDP→Cart 전환 낮음",
-        "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
+        "reason": "상품별 구매 이벤트/상품코드 매칭 검증 필요",
+        "validation": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조"
       },
       {
         "code": "C74WR9847309",
@@ -117,6 +119,7 @@
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
+        "measurement_watch": false,
         "source_period": "2026-10-17 ~ 2026-11-15",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
@@ -131,6 +134,7 @@
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
+        "measurement_watch": false,
         "source_period": "2026-10-17 ~ 2026-11-15",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
@@ -145,6 +149,7 @@
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
+        "measurement_watch": false,
         "source_period": "2026-10-17 ~ 2026-11-15",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
@@ -159,6 +164,7 @@
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
+        "measurement_watch": false,
         "source_period": "2026-10-17 ~ 2026-11-15",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
@@ -173,6 +179,7 @@
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
+        "measurement_watch": false,
         "source_period": "2026-10-17 ~ 2026-11-15",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
@@ -187,6 +194,7 @@
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
+        "measurement_watch": false,
         "source_period": "2026-10-17 ~ 2026-11-15",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
@@ -299,6 +307,38 @@
       "note": ""
     },
     {
+      "id": "PRODUCT_QA_C71XM4875265",
+      "priority": "P0",
+      "domain": "DATA",
+      "title": "CSC1938 Dually Mountain Outerchange 상품별 이벤트 정합성 검증",
+      "observation": "지난 30일 PDP 세션 799, 상품 구매 세션 0 (기준 2026-10-17 ~ 2026-11-15)",
+      "hypothesis": "미판매 가능성과 GA4 item_id 조인·구매 태깅 누락 가능성을 구분해야 함",
+      "validation": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조",
+      "owner": "데이터/이커머스",
+      "status": "OPEN",
+      "first_seen": "2026-11-14",
+      "last_seen": "2026-11-14",
+      "observed_today": true,
+      "observations": 1,
+      "note": ""
+    },
+    {
+      "id": "PRODUCT_QA_C74YM3674342",
+      "priority": "P0",
+      "domain": "DATA",
+      "title": "M`s MT.Hood Down Jacket 상품별 이벤트 정합성 검증",
+      "observation": "지난 30일 PDP 세션 13,569, 상품 구매 세션 0 (기준 2026-10-17 ~ 2026-11-15)",
+      "hypothesis": "미판매 가능성과 GA4 item_id 조인·구매 태깅 누락 가능성을 구분해야 함",
+      "validation": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조",
+      "owner": "데이터/이커머스",
+      "status": "OPEN",
+      "first_seen": "2026-11-14",
+      "last_seen": "2026-11-14",
+      "observed_today": true,
+      "observations": 1,
+      "note": ""
+    },
+    {
       "id": "CONVERSION",
       "priority": "P1",
       "domain": "COMMERCE",
@@ -315,43 +355,11 @@
       "note": ""
     },
     {
-      "id": "PRODUCT_C71XM4875265",
-      "priority": "P1",
-      "domain": "PRODUCT",
-      "title": "CSC1938 Dually Mountain Outerchange 상세페이지 개선 검토",
-      "observation": "지난 30일 PDP 세션 799, 장바구니 전환 0.1%, 구매 전환 0.0% (기준 2026-10-17 ~ 2026-11-15)",
-      "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
-      "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-      "owner": "이커머스/MD",
-      "status": "OPEN",
-      "first_seen": "2026-11-14",
-      "last_seen": "2026-11-14",
-      "observed_today": true,
-      "observations": 1,
-      "note": ""
-    },
-    {
       "id": "PRODUCT_C74WR9847309",
       "priority": "P1",
       "domain": "PRODUCT",
       "title": "Amaze Puff Hooded Jacket 상세페이지 개선 검토",
       "observation": "지난 30일 PDP 세션 341, 장바구니 전환 0.0%, 구매 전환 0.0% (기준 2026-10-17 ~ 2026-11-15)",
-      "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
-      "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-      "owner": "이커머스/MD",
-      "status": "OPEN",
-      "first_seen": "2026-11-14",
-      "last_seen": "2026-11-14",
-      "observed_today": true,
-      "observations": 1,
-      "note": ""
-    },
-    {
-      "id": "PRODUCT_C74YM3674342",
-      "priority": "P1",
-      "domain": "PRODUCT",
-      "title": "M`s MT.Hood Down Jacket 상세페이지 개선 검토",
-      "observation": "지난 30일 PDP 세션 13,569, 장바구니 전환 0.1%, 구매 전환 0.0% (기준 2026-10-17 ~ 2026-11-15)",
       "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
       "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
       "owner": "이커머스/MD",
@@ -393,10 +401,42 @@
       "observed_today": true,
       "observations": 1,
       "note": ""
+    },
+    {
+      "id": "PRODUCT_C71XM4875265",
+      "priority": "P1",
+      "domain": "PRODUCT",
+      "title": "CSC1938 Dually Mountain Outerchange 상세페이지 개선 검토",
+      "observation": "지난 30일 PDP 세션 799, 장바구니 전환 0.1%, 구매 전환 0.0% (기준 2026-10-17 ~ 2026-11-15)",
+      "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
+      "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+      "owner": "이커머스/MD",
+      "status": "OPEN",
+      "first_seen": "2026-11-14",
+      "last_seen": "2026-11-14",
+      "observed_today": false,
+      "observations": 1,
+      "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
+    },
+    {
+      "id": "PRODUCT_C74YM3674342",
+      "priority": "P1",
+      "domain": "PRODUCT",
+      "title": "M`s MT.Hood Down Jacket 상세페이지 개선 검토",
+      "observation": "지난 30일 PDP 세션 13,569, 장바구니 전환 0.1%, 구매 전환 0.0% (기준 2026-10-17 ~ 2026-11-15)",
+      "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
+      "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+      "owner": "이커머스/MD",
+      "status": "OPEN",
+      "first_seen": "2026-11-14",
+      "last_seen": "2026-11-14",
+      "observed_today": false,
+      "observations": 1,
+      "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
     }
   ],
   "action_stats": {
-    "open": 9,
+    "open": 11,
     "in_progress": 0,
     "done": 0,
     "blocked": 0
