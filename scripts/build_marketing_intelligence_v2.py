@@ -506,7 +506,7 @@ e(r["agency"]["status"]) + " · " + e(r["agency"]["spend_status"]) + """</div>""
 <p id='empty' class='muted' hidden>조건에 맞는 액션이 없습니다.</p></section>
 <footer>기준일 """ + e(r["report_date"]) + """ · 집계 파일 기반 보고서 · 실제 캠페인 변경/발송 없음 · """
 +e(r["governance"]["privacy"])+"""<p>상품별 퍼널은 기간·귀속 기준이 Daily Digest와 다를 수 있습니다. 증감은 인과관계를 뜻하지 않습니다.</p></footer>
-</main>""" + integrations_html + """<script>
+""" + integrations_html + """</main><script>
 const $=id=>document.getElementById(id);const rows=Array.from(document.querySelectorAll('.action'));
 function apply(){const q=$('search').value.trim().toLowerCase(),d=$('domain').value,s=$('state').value;
 let count=0;for(const row of rows){const shown=(!d||row.dataset.domain===d)&&(!s||row.dataset.status===s)&&(!q||row.textContent.toLowerCase().includes(q));row.hidden=!shown;if(shown)count++;}
