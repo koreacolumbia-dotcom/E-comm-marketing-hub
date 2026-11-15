@@ -1,0 +1,71 @@
+name: CSK Marketing Intelligence
+
+on:
+  schedule:
+    # 09:45 KST, after Daily Digest (UTC previous day 00:45).
+    - cron: "45 0 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/marketing-intelligence.yml"
+      - "scripts/build_marketing_intelligence.py"
+      - "tests/test_marketing_intelligence.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: marketing-intelligence
+  cancel-in-progress: false
+
+jobs:
+  intelligence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -p test_marketing_intelligence.py -v
+      - name: Generate source-backed intelligence
+        if: github.event_name != 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPORT_DATE="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
+          python scripts/build_marketing_intelligence.py --date "$REPORT_DATE"
+          test -s reports/marketing_intelligence/latest.json
+          test -s reports/marketing_intelligence/index.html
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path("reports/marketing_intelligence/latest.json").read_text())
+          assert p["status"] in {"READY", "PARTIAL", "BLOCKED"}
+          assert p["date"]
+          print("QA:", p["status"])
+          PY
+      - name: Publish aggregate-only briefing
+        if: github.event_name != 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/marketing_intelligence
+          if git diff --cached --quiet; then
+            echo "No change"; exit 0
+          fi
+          git commit -m "Update aggregate marketing intelligence"
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+          done
+          exit 1
