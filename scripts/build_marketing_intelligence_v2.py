@@ -381,7 +381,7 @@ def render_html(r: dict[str, Any]) -> str:
                     e(x["last_seen"]) + (" · 오늘 관측" if x["observed_today"] else " · 과거 미해결") +
                     "</div></article>" for x in r["actions"])
     product_notes = " ".join(r["product"]["notes"])
-    return """<!doctype html><html lang='ko'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+    return ("""<!doctype html><html lang='ko'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='robots' content='noindex,nofollow'><title>CSK Marketing Intelligence 2.0</title><style>
 :root{--bg:#f5f7fb;--ink:#16233a;--muted:#60718b;--line:#e4e9f3;--brand:#1458a6}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px/1.65 system-ui,-apple-system,'Noto Sans KR',sans-serif;color:var(--ink)}
@@ -444,7 +444,7 @@ function apply(){const q=$('search').value.trim().toLowerCase(),d=$('domain').va
 let count=0;for(const row of rows){const shown=(!d||row.dataset.domain===d)&&(!s||row.dataset.status===s)&&(!q||row.textContent.toLowerCase().includes(q));row.hidden=!shown;if(shown)count++;}
 $('empty').hidden=count!==0}
 ['search','domain','state'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',apply));
-</script></body></html>"""
+</script></body></html>""")
 
 
 def write_report(report: dict[str, Any], out: Path = ROOT) -> None:
