@@ -6,12 +6,13 @@ on:
     - cron: "5 1 * * *"
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feat/csk-mssql-readonly-stock-probe-20261115]
     paths:
       - ".github/workflows/marketing-intelligence-v2.yml"
       - "scripts/build_marketing_intelligence_v2.py"
       - "scripts/csk_intelligence_bridges.py"
       - "scripts/build_secure_csk_signals.py"
+      - "scripts/probe_mssql_inventory_readonly.py"
       - "tests/test_marketing_intelligence_v2.py"
       - "tests/test_csk_intelligence_bridges.py"
       - "config/marketing_intelligence_experiments.json"
@@ -50,7 +51,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_marketing_intelligence_v2.py' -v
           python -m unittest discover -s tests -p 'test_csk_intelligence_bridges.py' -v
-          python -m py_compile scripts/build_marketing_intelligence_v2.py scripts/csk_intelligence_bridges.py scripts/build_secure_csk_signals.py
+          python -m py_compile scripts/build_marketing_intelligence_v2.py scripts/csk_intelligence_bridges.py scripts/build_secure_csk_signals.py scripts/probe_mssql_inventory_readonly.py
       - name: Probe BigQuery read-only sources (private ephemeral)
         if: github.ref == 'refs/heads/main'
         env:
@@ -69,6 +70,34 @@ jobs:
           test -s private_data/csk_signals/warehouse_status.json
           git check-ignore -q private_data/csk_signals/warehouse_status.json
           git check-ignore -q reports/private_aggregate_crm/segments.json
+      - name: Probe live MSSQL stock table (read-only, private)
+        if: github.ref == 'refs/heads/main'
+        env:
+          MSSQL_SERVER: ${{ secrets.MSSQL_SERVER }}
+          MSSQL_HOST: ${{ secrets.MSSQL_HOST }}
+          MSSQL_PORT: ${{ secrets.MSSQL_PORT || '1433' }}
+          MSSQL_DATABASE: ${{ secrets.MSSQL_DATABASE }}
+          MSSQL_USERNAME: ${{ secrets.MSSQL_USERNAME }}
+          MSSQL_PASSWORD: ${{ secrets.MSSQL_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${MSSQL_SERVER:-}${MSSQL_HOST:-}" ] && [ -n "${MSSQL_DATABASE:-}" ] && [ -n "${MSSQL_USERNAME:-}" ] && [ -n "${MSSQL_PASSWORD:-}" ]; then
+            echo "[SOURCE] Credentials present; install Microsoft ODBC driver for read-only inventory lookup."
+            set +e
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq curl gnupg unixodbc-dev ca-certificates
+            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/microsoft-prod.gpg
+            echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" | sudo tee /etc/apt/sources.list.d/mssql-release.list >/dev/null
+            sudo apt-get update -qq
+            sudo env ACCEPT_EULA=Y apt-get install -y -qq msodbcsql18
+            python -m pip install -q pyodbc
+            set -e
+          fi
+          REPORT_DATE="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
+          python scripts/probe_mssql_inventory_readonly.py --date "$REPORT_DATE"
+          test -s private_data/csk_signals/inventory_status.json
+          git check-ignore -q private_data/csk_signals/inventory_status.json
       - name: Build daily evidence-backed action board
         if: github.ref == 'refs/heads/main'
         shell: bash
