@@ -3459,6 +3459,26 @@ def get_category_pdp_view_trend_bq(
         FROM pdp
         """
         df = bq.query(sql, location=BQ_LOCATION or None).to_dataframe()
+        # GA4's daily export may arrive late. The wildcard events_* excludes
+        # events_intraday_YYYYMMDD because its suffix is intraday_YYYYMMDD.
+        # Read intraday partitions separately and use them ONLY on dates with
+        # no daily export, avoiding double-counting when both exist.
+        available = set(pd.to_datetime(df["d"], errors="coerce").dt.date) if not df.empty else set()
+        requested = {target_end - dt.timedelta(days=i) for i in range(7)}
+        missing = requested - available
+        if missing:
+            intraday_table = BQ_EVENTS_TABLE.replace("events_*", "events_intraday_*")
+            if intraday_table != BQ_EVENTS_TABLE:
+                intraday_sql = sql.replace(BQ_EVENTS_TABLE, intraday_table)
+                try:
+                    intraday_df = bq.query(intraday_sql, location=BQ_LOCATION or None).to_dataframe()
+                    if not intraday_df.empty:
+                        intraday_df["d"] = pd.to_datetime(intraday_df["d"], errors="coerce").dt.date
+                        intraday_df = intraday_df[intraday_df["d"].isin(missing)]
+                        df = pd.concat([df, intraday_df], ignore_index=True)
+                        print(f"[PDP] Added {len(intraday_df)} intraday category rows for missing daily partitions")
+                except Exception as exc:
+                    print(f"[WARN] PDP intraday fallback unavailable: {type(exc).__name__}: {exc}")
         if not df.empty:
             df["d"] = pd.to_datetime(df["d"], errors="coerce").dt.date
             df = df.dropna(subset=["d"]).copy()
