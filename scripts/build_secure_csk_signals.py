@@ -82,7 +82,9 @@ def probe(day: dt.date, client: Any, project: str, mart_dataset: str,
     }
     local_crm = None
     try:
-        order_fqn = table_id(project, mart_dataset, order_table)
+        # The existing MSSQL ETL writes the order-product search mart into
+        # BQ_RAW_DATASET, not BQ_MART_DATASET. Keep paths aligned with its CLI.
+        order_fqn = table_id(project, raw_dataset, order_table)
         order_meta = client.get_table(order_fqn)
         state = freshness(order_meta, day, {"product_code", "order_date",
                                             "net_erp_revenue", "purchase_qty"})
@@ -108,8 +110,10 @@ def probe(day: dt.date, client: Any, project: str, mart_dataset: str,
         report["order_mart"] = {"status": "query_error", "error_type": type(exc).__name__}
         report["inventory"] = {"status": "not_checked"}
     try:
-        member_fqn = table_id(project, raw_dataset, "tb_member_staging")
-        header_fqn = table_id(project, raw_dataset, "tb_order_header_staging")
+        member_fqn = table_id(project, raw_dataset, os.environ.get(
+            "BQ_MEMBER_STAGING_TABLE", "tb_member_staging"))
+        header_fqn = table_id(project, raw_dataset, os.environ.get(
+            "BQ_ORDER_HEADER_STAGING_TABLE", "tb_order_staging"))
         member_meta = client.get_table(member_fqn)
         header_meta = client.get_table(header_fqn)
         st1 = freshness(member_meta, day, {"memberid", "memberregdate"})
