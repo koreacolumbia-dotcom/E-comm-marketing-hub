@@ -104,8 +104,8 @@ def probe(day: dt.date, client: Any, project: str, mart_dataset: str,
             "status": "incomplete" if "size_stock_qty" in
             {x.name.lower() for x in order_meta.schema} else "schema_mismatch"
         }
-    except Exception:
-        report["order_mart"] = {"status": "query_error"}
+    except Exception as exc:
+        report["order_mart"] = {"status": "query_error", "error_type": type(exc).__name__}
         report["inventory"] = {"status": "not_checked"}
     try:
         member_fqn = table_id(project, raw_dataset, "tb_member_staging")
@@ -163,8 +163,8 @@ def probe(day: dt.date, client: Any, project: str, mart_dataset: str,
                 else:
                     status = "incomplete"
         report["crm"] = {"status": status}
-    except Exception:
-        report["crm"] = {"status": "query_error"}
+    except Exception as exc:
+        report["crm"] = {"status": "query_error", "error_type": type(exc).__name__}
     return report, local_crm
 
 
@@ -177,7 +177,10 @@ def write_probe(report: dict[str, Any], crm: dict[str, Any] | None,
         crm_out.write_text(json.dumps(crm, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("Warehouse read-only probe:", report["date"],
           report["order_mart"]["status"], report["inventory"]["status"],
-          report["crm"]["status"], "(no member counts logged)")
+          report["crm"]["status"],
+          "diagnostics:", report["order_mart"].get("error_type", "-"),
+          report["crm"].get("error_type", "-"),
+          "(no member counts logged; exception messages omitted)")
 
 
 def main() -> int:
@@ -202,11 +205,11 @@ def main() -> int:
             os.environ.get("BQ_MART_DATASET", "crm_mart"),
             os.environ.get("BQ_RAW_DATASET", "crm_raw"),
             os.environ.get("BQ_ORDER_PRODUCT_TABLE", "tb_order_product_search_mart"))
-    except Exception:
+    except Exception as exc:
         report = {"date": day.isoformat(),
-                  "order_mart": {"status": "query_error"},
+                  "order_mart": {"status": "query_error", "error_type": type(exc).__name__},
                   "inventory": {"status": "not_checked"},
-                  "crm": {"status": "query_error"}}
+                  "crm": {"status": "query_error", "error_type": type(exc).__name__}}
         crm = None
     write_probe(report, crm, Path(args.out), Path(args.crm_out))
     return 0
