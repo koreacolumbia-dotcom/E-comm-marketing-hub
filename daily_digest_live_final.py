@@ -2535,9 +2535,26 @@ def get_channel_snapshot_3way(
             df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], "", ""), axis=1)
             return df
 
-    cur = fetch(w.cur_start, w.cur_end)
-    prev = fetch(w.prev_start, w.prev_end)
-    yoy = fetch(w.yoy_start, w.yoy_end)
+    # GA4 sessions are non-additive across source/medium + campaign dimensions.
+    # Use the single session-scoped default-channel dimension for KPI totals;
+    # keep the granular Looker breakdown separately for diagnostic drilldowns.
+    def fetch_canonical(start: dt.date, end: dt.date) -> pd.DataFrame:
+        dims_canonical = ["sessionDefaultChannelGroup"]
+        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end),
+                        dims_canonical, mets, limit=250000)
+        if df.empty:
+            return pd.DataFrame(columns=["bucket"] + mets)
+        df = df.copy()
+        df["bucket"] = df["sessionDefaultChannelGroup"].apply(
+            lambda x: map_default_channel_group_to_bucket(str(x)) or "etc"
+        )
+        for metric in mets:
+            df[metric] = pd.to_numeric(df[metric], errors="coerce").fillna(0.0)
+        return df
+
+    cur = fetch_canonical(w.cur_start, w.cur_end)
+    prev = fetch_canonical(w.prev_start, w.prev_end)
+    yoy = fetch_canonical(w.yoy_start, w.yoy_end)
 
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
