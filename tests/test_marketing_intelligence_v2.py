@@ -51,7 +51,7 @@ class Intelligence2Tests(unittest.TestCase):
             result = quality_product(p, m, DAY, DAY)
             self.assertEqual(result["status"], "ready")
             self.assertEqual(result["candidates"][0]["atc_rate"], 2.)
-            self.assertIn("인과", result["notes"][-1])
+            self.assertIn("증명하지 않음", result["notes"][-1])
 
     def test_product_stale_or_wrong_meta_is_suppressed(self):
         with tempfile.TemporaryDirectory() as temp:
