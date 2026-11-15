@@ -286,6 +286,10 @@ def make_queue(current: list[dict[str, Any]], previous: dict[str, Any] | None,
         queue.append(item)
         seen.add(item["id"])
     for key, prior in old.items():
+        # Legacy 2.0 measurement tickets used PRODUCT_QA_<SKU>. Migrate to
+        # the stable PRODUCT_<SKU> issue ID rather than keep duplicate tasks.
+        if key.startswith("PRODUCT_QA_") and ("PRODUCT_" + key[len("PRODUCT_QA_"):]) in seen:
+            continue
         if key not in seen and prior.get("status") != "DONE":
             item = dict(prior)
             item["observed_today"] = False
