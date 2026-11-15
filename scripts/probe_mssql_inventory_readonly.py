@@ -121,12 +121,17 @@ def probe_inventory(day: dt.date, skus: list[str]) -> dict[str, Any]:
     connection = (
         "DRIVER={ODBC Driver 18 for SQL Server};SERVER=" + server +
         ";DATABASE=" + database + ";UID=" + username + ";PWD=" + password +
-        ";Encrypt=yes;TrustServerCertificate=yes;ApplicationIntent=ReadOnly;"
+        ";TrustServerCertificate=yes;"
     )
     try:
         conn = pyodbc.connect(connection, timeout=20, autocommit=True)
     except Exception as exc:
-        result.update(status="connection_error", reason=type(exc).__name__)
+        sqlstate = ""
+        if getattr(exc, "args", ()) and isinstance(exc.args[0], str):
+            candidate = exc.args[0].strip().upper()
+            sqlstate = candidate if re.fullmatch(r"[A-Z0-9]{5}", candidate) else ""
+        result.update(status="connection_error", reason=type(exc).__name__,
+                      sqlstate=sqlstate or "unspecified")
         return result
     try:
         cur = conn.cursor()
@@ -173,7 +178,8 @@ def write_result(status: dict[str, Any], path: Path) -> None:
     print("MSSQL stock source probe:", status.get("date"), status.get("status"),
           "coverage:", status.get("coverage"),
           "error_kind:", status.get("reason") if status.get("status") != "ready" else "-",
-          "(no inventory quantities or credentials emitted)")
+          "sqlstate:", status.get("sqlstate", "-"),
+          "(no inventory quantities, server names or credentials emitted)")
 
 
 def main() -> int:
