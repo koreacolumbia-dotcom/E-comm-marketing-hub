@@ -17,6 +17,11 @@ import re
 from pathlib import Path
 from typing import Any
 
+try:
+    from scripts.csk_marketing_extensions import all_signals
+except ModuleNotFoundError:
+    from csk_marketing_extensions import all_signals
+
 ROOT = Path("reports/marketing_operations")
 V2 = Path("reports/marketing_intelligence_v2/latest.json")
 DAILY = Path("reports/daily_digest/data/daily")
@@ -342,6 +347,7 @@ def build(report_day: dt.date, v2: dict[str, Any], daily_root: Path = DAILY,
     triage = product_triage(v2)
     recovery = recovery_plan(v2)
     experiments = incrementality(report_day, incremental)
+    expansions = all_signals(report_day)
     open_items = [x for x in v2.get("actions", []) if isinstance(x, dict)
                   and x.get("status") not in ("DONE",)]
     summary = {
@@ -366,6 +372,7 @@ def build(report_day: dt.date, v2: dict[str, Any], daily_root: Path = DAILY,
         "generated_at_kst": dt.datetime.now(KST).isoformat(timespec="seconds"),
         "status": v2.get("status"), "executive": summary, "weekly": weekly,
         "calendar": calendar, "products": triage, "incrementality": experiments,
+        "extensions": expansions,
         "recovery": recovery,
         "actions": [{
             "id": slim(x.get("id"), 70),
@@ -432,6 +439,34 @@ def render_md(r: dict[str, Any]) -> str:
     for x in r["products"]["items"][:8]:
         o.append(f"- [{x['state']}] {x['name']} ({x['code']}) · PDP {x['sessions']:,} "
                  f"· Cart {x['cart_rate_pct']:.2f}% · {x['reason']}")
+    extras = r.get("extensions") or {}
+    competitors = extras.get("competitors") or {}
+    o.extend(["", "## 경쟁사 가격 참고 (동일 SKU 비교 불가)",
+              f"수집 상태: {competitors.get('status', '미연결')}",
+              competitors.get("note", "")])
+    for brand in competitors.get("brands", [])[:10]:
+        o.append(f"- {brand['brand']}: 수집상품 {brand['products']:,}, "
+                 f"표기 평균가 {fmt_krw(brand['avg_price_krw'])}, "
+                 f"할인 상품 비율 {brand['listed_sale_share_pct']}% "
+                 f"(수집일 {brand['checkpoint_date']}, {brand['status']})")
+    for key, title in (("launches", "신상품 7·14·30일"), ("creatives", "광고 소재 피로도"),
+                       ("creator_crew", "크리에이터 크루 릴스/피드")):
+        x = extras.get(key) or {}
+        o.extend(["", "## " + title, "상태: " + x.get("status", "미연결"), x.get("note", "")])
+        if key == "launches":
+            for item in x.get("items", [])[:10]:
+                o.append("- "+item["sku"]+" (출시 "+item["launch_date"]+"): "+
+                         ", ".join(t+": "+w["status"] for t,w in item["windows"].items()))
+        elif key == "creatives":
+            for item in x.get("flags", [])[:10]:
+                o.append(f"- {item['platform']}/{item['creative_id']}: CTR 상대 변화 "
+                         f"{item['ctr_change_pct']}% (원인 추정, 검증 필요)")
+        else:
+            for item in x.get("groups", [])[:10]:
+                o.append(f"- {item['mission']} · {item['format']}: 조회 {item['views']:,}, "
+                         f"참여/조회 {item['engagements_per_view_pct']}% (실제 제출 집계)")
+            if x.get("estimated_groups"):
+                o.append(f"- 별도 추정 그룹 {x['estimated_groups']}개는 실제 성과 합계에서 제외")
     o.extend(["", "## 데이터 복구·담당 부서 액션"])
     for x in r["recovery"]:
         o.append(f"- **{x['code']}** [{x['owner']}]: {x['observed']}. {x['next_step']}")
@@ -481,6 +516,31 @@ def render_html(r: dict[str, Any]) -> str:
                        e("CVR 차이 "+str(x["cvr_difference_pp"])+"%p")+
                        " · 순증분 인과확정 아님</p></div>" for x in exp["results"]) or (
                        "<p class='small'>비공개 실험 집계 미연결. 수치를 추정하지 않습니다.</p>")
+    extras = r.get("extensions") or {}
+    competitive = extras.get("competitors") or {}
+    comp_table = "".join("<tr><td><b>"+e(x["brand"])+"</b></td><td>"+
+                         e(f"{x['products']:,}")+"</td><td>"+
+                         e(fmt_krw(x["avg_price_krw"]))+"</td><td>"+
+                         e(f"{x['listed_sale_share_pct']:.1f}%")+"</td><td>"+
+                         e(x["checkpoint_date"])+"</td></tr>"
+                         for x in competitive.get("brands", [])[:10])
+    extension_html = (
+        "<section class='panel'><h2>경쟁사 가격·프로모션 참고</h2><p class='small'>"+
+        e(competitive.get("status","미연결")) + " · " +
+        e(competitive.get("note","")) +
+        "</p><div class='scroll'><table><thead><tr><th>브랜드</th><th>수집 상품</th>"+
+        "<th>상품 평균가</th><th>세일 품목 비율</th><th>수집일</th></tr></thead><tbody>"+
+        (comp_table or "<tr><td colspan='5'>검증된 경쟁사 소스 미연결</td></tr>")+
+        "</tbody></table></div></section><section class='cols'>"+
+        "".join("<div class='panel'><h2>"+e(title)+"</h2><p><b>"+
+                e((extras.get(key) or {}).get("status","미연결"))+
+                "</b></p><p class='small'>"+e((extras.get(key) or {}).get("note",""))+
+                "</p></div>" for key,title in
+                (("launches","신상품 런칭 7·14·30일"),
+                 ("creatives","광고 소재 피로도"),
+                 ("creator_crew","크리에이터 크루 성과")))+
+        "</section>"
+    )
     return ("""<!doctype html><html lang='ko'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='robots' content='noindex,nofollow'>
@@ -526,7 +586,7 @@ e(r["products"]["reason"])+"""</p><div class='scroll'><table><thead><tr>
 <input id='search' placeholder='문제·상품·담당 조직 검색' aria-label='액션 검색'>
 <div id='issues'>""" + issues_html + """</div></div><div class='panel'>
 <h2>개선 효과 / 홀드아웃</h2><p class='small'>""" + e(exp["status"])+""" · """ + e(exp["note"])+
-"""</p>""" + exp_html + """</div></section></section>
+"""</p>""" + exp_html + """</div></section>""" + extension_html + """</section>
 <footer>기준일 """+e(r["report_date"])+""" · 고객 개인정보 비공개 · 원천 자료 부재=미확인 · 활동 이력은 인과효과가 아닙니다
 <p>외부 매체 비용, CRM 발송, 상품 할인 및 ETL 쓰기 자동화는 수행하지 않습니다.</p></footer>
 <script>const search=document.getElementById('search');search.addEventListener('input',()=>{const q=search.value.toLowerCase();
