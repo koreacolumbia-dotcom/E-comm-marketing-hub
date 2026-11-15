@@ -471,7 +471,7 @@ def render_html(r: dict[str, Any]) -> str:
                        e("CVR 차이 "+str(x["cvr_difference_pp"])+"%p")+
                        " · 순증분 인과확정 아님</p></div>" for x in exp["results"]) or (
                        "<p class='small'>비공개 실험 집계 미연결. 수치를 추정하지 않습니다.</p>")
-    return """<!doctype html><html lang='ko'><head><meta charset='utf-8'>
+    return ("""<!doctype html><html lang='ko'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='robots' content='noindex,nofollow'>
 <title>CSK Marketing Operations 3.0</title><style>
@@ -521,7 +521,7 @@ e(r["products"]["reason"])+"""</p><div class='scroll'><table><thead><tr>
 <p>외부 매체 비용, CRM 발송, 상품 할인 및 ETL 쓰기 자동화는 수행하지 않습니다.</p></footer>
 <script>const search=document.getElementById('search');search.addEventListener('input',()=>{const q=search.value.toLowerCase();
 for(const x of document.querySelectorAll('.issue'))x.hidden=!x.dataset.title.toLowerCase().includes(q)})</script>
-</main></body></html>"""
+</main></body></html>""")
 
 
 def write_report(r: dict[str, Any], root: Path = ROOT) -> None:
