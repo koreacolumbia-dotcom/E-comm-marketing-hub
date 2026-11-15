@@ -229,8 +229,7 @@ def send_email_mixed_with_inline_image(
         img.add_header("Content-ID", f"<{inline_png_cid}>")
         img.add_header("Content-Disposition", "inline", filename="daily_preview.png")
         # ✅ 호환성 강화
-        encoders.encode_base64(img)
-        img.add_header("Content-Transfer-Encoding", "base64")
+        # MIMEImage already encodes payload as base64; do not encode it twice.
         related.attach(img)
 
     msg.attach(related)
@@ -316,6 +315,20 @@ def main():
         raise RuntimeError("Missing SMTP_PASS")
     if not to_list:
         raise RuntimeError("Missing DAILY_RECIPIENTS")
+    required = [
+        "hugh.kang@columbia.com", "HMKim@columbia.com",
+        "DaHae.Kim@columbia.com", "Juwon.Lee@columbia.com",
+        "SeonYoung.Jang@columbia.com", "Brian.Han@columbia.com",
+        "NaYeon.Kwak@columbia.com",
+    ]
+    seen = {addr.lower() for addr in to_list}
+    for address in required:
+        if address.lower() not in seen:
+            to_list.append(address)
+            seen.add(address.lower())
+    # Prevent accidental duplicate delivery to the same mailbox.
+    to_list = list(dict((address.lower(), address) for address in to_list).values())
+    print(f"[INFO] Final recipient count: {len(to_list)}", flush=True)
 
     hub_url = env("HUB_URL")
     kst_stamp = env("KST_STAMP") or kst_now().strftime("%Y.%m.%d (%a) %H:%M KST")
