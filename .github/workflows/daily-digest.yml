@@ -169,6 +169,20 @@ jobs:
             test -s "reports/daily_digest/daily/$day.png"
             python -u scripts/validate_daily_digest.py --date "$day" --require-pdp
           done
+      - name: Retain failed rebuild artifacts for diagnosis (never publish or email)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-digest-recovery-diagnostics-${{ github.run_id }}
+          path: |
+            reports/daily_digest/data/daily/2026-11-13.json
+            reports/daily_digest/data/daily/2026-11-14.json
+            reports/daily_digest/daily/2026-11-13.html
+            reports/daily_digest/daily/2026-11-14.html
+            reports/daily_digest/daily/2026-11-13.png
+            reports/daily_digest/daily/2026-11-14.png
+          if-no-files-found: warn
+          retention-days: 7
       - name: Publish revised reports without sending mail
         shell: bash
         run: |
