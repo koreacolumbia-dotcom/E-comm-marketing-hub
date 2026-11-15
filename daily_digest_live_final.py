@@ -3476,6 +3476,16 @@ def get_category_pdp_view_trend_bq(
     if current_df.empty:
         return empty, {}
 
+    # Never turn missing export partitions into fabricated zero-view days.
+    # A category trend is only publishable when all seven current dates exist
+    # in the raw PDP export. Otherwise omit the trend and flag incompleteness.
+    available_dates = set(current_df["d"].dropna().tolist())
+    missing_dates = [d for d in axis_dates if d not in available_dates]
+    if missing_dates:
+        print("[WARN] PDP export incomplete; suppress misleading zero-view chart. Missing:",
+              ", ".join(ymd(d) for d in missing_dates))
+        return empty, {}
+
     try:
         yoy_df = fetch_period(yoy_end_date)
     except Exception as e:
