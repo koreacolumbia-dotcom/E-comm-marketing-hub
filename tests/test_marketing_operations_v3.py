@@ -6,7 +6,7 @@ from pathlib import Path
 
 from scripts.build_marketing_operations_v3 import (
     calendar_context, product_triage, weekly_kpis, incrementality,
-    recovery_plan, build, render_html, render_md, write_report
+    recovery_plan, build, render_html, render_md, write_report, slim
 )
 from scripts.sync_csk_ops_issues import candidates, body, marker, sync
 
@@ -80,6 +80,23 @@ class CalendarTests(unittest.TestCase):
             r = calendar_context(DAY, daily(DAY), folder/"25", folder/"owned", f)
             self.assertEqual(r["current"], [])
             self.assertEqual(r["current_status"], "not_connected")
+
+
+    def test_confirmation_requires_evidence_and_redacts_contacts(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            f = folder/"thisyear.json"
+            f.write_text(json.dumps({"entries":[
+                {"date":"2026-11-14", "status":"confirmed", "kind":"message",
+                 "title":"Unverified send"},
+                {"date":"2026-11-14", "status":"confirmed", "kind":"message",
+                 "title":"Sent from test.user@example.com", "source":"approved log"}
+            ]}))
+            r = calendar_context(DAY, daily(DAY), folder/"25", folder/"owned", f)
+            self.assertEqual(len(r["current"]), 1)
+            self.assertNotIn("example.com", r["current"][0]["title"])
+            self.assertIn("[EMAIL REDACTED]", r["current"][0]["title"])
+            self.assertIn("[PHONE REDACTED]", slim("Call 010-1234-5678"))
 
 
 class ProductTests(unittest.TestCase):
