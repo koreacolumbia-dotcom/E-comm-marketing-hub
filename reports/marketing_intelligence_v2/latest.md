@@ -50,9 +50,12 @@
 ## 미해결 액션
 - [OPEN] P0 · PAID · 대행사 채널 귀속 데이터 우선 점검 (최근 관측 2026-11-14; 담당 데이터/퍼포먼스 대행사)
 - [OPEN] P0 · DATA · 채널별 성과 분석 보류 (최근 관측 2026-11-14; 담당 데이터/GA4 담당)
+- [OPEN] P0 · DATA · MSSQL 실재고 조회 접근 문제 해결 (최근 관측 2026-11-14; 담당 인프라/DBA 담당)
+- [OPEN] P0 · PAID · 광고비 원본 자동 수집 재개 (최근 관측 2026-11-14; 담당 퍼포먼스 대행사/매체 담당)
 - [OPEN] P0 · DATA · PDP 일별 조회 데이터 복구 (최근 관측 2026-11-14; 담당 데이터/BigQuery 담당)
 - [OPEN] P0 · DATA · CSC1938 Dually Mountain Outerchange 상품별 이벤트 정합성 검증 (최근 관측 2026-11-14; 담당 데이터/이커머스)
 - [OPEN] P0 · DATA · M`s MT.Hood Down Jacket 상품별 이벤트 정합성 검증 (최근 관측 2026-11-14; 담당 데이터/이커머스)
+- [OPEN] P0 · DATA · MSSQL → BigQuery 주문·CRM 적재 갱신 (최근 관측 2026-11-14; 담당 데이터 엔지니어/BigQuery 담당)
 - [OPEN] P1 · COMMERCE · 유입 대비 구매 전환 급락 (최근 관측 2026-11-14; 담당 이커머스/분석 담당)
 - [OPEN] P1 · PRODUCT · Amaze Puff Hooded Jacket 상세페이지 개선 검토 (최근 관측 2026-11-14; 담당 이커머스/MD)
 - [OPEN] P1 · PRODUCT · SNOWTROT PEAK ODX 상세페이지 개선 검토 (최근 관측 2026-11-14; 담당 이커머스/MD)

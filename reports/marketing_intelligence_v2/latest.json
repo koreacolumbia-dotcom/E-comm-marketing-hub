@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "report_date": "2026-11-14",
-  "generated_at_kst": "2026-11-15T21:21:10+09:00",
+  "generated_at_kst": "2026-11-15T21:24:29+09:00",
   "status": "PARTIAL",
   "quality": {
     "overall": true,
@@ -332,6 +332,38 @@
       "note": ""
     },
     {
+      "id": "MSSQL_STOCK_ACCESS",
+      "priority": "P0",
+      "domain": "DATA",
+      "title": "MSSQL 실재고 조회 접근 문제 해결",
+      "observation": "실재고 읽기 전용 상태: connection_error",
+      "hypothesis": "GitHub Actions 러너의 MSSQL 네트워크·포트·IP 허용·ODBC 연결 문제 가능성",
+      "validation": "DB 인바운드 ACL·VPN/프록시·SQL Server 리스너·허용된 접속 IP 확인. 쓰기 권한이나 재고 수량 공개는 필요하지 않음",
+      "owner": "인프라/DBA 담당",
+      "status": "OPEN",
+      "first_seen": "2026-11-14",
+      "last_seen": "2026-11-14",
+      "observed_today": true,
+      "observations": 1,
+      "note": ""
+    },
+    {
+      "id": "PAID_COST_FRESHNESS",
+      "priority": "P0",
+      "domain": "PAID",
+      "title": "광고비 원본 자동 수집 재개",
+      "observation": "비용 내역 상태: stale / 최신 비용일 2026-04-06",
+      "hypothesis": "매체 API/대행사 파일 갱신 또는 광고비 적재 작업이 중단됐을 가능성",
+      "validation": "날짜별 PMax·Criteo·Meta·Naver 실비용 원본을 갱신하고 플랫폼 합계·통화·세금 포함 여부를 대조",
+      "owner": "퍼포먼스 대행사/매체 담당",
+      "status": "OPEN",
+      "first_seen": "2026-11-14",
+      "last_seen": "2026-11-14",
+      "observed_today": true,
+      "observations": 1,
+      "note": ""
+    },
+    {
       "id": "PDP_QA",
       "priority": "P0",
       "domain": "DATA",
@@ -378,6 +410,22 @@
       "observed_today": true,
       "observations": 1,
       "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
+    },
+    {
+      "id": "WAREHOUSE_ETL_FRESHNESS",
+      "priority": "P0",
+      "domain": "DATA",
+      "title": "MSSQL → BigQuery 주문·CRM 적재 갱신",
+      "observation": "주문상품 원천 stale / CRM 원천 stale",
+      "hypothesis": "원천 ETL 일정에서 MSSQL 동기화 미실행 또는 테이블 업데이트 지연 가능성",
+      "validation": "기존 ETL의 run_etl=false 경로와 원천 modified_time을 확인하고, 증분 적재·보존 범위·중복 및 덮어쓰기 영향 검증 후 운영 ETL 재개",
+      "owner": "데이터 엔지니어/BigQuery 담당",
+      "status": "OPEN",
+      "first_seen": "2026-11-14",
+      "last_seen": "2026-11-14",
+      "observed_today": true,
+      "observations": 1,
+      "note": ""
     },
     {
       "id": "CONVERSION",
@@ -445,7 +493,7 @@
     }
   ],
   "action_stats": {
-    "open": 9,
+    "open": 12,
     "in_progress": 0,
     "done": 0,
     "blocked": 0
