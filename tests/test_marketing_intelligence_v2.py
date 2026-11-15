@@ -116,7 +116,7 @@ class Intelligence2Tests(unittest.TestCase):
             self.assertTrue(r["actions"])
             write_report(r, path / "output")
             self.assertTrue((path / "output" / "state.json").exists())
-            self.assertIn("미확인", render_markdown(r) or "미확인")
+            self.assertIn("BLOCKED", render_markdown(r))
 
     def test_end_to_end_quality_block_and_html_escapes(self):
         with tempfile.TemporaryDirectory() as temp:
