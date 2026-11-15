@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "report_date": "2026-11-14",
-  "generated_at_kst": "2026-11-15T20:32:42+09:00",
+  "generated_at_kst": "2026-11-15T21:08:43+09:00",
   "status": "PARTIAL",
   "quality": {
     "overall": true,
@@ -256,6 +256,47 @@
       }
     ],
     "note": "고객 단위 데이터와 세그먼트 인원은 공개 저장소로 출력하지 않음"
+  },
+  "integrations": {
+    "paid_cost": {
+      "status": "stale",
+      "latest_date": "2026-04-06",
+      "lag_days": 222,
+      "source": "reports/daily_digest/data/paid_media_spend_history.csv",
+      "rows": 1302,
+      "providers": [
+        "google",
+        "meta",
+        "naver"
+      ],
+      "current_spend": null,
+      "roas_eligible": false,
+      "issues": [
+        "마지막 광고비 2026-04-06 (보고일 대비 222일 지연) — 광고 효율 자동 판단 중지"
+      ]
+    },
+    "warehouse": {
+      "status": "partial",
+      "order_mart": "query_error",
+      "crm": "query_error",
+      "inventory": "not_checked",
+      "product_source_valid": false,
+      "crm_source_valid": false,
+      "report_date": "2026-11-14",
+      "notes": [
+        "상품 어드민 주문 데이터로 매출 하락 원인을 분해할 수 없음",
+        "완전한 실재고 원본 미확인 — 품절을 실제 원인으로 단정하지 않음",
+        "CRM 원본 집계 불충분 — 고객 타깃 인원 추정 금지"
+      ]
+    },
+    "experiment": {
+      "status": "not_configured",
+      "items": [],
+      "notes": [
+        "사전 등록된 실행/개선 실험 없음 — 자동으로 개선 효과를 주장하지 않음"
+      ]
+    },
+    "source_policy": "기준일 일치·검증된 집계만 사용하고, ROAS와 인과 개선 효과를 추정하지 않음"
   },
   "actions": [
     {
