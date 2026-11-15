@@ -101,7 +101,7 @@ jobs:
           python -u scripts/send_daily_email.py
 
   backfill_etc:
-    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Execute corrected Nov 13-14 backfill no email' }}
+    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Run PDP intraday recovery Nov 13-14 no email' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
