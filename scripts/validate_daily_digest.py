@@ -67,7 +67,7 @@ if not errors:
             errors.append("PDP last-day views all zero: probable BigQuery export lag")
         elif any(len(r.get("ys") or []) != 7 for r in rows):
             errors.append("PDP trend must contain 7 daily values")
-    if png.read_bytes()[:8] != b"\\x89PNG\\r\\n\\x1a\\n":
+    if png.read_bytes()[:8] != bytes([137, 80, 78, 71, 13, 10, 26, 10]):
         errors.append("PNG header invalid")
     if "<html" not in html.read_text(encoding="utf-8").lower():
         errors.append("HTML structure invalid")
