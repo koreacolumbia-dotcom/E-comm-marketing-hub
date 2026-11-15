@@ -1,0 +1,110 @@
+name: CSK Marketing Operations 3.0
+
+on:
+  workflow_run:
+    workflows: ["CSK Marketing Intelligence 2.0"]
+    types: [completed]
+  workflow_dispatch:
+  schedule:
+    # Fallback 10:20 KST, after the 10:05 KST Intelligence 2.0 pipeline.
+    - cron: "20 1 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/marketing-operations-v3.yml"
+      - "scripts/build_marketing_operations_v3.py"
+      - "scripts/sync_csk_ops_issues.py"
+      - "tests/test_marketing_operations_v3.py"
+      - "config/marketing_calendar_2026.json"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: csk-marketing-operations-v3
+  cancel-in-progress: true
+
+jobs:
+  operations:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout verified aggregate source files
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.ref_name }}
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            tests
+            config
+            reports/daily_digest/data
+            reports/marketing_intelligence_v2
+            reports/marketing_operations
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Calendar, evidence, data quality and issue lifecycle tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_marketing_operations_v3.py' -v
+          python -m py_compile scripts/build_marketing_operations_v3.py scripts/sync_csk_ops_issues.py
+      - name: Produce source-backed executive, calendar and recovery reports
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_run'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s reports/marketing_intelligence_v2/latest.json
+          python scripts/build_marketing_operations_v3.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("reports/marketing_operations/latest.json").read_text())
+          assert r["version"] == "3.0"
+          assert r["status"] in {"READY", "PARTIAL", "BLOCKED"}
+          assert len(r["recovery"]) <= 5
+          assert r["governance"]["source_date_aligned"] is True
+          assert Path("reports/marketing_operations/index.html").stat().st_size > 1000
+          assert "customer_id" not in str(r).lower()
+          print("VALIDATED", r["report_date"], r["status"],
+                "calendar", r["calendar"]["status"],
+                "weekly", r["weekly"]["status"],
+                "recovery", len(r["recovery"]))
+          PY
+      - name: Publish only generated public-safe aggregate reports
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_run'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A reports/marketing_operations/
+          if git diff --cached --name-only | grep -Eq '(private_data|crm_exports|user_id)'; then
+            echo "[BLOCKED] Sensitive file staged"; exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "[SKIP] Nothing to publish"
+          else
+            git commit -m "Refresh CSK Marketing Operations 3.0"
+            for attempt in 1 2 3 4; do
+              if git push origin HEAD:main; then
+                echo "[OK] Marketing Operations 3.0 published"
+                break
+              fi
+              if [ "$attempt" -eq 4 ]; then echo "[ERROR] Could not publish"; exit 1; fi
+              git fetch origin main
+              git rebase origin/main
+            done
+          fi
+      - name: Create idempotent P0 source-recovery GitHub issues
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/sync_csk_ops_issues.py --report reports/marketing_operations/latest.json --sync
