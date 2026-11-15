@@ -18,6 +18,11 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from scripts.csk_intelligence_bridges import build as build_integrations
+except ModuleNotFoundError:
+    from csk_intelligence_bridges import build as build_integrations
+
+try:
     from scripts.build_marketing_intelligence import analyze, check, source, n, pct
 except ModuleNotFoundError:
     from build_marketing_intelligence import analyze, check, source, n, pct
@@ -323,6 +328,7 @@ def compile_report(day: dt.date, now_day: dt.date,
         "status": v1["status"], "quality": qa,
         "metrics": v1.get("metrics", []),
         "product": products, "agency": media, "crm": crm,
+        "integrations": build_integrations(day, daily_root=daily_root),
         "actions": queue,
         "action_stats": {
             "open": sum(x["status"] == "OPEN" for x in queue),
@@ -359,6 +365,23 @@ def render_markdown(r: dict[str, Any]) -> str:
     lines.extend(["", f"## CRM ({r['crm']['status']})"])
     for x in r["crm"]["definitions"]:
         lines.append(f"- {x['segment']}: {x['rule']}")
+    integrations = r.get("integrations") or {}
+    cost = integrations.get("paid_cost") or {}
+    warehouse = integrations.get("warehouse") or {}
+    tests = integrations.get("experiment") or {}
+    lines.extend(["", "## 원천 연결과 신선도",
+                  f"- 광고 비용: {cost.get('status', '미확인')} / 마지막 적재 {cost.get('latest_date') or '미확인'}",
+                  f"- 상품 어드민: {warehouse.get('order_mart', '미확인')}",
+                  f"- 실재고: {warehouse.get('inventory', '미확인')} (완전한 재고 원본인지 별도 확인)",
+                  f"- CRM 원본: {warehouse.get('crm', '미확인')}",
+                  "", "## 실행 전후 관측 (인과효과 아님)"])
+    if tests.get("items"):
+        for row in tests["items"]:
+            delta = row.get("observed_improvement") or {}
+            lines.append(f"- {row['title']}: {row['status']} / 매출 변화 {v_pct(delta.get('revenue_pct'))} "
+                         f"/ 구매 CVR 변화 {delta.get('cvr_change_pp', '미확인')}%p")
+    else:
+        lines.append("- 등록된 개선 실험 없음")
     lines.extend(["", "## 미해결 액션"])
     for x in r["actions"]:
         lines.append(f"- [{x['status']}] {x['priority']} · {x['domain']} · {x['title']} "
@@ -400,6 +423,32 @@ def render_html(r: dict[str, Any]) -> str:
                     e(x["last_seen"]) + (" · 오늘 관측" if x["observed_today"] else " · 과거 미해결") +
                     "</div></article>" for x in r["actions"])
     product_notes = " ".join(r["product"]["notes"])
+    integrations = r.get("integrations") or {}
+    spend = integrations.get("paid_cost") or {}
+    warehouse = integrations.get("warehouse") or {}
+    experiments = integrations.get("experiment") or {}
+    integrations_html = (
+        "<section class='panels'><div class='panel'><h2>광고 비용 원천 검증</h2>" +
+        "<p><b>상태:</b> " + e(spend.get("status", "미확인")) + "</p>" +
+        "<p class='muted'>최신 비용일: " + e(spend.get("latest_date") or "미확인") + "</p>" +
+        "<p class='muted'>" +
+        e(" ".join(spend.get("issues") or []) or "원천/플랫폼 대조 전 ROAS 판단 중단") +
+        "</p></div><div class='panel'><h2>BigQuery · 어드민 · CRM 연동</h2>" +
+        "<p>주문 원천: <b>" + e(warehouse.get("order_mart", "미확인")) + "</b></p>" +
+        "<p>실재고: <b>" + e(warehouse.get("inventory", "미확인")) + "</b></p>" +
+        "<p>회원 집계: <b>" + e(warehouse.get("crm", "미확인")) + "</b></p>" +
+        "<p class='muted'>비공개 원천에서 집계 후 공개 페이지에 개인정보·회원수 출력 없음</p>" +
+        "</div></section><section class='panel section'><h2>개선 실행 후 성과 검증</h2>" +
+        "<p class='muted'>동일 길이 7·14일 전후 비교. 통제군 없는 결과는 인과효과 아님.</p>" +
+        ("".join("<article class='task'><h3>" + e(x.get("title", "")) + "</h3>" +
+                 "<p>상태: " + e(x.get("status", "")) + "</p>" +
+                 ("<p>매출 전후 변화: " +
+                  e(v_pct((x.get("observed_improvement") or {}).get("revenue_pct"))) +
+                  "</p>" if x.get("observed_improvement") else "") + "</article>"
+                 for x in experiments.get("items") or []) or
+         "<p class='muted'>실험 등록 전 — 실제 개선 효과를 만들어내지 않습니다.</p>") +
+        "</section>"
+    )
     return ("""<!doctype html><html lang='ko'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <meta name='robots' content='noindex,nofollow'><title>CSK Marketing Intelligence 2.0</title><style>
 :root{--bg:#f5f7fb;--ink:#16233a;--muted:#60718b;--line:#e4e9f3;--brand:#1458a6}
@@ -457,7 +506,7 @@ e(r["agency"]["status"]) + " · " + e(r["agency"]["spend_status"]) + """</div>""
 <p id='empty' class='muted' hidden>조건에 맞는 액션이 없습니다.</p></section>
 <footer>기준일 """ + e(r["report_date"]) + """ · 집계 파일 기반 보고서 · 실제 캠페인 변경/발송 없음 · """
 +e(r["governance"]["privacy"])+"""<p>상품별 퍼널은 기간·귀속 기준이 Daily Digest와 다를 수 있습니다. 증감은 인과관계를 뜻하지 않습니다.</p></footer>
-</main><script>
+</main>""" + integrations_html + """<script>
 const $=id=>document.getElementById(id);const rows=Array.from(document.querySelectorAll('.action'));
 function apply(){const q=$('search').value.trim().toLowerCase(),d=$('domain').value,s=$('state').value;
 let count=0;for(const row of rows){const shown=(!d||row.dataset.domain===d)&&(!s||row.dataset.status===s)&&(!q||row.textContent.toLowerCase().includes(q));row.hidden=!shown;if(shown)count++;}
