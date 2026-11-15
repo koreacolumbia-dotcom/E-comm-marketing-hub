@@ -9,13 +9,16 @@ on:
     # Fallback 10:20 KST, after the 10:05 KST Intelligence 2.0 pipeline.
     - cron: "20 1 * * *"
   push:
-    branches: [main]
+    branches: [main, feat/csk-ops-v3-expansion-signals-20261115]
     paths:
       - ".github/workflows/marketing-operations-v3.yml"
       - "scripts/build_marketing_operations_v3.py"
+      - "scripts/csk_marketing_extensions.py"
       - "scripts/sync_csk_ops_issues.py"
       - "tests/test_marketing_operations_v3.py"
+      - "tests/test_csk_marketing_extensions.py"
       - "config/marketing_calendar_2026.json"
+      - "config/product_launches_2026.json"
 
 permissions:
   contents: write
@@ -43,6 +46,16 @@ jobs:
             reports/daily_digest/data
             reports/marketing_intelligence_v2
             reports/marketing_operations
+      - name: Materialize slim competitor source snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/competitor_intel
+          for name in brand_summary.csv checkpoint_columbia_status.json checkpoint_arcteryx_status.json checkpoint_discovery_status.json checkpoint_new-balance_status.json checkpoint_the-north-face_status.json checkpoint_nepa_status.json checkpoint_millet_status.json; do
+            git show "HEAD:reports/competitor_intel/$name" > "reports/competitor_intel/$name"
+            test -s "reports/competitor_intel/$name"
+          done
+          echo "[SOURCE] Competitor compact aggregate snapshots loaded. No product-level raw file."
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -52,7 +65,8 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest discover -s tests -p 'test_marketing_operations_v3.py' -v
-          python -m py_compile scripts/build_marketing_operations_v3.py scripts/sync_csk_ops_issues.py
+          python -m unittest discover -s tests -p 'test_csk_marketing_extensions.py' -v
+          python -m py_compile scripts/build_marketing_operations_v3.py scripts/sync_csk_ops_issues.py scripts/csk_marketing_extensions.py
       - name: Produce source-backed executive, calendar and recovery reports
         if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_run'
         shell: bash
