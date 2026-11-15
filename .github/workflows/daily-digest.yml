@@ -101,7 +101,7 @@ jobs:
           python -u scripts/send_daily_email.py
 
   backfill_etc:
-    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Rebuild Nov 13-14 channels and PDP without email' }}
+    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'Execute corrected Nov 13-14 backfill no email' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -152,9 +152,10 @@ jobs:
           set -euo pipefail
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
+          export DAILY_DIGEST_END_DATE_OVERRIDE="2026-11-14"
+          export YMD="2026-11-14" GA4_START_DATE="2026-11-13" GA4_END_DATE="2026-11-14"
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest
           for day in 2026-11-13 2026-11-14; do
-            export YMD="$day" GA4_START_DATE="$day" GA4_END_DATE="$day"
-            python -u daily_digest_live_final.py --out-dir reports/daily_digest
             python -u scripts/render_daily_png.py "reports/daily_digest/daily/$day.html" "reports/daily_digest/daily/$day.png"
             test -s "reports/daily_digest/daily/$day.html"
             test -s "reports/daily_digest/daily/$day.png"
