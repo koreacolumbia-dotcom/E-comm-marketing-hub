@@ -1,0 +1,417 @@
+{
+  "version": "3.0",
+  "report_date": "2026-11-14",
+  "generated_at_kst": "2026-11-15T21:55:40+09:00",
+  "status": "PARTIAL",
+  "executive": {
+    "headline": "원천 복구 우선",
+    "business_status": "PARTIAL",
+    "priority_blockers": [
+      "PAID_COST_FRESHNESS",
+      "WAREHOUSE_ETL_FRESHNESS",
+      "MSSQL_STOCK_ACCESS",
+      "CHANNEL_QA",
+      "PDP_QA"
+    ],
+    "current_7d_status": "ready",
+    "actions_open": 12,
+    "data_readiness": {
+      "paid_cost": "stale",
+      "order_mart": "stale",
+      "crm": "stale",
+      "inventory": "connection_error"
+    },
+    "decision": "복구 및 원천 정합성 확인이 최우선. Paid 예산 재배분이나 상품 예상 매출액은 데이터 검증 전 실행하지 않음."
+  },
+  "weekly": {
+    "period": "2026-11-08 ~ 2026-11-14",
+    "comparison_period": "2026-11-01 ~ 2026-11-07",
+    "status": "ready",
+    "current": {
+      "status": "complete",
+      "missing_dates": [],
+      "total": {
+        "sessions": 120752.0,
+        "orders": 757.0,
+        "revenue": 133278030.01,
+        "cvr": 0.006269047303564331
+      }
+    },
+    "previous": {
+      "status": "complete",
+      "missing_dates": [],
+      "total": {
+        "sessions": 117605.0,
+        "orders": 760.0,
+        "revenue": 118773855.99,
+        "cvr": 0.006462310275923643
+      }
+    },
+    "wow_pct": {
+      "sessions": 2.68,
+      "orders": -0.39,
+      "revenue": 12.21,
+      "cvr": -2.99
+    },
+    "caveat": "Daily KPI 합산 기준. 채널/CRM/PDP 품질 게이트와 별개이며 광고·CRM 기여도 아님"
+  },
+  "calendar": {
+    "status": "available",
+    "current_status": "not_connected",
+    "yoy_window": "2025-11-09 ~ 2025-11-15",
+    "current_window": "2026-11-08 ~ 2026-11-14",
+    "current": [],
+    "last_year_confirmed": [
+      {
+        "date": "2025-11-03",
+        "end_date": "2025-11-09",
+        "kind": "event",
+        "title": "겨울 아우터 옥외광고",
+        "source": "W45 · 8p",
+        "origin": "marketing_calendar_2025",
+        "status": "confirmed",
+        "year": 2025,
+        "sent_confirmed": null
+      },
+      {
+        "date": "2025-11-10",
+        "end_date": null,
+        "kind": "event",
+        "title": "3차 래플 이벤트",
+        "source": "W46 · 4p",
+        "origin": "marketing_calendar_2025",
+        "status": "confirmed",
+        "year": 2025,
+        "sent_confirmed": null
+      },
+      {
+        "date": "2025-11-10",
+        "end_date": null,
+        "kind": "message",
+        "title": "래플 이벤트 3차",
+        "source": "트래픽현황 2026 · 2025 비교기준 52행",
+        "origin": "owned_message_2025",
+        "status": "confirmed",
+        "year": 2025,
+        "sent_confirmed": true
+      },
+      {
+        "date": "2025-11-11",
+        "end_date": null,
+        "kind": "event",
+        "title": "무신사 라이브 커머스",
+        "source": "W46 · 4p, 11p",
+        "origin": "marketing_calendar_2025",
+        "status": "confirmed",
+        "year": 2025,
+        "sent_confirmed": null
+      },
+      {
+        "date": "2025-11-13",
+        "end_date": null,
+        "kind": "event",
+        "title": "Winter Boots 콘텐츠",
+        "source": "W46 · 8p",
+        "origin": "marketing_calendar_2025",
+        "status": "confirmed",
+        "year": 2025,
+        "sent_confirmed": null
+      },
+      {
+        "date": "2025-11-13",
+        "end_date": null,
+        "kind": "event",
+        "title": "Winter Down 콘텐츠",
+        "source": "W46 · 4p, 7p",
+        "origin": "marketing_calendar_2025",
+        "status": "confirmed",
+        "year": 2025,
+        "sent_confirmed": null
+      },
+      {
+        "date": "2025-11-14",
+        "end_date": null,
+        "kind": "message",
+        "title": "(광고) [컬럼비아] 일상과 아웃도어 어디에서도 스타일과 보온성이 뛰어난 윈터부츠",
+        "source": "트래픽현황 2026 · 2025 비교기준 70행",
+        "origin": "owned_message_2025",
+        "status": "confirmed",
+        "year": 2025,
+        "sent_confirmed": true
+      }
+    ],
+    "last_year_planned": [],
+    "interpretation": "일정/발송과 매출의 시간적 일치는 인과 효과나 순증분 매출의 증거가 아님",
+    "reference_total": 7
+  },
+  "products": {
+    "status": "diagnostics_only",
+    "items": [
+      {
+        "code": "C74YM3674342",
+        "name": "M`s MT.Hood Down Jacket",
+        "sessions": 13569,
+        "cart_rate_pct": 0.1,
+        "purchase_sessions": 0,
+        "state": "MEASUREMENT_QA",
+        "reason": "구매 이벤트와 어드민 상품코드 일치 여부 검증 필요",
+        "verification": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조",
+        "period": "2026-10-17 ~ 2026-11-15",
+        "stock_evidence": "unknown",
+        "order_reconciliation": "blocked",
+        "margin_evidence": "not_connected",
+        "revenue_opportunity_krw": null
+      },
+      {
+        "code": "C71XM4875265",
+        "name": "CSC1938 Dually Mountain Outerchange",
+        "sessions": 799,
+        "cart_rate_pct": 0.13,
+        "purchase_sessions": 0,
+        "state": "MEASUREMENT_QA",
+        "reason": "구매 이벤트와 어드민 상품코드 일치 여부 검증 필요",
+        "verification": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조",
+        "period": "2026-10-17 ~ 2026-11-15",
+        "stock_evidence": "unknown",
+        "order_reconciliation": "blocked",
+        "margin_evidence": "not_connected",
+        "revenue_opportunity_krw": null
+      },
+      {
+        "code": "C74WR9847309",
+        "name": "Amaze Puff Hooded Jacket",
+        "sessions": 341,
+        "cart_rate_pct": 0.0,
+        "purchase_sessions": 0,
+        "state": "CRO_HYPOTHESIS",
+        "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
+        "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+        "period": "2026-10-17 ~ 2026-11-15",
+        "stock_evidence": "unknown",
+        "order_reconciliation": "blocked",
+        "margin_evidence": "not_connected",
+        "revenue_opportunity_krw": null
+      },
+      {
+        "code": "C76BL5658010",
+        "name": "SNOWTROT PEAK ODX",
+        "sessions": 191,
+        "cart_rate_pct": 0.0,
+        "purchase_sessions": 0,
+        "state": "CRO_HYPOTHESIS",
+        "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
+        "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+        "period": "2026-10-17 ~ 2026-11-15",
+        "stock_evidence": "unknown",
+        "order_reconciliation": "blocked",
+        "margin_evidence": "not_connected",
+        "revenue_opportunity_krw": null
+      },
+      {
+        "code": "C76PU7259461",
+        "name": "Birdree Lite Sacoche",
+        "sessions": 166,
+        "cart_rate_pct": 0.0,
+        "purchase_sessions": 0,
+        "state": "CRO_HYPOTHESIS",
+        "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
+        "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+        "period": "2026-10-17 ~ 2026-11-15",
+        "stock_evidence": "unknown",
+        "order_reconciliation": "blocked",
+        "margin_evidence": "not_connected",
+        "revenue_opportunity_krw": null
+      },
+      {
+        "code": "C71WR6042027",
+        "name": "W Saudan Pro 3L Shell",
+        "sessions": 161,
+        "cart_rate_pct": 0.0,
+        "purchase_sessions": 0,
+        "state": "CRO_HYPOTHESIS",
+        "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
+        "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+        "period": "2026-10-17 ~ 2026-11-15",
+        "stock_evidence": "unknown",
+        "order_reconciliation": "blocked",
+        "margin_evidence": "not_connected",
+        "revenue_opportunity_krw": null
+      },
+      {
+        "code": "C76BL0303550",
+        "name": "KONOS SPEED TRAIL ATR",
+        "sessions": 146,
+        "cart_rate_pct": 0.0,
+        "purchase_sessions": 0,
+        "state": "CRO_HYPOTHESIS",
+        "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
+        "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+        "period": "2026-10-17 ~ 2026-11-15",
+        "stock_evidence": "unknown",
+        "order_reconciliation": "blocked",
+        "margin_evidence": "not_connected",
+        "revenue_opportunity_krw": null
+      },
+      {
+        "code": "C74XR1616256",
+        "name": "Amaze Puff Vest",
+        "sessions": 144,
+        "cart_rate_pct": 0.0,
+        "purchase_sessions": 0,
+        "state": "CRO_HYPOTHESIS",
+        "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
+        "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+        "period": "2026-10-17 ~ 2026-11-15",
+        "stock_evidence": "unknown",
+        "order_reconciliation": "blocked",
+        "margin_evidence": "not_connected",
+        "revenue_opportunity_krw": null
+      }
+    ],
+    "reason": "재고·마진·상품별 어드민 주문의 완전한 비교가 없어 잠재 매출액이나 광고비 증액은 산정하지 않음"
+  },
+  "incrementality": {
+    "status": "awaiting_private_aggregates",
+    "results": [],
+    "note": "A/B 홀드아웃 원천 미연결. 순증분 매출·유의성 수치 생성하지 않음"
+  },
+  "recovery": [
+    {
+      "code": "PAID_COST_FRESHNESS",
+      "priority": "P0",
+      "owner": "매체 담당/대행사",
+      "observed": "광고비 상태 stale, 최종 비용일 2026-04-06",
+      "next_step": "광고 매체별 원천 export/API 인증·적재 스케줄 복구, 일별 합계·통화/세금/캠페인 코드 대조",
+      "unsafe_operation": "광고비 파일을 임의 보간하거나 이 값으로 ROAS/예산 변경 금지"
+    },
+    {
+      "code": "WAREHOUSE_ETL_FRESHNESS",
+      "priority": "P0",
+      "owner": "데이터 엔지니어",
+      "observed": "주문 마트 stale, CRM stale",
+      "next_step": "원천/대상 수정시각·ETL 로그·삭제/덮어쓰기 모드 검토 후 증분 동기화 및 어드민 주문건수 대조",
+      "unsafe_operation": "원본 백업·행수/기간/ID 검증 없는 WRITE_TRUNCATE 자동 실행 금지"
+    },
+    {
+      "code": "MSSQL_STOCK_ACCESS",
+      "priority": "P0",
+      "owner": "인프라/DBA",
+      "observed": "MSSQL 재고 접근 상태 connection_error",
+      "next_step": "GitHub Actions 러너에서 허용 IP/VPN/DB 포트 1433과 읽기 전용 연결 진단",
+      "unsafe_operation": "방화벽 임의 개방·관리자 자격 증명 공개·DB 원본 변경 금지"
+    },
+    {
+      "code": "CHANNEL_QA",
+      "priority": "P0",
+      "owner": "GA4/BigQuery 담당",
+      "observed": "채널 합산과 전체 세션 불일치, ETC 귀속 오류",
+      "next_step": "동일 세션 키/기간/귀속 규칙으로 재집계 후 ETC·Paid·Organic 중복 제거 확인",
+      "unsafe_operation": "채널 데이터 정상화 전 매체별 원인·성과 단정 금지"
+    },
+    {
+      "code": "PDP_QA",
+      "priority": "P0",
+      "owner": "GA4/BigQuery 담당",
+      "observed": "PDP 최신일 수집/상품 이벤트 집계 검증 실패",
+      "next_step": "view_item와 purchase.item_id/상품 SKU 매핑, 최신일 지연과 중복 이벤트 확인",
+      "unsafe_operation": "조회수 0을 실제 관심도 0으로 해석 금지"
+    }
+  ],
+  "actions": [
+    {
+      "id": "AGENCY_ATTRIBUTION",
+      "title": "대행사 채널 귀속 데이터 우선 점검",
+      "owner": "데이터/퍼포먼스 대행사",
+      "priority": "P0",
+      "status": "OPEN"
+    },
+    {
+      "id": "CHANNEL_QA",
+      "title": "채널별 성과 분석 보류",
+      "owner": "데이터/GA4 담당",
+      "priority": "P0",
+      "status": "OPEN"
+    },
+    {
+      "id": "MSSQL_STOCK_ACCESS",
+      "title": "MSSQL 실재고 조회 접근 문제 해결",
+      "owner": "인프라/DBA 담당",
+      "priority": "P0",
+      "status": "OPEN"
+    },
+    {
+      "id": "PAID_COST_FRESHNESS",
+      "title": "광고비 원본 자동 수집 재개",
+      "owner": "퍼포먼스 대행사/매체 담당",
+      "priority": "P0",
+      "status": "OPEN"
+    },
+    {
+      "id": "PDP_QA",
+      "title": "PDP 일별 조회 데이터 복구",
+      "owner": "데이터/BigQuery 담당",
+      "priority": "P0",
+      "status": "OPEN"
+    },
+    {
+      "id": "PRODUCT_C71XM4875265",
+      "title": "CSC1938 Dually Mountain Outerchange 상품별 이벤트 정합성 검증",
+      "owner": "데이터/이커머스",
+      "priority": "P0",
+      "status": "OPEN"
+    },
+    {
+      "id": "PRODUCT_C74YM3674342",
+      "title": "M`s MT.Hood Down Jacket 상품별 이벤트 정합성 검증",
+      "owner": "데이터/이커머스",
+      "priority": "P0",
+      "status": "OPEN"
+    },
+    {
+      "id": "WAREHOUSE_ETL_FRESHNESS",
+      "title": "MSSQL → BigQuery 주문·CRM 적재 갱신",
+      "owner": "데이터 엔지니어/BigQuery 담당",
+      "priority": "P0",
+      "status": "OPEN"
+    },
+    {
+      "id": "CONVERSION",
+      "title": "유입 대비 구매 전환 급락",
+      "owner": "이커머스/분석 담당",
+      "priority": "P1",
+      "status": "OPEN"
+    },
+    {
+      "id": "PRODUCT_C74WR9847309",
+      "title": "Amaze Puff Hooded Jacket 상세페이지 개선 검토",
+      "owner": "이커머스/MD",
+      "priority": "P1",
+      "status": "OPEN"
+    },
+    {
+      "id": "PRODUCT_C76BL5658010",
+      "title": "SNOWTROT PEAK ODX 상세페이지 개선 검토",
+      "owner": "이커머스/MD",
+      "priority": "P1",
+      "status": "OPEN"
+    },
+    {
+      "id": "CRM_SEGMENT_SOURCE",
+      "title": "CRM 세그먼트 집계 연동",
+      "owner": "CRM/데이터 담당",
+      "priority": "P2",
+      "status": "OPEN"
+    }
+  ],
+  "governance": {
+    "source_date_aligned": true,
+    "no_automatic_mutations": "no ETL, ad budget, CRM send or campaign delivery",
+    "privacy": "customer IDs and member-level rows never published",
+    "warnings": [
+      "2025 confirmed activity is not evidence of incremental sales",
+      "no current 2026 calendar records does not mean zero actual activity",
+      "current stock is not historical inventory",
+      "campaign control-group incremental results require protected source"
+    ]
+  }
+}
