@@ -33,10 +33,11 @@ for b in data["brands"]:
     priced=[x for x in pages if x.get("price_mentions")]
     records=[r for x in pages for r in paired(x)]
     dated=[x for x in promo if x.get("date_mentions")]
-    usable=bool(promo and priced)
-    rows.append({"brand":b["brand"],"pages":len(pages),"promotion_pages":len(promo),"price_pages":len(priced),"candidate_usable":usable,"dated_promotion_pages":len(dated),"structured_product_prices":records,"errors":b.get("errors",[])})
+    cards=[r for x in pages for r in x.get("product_cards",[]) if r.get("status")=="candidate_same_card"]
+    usable=bool(promo and (priced or cards))
+    rows.append({"brand":b["brand"],"pages":len(pages),"promotion_pages":len(promo),"price_pages":len(priced),"candidate_usable":usable,"paired_discount_cards":cards,"dated_promotion_pages":len(dated),"structured_product_prices":records,"errors":b.get("errors",[])})
 n=sum(r["candidate_usable"] for r in rows)
-structured=sum(bool(r["dated_promotion_pages"] and r["structured_product_prices"]) for r in rows)
+structured=sum(bool(r["dated_promotion_pages"] and (r["structured_product_prices"] or r["paired_discount_cards"])) for r in rows)
 quality={"structured_evidence_brands":structured,"structured_evidence_pct":structured*10,"verified_accuracy_pct":None,"checked_at_kst":data.get("checked_at_kst"),"target":9,"denominator":10,"candidate_usable":n,"candidate_coverage_pct":n*10,"target_met_candidate_only":n>=9,"brands":rows,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
 p.mkdir(exist_ok=True)
 (p/"quality.json").write_text(json.dumps(quality,ensure_ascii=False,indent=2))
