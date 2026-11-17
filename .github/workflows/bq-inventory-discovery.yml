@@ -1,0 +1,44 @@
+name: BigQuery Inventory Discovery
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/bq-inventory-discovery.yml'
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install google-cloud-bigquery
+      - name: Discover inventory metadata
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+        run: |
+          python - <<'PY'
+          import os, base64, json
+          from google.oauth2 import service_account
+          from google.cloud import bigquery
+          credentials = service_account.Credentials.from_service_account_info(json.loads(base64.b64decode(os.environ['GOOGLE_SA_JSON_B64'])), scopes=['https://www.googleapis.com/auth/cloud-platform'])
+          client = bigquery.Client(project='columbia-ga4', credentials=credentials, location='asia-northeast3')
+          sql = """
+          SELECT table_schema, table_name, column_name, data_type
+          FROM `columbia-ga4.region-asia-northeast3.INFORMATION_SCHEMA.COLUMNS`
+          WHERE REGEXP_CONTAINS(LOWER(CONCAT(table_name,' ',column_name)), r'stock|inventory|sold.?out|availability|quantity|qty|sku|product|goods|재고|품절')
+          ORDER BY table_schema, table_name, column_name
+          LIMIT 5000
+          """
+          rows = [dict(r) for r in client.query(sql, job_config=bigquery.QueryJobConfig(maximum_bytes_billed=100000000), location='asia-northeast3').result()]
+          with open('inventory_schema.json','w') as f:
+              json.dump(rows,f,ensure_ascii=False,indent=2)
+          print('Matching metadata columns:',len(rows))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inventory-schema
+          path: inventory_schema.json
+          retention-days: 7
