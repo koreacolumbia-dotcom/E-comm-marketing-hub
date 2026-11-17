@@ -1,0 +1,52 @@
+name: SMTP authentication healthcheck
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/smtp-auth-healthcheck.yml']
+permissions:
+  contents: read
+jobs:
+  auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SMTP_HOST: ${{ vars.SMTP_HOST }}
+      SMTP_PORT: ${{ vars.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+    steps:
+      - name: Check TLS and authentication without sending mail
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, ssl, smtplib
+          host, user, password = (os.getenv(k, '').strip() for k in ('SMTP_HOST','SMTP_USER','SMTP_PASS'))
+          if not all((host,user,password)):
+              raise SystemExit('Missing SMTP configuration')
+          if host.lower() == 'smtp.gmail.com':
+              password = ''.join(password.split())
+          port = int(os.getenv('SMTP_PORT') or '587')
+          ports = list(dict.fromkeys([port,465,587])) if host.lower() == 'smtp.gmail.com' else [port]
+          for p in ports:
+              phase = 'connect'
+              try:
+                  ctx = ssl.create_default_context()
+                  smtp = smtplib.SMTP_SSL(host,p,timeout=25,context=ctx) if p == 465 else smtplib.SMTP(host,p,timeout=25)
+                  with smtp:
+                      phase = 'tls'
+                      smtp.ehlo()
+                      if p != 465:
+                          smtp.starttls(context=ctx)
+                          smtp.ehlo()
+                      phase = 'auth'
+                      smtp.login(user,password)
+                      print(f'[SMTP] AUTH OK port={p}; no email submitted',flush=True)
+                      break
+              except smtplib.SMTPAuthenticationError as e:
+                  print(f'[SMTP] rejected credential code={e.smtp_code}; port={p}',flush=True)
+              except Exception as e:
+                  print(f'[SMTP] phase={phase} port={p} error={type(e).__name__}',flush=True)
+          else:
+              raise SystemExit('SMTP authentication failed; check provider credentials and policy')
+          PY
