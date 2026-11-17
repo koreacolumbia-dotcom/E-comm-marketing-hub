@@ -617,6 +617,36 @@ jobs:
           echo "[ERROR] failed to push after retries"
           exit 1
 
+      # Preserve the exact verified original before attempting SMTP, so a
+      # credential/transport outage does not require another BigQuery rebuild.
+      - name: Prepare validated email backup package
+        if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
+        env:
+          REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
+          REPORT_MODE: ${{ steps.set_time.outputs.digest_mode }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/digest-email-backup"
+          if [ "$REPORT_MODE" = weekly ]; then
+            base="reports/daily_digest/weekly/END_$REPORT_DATE"
+            label="WeeklyDigest_$REPORT_DATE"
+          else
+            base="reports/daily_digest/daily/$REPORT_DATE"
+            label="DailyDigest_$REPORT_DATE"
+          fi
+          cp "$base.png" "$RUNNER_TEMP/digest-email-backup/$label.png"
+          cp "$base.html" "$RUNNER_TEMP/digest-email-backup/$label.html"
+          sha256sum "$RUNNER_TEMP/digest-email-backup/$label.png"
+      - name: Preserve verified email backup package
+        if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-email-${{ steps.set_time.outputs.digest_mode }}-${{ steps.set_time.outputs.yesterday_ymd }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/digest-email-backup/
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Send Daily or Weekly Digest email
         if: ${{ success() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
         # Do not report a green workflow when the report mail actually fails.
