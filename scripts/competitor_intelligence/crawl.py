@@ -9,6 +9,9 @@ import aiohttp
 from playwright.async_api import async_playwright
 BRANDS={"TNF":"https://www.thenorthfacekorea.co.kr/","K2":"https://www.k2.co.kr/","DISCOVERY":"https://www.discovery-expedition.com/","BLACKYAK":"https://www.byn.kr/blackyak","NEPA":"https://www.nplus.co.kr/main/main.asp","KOLON SPORT":"https://www.kolonmall.com/Brands/KOLONSPORT","EIDER":"https://www.eider.co.kr/","NATIONAL GEOGRAPHIC":"https://www.naturestore.co.kr/","SNOW PEAK":"https://www.snowpeakstore.co.kr/","MILLET":"https://www.millet.co.kr/"}
 UA="CSKMarketResearchBot"
+FAST=os.getenv('CRAWLER_MODE','fast')=='fast'
+PAGE_LIMIT=8 if FAST else 18
+BRAND_SECONDS=120 if FAST else 360
 EVENT=re.compile(r'promo|collection|newevent|event|promotion|exhibition|_exh|exh_list|special|企画|企画|기획전|이벤트|프로모션|세일|페스타|블랙프라이데이|혜택',re.I)
 DEAL=re.compile(r'할인|쿠폰|사은품|적립|특가|black friday|sale|%\s*off',re.I)
 PRODUCT=re.compile(r'goods_view|product/detail|productdetail|/product/|/goods/|goodsNo=|productNo=',re.I)
@@ -22,7 +25,7 @@ async def scan(browser,session,name,root):
     seeds=list(dict.fromkeys(SEEDS.get(name,[])+profile['seeds']))
     def same(u): return host(u)==allowed or (urlparse(u).hostname or '') in profile.get('hosts',[])
     context=None
-    deadline=asyncio.get_running_loop().time()+360
+    deadline=asyncio.get_running_loop().time()+BRAND_SECONDS
     try:
         policy=PolicyCache(session,UA,same)
         context=await browser.new_context(user_agent=UA,locale='ko-KR')
@@ -32,8 +35,8 @@ async def scan(browser,session,name,root):
             else: await route.continue_()
         await context.route('**/*',route_handler)
         page=await context.new_page()
-        queue=seeds+[root];seen=set()
-        while queue and len(seen)<18 and asyncio.get_running_loop().time()<deadline:
+        queue=list(dict.fromkeys(seeds+[root]));seen=set()
+        while queue and len(seen)<PAGE_LIMIT and asyncio.get_running_loop().time()<deadline:
             u=queue.pop(0)
             if u in seen or not same(u): continue
             if not await policy.permitted(u):
@@ -41,7 +44,7 @@ async def scan(browser,session,name,root):
             seen.add(u)
             try:
                 response=await navigate(page,u)
-                if not response or response.status>=400 or not same(page.url): raise RuntimeError('navigation failed')
+                if not response or response.status>=400 or not same(page.url): raise RuntimeError('navigation failed HTTP '+str(response.status if response else 'none'))
                 await page.wait_for_timeout(1000)
                 await page.evaluate('window.scrollTo(0, Math.min(document.body.scrollHeight, 1400))')
                 await page.wait_for_timeout(700)
@@ -57,7 +60,7 @@ async def scan(browser,session,name,root):
                 checkpoint(name,result)
                 candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and same(x['url']) and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']))]
                 queue=list(dict.fromkeys(queue+[x for x in candidates if x not in seen]))
-                queue=sorted(queue,key=lambda x: (sum(bool(PRODUCT.search(v)) for v in seen)<5 and not bool(PRODUCT.search(x)),not bool(EVENT.search(x))))[:40]
+                queue=sorted(queue,key=lambda x: (0 if x in seeds or x==root else 1, 0 if bool(EVENT.search(x)) != bool(sum(bool(EVENT.search(v)) for v in seen)>sum(bool(PRODUCT.search(v)) for v in seen)) else 1))[:40]
             except Exception as e: result['errors'].append({'url':u,'error':str(e)[:300]})
             await asyncio.sleep(2)
         result['status']='partial' if result['pages'] else 'unverified'
@@ -75,10 +78,10 @@ async def main():
     async with aiohttp.ClientSession(headers={'User-Agent':UA},timeout=aiohttp.ClientTimeout(total=20)) as session:
         async with async_playwright() as p:
             browser=await p.chromium.launch(headless=True, **({'executable_path':os.environ['CRAWLER_CHROME']} if os.environ.get('CRAWLER_CHROME') else {}))
-            limit=asyncio.Semaphore(3)
+            limit=asyncio.Semaphore(5 if FAST else 3)
             async def bounded(name,root):
                 async with limit:
-                    try: return await asyncio.wait_for(scan(browser,session,name,root),timeout=420)
+                    try: return await asyncio.wait_for(scan(browser,session,name,root),timeout=BRAND_SECONDS+40)
                     except Exception as e:
                         cp=Path('competitor-output/checkpoints')/(name+'.json')
                         row=json.loads(cp.read_text()) if cp.exists() else {'brand':name,'root':root,'status':'unverified','pages':[],'errors':[]}
