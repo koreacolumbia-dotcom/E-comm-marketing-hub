@@ -3370,10 +3370,8 @@ def get_category_pdp_view_trend_bq(
         WITH item_lookup AS (
           SELECT
             items.item_id AS item_id,
-            ANY_VALUE(CASE WHEN items.item_category = 'SALE'
-                       THEN items.item_category2 ELSE items.item_category END) AS c1_norm,
-            ANY_VALUE(CASE WHEN items.item_category = 'SALE'
-                       THEN items.item_category3 ELSE items.item_category2 END) AS c2_norm
+            ARRAY_AGG(STRUCT(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END AS c1, CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END AS c2) ORDER BY IF(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END IS NOT NULL AND CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END IS NOT NULL,0,1), event_timestamp DESC, IFNULL(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END,''), IFNULL(CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END,'') LIMIT 1)[OFFSET(0)].c1 AS c1_norm,
+            ARRAY_AGG(STRUCT(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END AS c1, CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END AS c2) ORDER BY IF(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END IS NOT NULL AND CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END IS NOT NULL,0,1), event_timestamp DESC, IFNULL(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END,''), IFNULL(CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END,'') LIMIT 1)[OFFSET(0)].c2 AS c2_norm
           FROM {chr(96)}{BQ_EVENTS_TABLE}{chr(96)}
           CROSS JOIN UNNEST(items) AS items
           WHERE _TABLE_SUFFIX BETWEEN '{lookup_start}' AND '{lookup_end}'
@@ -3474,6 +3472,13 @@ def get_category_pdp_view_trend_bq(
     except Exception as e:
         print(f"[WARN] PDP source/medium unavailable for {end_date}: {type(e).__name__}: {e}", flush=True)
 
+    # The D1 line and its source breakdown must come from the same query snapshot.
+    # Keep unidentified sources in the denominator; no proportional allocation.
+    if pdp_source_df is not None:
+        d1 = pdp_source_df.groupby(["c1","c2"], as_index=False)["views"].sum()
+        d1["d"] = end_date
+        if not d1.empty:
+            current_df = pd.concat([current_df[current_df["d"] != end_date], d1[["d","c1","c2","views"]]], ignore_index=True)
     def top_sources_for_category(c1, sub_label, c2_list, expected):
         if pdp_source_df is None:
             return [], "unavailable"
