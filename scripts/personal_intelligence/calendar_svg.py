@@ -21,19 +21,21 @@ def calendar_svg(year,month,events,today=None):
     first,last=date(year,month,1),date(year,month,days)
     for e in events:
         if e.get("row") not in ROWS or not e.get("title"):continue
-        a=date.fromisoformat(e["start"]);b=date.fromisoformat(e.get("end") or e["start"])
+        try:
+            a=date.fromisoformat(e["start"]);b=date.fromisoformat(e.get("end") or e["start"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not e.get("end") and e.get("row") not in ("LMS","KAKAO","EDM") and not e.get("single_day"):
+            continue
         if b<a or b<first or a>last:continue
         a,b=max(a,first),min(b,last);i=ROWS.index(e["row"])
         x=left+(a.day-1)*step;y=56+i*18;w=(b.day-a.day+1)*step-1
         title=esc(e["title"]);status=esc(e.get("status","unverified"))
         add(f'<g><title>{title} | {status}</title>')
-        if i in (1,2,3):
-            add(f'<circle cx="{x+step/2}" cy="{y+7}" r="3.7" fill="#4c9b91"/>')
-        else:
-            color="#28557e" if i==0 else "#819db6"
-            add(f'<rect x="{x}" y="{y}" width="{w}" height="13" rx="2" fill="{color}"/>')
-            clip=f"event-{len(out)}"
-            add(f'<clipPath id="{clip}"><rect x="{x}" y="{y}" width="{w}" height="13"/></clipPath><text x="{x+4}" y="{y+9}" font-size="7.5" fill="white" clip-path="url(#{clip})">{title}</text>')
+        color="#28557e" if i==0 else "#819db6"
+        add(f'<rect x="{x}" y="{y}" width="{w}" height="13" rx="2" fill="{color}" fill-opacity="{0.25 if status in ('planned','예정') else 1}" stroke="{color}" stroke-dasharray="{'3 2' if status in ('planned','예정') else 'none'}"/>')
+        clip=f"event-{len(out)}"
+        add(f'<clipPath id="{clip}"><rect x="{x}" y="{y}" width="{w}" height="13"/></clipPath><text x="{x+4}" y="{y+9}" font-size="7.5" fill="{color if status in ('planned','예정') else 'white'}" clip-path="url(#{clip})">{title}</text>')
         add('</g>')
     if today and first<=today<=last:
         x=left+(today.day-.5)*step
