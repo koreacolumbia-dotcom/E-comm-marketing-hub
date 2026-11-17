@@ -664,3 +664,53 @@ jobs:
             echo "[ERROR] send_daily_email.py not found"
             exit 1
           fi
+
+      - name: Send combined PDP and Glink PNG test to Hugh only
+        if: ${{ success() && github.event_name == 'push' && github.event.head_commit.message == 'Rebuild combined PDP and Glink paid test to Hugh only' && github.run_attempt == 1 }}
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DAILY_RECIPIENTS: 'hugh.kang@columbia.com'
+          HUB_URL: ${{ vars.HUB_URL }}
+          REPORT_DATE: '2026-11-16'
+          REPORT_MODE: daily
+          MODE_DAILY_ONLY: 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u scripts/validate_daily_digest.py --date "$REPORT_DATE" --require-pdp --require-session-source
+          python - <<'PY'
+          import json
+          import math
+          import importlib.util
+          from pathlib import Path
+          obj = json.loads(Path("reports/daily_digest/data/daily/2026-11-16.json").read_text())
+          pdp = obj["pdp_series"]
+          assert pdp["source_medium_date"] == "2026-11-16"
+          assert len(pdp["rows"]) == 14
+          for row in pdp["rows"]:
+              if row["views_d1"] > 0:
+                  assert row["source_status"] == "ok", (row["itemCategory"], row["source_status"])
+                  assert 1 <= len(row["top_sources"]) <= 2
+                  assert sum(x["views"] for x in row["top_sources"]) <= row["views_d1"]
+          paid = obj["glink_paid_snapshot"]
+          assert paid["start"] == paid["end"] == "2026-11-16"
+          total = next(x for x in paid["rows"] if x["channel"] == "Total incl. sign-up")
+          assert math.isclose(total["spend"], 1556470.5109, abs_tol=0.05)
+          html = Path("reports/daily_digest/daily/2026-11-16.html").read_text()
+          assert "D1 TOP 2 Source / Medium" in html and "Glink 매체RAW" in html
+          spec = importlib.util.spec_from_file_location("sender", "scripts/send_daily_email.py")
+          sender = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(sender)
+          original = sender.send_email_mixed_with_inline_image
+          def test_only(**kwargs):
+              kwargs["to_list"] = ["hugh.kang@columbia.com"]
+              kwargs["subject"] = "[TEST] PDP Source / Medium + Paid | " + kwargs["subject"]
+              assert kwargs["inline_png_bytes"]
+              original(**kwargs)
+              print("[TEST OK] SMTP accepted combined PNG for Hugh only", flush=True)
+          sender.send_email_mixed_with_inline_image = test_only
+          sender.main()
+          PY
