@@ -3013,34 +3013,68 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
             limit=10000
         )
 
-    series_cache = {"x": xlabels, "items": []}
+    yoy_dates = [w.yoy_end - dt.timedelta(days=6-i) for i in range(7)]
+    yoy_labels = [d.strftime("%m/%d") for d in yoy_dates]
+    series_cache = {"x": xlabels, "yoy_x": yoy_labels, "items": []}
+    def name_key(value):
+        return " ".join(str(value or "").strip().casefold().split())
+    names = list(dict.fromkeys(str(v).strip() for v in top["itemName"] if str(v).strip()))
+    def fetch_name_series(dates):
+        if not names:
+            return None
+        df = run_report(client, PROPERTY_ID, ymd(dates[0]), ymd(dates[-1]),
+                        ["date", "itemName"], ["itemsPurchased"],
+                        dimension_filter=ga_filter_in("itemName", names), limit=10000)
+        if df.empty:
+            return pd.DataFrame(columns=["date","name_key","itemsPurchased"])
+        df["date"] = df["date"].apply(parse_yyyymmdd)
+        df["name_key"] = df["itemName"].map(name_key)
+        df["itemsPurchased"] = pd.to_numeric(df["itemsPurchased"], errors="coerce").fillna(0.0)
+        return df.groupby(["date","name_key"], as_index=False)["itemsPurchased"].sum()
 
-    if ts.empty:
-        top["trend_svg"] = ""
-        if PLACEHOLDER_IMG:
-            top.loc[top["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
-        for sku in skus:
-            series_cache["items"].append({"itemId": sku, "ys": [0.0]*7})
-        return top[["itemId","itemName","qty","views","trend_svg","image_url"]], series_cache
+    name_ty, name_ly = None, None
+    try:
+        name_ty = fetch_name_series(axis_dates)
+        name_ly = fetch_name_series(yoy_dates)
+    except Exception as e:
+        print(f"[WARN] Best Sellers same-name YoY unavailable: {type(e).__name__}: {e}", flush=True)
 
-    ts["date"] = ts["date"].apply(parse_yyyymmdd)
-    ts["itemsPurchased"] = pd.to_numeric(ts["itemsPurchased"], errors="coerce").fillna(0.0)
-    ts["itemId"] = ts["itemId"].map(normalize_sku_key)
-    ts = ts.sort_values(["itemId","date"])
+    if not ts.empty:
+        ts["date"] = ts["date"].apply(parse_yyyymmdd)
+        ts["itemsPurchased"] = pd.to_numeric(ts["itemsPurchased"], errors="coerce").fillna(0.0)
+        ts["itemId"] = ts["itemId"].map(normalize_sku_key)
+        ts = ts.groupby(["itemId","date"], as_index=False)["itemsPurchased"].sum()
 
-    svgs = []
-    for sku in skus:
-        sub = ts[ts["itemId"] == sku].set_index("date")["itemsPurchased"]
-        ys = [float(sub.get(d, 0.0)) for d in axis_dates]
-        svgs.append(spark_svg(xlabels, ys, width=240, height=70, stroke="#0055a5"))
-        series_cache["items"].append({"itemId": sku, "ys": ys})
-
+    svgs, scopes = [], []
+    for row in top.itertuples(index=False):
+        sku = str(row.itemId).strip()
+        key = name_key(row.itemName)
+        ys_yoy = None
+        ys = [0.0] * 7
+        scope = "sku"
+        if not ts.empty:
+            sub = ts[ts["itemId"] == sku].set_index("date")["itemsPurchased"]
+            ys = [float(sub.get(d, 0.0)) for d in axis_dates]
+        if name_ty is not None and name_ly is not None and not name_ty.empty and not name_ly.empty:
+            ty = name_ty[name_ty["name_key"] == key].set_index("date")["itemsPurchased"]
+            ly = name_ly[name_ly["name_key"] == key].set_index("date")["itemsPurchased"]
+            # Compare like for like: both curves aggregate the identical product name,
+            # even when the product code/color changed between seasons.
+            if not ty.empty and not ly.empty:
+                ys = [float(ty.get(d, 0.0)) for d in axis_dates]
+                ys_yoy = [float(ly.get(d, 0.0)) for d in yoy_dates]
+                scope = "same_name"
+        svgs.append(pdp_compare_svg(xlabels, ys, ys_yoy, yoy_labels, width=240,
+                                    height=70, metric_label="판매수량", current_color="#0055a5"))
+        scopes.append(scope)
+        series_cache["items"].append({"itemId": sku, "ys": ys, "ys_yoy": ys_yoy, "comparison_scope": scope})
     top["trend_svg"] = svgs
+    top["comparison_scope"] = scopes
 
     if PLACEHOLDER_IMG:
         top.loc[top["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
 
-    return top[["itemId","itemName","qty","views","trend_svg","image_url"]], series_cache
+    return top[["itemId","itemName","qty","views","trend_svg","image_url","comparison_scope"]], series_cache
 
 
 # =========================
@@ -3261,6 +3295,8 @@ def pdp_compare_svg(
     yoy_labels: Optional[List[str]] = None,
     width: int = 260,
     height: int = 70,
+    metric_label: str = "PDP 조회수",
+    current_color: str = "#0f766e",
 ) -> str:
     """Small two-line PDP graph: shared absolute view scale, TY solid and LY dashed."""
     # SVG labels must be escaped locally; render_page_html's esc() is not in this scope.
@@ -3308,7 +3344,7 @@ def pdp_compare_svg(
             label = labels[i] if labels and i < len(labels) else str(i + 1)
             dots.append(
                 f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.6' "
-                f"fill='{color}'><title>{esc(label)}: {value:,.0f} views</title></circle>"
+                f"fill='{color}'><title>{esc(label)}: {value:,.0f} {esc(metric_label)}</title></circle>"
             )
         points = " ".join(
             f"{xy(i, value)[0]:.1f},{xy(i, value)[1]:.1f}"
@@ -3321,9 +3357,9 @@ def pdp_compare_svg(
             + "".join(dots)
         )
 
-    current_line = make_line(current, xlabels, "#0f766e")
+    current_line = make_line(current, xlabels, current_color)
     yoy_line = make_line(previous, yoy_labels or [], "#64748b", dashed=True)
-    label = "PDP 조회수 7일 추이, 올해 실선"
+    label = f"{metric_label} 7일 추이, 올해 실선"
     if previous is not None:
         label += ", 작년 동기간 점선"
     return (
@@ -4266,14 +4302,19 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
     bs_base = pd.DataFrame(bundle.get("best_sellers", []))
     bs_series = bundle.get("best_sellers_series", {"x": [], "items": []})
     x = bs_series.get("x", [])
-    items_map = {it.get("itemId"): (it.get("ys") or [0.0] * max(len(x), 7)) for it in bs_series.get("items", []) if it.get("itemId")}
-    bs_trend_svgs = []
+    items_map = {it.get("itemId"): it for it in bs_series.get("items", []) if it.get("itemId")}
+    bs_trend_svgs, bs_scopes = [], []
     for _, r in bs_base.iterrows():
         sku = str(r.get("itemId", "")).strip()
-        ys = items_map.get(sku, [0.0]*7)
-        bs_trend_svgs.append(spark_svg(x or ["--"]*7, ys, width=240, height=70, stroke="#0055a5"))
+        item = items_map.get(sku, {})
+        ys = item.get("ys") or [0.0]*7
+        bs_trend_svgs.append(pdp_compare_svg(x or ["--"]*7, ys, item.get("ys_yoy"),
+                                            bs_series.get("yoy_x", []), width=240, height=70,
+                                            metric_label="판매수량", current_color="#0055a5"))
+        bs_scopes.append(item.get("comparison_scope", "sku"))
     if not bs_base.empty:
         bs_base["trend_svg"] = bs_trend_svgs
+        bs_base["comparison_scope"] = bs_scopes
         if PLACEHOLDER_IMG and "image_url" in bs_base.columns:
             bs_base.loc[bs_base["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
 
@@ -4693,6 +4734,7 @@ def render_page_html(
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
                 <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
+                <div class="text-xs text-slate-400">{("동일 상품명 판매수량 합계" if getattr(r, "comparison_scope", "sku") == "same_name" else "올해 SKU 판매수량")}</div>
               </div>
               <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
             </div>
@@ -5390,7 +5432,7 @@ def render_page_html(
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Best Sellers (Top 10)</div>
+        <div class="flex flex-wrap items-center justify-between gap-1"><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Best Sellers (Top 10)</div><div class="flex gap-2 text-[10px] text-slate-500"><span><span style="display:inline-block;width:16px;border-top:2px solid #0055a5;vertical-align:middle;margin-right:3px"></span>올해 {w.cur_end.year}</span><span><span style="display:inline-block;width:16px;border-top:2px dashed #64748b;vertical-align:middle;margin-right:3px"></span>작년 {w.yoy_end.year}</span></div></div>
         <div class="mt-3 space-y-2">{bs_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
       </div>
 
