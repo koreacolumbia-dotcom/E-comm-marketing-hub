@@ -286,13 +286,36 @@ jobs:
 
           python -m playwright install --with-deps chromium
 
-      - name: Smoke-test PDP YoY chart before report build
+      - name: Smoke-test session source, CASE mapping and PDP YoY
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile daily_digest_live_final.py
+          python -m py_compile daily_digest_live_final.py daily_digest_session_source.py scripts/validate_daily_digest.py
           python - <<'PY'
-          from daily_digest_live_final import pdp_compare_svg
+          from daily_digest_live_final import pdp_compare_svg, classify_looker_channel
+          cases = [
+              ("google / cpc", "pmax", "Paid Ad"),
+              ("google / cpc", "youtube", "Awareness"),
+              ("kakao_ch / message", "season", "Owned Channel"),
+              ("sms / lms", "crm", "Owned Channel"),
+              ("l.instagram.com / referral", "", "Organic Traffic"),
+              ("creator_crew / creator_crew", "", "Organic Traffic"),
+              ("instagram / story", "", "Official SNS"),
+              ("(not set) / (not set)", "", "etc"),
+              ("(direct) / (none)", "", "Organic Traffic"),
+          ]
+          for sm, campaign, expected in cases:
+              actual = classify_looker_channel(sm, campaign, "Unassigned")
+              assert actual == expected, (sm, campaign, expected, actual)
+          print("[OK] Existing Columbia CASE rules verified.")
+          from daily_digest_session_source import build_sql
+          from types import SimpleNamespace
+          from datetime import date
+          table = SimpleNamespace(project="columbia-ga4",dataset_id="analytics_358593394",table_id="events_20261116",
+              schema=[SimpleNamespace(name="session_traffic_source_last_click"), SimpleNamespace(name="collected_traffic_source")])
+          sql = build_sql([(date(2026,11,16),"daily",table)],"2026-11-16","2026-11-16")
+          assert "session_key" in sql and "ROW_NUMBER()" in sql and "first_user_source" not in sql
+          print("[OK] Session-key SQL compiled into query string.")
           svg = pdp_compare_svg(
               ['11/05','11/06','11/07','11/08','11/09','11/10','11/11'],
               [2,3,4,5,4,3,2], [1,1,1,2,3,2,1],
@@ -322,7 +345,13 @@ jobs:
           set -euo pipefail
           echo "kst=$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')" >> "$GITHUB_OUTPUT"
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-          echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+          yesterday="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
+          echo "yesterday_ymd=$yesterday" >> "$GITHUB_OUTPUT"
+          daily_start="$(date -d "$yesterday -1 day" '+%Y-%m-%d')"
+          if [ "${{ github.event_name == 'push' && github.event.head_commit.message == 'Rebuild Nov 13-16 with session-key CASE logic' }}" = "true" ] && [[ "$yesterday" > "2026-11-12" ]]; then
+            daily_start="2026-11-13"
+          fi
+          echo "daily_start=$daily_start" >> "$GITHUB_OUTPUT"
           # The 14:00 rerun always refreshes YESTERDAY's daily report,
           # including Sundays reviewed on Monday. Keep Monday morning weekly.
           if { [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 5 * * *" ]; } || [ "${{ github.event_name }}" = "push" ]; then
@@ -354,6 +383,7 @@ jobs:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
           DAILY_DIGEST_REPORT_MODE: ${{ steps.set_time.outputs.digest_mode }}
+          DAILY_DIGEST_REPAIR_START: ${{ steps.set_time.outputs.daily_start }}
 
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
@@ -446,26 +476,27 @@ jobs:
         env:
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
           REPORT_MODE: ${{ steps.set_time.outputs.digest_mode }}
+          DAILY_START: ${{ steps.set_time.outputs.daily_start }}
         run: |
           set -euo pipefail
 
           if [ "${REPORT_MODE}" = "weekly" ]; then
             HTML="reports/daily_digest/weekly/END_${YMD}.html"
             PNG="reports/daily_digest/weekly/END_${YMD}.png"
+            test -s "$HTML"
+            python -u scripts/render_daily_png.py "$HTML" "$PNG"
+            test -s "$PNG"
           else
-            HTML="reports/daily_digest/daily/${YMD}.html"
-            PNG="reports/daily_digest/daily/${YMD}.png"
+            day="$DAILY_START"
+            while [[ "$day" < "$YMD" || "$day" == "$YMD" ]]; do
+              HTML="reports/daily_digest/daily/$day.html"
+              PNG="reports/daily_digest/daily/$day.png"
+              test -s "$HTML"
+              python -u scripts/render_daily_png.py "$HTML" "$PNG"
+              test -s "$PNG"
+              day="$(date -d "$day +1 day" '+%Y-%m-%d')"
+            done
           fi
-
-          if [ ! -s "$HTML" ]; then
-            echo "[ERROR] Daily HTML missing before PNG render: $HTML"
-            ls -la reports/daily_digest/daily || true
-            exit 1
-          fi
-
-          python -u scripts/render_daily_png.py "$HTML" "$PNG"
-          test -s "$PNG"
-          ls -la "$PNG"
 
           # Wednesday GA4 reconciliation: keep the published weekly PNG in
           # sync with its refreshed HTML, without sending another email.
@@ -479,13 +510,31 @@ jobs:
           fi
 
       - name: Quality gate — block invalid Daily Digest and email
-        if: ${{ success() && steps.modes.outputs.run_daily == 'true' && steps.set_time.outputs.digest_mode == 'daily' }}
+        if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
         shell: bash
         env:
           REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
+          REPORT_MODE: ${{ steps.set_time.outputs.digest_mode }}
+          DAILY_START: ${{ steps.set_time.outputs.daily_start }}
         run: |
           set -euo pipefail
-          python -u scripts/validate_daily_digest.py --date "$REPORT_DATE" --require-pdp
+          if [ "$REPORT_MODE" = "weekly" ]; then
+            python -u scripts/validate_daily_digest.py --date "$REPORT_DATE" --mode weekly --require-pdp --require-session-source
+          else
+            failed=0
+            day="$DAILY_START"
+            while [[ "$day" < "$REPORT_DATE" || "$day" == "$REPORT_DATE" ]]; do
+              python -u scripts/validate_daily_digest.py --date "$day" --require-pdp --require-session-source || failed=1
+              day="$(date -d "$day +1 day" '+%Y-%m-%d')"
+            done
+            if [ "$(TZ=Asia/Seoul date '+%u')" = "3" ]; then
+              WEEK_END="$(date -d "$REPORT_DATE -2 days" '+%Y-%m-%d')"
+              if [ -f "reports/daily_digest/weekly/END_$WEEK_END.html" ]; then
+                python -u scripts/validate_daily_digest.py --date "$WEEK_END" --mode weekly --require-pdp --require-session-source || failed=1
+              fi
+            fi
+            test "$failed" -eq 0
+          fi
 
       # Data quality failures must not erase the newly generated HTML/PNG/JSON.
       # Retain an explicitly UNVERIFIED bundle for diagnosis, never email/publish it.
@@ -498,6 +547,15 @@ jobs:
             reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
             reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.png
             reports/daily_digest/data/daily/${{ steps.set_time.outputs.yesterday_ymd }}.json
+            reports/daily_digest/daily/2026-11-13.html
+            reports/daily_digest/daily/2026-11-13.png
+            reports/daily_digest/data/daily/2026-11-13.json
+            reports/daily_digest/daily/2026-11-14.html
+            reports/daily_digest/daily/2026-11-14.png
+            reports/daily_digest/data/daily/2026-11-14.json
+            reports/daily_digest/daily/2026-11-15.html
+            reports/daily_digest/daily/2026-11-15.png
+            reports/daily_digest/data/daily/2026-11-15.json
             reports/daily_digest/weekly/END_${{ steps.set_time.outputs.yesterday_ymd }}.html
             reports/daily_digest/weekly/END_${{ steps.set_time.outputs.yesterday_ymd }}.png
             reports/daily_digest/data/weekly/END_${{ steps.set_time.outputs.yesterday_ymd }}.json
