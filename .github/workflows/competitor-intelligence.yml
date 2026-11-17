@@ -1,0 +1,32 @@
+name: Competitor Intelligence
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 21 * * *'
+  push:
+    paths:
+      - '.github/workflows/competitor-intelligence.yml'
+      - 'scripts/competitor_intelligence/**'
+permissions:
+  contents: read
+concurrency:
+  group: competitor-intelligence
+  cancel-in-progress: false
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install playwright==1.51.0 aiohttp==3.11.18
+      - run: python -m playwright install --with-deps chromium
+      - run: python scripts/competitor_intelligence/crawl.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: competitor-snapshot
+          path: competitor-output/snapshot.json
+          retention-days: 30
