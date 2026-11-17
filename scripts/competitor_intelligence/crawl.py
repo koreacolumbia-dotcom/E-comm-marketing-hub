@@ -69,7 +69,7 @@ async def main():
     now=datetime.now(timezone(timedelta(hours=9)))
     async with aiohttp.ClientSession(headers={'User-Agent':UA},timeout=aiohttp.ClientTimeout(total=20)) as session:
         async with async_playwright() as p:
-            browser=await p.chromium.launch(headless=True)
+            browser=await p.chromium.launch(headless=True, **({'executable_path':os.environ['CRAWLER_CHROME']} if os.environ.get('CRAWLER_CHROME') else {}))
             limit=asyncio.Semaphore(3)
             async def bounded(name,root):
                 async with limit:
