@@ -8,7 +8,7 @@ on:
       - '.github/workflows/competitor-intelligence.yml'
       - 'scripts/competitor_intelligence/**'
 permissions:
-  contents: read
+  contents: write
   actions: read
 concurrency:
   group: competitor-intelligence
@@ -61,3 +61,28 @@ jobs:
           name: competitor-snapshot
           path: competitor-output/*.json
           retention-days: 30
+      - name: Publish compact quality status to repository
+        if: always()
+        env:
+          RUN_ID: ${{ github.run_id }}
+          SOURCE_SHA: ${{ github.sha }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          mkdir -p reports/competitor_intelligence
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          from datetime import datetime,timezone
+          p=Path('competitor-output/quality.json')
+          d=json.loads(p.read_text()) if p.exists() else {'measurement_available':False}
+          for r in d.get('brands',[]):
+              for k in ('paired_discount_cards','structured_product_prices'):
+                  r[k+'_count']=len(r.pop(k,[]))
+          d.update(run_id=os.environ['RUN_ID'],source_sha=os.environ['SOURCE_SHA'],job_status=os.environ['JOB_STATUS'],published_at=datetime.now(timezone.utc).isoformat())
+          Path('reports/competitor_intelligence/latest-quality.json').write_text(json.dumps(d,ensure_ascii=False,indent=2))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/competitor_intelligence/latest-quality.json
+          git commit -m "Publish competitor quality run $RUN_ID" || exit 0
+          git pull --rebase origin main && git push origin HEAD:main
