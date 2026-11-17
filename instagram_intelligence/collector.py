@@ -23,7 +23,7 @@ def collect(rows,term,source,posts):
         p=posts.setdefault(code,{"shortcode":code,"url":m.group(0),"matched_queries":[],"sources":[],"evidence":[]})
         if term not in p["matched_queries"]: p["matched_queries"].append(term)
         if source not in p["sources"]: p["sources"].append(source)
-        p["evidence"].append({k:row[k] for k in ("title","description","published_at","account","page_age","url") if k in row})
+        p["evidence"].append({k:row[k] for k in ("title","description","published_at","account","page_age","url","original_post_verified","korean_relevance_verified","brand_reference_verified","verification_source") if k in row})
 
 def main():
     parser=argparse.ArgumentParser()
