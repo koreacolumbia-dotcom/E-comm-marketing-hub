@@ -53,7 +53,7 @@ async def scan(browser,session,name,root):
                 response=await navigate(page,u)
                 if not response or response.status>=400 or not same(page.url) or not brand_route(page.url): raise RuntimeError('navigation failed HTTP '+str(response.status if response else 'none'))
                 await page.wait_for_timeout(1000)
-                await page.evaluate('window.scrollTo(0, Math.min(document.body.scrollHeight, 1400))')
+                await page.evaluate('window.scrollTo(0, Math.min(document.body?.scrollHeight ?? document.documentElement?.scrollHeight ?? 0, 1400))')
                 await page.wait_for_timeout(700)
                 body=await page.locator('body').inner_text(timeout=8000)
                 if len(body.strip())<100 or re.search(r'access denied|captcha|접근이 제한',body[:1000],re.I): raise RuntimeError('empty or blocked document')
