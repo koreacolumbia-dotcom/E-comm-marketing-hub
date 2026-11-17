@@ -39,9 +39,9 @@ async def scan(browser,session,name,root):
         while queue and len(seen)<PAGE_LIMIT and asyncio.get_running_loop().time()<deadline:
             u=queue.pop(0)
             if u in seen or not same(u): continue
-            if not await policy.permitted(u):
-                result['errors'].append({'url':u,'error':'robots policy unavailable or disallowed'}); continue
             seen.add(u)
+            if not await policy.permitted(u):
+                result['errors'].append({'url':u,'error':policy.reason(u)}); continue
             try:
                 response=await navigate(page,u)
                 if not response or response.status>=400 or not same(page.url): raise RuntimeError('navigation failed HTTP '+str(response.status if response else 'none'))
