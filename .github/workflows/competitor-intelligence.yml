@@ -9,6 +9,7 @@ on:
       - 'scripts/competitor_intelligence/**'
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: competitor-intelligence
   cancel-in-progress: false
@@ -23,10 +24,22 @@ jobs:
           python-version: '3.11'
       - run: pip install playwright==1.51.0 aiohttp==3.11.18
       - run: python -m playwright install --with-deps chromium
+      - name: Retrieve last successful snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p previous-snapshot
+          id=$(gh run list --workflow competitor-intelligence.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$id" ]; then gh run download "$id" -n competitor-snapshot -D previous-snapshot || echo "Previous snapshot unavailable"; fi
+      - run: python -m py_compile scripts/competitor_intelligence/*.py
       - run: python scripts/competitor_intelligence/crawl.py
+      - name: Generate report feed
+        if: always()
+        run: |
+          if [ -f competitor-output/snapshot.json ]; then python scripts/competitor_intelligence/compare.py; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: competitor-snapshot
-          path: competitor-output/snapshot.json
+          path: competitor-output/*.json
           retention-days: 30
