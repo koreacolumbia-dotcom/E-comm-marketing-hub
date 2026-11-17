@@ -351,7 +351,7 @@ jobs:
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
           yesterday="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
           echo "yesterday_ymd=$yesterday" >> "$GITHUB_OUTPUT"
-          daily_start="$(date -d "$yesterday -1 day" '+%Y-%m-%d')"
+          daily_start="$yesterday"
           if [ "${{ github.event_name == 'push' && github.event.head_commit.message == 'Rebuild Nov 13-16 with session-key CASE logic' }}" = "true" ] && [[ "$yesterday" > "2026-11-12" ]]; then
             daily_start="2026-11-13"
           fi
@@ -504,7 +504,7 @@ jobs:
 
           # Wednesday GA4 reconciliation: keep the published weekly PNG in
           # sync with its refreshed HTML, without sending another email.
-          if [ "$(TZ=Asia/Seoul date '+%u')" = "3" ] && [ "${REPORT_MODE}" = "daily" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 5 * * *" ] && [ "$(TZ=Asia/Seoul date '+%u')" = "3" ] && [ "${REPORT_MODE}" = "daily" ]; then
             WEEK_END="$(date -d "${YMD} -2 days" '+%Y-%m-%d')"
             WEEK_HTML="reports/daily_digest/weekly/END_${WEEK_END}.html"
             WEEK_PNG="reports/daily_digest/weekly/END_${WEEK_END}.png"
@@ -531,7 +531,7 @@ jobs:
               python -u scripts/validate_daily_digest.py --date "$day" --require-pdp --require-session-source || failed=1
               day="$(date -d "$day +1 day" '+%Y-%m-%d')"
             done
-            if [ "$(TZ=Asia/Seoul date '+%u')" = "3" ]; then
+            if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 5 * * *" ] && [ "$(TZ=Asia/Seoul date '+%u')" = "3" ]; then
               WEEK_END="$(date -d "$REPORT_DATE -2 days" '+%Y-%m-%d')"
               if [ -f "reports/daily_digest/weekly/END_$WEEK_END.html" ]; then
                 python -u scripts/validate_daily_digest.py --date "$WEEK_END" --mode weekly --require-pdp --require-session-source || failed=1
@@ -663,7 +663,7 @@ jobs:
           set -euo pipefail
 
           export KST_STAMP="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S KST')"
-          export REPORT_DATE="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
+          export REPORT_DATE="${{ steps.set_time.outputs.yesterday_ymd }}"
           export REPORT_MODE="${{ steps.set_time.outputs.digest_mode }}"
           if [ "${REPORT_MODE}" = "weekly" ]; then
             export DAILY_DIGEST_PNG_PATH="reports/daily_digest/weekly/END_${REPORT_DATE}.png"
