@@ -4824,6 +4824,8 @@ def render_page_html(
             rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{fmt_int(getattr(r,'count',0))}</span></div>"
 
     glink_paid = get_glink_paid_snapshot(w)
+    target_map = load_target_roas_map(TARGET_ROAS_XLS_PATH)
+    target_keys = {"Naver SA": "naver search", "Naver Brand Search": "naver brand search", "Google SA": "google search", "Google PMax": "google pmax", "Criteo": "criteo", "Meta (Sales)": "meta", "Kakao Bizboard": "kakao"}
     glink_rows_html = ""
     if glink_paid:
         def agency_pct(v, digits=1):
@@ -4832,6 +4834,7 @@ def render_page_html(
             name = agency["channel"]
             glink_rows_html += table_row([
                 esc(name),
+                f"<div class='text-right'>{agency_pct(target_map.get(target_keys.get(name, '')) or None)}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(agency['spend'])}</div>",
                 f"<div class='text-right'>{agency_pct(agency['media_roas'])}</div>",
                 f"<div class='text-right'>{agency_pct(agency['ga_roas'])}</div>",
@@ -4846,6 +4849,7 @@ def render_page_html(
           <table class="w-full table-auto text-sm min-w-[760px]">
             <thead class="text-xs text-slate-500"><tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Spend</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Media ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">GA ROAS</th>
@@ -4861,12 +4865,30 @@ def render_page_html(
         for r in paid_media_compare.itertuples(index=False):
             paid_media_compare_html += table_row([
                 esc(getattr(r, 'channel', '')),
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'target_roas', 0) or 0),1)}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget', 0))}</div>",
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas', 0) or 0),1)}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'target_roas', 0) or 0),1) if float(getattr(r, 'target_roas', 0) or 0)>0 else '—'}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget', 0)) if float(getattr(r, 'budget', 0) or 0)>0 else '미수신'}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas', 0) or 0),1) if float(getattr(r, 'budget', 0) or 0)>0 else '—'}</div>",
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
             ])
 
+
+    paid_section_html = glink_paid_html or f"""
+      <div class="mt-3 text-xs font-semibold text-slate-500">글링크 해당 기간 실적 미수신 · GA4 세션 기준 CVR (원본 광고비 없음: 미수신)</div>
+      <div class="mt-2 overflow-x-auto">
+        <table class="w-full table-auto text-sm min-w-[760px]">
+          <thead class="text-xs text-slate-500">
+            <tr>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
+            </tr>
+          </thead>
+          <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+        </table>
+      </div>
+    """
 
     weather = weather_forecast or {}
     weather_days = weather.get("days") or []
@@ -5404,22 +5426,7 @@ def render_page_html(
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
-      {glink_paid_html}
-      <div class="mt-3 text-xs font-semibold text-slate-500">GA4 / 기존 목표 비교</div>
-      <div class="mt-2 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[760px]">
-          <thead class="text-xs text-slate-500">
-            <tr>
-              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
-            </tr>
-          </thead>
-          <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
-        </table>
-      </div>
+      {paid_section_html}
     </div>
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
