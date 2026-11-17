@@ -3465,6 +3465,33 @@ def get_category_pdp_view_trend_bq(
 
     has_yoy = not yoy_df.empty
 
+    # D1 source/medium ranking is supplementary: preserve the established
+    # PDP trend totals and show the breakdown only when it reconciles.
+    pdp_source_df = None
+    try:
+        from daily_digest_session_source import load_pdp_source_frame
+        pdp_source_df = load_pdp_source_frame(BQ_EVENTS_TABLE, BQ_LOCATION, end_date)
+    except Exception as e:
+        print(f"[WARN] PDP source/medium unavailable for {end_date}: {type(e).__name__}: {e}", flush=True)
+
+    def top_sources_for_category(c1, sub_label, c2_list, expected):
+        if pdp_source_df is None:
+            return [], "unavailable"
+        mask = (pdp_source_df["c1"] == c1) & pdp_source_df["c2"].isin(c2_list or [sub_label])
+        grouped = pdp_source_df.loc[mask].groupby("sessionSourceMedium", as_index=False)["views"].sum()
+        total = float(grouped["views"].sum())
+        if total != float(expected):
+            print(f"[WARN] PDP source/medium mismatch {c1} / {sub_label}: {total} != {expected}", flush=True)
+            return [], "unreconciled"
+        if total <= 0:
+            return [], "no_views"
+        top = grouped[grouped["views"] > 0].sort_values(["views", "sessionSourceMedium"], ascending=[False, True]).head(2)
+        return [
+            {"source_medium": str(row.sessionSourceMedium), "views": int(row.views),
+             "share_pct": round(float(row.views) / total * 100, 1)}
+            for row in top.itertuples(index=False)
+        ], "ok"
+
     def series_for_category(df, dates, c1, sub_label, c2_list):
         ys = []
         for day in dates:
@@ -3487,6 +3514,7 @@ def get_category_pdp_view_trend_bq(
             avg_cur = sum(ys) / len(ys)
             avg_ly = sum(ys_yoy) / len(ys_yoy) if ys_yoy is not None else None
             yoy_pct = (avg_cur / avg_ly - 1) * 100 if avg_ly and avg_ly > 0 else None
+            top_sources, source_status = top_sources_for_category(c1, sub_label, c2_list, ys[-1])
             rows.append({
                 "itemCategory": f"{c1} · {sub_label}",
                 "views_d1": ys[-1],
@@ -3496,6 +3524,8 @@ def get_category_pdp_view_trend_bq(
                 "has_yoy": has_yoy,
                 "ys": ys,
                 "ys_yoy": ys_yoy,
+                "top_sources": top_sources,
+                "source_status": source_status,
                 "trend_svg": pdp_compare_svg(xlabels, ys, ys_yoy, yoy_labels),
             })
 
@@ -3504,6 +3534,7 @@ def get_category_pdp_view_trend_bq(
         "yoy_x": yoy_labels,
         "yoy_end_date": ymd(yoy_end_date),
         "has_yoy": has_yoy,
+        "source_medium_date": ymd(end_date),
         "rows": [{
             "itemCategory": row["itemCategory"],
             "views_d1": row["views_d1"],
@@ -3513,11 +3544,13 @@ def get_category_pdp_view_trend_bq(
             "has_yoy": row["has_yoy"],
             "ys": row["ys"],
             "ys_yoy": row["ys_yoy"],
+            "top_sources": row["top_sources"],
+            "source_status": row["source_status"],
         } for row in rows],
     }
     cols = [
         "itemCategory", "views_d1", "views_avg7d", "views_avg7d_yoy",
-        "yoy_pct", "has_yoy", "trend_svg",
+        "yoy_pct", "has_yoy", "trend_svg", "top_sources", "source_status",
     ]
     return pd.DataFrame(rows)[cols], pdp_series
 
@@ -4214,6 +4247,8 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
             "views_avg7d_yoy": row.get("views_avg7d_yoy"),
             "yoy_pct": row.get("yoy_pct"),
             "has_yoy": ys_yoy is not None,
+            "top_sources": row.get("top_sources", []),
+            "source_status": row.get("source_status", "unavailable"),
             "trend_svg": pdp_compare_svg(
                 pdp_series.get("x", ["--"] * 7), ys, ys_yoy,
                 pdp_series.get("yoy_x", []),
@@ -4643,12 +4678,33 @@ def render_page_html(
                     ly_comparison += f" · YoY {float(yoy_pct):+.1f}%"
                 else:
                     ly_comparison += " · YoY N/A (LY=0)"
+            source_status = getattr(r, "source_status", "unavailable")
+            top_sources = getattr(r, "top_sources", [])
+            source_lines = ""
+            if source_status == "ok" and isinstance(top_sources, list):
+                for rank, item in enumerate(top_sources[:2], start=1):
+                    sm = esc(str(item.get("source_medium", "")))
+                    views = fmt_int(item.get("views", 0))
+                    share = float(item.get("share_pct", 0))
+                    source_lines += (
+                        f'<div class="text-xs text-slate-600 break-words">'
+                        f'<span class="font-semibold">{rank}. {sm}</span> · {views} ({share:.1f}%)</div>'
+                    )
+            else:
+                note = "조회 없음" if source_status == "no_views" else "집계 확인 중"
+                source_lines = f'<div class="text-xs text-slate-500">{note}</div>'
+            source_html = (
+                '<div class="mt-2 border-t border-slate-100 pt-1">'
+                '<div class="text-xs font-bold text-slate-500">D1 TOP 2 Source / Medium</div>'
+                + source_lines + "</div>"
+            )
             pdp_rows += f"""
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemCategory", "") or "")}</div>
                 <div class="text-xs text-slate-500">D1 {fmt_int(getattr(r, "views_d1", 0))} · 7D Avg {fmt_int(getattr(r, "views_avg7d", 0))}</div>
                 <div class="text-xs text-slate-500">{esc(ly_comparison)}</div>
+                {source_html}
               </div>
               <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
             </div>
