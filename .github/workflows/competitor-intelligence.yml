@@ -16,7 +16,7 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,7 +25,7 @@ jobs:
       - run: pip install playwright==1.51.0 aiohttp==3.11.18
       - name: Install browser without apt dependency upgrade
         run: |
-          python -m playwright install chromium || echo "Browser download failed; checking runner Chrome"
+          if ! command -v google-chrome >/dev/null; then python -m playwright install chromium; fi
           if command -v google-chrome >/dev/null; then
             echo "CRAWLER_CHROME=$(command -v google-chrome)" >> "$GITHUB_ENV"
           fi
@@ -44,7 +44,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p previous-snapshot
-          id=$(gh run list --workflow competitor-intelligence.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          id=$(gh run list --workflow competitor-intelligence.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
           if [ -n "$id" ]; then gh run download "$id" -n competitor-snapshot -D previous-snapshot || echo "Previous snapshot unavailable"; fi
       - run: python -m py_compile scripts/competitor_intelligence/*.py
       - run: python scripts/competitor_intelligence/crawl.py
@@ -52,6 +52,9 @@ jobs:
         if: always()
         run: |
           if [ -f competitor-output/snapshot.json ]; then python scripts/competitor_intelligence/compare.py; fi
+      - name: Validate 90 percent candidate coverage
+        if: always()
+        run: python scripts/competitor_intelligence/quality.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
