@@ -2255,28 +2255,49 @@ def render_yoy_marketing_calendar_html(w: "DigestWindow", escape_html) -> str:
 # =========================
 # Data fetchers (3-way)
 # =========================
-def get_overall_kpis(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, Dict[str, float]]:
+
+# The entire report shares one immutable source/medium/campaign frame per period.
+_SESSION_SOURCE_CACHE = {}
+
+def get_session_source_frame(start: dt.date, end: dt.date) -> pd.DataFrame:
+    key = (start, end)
+    if key not in _SESSION_SOURCE_CACHE:
+        from daily_digest_session_source import load_session_frame
+        frame = load_session_frame(BQ_EVENTS_TABLE, BQ_LOCATION, start, end)
+        frame["bucket"] = frame.apply(
+            lambda r: classify_looker_channel(
+                str(r["sessionSourceMedium"]), str(r["sessionCampaignName"]),
+                str(r["sessionDefaultChannelGroup"])
+            ), axis=1
+        )
+        _SESSION_SOURCE_CACHE[key] = frame
+        print(f"[CHANNEL_BQ] {start}..{end}: {frame.groupby('bucket')['sessions'].sum().to_dict()}", flush=True)
+    return _SESSION_SOURCE_CACHE[key].copy()
+
+def get_overall_kpis(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, Dict[str, Any]]:
     mets = ["sessions", "transactions", "purchaseRevenue"]
+    def one(start, end):
+        frame = get_session_source_frame(start, end)
+        out = {m: float(frame[m].sum()) for m in mets}
+        out["cvr"] = out["transactions"] / out["sessions"] if out["sessions"] else 0.0
+        out["source"] = "ga4_bigquery_session_key_v1"
+        out["partitions"] = frame.attrs.get("partitions", {})
+        # GA API remains an independently visible reference, not a denominator
+        # mixed with the raw-export channel groups.
+        try:
+            api = run_report(client, PROPERTY_ID, ymd(start), ymd(end), [], mets)
+            out["ga_api_reference"] = {m: float(api.iloc[0][m]) for m in mets} if not api.empty else {}
+        except Exception as exc:
+            out["ga_api_reference"] = {}
+            print(f"[WARN] GA API comparison unavailable: {type(exc).__name__}", flush=True)
+        print(f"[CHANNEL_RECONCILE] {start}..{end} BQ={{ {', '.join(f'{m}: {out[m]:,.0f}' for m in mets)} }} GA_API={out['ga_api_reference']}", flush=True)
+        return out
+    return {
+        "current": one(w.cur_start, w.cur_end),
+        "prev": one(w.prev_start, w.prev_end),
+        "yoy": one(w.yoy_start, w.yoy_end),
+    }
 
-    d_cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), [], mets)
-    d_prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), [], mets)
-    d_yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), [], mets)
-
-    def row_to_dict(df):
-        if df.empty:
-            return {"sessions": 0.0, "transactions": 0.0, "purchaseRevenue": 0.0}
-        r = df.iloc[0]
-        return {m: float(r.get(m, 0) or 0) for m in mets}
-
-    cur = row_to_dict(d_cur)
-    prev = row_to_dict(d_prev)
-    yoy = row_to_dict(d_yoy)
-
-    cur["cvr"] = (cur["transactions"] / cur["sessions"]) if cur["sessions"] else 0.0
-    prev["cvr"] = (prev["transactions"] / prev["sessions"]) if prev["sessions"] else 0.0
-    yoy["cvr"] = (yoy["transactions"] / yoy["sessions"]) if yoy["sessions"] else 0.0
-
-    return {"current": cur, "prev": prev, "yoy": yoy}
 
 def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow, event_names: List[str]) -> Dict[str, float]:
     def get_one(start: dt.date, end: dt.date) -> float:
@@ -2508,58 +2529,9 @@ def get_channel_snapshot_3way(
     session_metric = "sessions"
     mets = [session_metric, "transactions", "purchaseRevenue"]
 
-    def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
-        try:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-            if df.empty:
-                return pd.DataFrame(columns=dims + mets)
-            df = df.copy()
-            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
-            df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
-            df["sessionDefaultChannelGroup"] = df["sessionDefaultChannelGroup"].astype(str).fillna("")
-            for c in mets:
-                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"], r["sessionDefaultChannelGroup"]), axis=1)
-            return df
-        except Exception:
-            dims2 = ["sessionSourceMedium"]
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims2, mets, limit=250000)
-            if df.empty:
-                return pd.DataFrame(columns=dims2 + mets + ["sessionCampaignName", "bucket"])
-            df = df.copy()
-            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
-            df["sessionCampaignName"] = ""
-            df["sessionDefaultChannelGroup"] = ""
-            for c in mets:
-                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], "", ""), axis=1)
-            return df
-
-    # GA4 sessions are non-additive across source/medium + campaign dimensions.
-    # Use the single session-scoped default-channel dimension for KPI totals;
-    # keep the granular Looker breakdown separately for diagnostic drilldowns.
-    def fetch_canonical(start: dt.date, end: dt.date) -> pd.DataFrame:
-        dims_canonical = ["sessionDefaultChannelGroup"]
-        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end),
-                        dims_canonical, mets, limit=250000)
-        if df.empty:
-            return pd.DataFrame(columns=["bucket"] + mets)
-        df = df.copy()
-        df["bucket"] = df["sessionDefaultChannelGroup"].apply(
-            lambda x: map_default_channel_group_to_bucket(str(x)) or "etc"
-        )
-        # Surface raw GA4 channel-group values to diagnose ETC without
-        # silently assigning Unassigned/(other) to a guessed channel.
-        diag = df.groupby(["sessionDefaultChannelGroup", "bucket"], dropna=False)["sessions"].sum()
-        print(f"[CHANNEL_DIAG] {ymd(start)}..{ymd(end)} raw default groups: {diag.to_dict()}", flush=True)
-        print(f"[CHANNEL_DIAG] raw grouped sessions={pd.to_numeric(df['sessions'], errors='coerce').sum():,.0f}", flush=True)
-        for metric in mets:
-            df[metric] = pd.to_numeric(df[metric], errors="coerce").fillna(0.0)
-        return df
-
-    cur = fetch_canonical(w.cur_start, w.cur_end)
-    prev = fetch_canonical(w.prev_start, w.prev_end)
-    yoy = fetch_canonical(w.yoy_start, w.yoy_end)
+    cur = get_session_source_frame(w.cur_start, w.cur_end)
+    prev = get_session_source_frame(w.prev_start, w.prev_end)
+    yoy = get_session_source_frame(w.yoy_start, w.yoy_end)
 
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
@@ -2672,35 +2644,10 @@ def get_paid_detail_3way(
     mets = [session_metric, "transactions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
-        try:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-            if df.empty:
-                return pd.DataFrame(columns=dims + mets)
-            df = df.copy()
-            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
-            df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
-            df["sessionDefaultChannelGroup"] = df["sessionDefaultChannelGroup"].astype(str).fillna("")
-            for c in mets:
-                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"], r["sessionDefaultChannelGroup"]), axis=1)
-            df = df[df["bucket"] == "Paid Ad"].copy()
-            df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
-            return df
-        except Exception:
-            dims2 = ["sessionSourceMedium"]
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims2, mets, limit=250000)
-            if df.empty:
-                return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName"] + mets + ["bucket", "sub"])
-            df = df.copy()
-            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
-            df["sessionCampaignName"] = ""
-            df["sessionDefaultChannelGroup"] = ""
-            for c in mets:
-                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], "", ""), axis=1)
-            df = df[df["bucket"] == "Paid Ad"].copy()
-            df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], ""), axis=1)
-            return df
+        df = get_session_source_frame(start, end)
+        df = df[df["bucket"] == "Paid Ad"].copy()
+        df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
+        return df
 
     cur = fetch(w.cur_start, w.cur_end)
     prev = fetch(w.prev_start, w.prev_end)
@@ -2798,25 +2745,11 @@ def get_paid_detail_3way(
 def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     if w.mode != "daily":
         return pd.DataFrame(columns=["sessionSourceMedium", "sessions", "purchaseRevenue"])
-
-    dims = ["sessionSourceMedium"]
-    mets = ["sessions", "purchaseRevenue"]
-    # Keep the legacy fallback that maps Paid AD from sessionDefaultChannelGroup.
-    filt = ga_filter_in("sessionDefaultChannelGroup", ["Paid Search", "Paid Social", "Display"])
-    order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="purchaseRevenue"), desc=True)]
-
-    df = run_report(client, PROPERTY_ID, ymd(w.cur_end), ymd(w.cur_end), dims, mets, dimension_filter=filt, order_bys=order, limit=3)
-    if df.empty:
-        return pd.DataFrame(columns=["sessionSourceMedium", "sessions", "purchaseRevenue"])
-
-    df["sessions"] = pd.to_numeric(df["sessions"], errors="coerce").fillna(0.0)
-    df["purchaseRevenue"] = pd.to_numeric(df["purchaseRevenue"], errors="coerce").fillna(0.0)
-
-    total = pd.DataFrame([{
-        "sessionSourceMedium": "Total",
-        "sessions": float(df["sessions"].sum()),
-        "purchaseRevenue": float(df["purchaseRevenue"].sum()),
-    }])
+    df = get_session_source_frame(w.cur_start, w.cur_end)
+    df = df[df["bucket"] == "Paid Ad"]
+    df = df.groupby("sessionSourceMedium", as_index=False)[["sessions", "purchaseRevenue"]].sum()
+    df = df.sort_values(["purchaseRevenue", "sessions"], ascending=False).head(3)
+    total = pd.DataFrame([{"sessionSourceMedium": "Total", "sessions": float(df["sessions"].sum()), "purchaseRevenue": float(df["purchaseRevenue"].sum())}])
     return pd.concat([df, total], ignore_index=True)
 
 
@@ -3895,28 +3828,7 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
     session_metric = "sessions"
     mets = [session_metric, "transactions", "purchaseRevenue"]
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
-        try:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-        except Exception:
-            # Preserve the existing two-/one-dimension compatibility path.
-            try:
-                df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims[:2], mets, limit=250000)
-            except Exception:
-                df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["sessionSourceMedium"], mets, limit=250000)
-        if df.empty:
-            return pd.DataFrame(columns=dims + mets)
-        for c in dims:
-            if c not in df.columns:
-                df[c] = ""
-            df[c] = df[c].fillna("").astype(str)
-        for c in mets:
-            df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-        df["bucket"] = df.apply(
-            lambda r: classify_looker_channel(
-                r["sessionSourceMedium"], r["sessionCampaignName"], r["sessionDefaultChannelGroup"]
-            ), axis=1
-        )
-        return df
+        return get_session_source_frame(start, end)
     cur = fetch(w.cur_start, w.cur_end)
     prev = fetch(w.prev_start, w.prev_end)
     yoy = fetch(w.yoy_start, w.yoy_end)
@@ -3982,18 +3894,9 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
-        try:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-        except Exception:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["sessionSourceMedium"], mets, limit=250000)
-            df['sessionCampaignName'] = ''
-        if df.empty:
-            return pd.DataFrame(columns=dims + mets)
-        for c in mets:
-            df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
-        df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
-        df = df[df['bucket'] == 'Paid Ad'].copy()
-        df['sub'] = df.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+        df = get_session_source_frame(start, end)
+        df = df[df["bucket"] == "Paid Ad"].copy()
+        df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
         return df
     cur = fetch(w.cur_start, w.cur_end)
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
@@ -4126,6 +4029,9 @@ def build_bundle(
             "aov": float((admin_overall.get("current", {}) or {}).get("aov", 0) or 0),
             "source": str((admin_overall.get("current", {}) or {}).get("source", "admin_bq_daily_erp")),
         },
+        "traffic_metric_source": cur.get("source", "ga4_api"),
+        "traffic_partition_status": cur.get("partitions", {}),
+        "ga_api_reference": cur.get("ga_api_reference", {}),
         "built_at_kst": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -4877,7 +4783,7 @@ def render_page_html(
     ])
 
     kpis_cards_html = (
-        kpi_group_title("GA KPI", "GA4 기준")
+        kpi_group_title("GA KPI", "GA4 BigQuery 세션 원천 기준 (가입: GA API)")
         + f'<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">{ga_kpis_cards}</div>'
     )
     ly_marketing_calendar_html = render_yoy_marketing_calendar_html(w, esc)
@@ -6296,7 +6202,7 @@ def build_one(
 
     overall = get_overall_kpis(client, w)
     signup_users = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
-    # Channel Snapshot: GA sessions by channel bucket, with Total forced from overall GA sessions.
+    # Channel Snapshot, detail, and KPI totals all use the same BigQuery session frame.
     channel_snapshot = get_channel_snapshot_3way(client, w, overall=overall)
 
     # Extract Paid AD totals from Channel Snapshot for Paid Detail alignment.
@@ -6306,7 +6212,7 @@ def build_one(
         "yoy": {"sessions": None, "revenue": None},
     }
     try:
-        # Only current-period absolute values are needed to force Paid Detail Total.
+        # Shared source keeps Paid Detail current absolute totals consistent.
         row = channel_snapshot[channel_snapshot["bucket"] == "Paid Ad"]
         if not row.empty:
             paid_ad_totals["current"]["sessions"] = float(row.iloc[0]["sessions"])
@@ -6538,7 +6444,11 @@ def main():
     
         # Refresh D-1 and D-2. Each current report already queries its YoY comparison,
         # so rebuilding historical same-weekday HTML daily only delays delivery.
-        dates = sorted({prev_day, latest_end})
+        repair_start = parse_yyyy_mm_dd(os.getenv("DAILY_DIGEST_REPAIR_START", "").strip())
+        if repair_start and repair_start <= latest_end:
+            dates = [repair_start + dt.timedelta(days=i) for i in range((latest_end - repair_start).days + 1)]
+        else:
+            dates = sorted({prev_day, latest_end})
         print(
             f"[INFO] Refresh provisional GA4 daily attribution: {ymd(prev_day)} ~ {ymd(latest_end)} | "
             "existing other daily/weekly outputs are kept as-is"
