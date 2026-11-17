@@ -33,9 +33,10 @@ def select_partitions(client, wildcard, start, end):
     return parts
 
 
-def build_sql(parts, start, end):
+def build_sql(parts, start, end, pdp_lookup_table=None):
     tick = chr(96)
     selects = []
+    pdp_items = ', items' if pdp_lookup_table else ''
     for day, kind, table in parts:
         columns = {f.name for f in table.schema}
         st = "TO_JSON_STRING(session_traffic_source_last_click)" if "session_traffic_source_last_click" in columns else "CAST(NULL AS STRING)"
@@ -53,10 +54,10 @@ def build_sql(parts, start, end):
           {st} AS st, {ct} AS ct, {seq} AS seq,
           COALESCE(NULLIF(CAST(ecommerce.transaction_id AS STRING), ''),
             (SELECT NULLIF(value.string_value,'') FROM UNNEST(event_params) WHERE key='transaction_id' LIMIT 1)) AS transaction_id,
-          SAFE_CAST(ecommerce.purchase_revenue AS FLOAT64) AS purchase_revenue
+          SAFE_CAST(ecommerce.purchase_revenue AS FLOAT64) AS purchase_revenue{pdp_items}
         FROM {tick}{identifier}{tick}""")
     union_sql = "\nUNION ALL\n".join(selects)
-    return f"""
+    sql = f"""
 CREATE TEMP FUNCTION clean(s STRING) AS (
   IF(LOWER(TRIM(IFNULL(s,''))) IN ('','(not set)','(not provided)','(other)'), NULL, TRIM(s))
 );
@@ -164,6 +165,56 @@ SELECT sessionSourceMedium, sessionCampaignName, sessionDefaultChannelGroup,
 FROM session_metrics
 GROUP BY 1,2,3
 """
+    if not pdp_lookup_table:
+        return sql
+    if not re.fullmatch(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_]+\.events_\*", pdp_lookup_table):
+        raise ValueError("Invalid PDP category lookup table")
+    lookup_start = (dt.date.fromisoformat(end) - dt.timedelta(days=30)).strftime("%Y%m%d")
+    lookup_end = dt.date.fromisoformat(end).strftime("%Y%m%d")
+    # Reuse exactly the same session attribution CTE as the channel report,
+    # and the same category normalization as the existing PDP trend.
+    prefix = sql.split("session_keys AS (", 1)[0]
+    return prefix + f"""
+item_lookup AS (
+  SELECT items.item_id AS item_id,
+    ANY_VALUE(CASE WHEN items.item_category = 'SALE'
+      THEN items.item_category2 ELSE items.item_category END) AS c1_norm,
+    ANY_VALUE(CASE WHEN items.item_category = 'SALE'
+      THEN items.item_category3 ELSE items.item_category2 END) AS c2_norm
+  FROM {tick}{pdp_lookup_table}{tick}
+  CROSS JOIN UNNEST(items) AS items
+  WHERE _TABLE_SUFFIX BETWEEN '{lookup_start}' AND '{lookup_end}'
+    AND items.item_id IS NOT NULL
+    AND (items.item_category IS NOT NULL OR items.item_category2 IS NOT NULL OR items.item_category3 IS NOT NULL)
+  GROUP BY 1
+)
+SELECT UPPER(IFNULL(l.c1_norm,'')) AS c1, IFNULL(l.c2_norm,'') AS c2,
+  CONCAT(IFNULL(a.source,'(not set)'), ' / ', IFNULL(a.medium,'(not set)')) AS sessionSourceMedium,
+  COUNT(*) AS views
+FROM keyed AS e
+CROSS JOIN UNNEST(e.items) AS item
+JOIN item_lookup AS l ON l.item_id = item.item_id
+LEFT JOIN attribution AS a ON a.session_key = e.session_key
+WHERE e.event_day = DATE('{end}') AND e.event_name = 'view_item' AND item.item_id IS NOT NULL
+GROUP BY 1,2,3
+"""
+
+
+def load_pdp_source_frame(wildcard, location, end):
+    """D1 PDP item views by category and the report's shared session source/medium."""
+    project = wildcard.split(".")[0]
+    client = bigquery.Client(project=project, location=location or None)
+    parts = select_partitions(client, wildcard, end, end)
+    sql = build_sql(parts, end.isoformat(), end.isoformat(), pdp_lookup_table=wildcard)
+    df = client.query(sql, location=location or None).result().to_dataframe(create_bqstorage_client=False)
+    if df.empty:
+        raise RuntimeError(f"No PDP source/medium data for {end}")
+    df["c1"] = df["c1"].astype(str).str.strip().str.upper()
+    df["c2"] = df["c2"].astype(str).str.strip()
+    df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).str.strip()
+    df["views"] = pd.to_numeric(df["views"], errors="raise")
+    print(f"[PDP_SOURCE] {end}: {int(df['views'].sum()):,} categorized item views; {len(df)} rows", flush=True)
+    return df
 
 
 def load_session_frame(wildcard, location, start, end):
