@@ -1,0 +1,96 @@
+name: Refresh Paid and YoY comparison cards
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/refresh-digest-yoy-20261117.yml']
+permissions:
+  contents: write
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
+jobs:
+  refresh:
+    if: ${{ github.event.head_commit.message == 'Refresh Nov 16 Paid and YoY cards without sending email' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install rendering and query dependencies
+        run: |
+          pip install pandas numpy requests beautifulsoup4 python-dateutil google-analytics-data google-auth google-cloud-bigquery db-dtypes pyarrow openpyxl lxml playwright
+          python -m playwright install --with-deps chromium
+      - name: Refresh only requested sections with real source data
+        env:
+          GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          DAILY_DIGEST_USE_DATA_CACHE: 'true'
+          DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
+          DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
+        run: |
+          set -euo pipefail
+          umask 077
+          cred="$(mktemp)"
+          trap 'rm -f "$cred"' EXIT
+          printf '%s' "$GOOGLE_SA_JSON_B64" | base64 -d > "$cred"
+          export GOOGLE_APPLICATION_CREDENTIALS="$cred"
+          python -m py_compile daily_digest_live_final.py daily_digest_session_source.py
+          python - <<'PY'
+          import datetime as dt
+          import json
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+          import math
+          import daily_digest_live_final as m
+          day=dt.date(2026,11,16)
+          p=Path("reports/daily_digest/data/daily/2026-11-16.json")
+          bundle=json.loads(p.read_text(encoding="utf-8"))
+          w=m.build_window(day,"daily")
+          creds,_=m.google_auth_default(scopes=["https://www.googleapis.com/auth/analytics.readonly","https://www.googleapis.com/auth/cloud-platform"])
+          client=m.BetaAnalyticsDataClient(credentials=creds)
+          image_map=m.load_image_map_from_excel_urls(m.IMAGE_XLS_PATH)
+          pdp,series=m.get_category_pdp_view_trend_bq(w.cur_end,w.yoy_end)
+          assert len(series["rows"])==14 and series["has_yoy"]
+          for r in series["rows"]:
+              assert r["source_status"] in ("ok","no_views"), (r["itemCategory"],r["source_status"])
+              assert r["source_status_yoy"] in ("ok","no_views"), (r["itemCategory"],r["source_status_yoy"])
+              for key,values in (("top_sources",r["ys"]),("top_sources_yoy",r["ys_yoy"])):
+                  top=r[key]
+                  assert len(top)<=2 and sum(x["views"] for x in top)<=values[-1]
+                  if values[-1]>0: assert top
+          bundle["pdp_series"]=series
+          bs,bs_series=m.get_best_sellers_with_trends(client,w,image_map)
+          assert len(bs)>0
+          assert all("ys_yoy" in i for i in bs_series["items"])
+          bundle["best_sellers"]=m.to_records(bs.drop(columns=["trend_svg"],errors="ignore"))
+          bundle["best_sellers_series"]=bs_series
+          bundle["glink_paid_snapshot"]=m.get_glink_paid_snapshot(w)
+          assert len(bundle["glink_paid_snapshot"]["rows"])==9
+          total=bundle["glink_paid_snapshot"]["rows"][-1]
+          assert math.isclose(total["spend"],1556470.5109,abs_tol=.05)
+          bundle["built_at_kst"]=dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S")
+          m.write_json(str(p),bundle)
+          page,_=m.build_one(client,day,"daily",image_map,m.load_logo_base64(m.LOGO_PATH))
+          assert "Glink 매체RAW" in page and "GA4 / 기존 목표 비교" not in page
+          assert "올해 2026.11.16" in page and "작년 2025.11.17" in page
+          assert "올해 2026" in page and "작년 2025" in page
+          Path("reports/daily_digest/daily/2026-11-16.html").write_text(page,encoding="utf-8")
+          print("[QA OK] Paid actual-only, PDP TY/LY sources, Best Sellers TY/LY",flush=True)
+          print("[BEST SELLERS MATCHED]",sum(i["ys_yoy"] is not None for i in bs_series["items"]),"/",len(bs_series["items"]),flush=True)
+          PY
+      - name: Render original layout and validate
+        run: |
+          set -euo pipefail
+          python scripts/render_daily_png.py reports/daily_digest/daily/2026-11-16.html reports/daily_digest/daily/2026-11-16.png
+          python scripts/validate_daily_digest.py --date 2026-11-16 --require-pdp --require-session-source
+      - name: Publish revised report (no email)
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add reports/daily_digest/data/daily/2026-11-16.json reports/daily_digest/daily/2026-11-16.html reports/daily_digest/daily/2026-11-16.png
+          git diff --cached --quiet || git commit -m 'Refresh Nov 16 Paid and YoY comparisons'
+          git pull --rebase origin main
+          git push origin HEAD:main
