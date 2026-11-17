@@ -36,7 +36,7 @@ async def scan(browser,session,name,root):
         while queue and len(seen)<18 and asyncio.get_running_loop().time()<deadline:
             u=queue.pop(0)
             if u in seen or not same(u): continue
-            if not permitted(u):
+            if not await policy.permitted(u):
                 result['errors'].append({'url':u,'error':'robots policy unavailable or disallowed'}); continue
             seen.add(u)
             try:
