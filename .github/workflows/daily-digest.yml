@@ -168,8 +168,12 @@ jobs:
             python -u scripts/render_daily_png.py "reports/daily_digest/daily/$day.html" "reports/daily_digest/daily/$day.png"
             test -s "reports/daily_digest/daily/$day.html"
             test -s "reports/daily_digest/daily/$day.png"
-            python -u scripts/validate_daily_digest.py --date "$day" --require-pdp
           done
+          qa_failed=0
+          for day in 2026-11-13 2026-11-14; do
+            python -u scripts/validate_daily_digest.py --date "$day" --require-pdp || qa_failed=1
+          done
+          test "$qa_failed" -eq 0
       - name: Retain failed rebuild artifacts for diagnosis (never publish or email)
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
@@ -198,7 +202,7 @@ jobs:
 
   run:
     # One-time silent refresh for today; normal future refreshes use the schedule.
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.recovery_only != 'true' }}
+    if: ${{ (github.event_name != 'workflow_dispatch' || inputs.recovery_only != 'true') && (github.event_name != 'push' || github.event.head_commit.message != 'Diagnose ETC and PDP rebuild Nov 13-14 no email') }}
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
