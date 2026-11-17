@@ -17,7 +17,7 @@ async def scan(browser,session,name,root):
     result={'brand':name,'root':root,'status':'unverified','pages':[],'errors':[]}
     allowed=host(root)
     context=None
-    deadline=asyncio.get_running_loop().time()+170
+    deadline=asyncio.get_running_loop().time()+360
     try:
         async with session.get(urljoin(root,'/robots.txt'),allow_redirects=False) as r:
             if r.status==404: rules=''
@@ -43,7 +43,7 @@ async def scan(browser,session,name,root):
             else: await route.continue_()
         await context.route('**/*',route_handler)
         page=await context.new_page()
-        queue=[root]+SEEDS.get(name,[]);seen=set()
+        queue=SEEDS.get(name,[])+[root];seen=set()
         while queue and len(seen)<18 and asyncio.get_running_loop().time()<deadline:
             u=queue.pop(0)
             if u in seen or host(u)!=allowed: continue
@@ -66,7 +66,7 @@ async def scan(browser,session,name,root):
                 queue=list(dict.fromkeys(queue+[x for x in candidates if x not in seen]))
                 queue=sorted(queue,key=lambda x: (not bool(EVENT.search(x)),not bool(PRODUCT.search(x))))[:40]
             except Exception as e: result['errors'].append({'url':u,'error':str(e)[:300]})
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(2)
         result['status']='partial' if result['pages'] else 'unverified'
         result['promotion_evidence_pages']=sum(bool(p['evidence']) and bool(EVENT.search(p['url']+' '+p['title'])) for p in result['pages'])
     except Exception as e: result['errors'].append({'url':root,'error':str(e)[:300]})
@@ -83,9 +83,17 @@ async def main():
             limit=asyncio.Semaphore(3)
             async def bounded(name,root):
                 async with limit:
-                    try: return await asyncio.wait_for(scan(browser,session,name,root),timeout=235)
+                    try: return await asyncio.wait_for(scan(browser,session,name,root),timeout=420)
                     except Exception as e: return {'brand':name,'root':root,'status':'unverified','pages':[],'errors':[{'error':str(e) or type(e).__name__}]}
-            rows=await asyncio.gather(*(bounded(name,root) for name,root in BRANDS.items()))
+            rows=[]
+            tasks=[asyncio.create_task(bounded(name,root)) for name,root in BRANDS.items()]
+            for task in asyncio.as_completed(tasks):
+                row=await task
+                rows.append(row)
+                checkpoint=Path('competitor-output');checkpoint.mkdir(exist_ok=True)
+                (checkpoint/'snapshot.json').write_text(json.dumps({'checked_at_kst':now.isoformat(),'brands':rows,'incomplete':len(rows)!=len(BRANDS)},ensure_ascii=False,indent=2))
+                print(json.dumps({'brand':row['brand'],'pages':len(row['pages']),'errors':row['errors']},ensure_ascii=False),flush=True)
+            rows.sort(key=lambda r:list(BRANDS).index(r['brand']))
             await browser.close()
     out=Path('competitor-output');out.mkdir(exist_ok=True)
     payload={'checked_at_kst':now.isoformat(),'scope':'official-domain candidates only; verify ownership and promotion details before reporting','brands':rows}
