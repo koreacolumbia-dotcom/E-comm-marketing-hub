@@ -254,51 +254,60 @@ def send_email_mixed_with_inline_image(
             part.add_header("Content-Disposition", "attachment", filename=filename)
         msg.attach(part)
 
-    # Gmail supports both STARTTLS (587) and implicit TLS (465).
-    # A connection can be closed during AUTH on one transport, so try the
-    # alternate TLS transport before abandoning the report.
+    # Only retry before the SMTP DATA submission starts. A successful
+    # sendmail response means accepted even when QUIT subsequently fails.
     ports = [port]
     if host.lower() == "smtp.gmail.com" and port in (465, 587):
         ports.append(465 if port == 587 else 587)
 
     for active_port in ports:
-        for attempt in range(1, 3):
-            send_started = False
+        for attempt in range(1, 4):
+            smtp = None
+            phase = "connect"
             try:
                 context = ssl.create_default_context()
                 if active_port == 465:
-                    smtp_connection = smtplib.SMTP_SSL(
-                        host, active_port, timeout=45, context=context
-                    )
+                    smtp = smtplib.SMTP_SSL(host, active_port, timeout=60, context=context)
                 else:
-                    smtp_connection = smtplib.SMTP(host, active_port, timeout=45)
-
-                with smtp_connection as smtp:
+                    smtp = smtplib.SMTP(host, active_port, timeout=60)
+                phase = "tls"
+                smtp.ehlo()
+                if active_port != 465:
+                    smtp.starttls(context=context)
                     smtp.ehlo()
-                    if active_port != 465:
-                        smtp.starttls(context=context)
-                        smtp.ehlo()
-                    smtp.login(user, password)
-                    # Do not resend if submission may already have begun.
-                    send_started = True
-                    smtp.sendmail(user, to_list, msg.as_string())
-                print(f"[OK] SMTP accepted message on port {active_port}")
+                phase = "auth"
+                # Alternate standard AUTH challenge/response format after a
+                # disconnect. TLS/certificate checks remain mandatory.
+                smtp.login(user, password, initial_response_ok=(attempt % 2 == 1))
+                print(f"[SMTP] AUTH OK on port {active_port}", flush=True)
+                phase = "submit"
+                refused = smtp.sendmail(user, to_list, msg.as_string())
+                phase = "accepted"
+                if refused:
+                    accepted = len(to_list) - len(refused)
+                    print(f"[SMTP PARTIAL] accepted={accepted}; refused={len(refused)}", flush=True)
+                    raise RuntimeError("Partial SMTP acceptance: do not retry the full recipient list")
+                print(f"[OK] SMTP accepted message on port {active_port}; recipients={len(to_list)}", flush=True)
                 return
             except (smtplib.SMTPAuthenticationError, smtplib.SMTPSenderRefused,
                     smtplib.SMTPRecipientsRefused):
+                print(f"[SMTP ERROR] phase={phase}; rejected; no automatic whole-list resend", flush=True)
                 raise
             except (smtplib.SMTPException, TimeoutError, ConnectionError, OSError) as exc:
-                print(
-                    f"[WARN] SMTP port {active_port}, attempt {attempt}/2 "
-                    f"failed: {type(exc).__name__}"
-                )
-                if send_started:
-                    # Delivery is uncertain; never risk sending duplicates.
+                print(f"[WARN] SMTP port {active_port}, attempt {attempt}/3, phase={phase}, error={type(exc).__name__}", flush=True)
+                if phase in ("submit", "accepted"):
+                    print("[SMTP UNCERTAIN] Submission may have started; do not resend without verification", flush=True)
                     raise
-                if attempt < 2:
-                    time.sleep(10)
+                if attempt < 3:
+                    time.sleep(15 * attempt)
                 elif active_port == ports[-1]:
                     raise
+            finally:
+                if smtp is not None:
+                    try:
+                        smtp.close()
+                    except Exception:
+                        pass
 
 
 def main():
@@ -334,6 +343,12 @@ def main():
             seen.add(address.lower())
     # Prevent accidental duplicate delivery to the same mailbox.
     to_list = list(dict((address.lower(), address) for address in to_list).values())
+    test_recipient = env("DAILY_DIGEST_TEST_RECIPIENT")
+    if test_recipient:
+        if test_recipient.lower() != "hugh.kang@columbia.com":
+            raise RuntimeError("Test recipient must be the report owner's address")
+        to_list = ["hugh.kang@columbia.com"]
+
     print(f"[INFO] Final recipient count: {len(to_list)}", flush=True)
 
     hub_url = env("HUB_URL")
@@ -348,6 +363,8 @@ def main():
     date_end = datetime.strptime(report_date, "%Y-%m-%d")
     report_period = f"{(date_end - timedelta(days=6)).strftime('%Y-%m-%d')} ~ {report_date}" if mode_weekly else report_date
     subject = build_subject(kst_stamp, mode_daily, mode_voc, mode_blog, mode_weekly, report_period)
+    if test_recipient:
+        subject = "[TEST] " + subject
 
     report_folder = "weekly" if mode_weekly else "daily"
     report_file_stem = f"END_{report_date}" if mode_weekly else report_date
