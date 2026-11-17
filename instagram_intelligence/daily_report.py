@@ -37,8 +37,8 @@ def summarize(report,day):
         kind,mood=classify(post)
         if kind=="official": continue
         # Search query matches alone do not prove tags or original posting time.
-        verified=any(e.get("original_post_verified") is True and e.get("korean_relevance_verified") is True and e.get("brand_reference_verified") is True for e in post.get("evidence",[]))
-        if verified and any(start<=d<end for d in dates):
+        verified=any(e.get("original_post_verified") is True and e.get("korean_relevance_verified") is True and e.get("brand_reference_verified") is True and (parsed:=parse_date(e.get("published_at"))) is not None and start<=parsed<end for e in post.get("evidence",[]))
+        if verified:
             confirmed.append(post);types[kind]+=1;sentiment[mood]+=1
             accounts.update(str(e["account"]).lower() for e in post["evidence"] if e.get("account"))
         else: pending.append(post)
