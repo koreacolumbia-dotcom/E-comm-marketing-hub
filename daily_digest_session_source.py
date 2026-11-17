@@ -177,10 +177,8 @@ GROUP BY 1,2,3
     return prefix + f"""
 item_lookup AS (
   SELECT items.item_id AS item_id,
-    ANY_VALUE(CASE WHEN items.item_category = 'SALE'
-      THEN items.item_category2 ELSE items.item_category END) AS c1_norm,
-    ANY_VALUE(CASE WHEN items.item_category = 'SALE'
-      THEN items.item_category3 ELSE items.item_category2 END) AS c2_norm
+    ARRAY_AGG(STRUCT(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END AS c1, CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END AS c2) ORDER BY IF(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END IS NOT NULL AND CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END IS NOT NULL,0,1), event_timestamp DESC, IFNULL(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END,''), IFNULL(CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END,'') LIMIT 1)[OFFSET(0)].c1 AS c1_norm,
+            ARRAY_AGG(STRUCT(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END AS c1, CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END AS c2) ORDER BY IF(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END IS NOT NULL AND CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END IS NOT NULL,0,1), event_timestamp DESC, IFNULL(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END,''), IFNULL(CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END,'') LIMIT 1)[OFFSET(0)].c2 AS c2_norm
   FROM {tick}{pdp_lookup_table}{tick}
   CROSS JOIN UNNEST(items) AS items
   WHERE _TABLE_SUFFIX BETWEEN '{lookup_start}' AND '{lookup_end}'
