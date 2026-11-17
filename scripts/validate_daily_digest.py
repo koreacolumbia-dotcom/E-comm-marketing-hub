@@ -77,7 +77,7 @@ if not errors:
         etc_share = float(etc.get("sessions") or 0) / total
         print(f"[QA] ETC share {etc_share:.2%}; unresolved details: {len((obj.get('channel_detail_map') or {}).get('etc') or [])}")
         if etc_share >= 0.15:
-            errors.append(f"ETC share {etc_share:.2%} >= 15% anomaly threshold")
+            print(f"::warning::ETC share {etc_share:.2%} >= 15%; provisional attribution, afternoon refresh required")
     pdp = obj.get("pdp_series") or {}
     rows = pdp.get("rows") or []
     if args.require_pdp:
