@@ -3997,6 +3997,42 @@ def to_records(df: pd.DataFrame) -> List[dict]:
         return []
     return df.to_dict(orient="records")
 
+
+def get_glink_paid_snapshot(w):
+    """Date-exact agency spend/conversion aggregates; never carry stale costs forward."""
+    p = Path(__file__).with_name("daily_digest_glink_paid_20261117.json")
+    if not p.is_file():
+        return {}
+    obj = json.loads(p.read_text(encoding="utf-8"))
+    dates = obj.get("dates", {})
+    span = (w.cur_end - w.cur_start).days + 1
+    selected = [(w.cur_start + dt.timedelta(days=i)).isoformat() for i in range(span)]
+    if not selected or not all(day in dates for day in selected):
+        return {}
+    groups = {}
+    for day in selected:
+        for name, values in dates[day].items():
+            total = groups.setdefault(name, [0.0] * 6)
+            for i, value in enumerate(values):
+                total[i] += float(value)
+    order = ["Naver SA", "Naver Brand Search", "Google SA", "Google PMax", "Criteo", "Meta (Sales)", "Meta (Sign-up)", "Kakao Bizboard"]
+    def make_row(name, values):
+        clicks, cost, mc, mr, gc, gr = values
+        return {"channel": name, "clicks": clicks, "spend": cost,
+                "media_conversions": mc, "media_revenue": mr, "ga_transactions": gc, "ga_revenue": gr,
+                "media_roas": mr / cost if cost > 0 else None,
+                "ga_roas": gr / cost if cost > 0 else None,
+                "media_cvr": mc / clicks if clicks > 0 else None,
+                "ga_cvr": gc / clicks if clicks > 0 else None}
+    rows = [make_row(name, groups[name]) for name in order if name in groups]
+    sales = [sum(v[i] for name, v in groups.items() if name != "Meta (Sign-up)") for i in range(6)]
+    rows.append(make_row("Sales subtotal", sales))
+    all_paid = [sum(v[i] for v in groups.values()) for i in range(6)]
+    rows.append(make_row("Total incl. sign-up", all_paid))
+    return {"source": obj["source"], "sheet": obj["sheet"], "scope": obj["scope"],
+            "start": selected[0], "end": selected[-1], "rows": rows}
+
+
 def build_bundle(
     w: DigestWindow,
     overall: Dict[str, Dict[str, float]],
@@ -4102,6 +4138,7 @@ def build_bundle(
         "channel_detail_map": {k: to_records(v) for k, v in (channel_detail_map or {}).items()},
         "other_detail": to_records((channel_detail_map or {}).get("Other", pd.DataFrame())),
         "paid_media_compare": to_records(paid_media_compare),
+        "glink_paid_snapshot": get_glink_paid_snapshot(w),
         "weather_forecast": weather_forecast or {},
         "brand_powerlink_status": brand_powerlink_status or [],
     }
@@ -4722,6 +4759,39 @@ def render_page_html(
         for r in search_rising.itertuples(index=False):
             rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{fmt_int(getattr(r,'count',0))}</span></div>"
 
+    glink_paid = get_glink_paid_snapshot(w)
+    glink_rows_html = ""
+    if glink_paid:
+        def agency_pct(v, digits=1):
+            return "—" if v is None else f"{v * 100:,.{digits}f}%"
+        for agency in glink_paid["rows"]:
+            name = agency["channel"]
+            glink_rows_html += table_row([
+                esc(name),
+                f"<div class='text-right'>{fmt_currency_krw(agency['spend'])}</div>",
+                f"<div class='text-right'>{agency_pct(agency['media_roas'])}</div>",
+                f"<div class='text-right'>{agency_pct(agency['ga_roas'])}</div>",
+                f"<div class='text-right'>{agency_pct(agency['media_cvr'], 2)}</div>",
+                f"<div class='text-right'>{agency_pct(agency['ga_cvr'], 2)}</div>",
+            ], bold=name in {"Sales subtotal", "Total incl. sign-up"})
+    glink_paid_html = ""
+    if glink_rows_html:
+        glink_paid_html = f"""
+        <div class="mt-2 text-xs text-slate-500">Glink 매체RAW · {esc(glink_paid['start'])} ~ {esc(glink_paid['end'])} · 광고비 VAT 제외 / 자사몰 · 스토어·CRM MSG 제외</div>
+        <div class="mt-3 overflow-x-auto">
+          <table class="w-full table-auto text-sm min-w-[760px]">
+            <thead class="text-xs text-slate-500"><tr>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Spend</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Media ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">GA ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Media CVR</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">GA CVR</th>
+            </tr></thead><tbody>{glink_rows_html}</tbody>
+          </table>
+          <div class="mt-2 text-xs text-slate-500">ROAS = 전환매출 / 광고비 · CVR = 전환수 / 광고 클릭수 (글링크 기준). 회원가입 캠페인 별도 표시.</div>
+        </div>
+        """
     paid_media_compare_html = ""
     if paid_media_compare is not None and (not paid_media_compare.empty):
         for r in paid_media_compare.itertuples(index=False):
@@ -5270,7 +5340,9 @@ def render_page_html(
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
-      <div class="mt-3 overflow-x-auto">
+      {glink_paid_html}
+      <div class="mt-3 text-xs font-semibold text-slate-500">GA4 / 기존 목표 비교</div>
+      <div class="mt-2 overflow-x-auto">
         <table class="w-full table-auto text-sm min-w-[760px]">
           <thead class="text-xs text-slate-500">
             <tr>
