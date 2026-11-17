@@ -24,6 +24,13 @@ async def scan(browser,session,name,root):
     profile=PROFILES[name]
     seeds=list(dict.fromkeys(SEEDS.get(name,[])+profile['seeds']))
     def same(u): return host(u)==allowed or (urlparse(u).hostname or '') in profile.get('hosts',[])
+    def brand_route(u):
+        p=urlparse(u)
+        if name=='KOLON SPORT':
+            return p.path.lower().startswith('/brands/kolonsport') or u in seeds
+        if name=='BLACKYAK':
+            return p.path.lower().startswith('/blackyak') or u in seeds
+        return True
     context=None
     deadline=asyncio.get_running_loop().time()+BRAND_SECONDS
     try:
@@ -38,13 +45,13 @@ async def scan(browser,session,name,root):
         queue=list(dict.fromkeys(seeds+[root]));seen=set()
         while queue and len(seen)<PAGE_LIMIT and asyncio.get_running_loop().time()<deadline:
             u=queue.pop(0)
-            if u in seen or not same(u): continue
+            if u in seen or not same(u) or not brand_route(u): continue
             seen.add(u)
             if not await policy.permitted(u):
                 result['errors'].append({'url':u,'error':policy.reason(u)}); continue
             try:
                 response=await navigate(page,u)
-                if not response or response.status>=400 or not same(page.url): raise RuntimeError('navigation failed HTTP '+str(response.status if response else 'none'))
+                if not response or response.status>=400 or not same(page.url) or not brand_route(page.url): raise RuntimeError('navigation failed HTTP '+str(response.status if response else 'none'))
                 await page.wait_for_timeout(1000)
                 await page.evaluate('window.scrollTo(0, Math.min(document.body.scrollHeight, 1400))')
                 await page.wait_for_timeout(700)
@@ -58,7 +65,7 @@ async def scan(browser,session,name,root):
                 banners=[x for x in links if EVENT.search(x['label']) or DEAL.search(x['label'])][:25]
                 result['pages'].append({'url':page.url,'title':await page.title(),'product_cards':cards,'structured_data':structured[:15],'images':images,'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
                 checkpoint(name,result)
-                candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and same(x['url']) and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']))]
+                candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and same(x['url']) and brand_route(x['url']) and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']))]
                 queue=list(dict.fromkeys(queue+[x for x in candidates if x not in seen]))
                 queue=sorted(queue,key=lambda x: (0 if x in seeds or x==root else 1, 0 if bool(EVENT.search(x)) != bool(sum(bool(EVENT.search(v)) for v in seen)>sum(bool(PRODUCT.search(v)) for v in seen)) else 1))[:40]
             except Exception as e: result['errors'].append({'url':u,'error':str(e)[:300]})
