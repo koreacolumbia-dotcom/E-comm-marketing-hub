@@ -52,7 +52,7 @@ def trend_svg(labels,actual,prior,forecast=None,lower=None,upper=None,events=Non
         xx=x(known[-1]);out.append(f'<line class="focus" x1="{xx}" x2="{xx}" y1="20" y2="210"/>')
     for i in sorted(set([0,n//2,n-1]+known[-1:])):
         out.append(f'<text x="{x(i)}" y="235" font-size="11" text-anchor="middle">{escape(str(labels[i]))}</text>')
-    # Date-indexed event pins; numbered labels map to the comparison table.
+    # Date-indexed full campaign labels; preserve existing chart styling.
     for k,event in enumerate(events or [],1):
         i=event['index']; year=event['year']
         if not isinstance(i,int) or not 0<=i<n or year not in ('CY','LY'): raise ValueError('Invalid event date index/year')
@@ -64,7 +64,10 @@ def trend_svg(labels,actual,prior,forecast=None,lower=None,upper=None,events=Non
         ty=max(12,min(225,yy+offset))
         label=escape(str(event['title']))
         tag=escape(str(event.get('date',labels[i])))
-        out.append(f'<g><title>{tag} {label}</title><line x1="{xx}" x2="{xx}" y1="{yy}" y2="{ty}" stroke="{color}" stroke-dasharray="2 2"/><circle cx="{xx}" cy="{yy}" r="3" fill="{color}"/><rect x="{xx-10}" y="{ty-8}" width="20" height="16" rx="4" fill="{color}"/><text x="{xx}" y="{ty+4}" fill="white" font-size="10" text-anchor="middle">{k}</text></g>')
+        raw=str(event['title'])
+        width=min(780,max(70,len(raw)*11+14))
+        tx=max(56,min(856-width,xx-width/2))
+        out.append(f'<g><title>{tag} {label}</title><line x1="{xx}" x2="{xx}" y1="{yy}" y2="{ty}" stroke="{color}" stroke-dasharray="2 2"/><circle cx="{xx}" cy="{yy}" r="3" fill="{color}"/><rect x="{tx}" y="{ty-9}" width="{width}" height="18" rx="4" fill="{color}"/><text x="{tx+width/2}" y="{ty+4}" fill="white" font-size="10" text-anchor="middle">{label}</text></g>')
     return ''.join(out)+'</svg>'
 
 def event_table(events):
@@ -74,7 +77,7 @@ def event_table(events):
         rows=[]
         for k,e in enumerate(events,1):
             if e['year']!=year: continue
-            cells=[str(k),e.get('date',''),e['title'],e.get('status','unverified')]
+            cells=[e.get('date',''),e['title'],e.get('status','unverified')]
             rows.append('<tr>'+''.join('<td>'+escape(str(v))+'</td>' for v in cells)+'</tr>')
-        cols.append('<table><thead><tr><th colspan="4">'+('THIS YEAR' if year=='CY' else 'LAST YEAR')+'</th></tr><tr><th>#</th><th>Date</th><th>Activity</th><th>Status</th></tr></thead><tbody>'+''.join(rows)+'</tbody></table>')
+        cols.append('<table><thead><tr><th colspan="3">'+('THIS YEAR' if year=='CY' else 'LAST YEAR')+'</th></tr><tr><th>Date</th><th>Activity</th><th>Status</th></tr></thead><tbody>'+''.join(rows)+'</tbody></table>')
     return '<div class="event-comparison">'+''.join(cols)+'</div>'
