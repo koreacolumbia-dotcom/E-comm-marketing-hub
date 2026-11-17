@@ -3,8 +3,9 @@ from math import isfinite
 from statistics import mean
 from engine import revenue_bridge
 from product_card import enrich_cards
+from business_diagnosis import build_diagnosis
 
-SECTIONS=("Executive Summary","Root Cause Analysis","Weather Intelligence","Product Intelligence","Product Early Warning","Competitive Intelligence","Competitive Discount Matrix","Customer Intelligence","Marketing Attribution","Budget Optimizer","Social Listening","Inventory Intelligence","Integrated Calendar","Business Impact Matrix","Predictive Intelligence","Executive AI Strategy")
+SECTIONS=("AI BUSINESS DIAGNOSIS","Executive Summary","Root Cause Analysis","Weather Intelligence","Product Intelligence","Product Early Warning","Competitive Intelligence","Competitive Discount Matrix","Customer Intelligence","Marketing Attribution","Budget Optimizer","Social Listening","Inventory Intelligence","Integrated Calendar","Business Impact Matrix","Predictive Intelligence","Executive AI Strategy")
 
 def change(a,b):
     return (a/b-1)*100 if b else None
@@ -13,6 +14,7 @@ def build_model(d,competitor=None,events=None,product_evidence=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
         model[name]={"status":status,"data":data}
+    put("AI BUSINESS DIAGNOSIS", build_diagnosis(d), "partial")
     overall=d["overall"]
     def row(x): return {"sessions":x["sessions"],"orders":x["transactions"],"revenue":x["purchaseRevenue"]}
     cy,ly=row(overall["current"]),row(overall["yoy"])
