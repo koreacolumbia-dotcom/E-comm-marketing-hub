@@ -1,0 +1,33 @@
+name: Export final PNG for Gmail backup
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/export-verified-png-20261117.yml']
+permissions:
+  contents: read
+jobs:
+  export:
+    if: ${{ github.event.head_commit.message == 'Export revised Nov 16 validated PNG for backup email' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify original report and updated sections
+        run: |
+          set -euo pipefail
+          python scripts/validate_daily_digest.py --date 2026-11-16 --require-pdp --require-session-source
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          j=json.loads(Path("reports/daily_digest/data/daily/2026-11-16.json").read_text())
+          assert j["glink_paid_snapshot"]["rows"]
+          assert all(r["source_status_yoy"] in ("ok","no_views") for r in j["pdp_series"]["rows"])
+          PY
+          mkdir -p "$RUNNER_TEMP/verified-png"
+          cp reports/daily_digest/daily/2026-11-16.png "$RUNNER_TEMP/verified-png/DailyDigest_2026-11-16.png"
+          sha256sum "$RUNNER_TEMP/verified-png/DailyDigest_2026-11-16.png"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DailyDigest_2026-11-16_verified_PNG
+          path: ${{ runner.temp }}/verified-png/DailyDigest_2026-11-16.png
+          if-no-files-found: error
+          retention-days: 7
