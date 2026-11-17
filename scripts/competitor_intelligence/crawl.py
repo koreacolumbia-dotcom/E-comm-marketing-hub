@@ -11,11 +11,13 @@ EVENT=re.compile(r'event|promotion|exhibition|_exh|exh_list|special|企画|企�
 DEAL=re.compile(r'할인|쿠폰|사은품|적립|특가|black friday|sale|%\s*off',re.I)
 PRODUCT=re.compile(r'goods_view|product/detail|productdetail|/product/|/goods/|goodsNo=|productNo=',re.I)
 DATE=re.compile(r'20\d{2}[.\-/ ]\s*\d{1,2}[.\-/ ]\s*\d{1,2}|\d{1,2}[./]\d{1,2}\s*[~–-]\s*\d{1,2}[./]\d{1,2}')
-SEEDS={'BLACKYAK':['https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1','https://m.byn.kr/blackyak/_exh/'],'NEPA':['https://www.nplus.co.kr/product/list.asp','https://www.nplus.co.kr/promotion/view.asp?EventNo=856'],'KOLON SPORT':['https://www.kolonmall.com/Special/259472']}
+SEEDS={'BLACKYAK':['https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1','https://m.byn.kr/blackyak/_exh/'],'NEPA':['https://www.nplus.co.kr/promotion/list.asp','https://www.nplus.co.kr/product/list.asp','https://www.nplus.co.kr/promotion/view.asp?EventNo=856'],'KOLON SPORT':['https://www.kolonmall.com/Special/259472']}
 def host(u): return (urlparse(u).hostname or '').removeprefix('www.').removeprefix('m.')
 async def scan(browser,session,name,root):
     result={'brand':name,'root':root,'status':'unverified','pages':[],'errors':[]}
     allowed=host(root)
+    context=None
+    deadline=asyncio.get_running_loop().time()+170
     try:
         async with session.get(urljoin(root,'/robots.txt'),allow_redirects=False) as r:
             if r.status==404: rules=''
@@ -42,28 +44,36 @@ async def scan(browser,session,name,root):
         await context.route('**/*',route_handler)
         page=await context.new_page()
         queue=[root]+SEEDS.get(name,[]);seen=set()
-        while queue and len(seen)<12:
+        while queue and len(seen)<18 and asyncio.get_running_loop().time()<deadline:
             u=queue.pop(0)
-            if u in seen or host(u)!=allowed or not permitted(u): continue
+            if u in seen or host(u)!=allowed: continue
+            if not permitted(u):
+                result['errors'].append({'url':u,'error':'robots policy unavailable or disallowed'}); continue
             seen.add(u)
             try:
-                response=await page.goto(u,wait_until='domcontentloaded',timeout=25000)
+                response=await page.goto(u,wait_until='domcontentloaded',timeout=15000)
                 if not response or response.status>=400 or host(page.url)!=allowed: raise RuntimeError('navigation failed')
                 await page.wait_for_timeout(1800)
                 body=await page.locator('body').inner_text(timeout=8000)
+                if len(body.strip())<100 or re.search(r'access denied|captcha|접근이 제한',body[:1000],re.I): raise RuntimeError('empty or blocked document')
+                structured=await page.locator('script[type="application/ld+json"]').all_text_contents()
+                images=await page.locator('img').evaluate_all("els=>els.slice(0,80).map(e=>({src:e.currentSrc||e.src,alt:e.alt}))")
                 links=await page.locator('a[href], img[alt]').evaluate_all("""els=>els.map(e=>({url:e.href||e.closest('a')?.href||'',label:[e.innerText,e.alt,e.title,e.querySelector('img')?.alt].filter(Boolean).join(' ')}))""")
                 snippets=[x.strip()[:350] for x in body.splitlines() if DEAL.search(x) or DATE.search(x)][:60]
                 banners=[x for x in links if EVENT.search(x['label']) or DEAL.search(x['label'])][:25]
-                result['pages'].append({'url':page.url,'title':await page.title(),'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
+                result['pages'].append({'url':page.url,'title':await page.title(),'structured_data':structured[:15],'images':images,'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
                 candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and host(x['url'])==allowed and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']))]
                 queue=list(dict.fromkeys(queue+[x for x in candidates if x not in seen]))
                 queue=sorted(queue,key=lambda x: (not bool(EVENT.search(x)),not bool(PRODUCT.search(x))))[:40]
             except Exception as e: result['errors'].append({'url':u,'error':str(e)[:300]})
             await asyncio.sleep(1.5)
-        await context.close()
         result['status']='partial' if result['pages'] else 'unverified'
         result['promotion_evidence_pages']=sum(bool(p['evidence']) and bool(EVENT.search(p['url']+' '+p['title'])) for p in result['pages'])
     except Exception as e: result['errors'].append({'url':root,'error':str(e)[:300]})
+    finally:
+        if context:
+            try: await context.close()
+            except Exception: pass
     return result
 async def main():
     now=datetime.now(timezone(timedelta(hours=9)))
@@ -73,7 +83,7 @@ async def main():
             limit=asyncio.Semaphore(3)
             async def bounded(name,root):
                 async with limit:
-                    try: return await asyncio.wait_for(scan(browser,session,name,root),timeout=200)
+                    try: return await asyncio.wait_for(scan(browser,session,name,root),timeout=235)
                     except Exception as e: return {'brand':name,'root':root,'status':'unverified','pages':[],'errors':[{'error':str(e) or type(e).__name__}]}
             rows=await asyncio.gather(*(bounded(name,root) for name,root in BRANDS.items()))
             await browser.close()
