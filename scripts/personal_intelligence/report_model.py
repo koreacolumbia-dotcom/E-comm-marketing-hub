@@ -30,11 +30,12 @@ def build_model(d,competitor=None,events=None):
     valid=[r for r in categories if r["day_yoy_pct"] is not None]
     sales=d.get("best_sellers_series",{})
     candidates=[]
-    names={r["itemId"]:r["itemName"] for r in d.get("best_sellers",[])}
+    products={r["itemId"]:r for r in d.get("best_sellers",[])}
+    names={k:r["itemName"] for k,r in products.items()}
     for r in sales.get("items",[]):
         a,b=r.get("ys"),r.get("ys_yoy")
         if not a: continue
-        candidates.append({"name":names.get(r["itemId"],r["itemId"]),"sku":r["itemId"],"series":a,"prior_series":b,"scope":r.get("comparison_scope"),"yoy_pct":change(sum(a),sum(b)) if b else None})
+        candidates.append({"name":names.get(r["itemId"],r["itemId"]),"sku":r["itemId"],"image_url":products.get(r["itemId"],{}).get("image_url"),"daily_pdp":products.get(r["itemId"],{}).get("views"),"pdp_series":None,"sales_dates":sales.get("x"),"prior_dates":sales.get("yoy_x"),"daily_change_pct":change(a[-1],a[-2]) if len(a)>1 else None,"series":a,"prior_series":b,"scope":r.get("comparison_scope"),"yoy_pct":change(sum(a),sum(b)) if b else None})
     put("Product Early Warning",{"category_declines":sorted(valid,key=lambda r:r["day_yoy_pct"])[:5],"category_growth":sorted(valid,key=lambda r:-r["day_yoy_pct"])[:5],"sample_sku_sales":candidates,"style_aggregation_available":False},"partial")
     if competitor: put("Competitive Intelligence",competitor,"partial")
     # Never infer zero discounts or absence of promotions from missing evidence.
@@ -42,7 +43,7 @@ def build_model(d,competitor=None,events=None):
     channels=d.get("channel_snapshot",[])
     if channels: put("Marketing Attribution",{"reported_channel_rows":channels,"causal_incrementality":None},"partial")
     if d.get("glink_paid_snapshot"): put("Budget Optimizer",{"reported_paid_snapshot":d["glink_paid_snapshot"],"marginal_roas":None},"partial")
-    if events: put("Integrated Calendar",events,"partial")
+    put("Integrated Calendar",{"events":events or [],"pdp":pdp,"sample_product_sales":sales,"weather_forecast":weather,"historical_temperature":None,"category_sales":None},"partial")
     put("Business Impact Matrix",{"observed_dimensions":["traffic","conversion","aov","category PDP"],"causal_effects":None},"partial")
     put("Predictive Intelligence",{"forecast":None,"reason":"Backtest and prediction interval validation required"},"validation_required")
     put("Executive AI Strategy",{"actions":["Investigate largest negative revenue bridge contribution","Review category declines across every product category","Verify size/color availability before attributing lost sales"]},"partial")
