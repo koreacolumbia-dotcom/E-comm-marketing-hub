@@ -11,7 +11,7 @@ EVENT=re.compile(r'event|promotion|exhibition|_exh|exh_list|special|企画|企�
 DEAL=re.compile(r'할인|쿠폰|사은품|적립|특가|black friday|sale|%\s*off',re.I)
 PRODUCT=re.compile(r'goods_view|product/detail|productdetail|/product/|/goods/|goodsNo=|productNo=',re.I)
 DATE=re.compile(r'20\d{2}[.\-/ ]\s*\d{1,2}[.\-/ ]\s*\d{1,2}|\d{1,2}[./]\d{1,2}\s*[~–-]\s*\d{1,2}[./]\d{1,2}')
-SEEDS={'BLACKYAK':['https://m.byn.kr/_container/exh_list.php','https://m.byn.kr/blackyak/_exh/'],'NEPA':['https://www.nplus.co.kr/product/list.asp','https://www.nplus.co.kr/promotion/view.asp?EventNo=856'],'KOLON SPORT':['https://www.kolonmall.com/Brands/KOLONSPORT/Special/259585']}
+SEEDS={'BLACKYAK':['https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1','https://m.byn.kr/blackyak/_exh/'],'NEPA':['https://www.nplus.co.kr/product/list.asp','https://www.nplus.co.kr/promotion/view.asp?EventNo=856'],'KOLON SPORT':['https://www.kolonmall.com/Special/259472']}
 def host(u): return (urlparse(u).hostname or '').removeprefix('www.').removeprefix('m.')
 async def scan(browser,session,name,root):
     result={'brand':name,'root':root,'status':'unverified','pages':[],'errors':[]}
