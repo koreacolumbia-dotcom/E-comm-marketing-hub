@@ -1,0 +1,67 @@
+{
+  "design_contract": {
+    "preserve_existing_svg": true,
+    "calendar": "calendar_svg.py",
+    "palette": {
+      "current": "#28557e",
+      "prior": "#919aa3",
+      "band": "#b3d5f2",
+      "today": "#e99537"
+    },
+    "fonts": [
+      "Pretendard",
+      "Inter"
+    ]
+  },
+  "integrated_panel": {
+    "shared_date_axis": true,
+    "history_days": 30,
+    "forecast_days": 7,
+    "lanes": [
+      "sales_units",
+      "pdp_views",
+      "observed_min_max_temperature",
+      "forecast_min_max_temperature",
+      "official_weather_alerts",
+      "owned_crm",
+      "official_competitor_events"
+    ],
+    "forecast_style": "distinct from observed",
+    "missing": "null_not_zero"
+  },
+  "product_cards": {
+    "scope": "all styles, aggregate colors and sizes",
+    "image": "official product image",
+    "metrics": [
+      "sales_units",
+      "pdp_views",
+      "daily_yoy",
+      "change_vs_previous_7_day_mean"
+    ],
+    "prior": "exact verified style or normalized same name with match provenance",
+    "chart": "current solid prior dashed",
+    "ranking": [
+      "sales_spike",
+      "sales_drop",
+      "pdp_spike",
+      "pdp_drop"
+    ]
+  },
+  "weather": {
+    "source": "KMA",
+    "include": [
+      "cold_wave_advisory",
+      "cold_wave_warning",
+      "heavy_snow",
+      "strong_wind",
+      "rain",
+      "min_max_temperature",
+      "precipitation_probability",
+      "issued_at",
+      "valid_at",
+      "alert_area"
+    ],
+    "alert_policy": "only official issued alerts; forecast risk separately labeled"
+  },
+  "status": "design_contract_only_pending_integration"
+}
