@@ -1,0 +1,50 @@
+name: CSK BigQuery anomaly diagnosis (private email)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'diagnostics/csk-anomaly-request.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: csk-anomaly-diagnosis
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install read-only analysis dependencies
+        run: pip install pandas numpy requests beautifulsoup4 python-dateutil google-analytics-data google-auth google-cloud-bigquery db-dtypes pyarrow openpyxl
+      - name: Execute actual BigQuery diagnosis and send only to Hugh
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          cred="$(mktemp)"
+          trap 'rm -f "$cred"' EXIT
+          test -n "$GOOGLE_SA_JSON_B64"
+          printf '%s' "$GOOGLE_SA_JSON_B64" | base64 -d > "$cred"
+          export GOOGLE_APPLICATION_CREDENTIALS="$cred"
+          python -m py_compile scripts/csk_anomaly_diagnostic.py
+          python -u scripts/csk_anomaly_diagnostic.py
+      - name: Save diagnostic aggregate results (Actions artifact only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: csk-anomaly-diagnosis-${{ github.run_id }}
+          path: anomaly-output/
+          if-no-files-found: ignore
+          retention-days: 7
