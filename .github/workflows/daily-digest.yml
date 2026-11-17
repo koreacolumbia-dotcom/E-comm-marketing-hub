@@ -316,6 +316,10 @@ jobs:
           sql = build_sql([(date(2026,11,16),"daily",table)],"2026-11-16","2026-11-16")
           assert "session_key" in sql and "ROW_NUMBER()" in sql and "first_user_source" not in sql
           print("[OK] Session-key SQL compiled into query string.")
+          pdp_sql = build_sql([(date(2026,11,16),"daily",table)],"2026-11-16","2026-11-16",pdp_lookup_table="columbia-ga4.analytics_358593394.events_*")
+          assert "CROSS JOIN UNNEST(e.items)" in pdp_sql and "LEFT JOIN attribution AS a" in pdp_sql and "COUNT(*) AS views" in pdp_sql
+          assert "session_metrics AS" not in pdp_sql and "GROUP BY 1,2,3" in pdp_sql
+          print("[OK] PDP source/medium uses shared attribution and item views.")
           svg = pdp_compare_svg(
               ['11/05','11/06','11/07','11/08','11/09','11/10','11/11'],
               [2,3,4,5,4,3,2], [1,1,1,2,3,2,1],
