@@ -1,0 +1,94 @@
+name: Test PDP source-medium PNG to Hugh only
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-pdp-sources-20261116.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: test-pdp-sources-20261116
+  cancel-in-progress: false
+jobs:
+  send_test:
+    if: ${{ github.event.head_commit.message == 'Send PDP source-medium test PNG to Hugh only' && github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: Wait for the specific silent rebuild and QA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            status="$(gh api repos/${{ github.repository }}/actions/runs/44043474354 --jq .status)"
+            if [ "$status" = completed ]; then
+              conclusion="$(gh api repos/${{ github.repository }}/actions/runs/44043474354 --jq .conclusion)"
+              echo "Target rebuild conclusion: $conclusion"
+              test "$conclusion" = success
+              exit 0
+            fi
+            sleep 60
+          done
+          echo "Timed out waiting for rebuilt report; no test sent"
+          exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify final PNG and new PDP fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u scripts/validate_daily_digest.py --date 2026-11-16 --require-pdp --require-session-source
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          obj = json.loads(Path("reports/daily_digest/data/daily/2026-11-16.json").read_text())
+          pdp = obj["pdp_series"]
+          assert pdp["source_medium_date"] == "2026-11-16"
+          rows = pdp["rows"]
+          assert len(rows) == 14
+          for row in rows:
+              if row["views_d1"] > 0:
+                  assert row["source_status"] == "ok", (row["itemCategory"], row["source_status"])
+                  assert 1 <= len(row["top_sources"]) <= 2
+                  assert sum(x["views"] for x in row["top_sources"]) <= row["views_d1"]
+          assert "D1 TOP 2 Source / Medium" in Path("reports/daily_digest/daily/2026-11-16.html").read_text()
+          print("[QA OK] All PDP category source-medium data verified")
+          PY
+      - name: Send test PNG inline and attached to Hugh only
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DAILY_RECIPIENTS: 'hugh.kang@columbia.com'
+          HUB_URL: ${{ vars.HUB_URL }}
+          REPORT_DATE: '2026-11-16'
+          REPORT_MODE: daily
+          MODE_DAILY_ONLY: 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util
+          spec = importlib.util.spec_from_file_location("sender", "scripts/send_daily_email.py")
+          sender = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(sender)
+          original = sender.send_email_mixed_with_inline_image
+          target = "hugh.kang@columbia.com"
+          def send_test_only(**kwargs):
+              kwargs["to_list"] = [target]
+              kwargs["subject"] = "[TEST] " + kwargs["subject"]
+              assert kwargs["to_list"] == [target]
+              assert kwargs["inline_png_bytes"]
+              original(**kwargs)
+              print("[TEST OK] SMTP accepted PNG inline+attachment for Hugh only", flush=True)
+          sender.send_email_mixed_with_inline_image = send_test_only
+          sender.main()
+          PY
