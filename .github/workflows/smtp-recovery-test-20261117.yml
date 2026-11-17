@@ -1,0 +1,50 @@
+name: SMTP recovery test (Hugh only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/smtp-recovery-test-20261117.yml'
+permissions:
+  contents: read
+concurrency:
+  group: smtp-recovery-test-20261117
+  cancel-in-progress: false
+jobs:
+  test_original_png:
+    if: ${{ github.event.head_commit.message == 'Test recovered SMTP with final Daily Digest PNG to Hugh only' && github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact final artifacts and both updated report sections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/send_daily_email.py
+          python -u scripts/validate_daily_digest.py --date 2026-11-16 --require-pdp --require-session-source
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          obj=json.loads(Path("reports/daily_digest/data/daily/2026-11-16.json").read_text())
+          assert len(obj["pdp_series"]["rows"]) == 14
+          assert all(r["source_status"]=="ok" and 1<=len(r["top_sources"])<=2 for r in obj["pdp_series"]["rows"] if r["views_d1"]>0)
+          assert len(obj["glink_paid_snapshot"]["rows"]) == 9
+          html=Path("reports/daily_digest/daily/2026-11-16.html").read_text()
+          assert "D1 TOP 2 Source / Medium" in html and "Glink 매체RAW" in html
+          PY
+      - name: Test recovered SMTP using original PNG inline and attached
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DAILY_RECIPIENTS: 'hugh.kang@columbia.com'
+          DAILY_DIGEST_TEST_RECIPIENT: 'hugh.kang@columbia.com'
+          HUB_URL: ${{ vars.HUB_URL }}
+          REPORT_DATE: '2026-11-16'
+          REPORT_MODE: daily
+          MODE_DAILY_ONLY: 'true'
+        run: |
+          set -euo pipefail
+          python -u scripts/send_daily_email.py
+          echo '[TEST OK] SMTP accepted combined PNG for Hugh only'
