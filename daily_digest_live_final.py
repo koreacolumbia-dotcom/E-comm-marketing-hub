@@ -3420,12 +3420,12 @@ def get_category_pdp_view_trend_bq(
         pdp AS (
           SELECT
             PARSE_DATE('%Y%m%d', event_date) AS d,
-            l.c1_norm AS c1,
-            l.c2_norm AS c2,
+            COALESCE(NULLIF(l.c1_norm,''), CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END) AS c1,
+            COALESCE(NULLIF(l.c2_norm,''), CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END) AS c2,
             COUNT(*) AS views
           FROM {chr(96)}{BQ_EVENTS_TABLE}{chr(96)}
           CROSS JOIN UNNEST(items) AS items
-          JOIN item_lookup l ON l.item_id = items.item_id
+          LEFT JOIN item_lookup l ON l.item_id = items.item_id
           WHERE _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
             AND event_name = 'view_item'
             AND items.item_id IS NOT NULL
@@ -3508,7 +3508,10 @@ def get_category_pdp_view_trend_bq(
             totals = source_frame.groupby(["c1", "c2"], as_index=False)["views"].sum()
             totals["d"] = target_date
             if not totals.empty and not trend_frame.empty:
-                trend_frame = pd.concat([trend_frame[trend_frame["d"] != target_date], totals[["d","c1","c2","views"]]], ignore_index=True)
+                expected = float(trend_frame.loc[trend_frame["d"] == target_date, "views"].sum())
+                actual = float(totals["views"].sum())
+                if actual != expected:
+                    print(f"[WARN] PDP source total differs from trend for {target_date}: {actual} != {expected}; keep trend totals", flush=True)
             return source_frame, trend_frame
         except Exception as e:
             print(f"[WARN] PDP source/medium unavailable for {target_date}: {type(e).__name__}: {e}", flush=True)
