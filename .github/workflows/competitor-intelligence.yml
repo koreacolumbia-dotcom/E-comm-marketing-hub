@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   crawl:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +23,22 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install playwright==1.51.0 aiohttp==3.11.18
-      - run: python -m playwright install --with-deps chromium
+      - name: Install browser without apt dependency upgrade
+        run: |
+          python -m playwright install chromium || echo "Browser download failed; checking runner Chrome"
+          if command -v google-chrome >/dev/null; then
+            echo "CRAWLER_CHROME=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          fi
+      - name: Verify browser launch
+        run: |
+          python - <<'PY'
+          import os
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              kw = {'executable_path':os.environ['CRAWLER_CHROME']} if os.environ.get('CRAWLER_CHROME') else {}
+              b=p.chromium.launch(headless=True, **kw)
+              b.close()
+          PY
       - name: Retrieve last successful snapshot
         env:
           GH_TOKEN: ${{ github.token }}
