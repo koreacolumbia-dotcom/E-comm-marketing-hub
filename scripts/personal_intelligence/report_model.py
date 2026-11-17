@@ -2,13 +2,14 @@
 from math import isfinite
 from statistics import mean
 from engine import revenue_bridge
+from product_card import enrich_cards
 
 SECTIONS=("Executive Summary","Root Cause Analysis","Weather Intelligence","Product Intelligence","Product Early Warning","Competitive Intelligence","Competitive Discount Matrix","Customer Intelligence","Marketing Attribution","Budget Optimizer","Social Listening","Inventory Intelligence","Integrated Calendar","Business Impact Matrix","Predictive Intelligence","Executive AI Strategy")
 
 def change(a,b):
     return (a/b-1)*100 if b else None
 
-def build_model(d,competitor=None,events=None):
+def build_model(d,competitor=None,events=None,product_evidence=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
         model[name]={"status":status,"data":data}
@@ -36,6 +37,7 @@ def build_model(d,competitor=None,events=None):
         a,b=r.get("ys"),r.get("ys_yoy")
         if not a: continue
         candidates.append({"name":names.get(r["itemId"],r["itemId"]),"sku":r["itemId"],"image_url":products.get(r["itemId"],{}).get("image_url"),"daily_pdp":products.get(r["itemId"],{}).get("views"),"pdp_series":None,"sales_dates":sales.get("x"),"prior_dates":sales.get("yoy_x"),"daily_change_pct":change(a[-1],a[-2]) if len(a)>1 else None,"series":a,"prior_series":b,"scope":r.get("comparison_scope"),"yoy_pct":change(sum(a),sum(b)) if b else None})
+    enrich_cards(candidates,weather,events,product_evidence)
     put("Product Early Warning",{"category_declines":sorted(valid,key=lambda r:r["day_yoy_pct"])[:5],"category_growth":sorted(valid,key=lambda r:-r["day_yoy_pct"])[:5],"sample_sku_sales":candidates,"style_aggregation_available":False},"partial")
     if competitor: put("Competitive Intelligence",competitor,"partial")
     # Never infer zero discounts or absence of promotions from missing evidence.
