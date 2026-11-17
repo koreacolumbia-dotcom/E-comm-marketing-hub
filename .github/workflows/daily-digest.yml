@@ -40,7 +40,7 @@ on:
           - "true"
 
   schedule:
-    # 07:15 KST: morning build + email (22:15 UTC on previous day).
+    # 06:15 KST: morning build + email (21:15 UTC on previous day).
     # 14:00 KST: silent GA4 channel-attribution reconciliation (05:00 UTC).
     # GitHub scheduled starts are best-effort, not a guaranteed delivery timestamp.
     - cron: "15 21 * * *"
@@ -198,7 +198,7 @@ jobs:
 
   run:
     # One-time silent refresh for today; normal future refreshes use the schedule.
-    if: ${{ (github.event_name != 'workflow_dispatch' || inputs.recovery_only != 'true') && (github.event_name != 'push' || (github.event.head_commit.message == 'Refresh 2026-11-13 Daily Digest silently' || github.event.head_commit.message == 'Recover 2026-11-14 Daily Digest and email')) }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.recovery_only != 'true' }}
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -482,6 +482,31 @@ jobs:
         run: |
           set -euo pipefail
           python -u scripts/validate_daily_digest.py --date "$REPORT_DATE" --require-pdp
+
+      # Data quality failures must not erase the newly generated HTML/PNG/JSON.
+      # Retain an explicitly UNVERIFIED bundle for diagnosis, never email/publish it.
+      - name: Preserve unverified Daily Digest artifacts when quality gate fails
+        if: ${{ failure() && steps.modes.outputs.run_daily == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-digest-UNVERIFIED-${{ steps.set_time.outputs.yesterday_ymd }}-${{ github.run_id }}
+          path: |
+            reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
+            reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.png
+            reports/daily_digest/data/daily/${{ steps.set_time.outputs.yesterday_ymd }}.json
+            reports/daily_digest/weekly/END_${{ steps.set_time.outputs.yesterday_ymd }}.html
+            reports/daily_digest/weekly/END_${{ steps.set_time.outputs.yesterday_ymd }}.png
+            reports/daily_digest/data/weekly/END_${{ steps.set_time.outputs.yesterday_ymd }}.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Explain held publication in run summary
+        if: ${{ failure() && steps.modes.outputs.run_daily == 'true' }}
+        shell: bash
+        run: |
+          echo '## Daily Digest not published — QA failed' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The generated JSON, HTML, and PNG were retained as an UNVERIFIED workflow artifact for diagnosis.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Email and public report publication were intentionally blocked to avoid distributing invalid figures.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit & push Daily Digest results
         if: ${{ success() }}
