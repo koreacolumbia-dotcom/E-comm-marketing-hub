@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urljoin,urlparse
 from adapters import PROFILES,extract_cards
+from reliability import PolicyCache, navigate, checkpoint
 from urllib.robotparser import RobotFileParser
 import aiohttp
 from playwright.async_api import async_playwright
@@ -23,27 +24,11 @@ async def scan(browser,session,name,root):
     context=None
     deadline=asyncio.get_running_loop().time()+360
     try:
-        async with session.get(urljoin(root,'/robots.txt'),allow_redirects=False) as r:
-            if r.status==404: rules=''
-            elif r.status==200: rules=await r.text()
-            else: raise RuntimeError('robots HTTP '+str(r.status))
-        rp=RobotFileParser();rp.parse(rules.splitlines())
-        policies={urlparse(root).netloc:rp}
-        for seed in seeds:
-            netloc=urlparse(seed).netloc
-            if netloc in policies: continue
-            try:
-                async with session.get(urljoin(seed,'/robots.txt'),allow_redirects=False) as rr:
-                    if rr.status not in (200,404): continue
-                    policy=RobotFileParser();policy.parse((await rr.text() if rr.status==200 else '').splitlines());policies[netloc]=policy
-            except Exception: pass
-        def permitted(u):
-            policy=policies.get(urlparse(u).netloc)
-            return bool(policy and policy.can_fetch(UA,u))
+        policy=PolicyCache(session,UA,same)
         context=await browser.new_context(user_agent=UA,locale='ko-KR')
         async def route_handler(route):
             u=route.request.url
-            if route.request.resource_type=='document' and (not same(u) or not permitted(u)): await route.abort()
+            if route.request.resource_type=='document' and (not same(u) or not await policy.permitted(u)): await route.abort()
             else: await route.continue_()
         await context.route('**/*',route_handler)
         page=await context.new_page()
@@ -55,9 +40,11 @@ async def scan(browser,session,name,root):
                 result['errors'].append({'url':u,'error':'robots policy unavailable or disallowed'}); continue
             seen.add(u)
             try:
-                response=await page.goto(u,wait_until='domcontentloaded',timeout=15000)
+                response=await navigate(page,u)
                 if not response or response.status>=400 or not same(page.url): raise RuntimeError('navigation failed')
-                await page.wait_for_timeout(1800)
+                await page.wait_for_timeout(1000)
+                await page.evaluate('window.scrollTo(0, Math.min(document.body.scrollHeight, 1400))')
+                await page.wait_for_timeout(700)
                 body=await page.locator('body').inner_text(timeout=8000)
                 if len(body.strip())<100 or re.search(r'access denied|captcha|접근이 제한',body[:1000],re.I): raise RuntimeError('empty or blocked document')
                 structured=await page.locator('script[type="application/ld+json"]').all_text_contents()
@@ -67,6 +54,7 @@ async def scan(browser,session,name,root):
                 snippets=[x.strip()[:350] for x in body.splitlines() if DEAL.search(x) or DATE.search(x)][:60]
                 banners=[x for x in links if EVENT.search(x['label']) or DEAL.search(x['label'])][:25]
                 result['pages'].append({'url':page.url,'title':await page.title(),'product_cards':cards,'structured_data':structured[:15],'images':images,'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
+                checkpoint(name,result)
                 candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and same(x['url']) and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']))]
                 queue=list(dict.fromkeys(queue+[x for x in candidates if x not in seen]))
                 queue=sorted(queue,key=lambda x: (sum(bool(PRODUCT.search(v)) for v in seen)<5 and not bool(PRODUCT.search(x)),not bool(EVENT.search(x))))[:40]
@@ -81,6 +69,8 @@ async def scan(browser,session,name,root):
             except Exception: pass
     return result
 async def main():
+    import shutil
+    shutil.rmtree('competitor-output/checkpoints',ignore_errors=True)
     now=datetime.now(timezone(timedelta(hours=9)))
     async with aiohttp.ClientSession(headers={'User-Agent':UA},timeout=aiohttp.ClientTimeout(total=20)) as session:
         async with async_playwright() as p:
@@ -89,7 +79,10 @@ async def main():
             async def bounded(name,root):
                 async with limit:
                     try: return await asyncio.wait_for(scan(browser,session,name,root),timeout=420)
-                    except Exception as e: return {'brand':name,'root':root,'status':'unverified','pages':[],'errors':[{'error':str(e) or type(e).__name__}]}
+                    except Exception as e:
+                        cp=Path('competitor-output/checkpoints')/(name+'.json')
+                        row=json.loads(cp.read_text()) if cp.exists() else {'brand':name,'root':root,'status':'unverified','pages':[],'errors':[]}
+                        row['errors'].append({'error':str(e) or type(e).__name__});return row
             rows=[]
             tasks=[asyncio.create_task(bounded(name,root)) for name,root in BRANDS.items()]
             for task in asyncio.as_completed(tasks):
