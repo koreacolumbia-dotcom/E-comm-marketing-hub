@@ -34,11 +34,21 @@ for b in data["brands"]:
     records=[r for x in pages for r in paired(x)]
     dated=[x for x in promo if x.get("date_mentions")]
     cards=[r for x in pages for r in x.get("product_cards",[]) if r.get("status")=="candidate_same_card"]
+    unique_cards={}
+    for card in cards:
+        try:
+            a,b,rate=map(float,(card["regular_price"],card["sale_price"],card["discount_pct"]))
+            if a>b>0 and abs((1-b/a)*100-rate)<=1 and card.get("name") and card.get("url"):
+                unique_cards[(card["url"],card["name"],a,b)]=card
+        except (KeyError,ValueError,TypeError): continue
+    cards=list(unique_cards.values())
+    strict_candidate=bool(dated and cards)
     usable=bool(promo and (priced or cards))
-    rows.append({"brand":b["brand"],"pages":len(pages),"promotion_pages":len(promo),"price_pages":len(priced),"candidate_usable":usable,"paired_discount_cards":cards,"dated_promotion_pages":len(dated),"structured_product_prices":records,"errors":b.get("errors",[])})
+    rows.append({"brand":b["brand"],"pages":len(pages),"promotion_pages":len(promo),"price_pages":len(priced),"candidate_usable":usable,"strict_candidate":strict_candidate,"paired_discount_cards":cards,"dated_promotion_pages":len(dated),"structured_product_prices":records,"errors":b.get("errors",[])})
 n=sum(r["candidate_usable"] for r in rows)
 structured=sum(bool(r["dated_promotion_pages"] and (r["structured_product_prices"] or r["paired_discount_cards"])) for r in rows)
-quality={"structured_evidence_brands":structured,"structured_evidence_pct":structured*10,"verified_accuracy_pct":None,"checked_at_kst":data.get("checked_at_kst"),"target":9,"denominator":10,"candidate_usable":n,"candidate_coverage_pct":n*10,"target_met_candidate_only":n>=9,"brands":rows,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
+strict=sum(r["strict_candidate"] for r in rows)
+quality={"strict_candidate_brands":strict,"strict_candidate_pct":strict*10,"target_met_strict_candidate":strict>=9,"measurement_available":f.exists() and len(rows)==10,"structured_evidence_brands":structured,"structured_evidence_pct":structured*10,"verified_accuracy_pct":None,"checked_at_kst":data.get("checked_at_kst"),"target":9,"denominator":10,"candidate_usable":n,"candidate_coverage_pct":n*10,"target_met_candidate_only":n>=9,"brands":rows,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
 p.mkdir(exist_ok=True)
 (p/"quality.json").write_text(json.dumps(quality,ensure_ascii=False,indent=2))
 summary=["# Competitor collection quality",f"Candidate evidence: {n}/10 (target 9/10)","| Brand | Pages | Promo | Price |","|---|---:|---:|---:|"]
@@ -46,4 +56,4 @@ summary += [f"| {r['brand']} | {r['pages']} | {r['promotion_pages']} | {r['price
 if os.getenv("GITHUB_STEP_SUMMARY"):
     with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as out: out.write("\n".join(summary)+"\n")
 print(json.dumps(quality,ensure_ascii=False))
-if n<9: raise SystemExit(1)
+if len(rows)!=10 or strict<9: raise SystemExit(1)
