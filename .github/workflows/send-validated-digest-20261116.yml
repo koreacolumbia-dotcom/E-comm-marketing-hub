@@ -1,0 +1,42 @@
+name: Send verified Daily Digest 2026-11-16
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/send-validated-digest-20261116.yml'
+permissions:
+  contents: read
+concurrency:
+  group: send-verified-daily-20261116
+  cancel-in-progress: false
+jobs:
+  send_final_png:
+    if: ${{ github.event.head_commit.message == 'Send verified 2026-11-16 Daily Digest PNG now' && github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify the exact published PNG and data
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object reports/daily_digest/daily/2026-11-16.png)" = 'e1ff94a7b88b7a6c9dc80ef6be6e25825debfb97'
+          test "$(git hash-object reports/daily_digest/data/daily/2026-11-16.json)" = 'fea2ffdf4596169aa7d3111af81addd76a11af63'
+          python -u scripts/validate_daily_digest.py --date 2026-11-16 --require-pdp --require-session-source
+      - name: Send original validated PNG inline and attached
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
+          HUB_URL: ${{ vars.HUB_URL }}
+          REPORT_DATE: '2026-11-16'
+          REPORT_MODE: daily
+          MODE_DAILY_ONLY: 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u scripts/send_daily_email.py
