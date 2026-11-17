@@ -37,9 +37,9 @@ for b in data["brands"]:
     unique_cards={}
     for card in cards:
         try:
-            a,b,rate=map(float,(card["regular_price"],card["sale_price"],card["discount_pct"]))
-            if a>b>0 and abs((1-b/a)*100-rate)<=1 and card.get("name") and card.get("url"):
-                unique_cards[(card["url"],card["name"],a,b)]=card
+            regular,sale,rate=map(float,(card["regular_price"],card["sale_price"],card["discount_pct"]))
+            if regular>sale>0 and abs((1-sale/regular)*100-rate)<=1 and card.get("name") and card.get("url"):
+                unique_cards[(card["url"],card["name"],regular,sale)]=card
         except (KeyError,ValueError,TypeError): continue
     cards=list(unique_cards.values())
     strict_candidate=bool(dated and cards)
