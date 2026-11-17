@@ -40,9 +40,11 @@ def summarize(report,day):
         verified=any(e.get("original_post_verified") is True and e.get("korean_relevance_verified") is True and e.get("brand_reference_verified") is True and (parsed:=parse_date(e.get("published_at"))) is not None and start<=parsed<end for e in post.get("evidence",[]))
         if verified:
             confirmed.append(post);types[kind]+=1;sentiment[mood]+=1
-            accounts.update(str(e["account"]).lower() for e in post["evidence"] if e.get("account"))
+            accounts.update(str(e["account"]).strip().lower().lstrip("@") for e in post["evidence"] if e.get("account") and str(e["account"]).strip().lstrip("@"))
         else: pending.append(post)
-    return {"day":day.isoformat(),"verified_posts":len(confirmed),"verified_accounts":len(accounts),"type_counts":dict(types),"sentiment_counts":dict(sentiment),"candidate_posts_pending_verification":len(pending),"coverage":report.get("coverage",[]),"representative_urls":[p["url"] for p in confirmed[:10]],"limitations":report.get("limitations",[])}
+    coverage=report.get("coverage",[])
+    operational=bool(coverage) and any(c.get("status")=="ok" for c in coverage)
+    return {"day":day.isoformat(),"verified_posts":len(confirmed) if operational else None,"verified_accounts":len(accounts) if operational else None,"type_counts":dict(types),"sentiment_counts":dict(sentiment),"candidate_posts_pending_verification":len(pending),"coverage":coverage,"data_status":"partial" if operational else "unavailable","representative_urls":[p["url"] for p in confirmed[:10]],"limitations":report.get("limitations",[])}
 
 def main():
     p=argparse.ArgumentParser()
