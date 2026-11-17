@@ -11,13 +11,16 @@ p = argparse.ArgumentParser()
 p.add_argument("--date", required=True)
 p.add_argument("--root", default="reports/daily_digest")
 p.add_argument("--require-pdp", action="store_true")
+p.add_argument("--mode", choices=["daily","weekly"], default="daily")
+p.add_argument("--require-session-source", action="store_true")
 args = p.parse_args()
 root = pathlib.Path(args.root)
 day = args.date
 errors = []
-html = root / "daily" / f"{day}.html"
-png = root / "daily" / f"{day}.png"
-data = root / "data" / "daily" / f"{day}.json"
+stem = f"END_{day}" if args.mode == "weekly" else day
+html = root / args.mode / f"{stem}.html"
+png = root / args.mode / f"{stem}.png"
+data = root / "data" / args.mode / f"{stem}.json"
 for f in (html, png, data):
     if not f.is_file() or f.stat().st_size == 0:
         errors.append(f"missing/empty artifact: {f}")
@@ -43,6 +46,25 @@ if not errors:
         errors.append("overall sessions is zero")
     elif abs(channel_total - total) / total > 0.01:
         errors.append(f"channel sum {channel_total:,.0f} vs overall {total:,.0f}: exceeds 1% tolerance")
+    if args.require_session_source or obj.get("traffic_metric_source") == "ga4_bigquery_session_key_v1":
+        if obj.get("traffic_metric_source") != "ga4_bigquery_session_key_v1":
+            errors.append("missing verified BigQuery session source metadata")
+        if not obj.get("traffic_partition_status"):
+            errors.append("missing session partition metadata")
+        leaves = [r for r in channels if str(r.get("bucket")).lower() != "total"]
+        for metric, kpi_key in [("sessions","sessions"), ("transactions","orders"), ("purchaseRevenue","revenue")]:
+            v = sum(float(r.get(metric) or 0) for r in leaves)
+            k = float(kpis.get(kpi_key) or 0)
+            if not math.isclose(v, k, rel_tol=1e-9, abs_tol=0.01):
+                errors.append(f"channel {metric} sum {v:,.2f} vs KPI {k:,.2f}")
+        paid = next((r for r in leaves if r.get("bucket") == "Paid Ad"), {})
+        paid_leaves = [r for r in (obj.get("paid_detail") or []) if str(r.get("sub_channel")).lower() != "total"]
+        for metric, detail_key in [("sessions","sessions"),("transactions","orders"),("purchaseRevenue","purchaseRevenue")]:
+            v = sum(float(r.get(detail_key) or 0) for r in paid_leaves)
+            expected = float(paid.get(metric) or 0)
+            if not math.isclose(v, expected, rel_tol=1e-9, abs_tol=0.01):
+                errors.append(f"Paid Detail {metric} sum {v:,.2f} vs Paid Ad {expected:,.2f}")
+        print(f"[QA] partition status: {obj.get('traffic_partition_status')}; GA API reference: {obj.get('ga_api_reference')}")
     for row in channels:
         for key in ("sessions", "transactions", "purchaseRevenue"):
             v = float(row.get(key) or 0)
