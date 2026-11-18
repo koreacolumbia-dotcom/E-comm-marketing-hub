@@ -231,7 +231,7 @@ header .overline:before{display:none}
  <input id="keyword" aria-label="행사 검색" type="search" placeholder="행사명 검색">
  </div>
 </div>
-<section class="panel coverage-panel"><div class="coverage-head"><div><div class="section-label">Competitor Coverage</div><h2>컬럼비아 + 경쟁사 10개 모니터링 현황</h2></div><span class="pill" id="coverageSummary">불러오는 중</span></div><div class="coverage-grid" id="coverageGrid"></div><p class="small" id="coverageNote">행사 미확인은 세일이 없다는 뜻이 아닙니다. 브랜드를 누르면 해당 브랜드로 필터링됩니다.</p></section>
+<section class="panel coverage-panel"><div class="coverage-head"><div><div class="section-label">Competitor Coverage</div><h2>컬럼비아 + 경쟁사 11개 모니터링 현황</h2></div><span class="pill" id="coverageSummary">불러오는 중</span></div><div class="coverage-grid" id="coverageGrid"></div><p class="small" id="coverageNote">행사 미확인은 세일이 없다는 뜻이 아닙니다. 브랜드를 누르면 해당 브랜드로 필터링됩니다.</p></section>
 <nav class="intel-tabs" aria-label="Promotion intelligence views"><button class="intel-tab active" data-view="calendar" type="button">CALENDAR</button><button class="intel-tab" data-view="timeline" type="button">BRAND TIMELINE</button><button class="intel-tab" data-view="analysis" type="button">PROMOTION ANALYSIS</button><button class="intel-tab" data-view="archive" type="button">BANNER ARCHIVE</button><button class="intel-tab" data-view="performance" type="button">OWNED PERFORMANCE</button></nav>
 <div class="layout intel-view" id="view-calendar">
 <section class="panel calendar-panel">
@@ -265,7 +265,7 @@ header .overline:before{display:none}
 (function(){
 'use strict';
 var $=function(id){return document.getElementById(id)},data=null,year=2026,month=11,selected='2026-11-15';
-var TARGET_BRANDS=[["tnf","The North Face","TNF"],["k2","K2","K2"],["discovery","Discovery Expedition","DISCOVERY"],["blackyak","Black Yak","BLACKYAK"],["nepa","NEPA","NEPA"],["kolonsport","Kolon Sport","KOLON SPORT"],["eider","Eider","EIDER"],["national_geographic","National Geographic","NATIONAL GEOGRAPHIC"],["snowpeak","Snow Peak","SNOW PEAK"],["millet","MILLET","MILLET"]];var crawlQuality=null;
+var TARGET_BRANDS=[["tnf","The North Face","TNF"],["k2","K2","K2"],["discovery","Discovery Expedition","DISCOVERY"],["blackyak","Black Yak","BLACKYAK"],["nepa","NEPA","NEPA"],["kolonsport","Kolon Sport","KOLON SPORT"],["eider","Eider","EIDER"],["national_geographic","National Geographic","NATIONAL GEOGRAPHIC"],["snowpeak","Snow Peak","SNOW PEAK"],["millet","MILLET","MILLET"],["salomon","Salomon","SALOMON"]];var crawlQuality=null;
 var OWNED_EVENTS=[{"id":"columbia-winter-festival-20261120","brand":"columbia","brand_name":"Columbia","title":"WINTER FESTIVAL","kind":"owned_planned","start_date":"2026-11-20","end_date":"2026-11-29","date_status":"user_provided_planned","observed_on":[],"benefit":null,"source_url":"https://www.columbiakorea.co.kr/event/261120/teaser.asp","source_type":"manual_owned_schedule","channel":"컬럼비아 공식몰","note":"등록된 자사 행사 예정 일정 · 공식 티저 페이지 연결 (검색 확인, 실제 페이지 접속 미확인)."}];
 function iso(y,m,d){return String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
 function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]})}
@@ -359,7 +359,7 @@ TARGET_BRANDS.forEach(function(item){
 });
 var found=TARGET_BRANDS.filter(function(item){return all.some(function(e){return e.brand===item[0]})}).length;
 $('coverageSummary').textContent='행사 기록 '+found+' / '+TARGET_BRANDS.length;
-$('coverageNote').textContent=(crawlQuality?'크롤러 접근 '+crawlQuality.accessible_brands+'/'+TARGET_BRANDS.length+' · 최근 점검 '+String(crawlQuality.checked_at_kst||'').slice(0,16).replace('T',' ')+' KST. ':'')+'행사 기록과 최신 크롤러 접근 성공은 별개입니다. 브랜드를 눌러 필터링할 수 있습니다.';
+$('coverageNote').textContent=(crawlQuality?'크롤러 접근 '+crawlQuality.accessible_brands+'/'+(crawlQuality.denominator||crawlQuality.target||TARGET_BRANDS.length)+(Number(crawlQuality.denominator||crawlQuality.target||TARGET_BRANDS.length)!==TARGET_BRANDS.length?' (이전 수집 대상 기준)':'')+' · 최근 점검 '+String(crawlQuality.checked_at_kst||'').slice(0,16).replace('T',' ')+' KST. ':'')+'행사 기록과 최신 크롤러 접근 성공은 별개입니다. 브랜드를 눌러 필터링할 수 있습니다.';
 }
 
 var marketBaseline=null,marketFeed=null,marketLoadState='loading';var ownedArchive=null;var activeView='calendar',archiveRaw=[],archiveCacheDay='',archiveLoadingDay='',perfRows=[],perfKey='',perfLoading='',perfToken=0,perfWeather=null;
