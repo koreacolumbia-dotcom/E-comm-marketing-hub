@@ -1,0 +1,91 @@
+name: Private Marketing Attribution
+on:
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: 'Daily report date (YYYY-MM-DD; empty = yesterday KST)'
+        type: string
+        required: false
+      send_owner:
+        description: 'Send standalone section to the existing private report owner'
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: ['.github/workflows/personal-multi-touch.yml']
+permissions:
+  contents: read
+concurrency:
+  group: personal-multi-touch
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+      GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
+      REPORT_DATE_INPUT: ${{ inputs.report_date }}
+      PRIVATE_MTA_OUT: ${{ runner.temp }}/private-mta
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unit tests
+        run: |
+          python -m py_compile scripts/personal_intelligence/multi_touch*.py scripts/personal_intelligence/run_multi_touch.py
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_multi_touch.py'
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_attribution.py'
+      - name: Install existing GA4 classifier dependencies
+        run: pip install pandas numpy requests beautifulsoup4 python-dateutil google-analytics-data google-cloud-bigquery google-auth
+      - name: Read-only private MTA calculation (15 GiB cap)
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$GOOGLE_SA_JSON_B64"
+          credentials="$RUNNER_TEMP/mta-sa.json"
+          trap 'rm -f "$credentials"' EXIT
+          printf '%s' "$GOOGLE_SA_JSON_B64" | base64 -d > "$credentials"
+          export GOOGLE_APPLICATION_CREDENTIALS="$credentials"
+          args=(--out "$PRIVATE_MTA_OUT" --maximum-gib 15)
+          if [ -n "$REPORT_DATE_INPUT" ]; then args+=(--date "$REPORT_DATE_INPUT"); fi
+          python scripts/personal_intelligence/run_multi_touch.py "${args[@]}"
+      - name: Render and send owner-only report when explicitly requested
+        if: github.event_name == 'workflow_dispatch' && inputs.send_owner
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        run: |
+          pip install playwright
+          python -m playwright install chromium
+          python - <<'PY'
+          import os,sys
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          sys.path.insert(0,'scripts')
+          from send_daily_email import send_email_mixed_with_inline_image
+          p=Path(os.environ['PRIVATE_MTA_OUT'])
+          with sync_playwright() as pl:
+              browser=pl.chromium.launch(headless=True)
+              page=browser.new_page(viewport={'width':1160,'height':900},device_scale_factor=1.5)
+              page.goto((p/'multi_touch.html').as_uri(),wait_until='load')
+              page.screenshot(path=str(p/'multi_touch.png'),full_page=True)
+              browser.close()
+          png=(p/'multi_touch.png').read_bytes()
+          send_email_mixed_with_inline_image(
+              host=os.environ['SMTP_HOST'],port=int(os.environ.get('SMTP_PORT') or 587),
+              user=os.environ['SMTP_USER'],password=os.environ['SMTP_PASS'],
+              to_list=['hugh.kang@columbia.com'],subject='CSK PRIVATE | Multi-touch Attribution',
+              text_fallback='Private multi-touch attribution section. See attached PNG.',
+              html_body='<p>Private report</p><img src="cid:mta_preview" style="max-width:100%">',
+              inline_png_cid='mta_preview',inline_png_bytes=png,
+              attachments=[('multi_touch.png','png',png)])
+          PY
+      - name: Clean private results (no public artifacts or commits)
+        if: always()
+        run: rm -rf "$PRIVATE_MTA_OUT" "$RUNNER_TEMP/mta-sa.json"
