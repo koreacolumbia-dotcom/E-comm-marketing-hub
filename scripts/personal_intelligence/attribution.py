@@ -102,8 +102,21 @@ def marketing_attribution(d):
     canonical={"naver brand search","naver search","criteo","meta","google gdn","google search","google","instagram","google pmax","kakao"}
     paid_review=[r for r in paid_rows if r["channel"].lower() not in canonical and (r["sessions"] or r["orders"] or r["revenue"])]
     meta=d.get("meta") or {}
+    mta=d.get("multi_touch_attribution")
+    mta_status="source_required"
+    if isinstance(mta,dict):
+        if (mta.get("status")=="available" and mta.get("source")=="ga4_bigquery_observed_session_paths"
+            and mta.get("partition_status")=="daily_complete"
+            and meta.get("cur_start") and meta.get("cur_end")
+            and mta.get("period_start")==meta.get("cur_start") and mta.get("period_end")==meta.get("cur_end")
+            and mta.get("orders_total")==current["orders"] and number(mta.get("revenue_total")) is not None
+            and current["revenue"] is not None and abs(mta["revenue_total"]-current["revenue"])<=0.01
+            and all(k in (mta.get("models") or {}) for k in ("first_touch","last_touch","linear","position_based"))):
+            mta_status="available"
+        else:
+            mta_status="validation_required"
     return {"date":d.get("end_date"),"source":d.get("traffic_metric_source"),"periods":{k:meta.get(k) for k in ("cur_start","cur_end","prev_start","prev_end","yoy_start","yoy_end")},
         "current":current,"channels":rows,"reconciliation":checks,"channel_set_valid":valid,"missing_channels":missing,
         "comparisons":summaries,"paid_channels":paid_rows,"paid_reconciliation":paid_checks,"paid_channel_set_valid":paid_valid,"paid_classification_review":paid_review,
-        "spend_status":"source_required","causal_incrementality":None,"multi_touch_attribution":None,
+        "spend_status":"source_required","causal_incrementality":None,"multi_touch_attribution":mta if mta_status=="available" else None,"multi_touch_status":mta_status,
         "note":"Session-attributed revenue, not causal contribution. Prior bases use raw values when supplied, otherwise estimates from positive current amounts and non-ambiguous growth rates. Zero/ambiguous bases remain unknown. Driver effects require positive sessions and orders in both periods. Channel and factor decompositions are separate. WoW is the source previous-period comparison, not DoD. No ROAS without spend evidence."}
