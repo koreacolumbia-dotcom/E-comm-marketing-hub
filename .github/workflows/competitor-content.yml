@@ -6,6 +6,8 @@ on:
   push:
     paths:
       - 'scripts/competitor_content/**'
+      - 'reports/competitor_content/strategy.mjs'
+      - 'reports/competitor_content/index.html'
       - '.github/workflows/competitor-content.yml'
 permissions:
   contents: write
@@ -65,8 +67,20 @@ jobs:
             content-evidence/*.png
           if-no-files-found: warn
           retention-days: 30
+      - name: Verify coherent report snapshot
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('reports/competitor_content')
+          feed=json.loads((p/'latest.json').read_text())
+          summary=json.loads((p/'strategy-summary.json').read_text())
+          assert feed['checked_at_kst']==summary['source_checked_at'], 'stale analysis snapshot'
+          assert len(feed['brands'])==len(summary['brands'])==feed['coverage']['target'], 'brand scope mismatch'
+          assert feed['coverage']['accessible']>0, 'no observed brands'
+          PY
       - name: Publish measured content feed
-        if: always()
+        if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
