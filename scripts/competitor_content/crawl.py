@@ -197,7 +197,7 @@ SCROLL_STATE=r"""() => {
  const imgs=Array.from(document.images).filter(i=>i.complete&&i.naturalWidth>=400).length;
  return {height:root.scrollHeight,top:root.scrollTop,bottom:root.scrollTop+root.clientHeight>=root.scrollHeight-12,imgs,links};
 }"""
-async def explore_scroll(page, deadline, listing=False):
+async def explore_scroll(page, deadline, listing=False, archive_capture=None):
     # Record links during scrolling, including links later removed by lazy/virtualized DOM.
     observed={};stable=0;prev=None;steps=0;more_clicks=0;stop="scroll_budget"
     until=min(deadline,asyncio.get_running_loop().time()+(100 if listing else 45))
@@ -208,6 +208,9 @@ async def explore_scroll(page, deadline, listing=False):
             u=link["url"]
             if u not in observed: observed[u]=link;new+=1
             elif link.get("pagination"): observed[u]["pagination"]=True
+        if archive_capture and (steps%4==0 or state["bottom"] or new):
+            try: archive_capture(await page.locator("body").inner_text(timeout=2000))
+            except Exception: pass
         signature=(state["height"],state["imgs"],len(observed))
         stable=stable+1 if state["bottom"] and signature==prev and new==0 else 0
         prev=signature
@@ -243,7 +246,7 @@ def brand_listing(brand,u):
     if brand=="NEPA": return path=="/promotion/list.asp"
     if brand=="SNOWLINE": return path=="/pages/event/event-list.html"
     if brand=="TNF": return path in ("/lookbook","/event","/events")
-    if brand=="PATAGONIA": return path in ("/stories/main","/stories/all","/stories/all_films","/stories/filmdetail","/stories/articledetail") or bool(re.fullmatch(r"/stories/(?:category|sports)(?:/[^/]+)?",path))
+    if brand=="PATAGONIA": return path in ("/stories/main","/stories/all","/stories/all_films","/stories/filmdetail","/stories/articledetail") or bool(re.fullmatch(r"/stories/(?:category|sports|all|all_films)(?:/[^/]+)?",path))
     return False
 
 def film_archive_entries(brand,source,raw,checked):
@@ -294,7 +297,7 @@ def editorial_route(brand,u):
     if brand=="MERRELL" and path in ("/history.html","/history2.html"): return True
     if brand=="NEPA" and (path in ("/brand/nepa/story.asp","/brand/nepa/csr.asp") or (path=="/promotion/view.asp" and q.get("EventNo"))): return True
     if brand=="MILLET" and re.fullmatch(r"/front/promo/pstories/\d+",path): return True
-    if brand=="PATAGONIA" and (path.startswith("/our_footprint/") or path.rstrip("/") in ("/innovation-unusual","/company-history","/50/main")): return True
+    if brand=="PATAGONIA" and (path.startswith("/our_footprint/") or path.rstrip("/") in ("/innovation-unusual","/innovation-unusual/main","/company-history","/50/main")): return True
     return bool(re.search(r"/(?:stories/(?:articledetail|filmdetail|view)/[^/]+|event/view/[^/]+/[^/]+|display/promotions/collection/[^/]+|blogs/[^/]+/[^/]+|special/\d+|journal/[^/]+|magazine/[^/]+|lookbook/[^/]+|campaign/[^/]+|pages/[^/]+|collections/[^/]+|s/[^/]+)",path,re.I))
 
 def sitemap_entries(raw):
@@ -395,6 +398,15 @@ def visual_signature(im):
             "pixel_sha256":hashlib.sha256((str(rgb.size)+":").encode()+rgb.tobytes()).hexdigest(),
             "method":"rendered_pixels"}
 
+def take_next_url(queue,brand,scanned,prior_urls,ledger):
+    # Reserve recurring slots for hub/pagination exploration; otherwise detail pages can starve the next archive page.
+    if scanned%5==0:
+        for i,v in enumerate(queue):
+            if brand_listing(brand,v) and v not in prior_urls and not ledger.get(v): return queue.pop(i)
+        for i,v in enumerate(queue):
+            if brand_listing(brand,v): return queue.pop(i)
+    return queue.pop(0)
+
 def coverage_plan(brand,observed_count,pending_count=0,columbia_count=0):
     # Benchmark comparable deduplicated current-run observations, not indexed leads.
     # Missing comparator is not proof of parity; the absolute sample target remains active.
@@ -470,7 +482,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     deadline=asyncio.get_running_loop().time()+plan["seconds"]
     try:
         while queue and len(seen)<page_limit and asyncio.get_running_loop().time()<deadline:
-            u=canonical(queue.pop(0))
+            u=canonical(take_next_url(queue,brand,len(seen),prior_urls,ledger))
             if u in seen or not same(u): continue
             if skip_recent(u):
                 row["recent_skip_count"]+=1;continue
@@ -493,7 +505,13 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                 await page.wait_for_timeout(1200)
                 path_hint=urlsplit(page.url).path.lower()
                 list_hint=u==canonical(root) or brand_listing(brand,page.url) or bool(re.search(r"list|archive|/special/?$|/campaign/?$|/stories/(?:main|all)|/blogs/[^/]+/?$|/events/?$|/promotion/?$",path_hint)) or any(e.get("kind")=="list" and e.get("brand")==brand and canonical(e.get("url",""))==u for e in locals().get("discovered",[]))
-                scroll_links,scroll=await explore_scroll(page,deadline,list_hint)
+                archive_buffer={}
+                archive_source=canonical(page.url)
+                def capture_archive(raw):
+                    entries=staff_archive_entries(archive_source,raw,checked) if brand=="TNF" else film_archive_entries(brand,archive_source,raw,checked)
+                    for x in entries: archive_buffer[archive_key(x)]=x
+                capture_enabled=(brand=="TNF" and path_hint.rstrip("/")=="/lookbook") or (brand in ("K2","EIDER") and path_hint.rstrip("/")=="/"+brand.lower()+"/film")
+                scroll_links,scroll=await explore_scroll(page,deadline,list_hint,capture_archive if capture_enabled else None)
                 row["scroll_steps"]+=scroll["steps"];row["load_more_clicks"]+=scroll["more_clicks"]
                 row["scroll_limited_pages"]+=int(scroll["stop"]!="stable_bottom")
                 data=await page.evaluate(EXTRACT)
@@ -531,11 +549,10 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                     except Exception: pass
                 is_index=any(entry.get("brand")==brand and entry.get("kind")=="list" and canonical(entry.get("url",""))==source for entry in discovered) if 'discovered' in locals() else False
                 listing=is_index or brand_listing(brand,source) or bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$|/stories/(?:main|all|filmDetail)$|/campaign$",path,re.I))
-                if brand in ("K2","EIDER") and path=="/"+brand.lower()+"/film":
-                    archive_text=await page.locator("body").inner_text(timeout=3000)
-                    row["archive_entries"].extend(film_archive_entries(brand,source,archive_text,checked))
-                if brand=="TNF" and path=="/lookbook":
-                    row["archive_entries"].extend(staff_archive_entries(source,await page.locator("body").inner_text(timeout=3000),checked))
+                if capture_enabled:
+                    try: capture_archive(await page.locator("body").inner_text(timeout=3000))
+                    except Exception: pass
+                    row["archive_entries"].extend(archive_buffer.values())
                 blocks=data["blocks"] if home else ([] if listing else [data["article"]])
                 for b in blocks:
                     evidence=(b.get("title") or "")+" "+(b.get("summary") or "")
@@ -722,6 +739,9 @@ def self_test():
     assert editorial_route("MAMMUT","https://mammut.kr/technologie_02.html")
     assert editorial_route("NEPA","https://www.nplus.co.kr/promotion/view.asp?EventNo=747")
     assert brand_listing("MAMMUT","https://mammut.kr/board/promotion/list.html?board_no=8")
+    assert brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/all/003001001000000")
+    q=["https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/lookbook?page=3"]
+    assert take_next_url(q,"TNF",5,set(),{}).endswith("page=3") and len(q)==1
     assert coverage_plan("TNF",17,0,13)["focus_brand"]
     assert coverage_plan("TNF",17,0,13)["sample_target"]>=100
     assert len(retain_archive_entries(styles,styles,"2026-11-01"))==1
