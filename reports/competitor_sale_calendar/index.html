@@ -211,10 +211,109 @@ header .overline:before{display:none}
 .market-brand-owned td:first-child{color:#002d72}
 .market-issue-scroll{max-height:650px;overflow:auto;padding-right:4px}
 @media(max-width:1350px){.market-overview{grid-template-columns:minmax(0,1fr)}}
+
+/* Editorial design system · 20261118. Calm white surfaces, disciplined typography. */
+:root{--navy:#002d72;--blue:#002d72;--light:#f6f7f9;--line:#e3e7ed;--ink:#172133;--muted:#647184}
+body{background:#f6f7f9}
+main{max-width:1920px;padding:34px clamp(18px,3vw,54px) 60px}
+header{padding:0 0 22px;align-items:flex-end;border-bottom:1px solid var(--line);gap:16px}
+header .overline{font-size:10px;font-weight:800;letter-spacing:.19em;color:var(--navy)}
+h1{font-size:clamp(26px,2.7vw,40px);line-height:1.15;font-weight:850;letter-spacing:-.055em;margin:9px 0 6px}
+header p{font-size:12px;line-height:1.6}
+#updated{max-width:420px;font-size:11px}
+#state{border:0;border-radius:4px;background:#eef1f5;color:#475569;padding:5px 8px;font-size:11px}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:#fff;border:1px solid var(--line);border-radius:8px;gap:0;margin:22px 0 20px;padding:7px 0}
+.stats .stat,.stats .stat:nth-child(1),.stats .stat:nth-child(2){border:0;border-radius:0;background:transparent;min-height:102px;padding:12px 20px;gap:2px}
+.stats .stat+.stat{border-left:1px solid var(--line)}
+.stats .stat strong{font-size:clamp(29px,3vw,41px);font-weight:850;letter-spacing:-.055em;line-height:1.19;margin:4px 0 2px}
+.stats .stat span:first-child{font-size:12px;color:#526071;font-weight:700}
+.stats .stat span:last-child{font-size:11px;font-weight:400;color:#6b7786}
+.panel,.toolbar-card,.calendar-panel,.sidebar .panel,.coverage-panel,.intel-panel{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:none}
+.panel{padding:22px}
+.intel-tabs{background:transparent;gap:26px;margin:0 0 16px;padding:0;border-bottom:1px solid #dce2e9;flex-wrap:nowrap;overflow:auto;scrollbar-width:thin}
+.intel-tab,.intel-tab.active{font-size:11px;letter-spacing:.045em;padding:13px 0;white-space:nowrap;flex:none;font-weight:750;border-bottom:2px solid transparent;color:#637185}
+.intel-tab.active{color:var(--navy);border-bottom-color:var(--navy)}
+.toolbar-card{padding:10px 16px;gap:12px}
+.toolbar-card select,.toolbar-card input,.toolbar-card .nav button:not(#current){border:1px solid var(--line);border-radius:5px;font-size:12px;font-weight:600;min-height:36px;background:#fff;padding:8px 10px}
+.toolbar-card .nav button:not(#current){font-size:19px;min-width:34px;padding:2px 10px}
+.nav #current{font-size:11px;border-radius:4px;padding:8px 11px;min-height:34px}
+.nav b{font-size:21px;min-width:105px;letter-spacing:-.035em}
+.coverage-panel{padding:13px 16px;margin-top:12px}
+.coverage-head{margin-bottom:8px;align-items:center}
+.coverage-head h2{font-size:14px;font-weight:750}
+.section-label,.calendar-heading .section-label{font-size:10px;letter-spacing:.13em;font-weight:800;color:#677589;text-transform:uppercase}
+.coverage-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:0}
+.coverage-brand{border:0;border-radius:4px;background:#fff;padding:9px 10px;gap:2px;min-height:48px;border-bottom:1px solid #eef0f3}
+.coverage-brand b{font-size:11px;letter-spacing:-.015em;font-weight:750}
+.coverage-brand small{font-size:10px;font-weight:400;line-height:1.4}
+.coverage-brand[data-brand="columbia"]{background:#f0f4fa;border-color:#eef0f3}
+.coverage-brand:hover,.coverage-brand.active{background:#eef3fa;outline:none;border-color:#eef0f3}
+#coverageNote{font-size:10px;margin-top:9px}
+.layout{grid-template-columns:minmax(0,1fr) minmax(285px,23%);gap:14px;margin-top:14px}
+.calendar-panel{padding:20px}
+.calendar-heading{margin-bottom:14px}
+.calendar-heading .section-title,.intel-head h2{font-size:21px;font-weight:800;letter-spacing:-.035em}
+.pill{color:#667489;background:#f4f6f8;border:0;border-radius:4px;padding:4px 7px;font-size:10px;font-weight:650}
+.grid{border-radius:5px}
+.calendar-week{grid-template-rows:34px repeat(var(--lanes),29px) minmax(13px,1fr);min-height:112px}
+.calendar-week .day{padding:4px 7px}
+.calendar-week .day.sel{outline:1px solid #809abe;background:#f2f6fc}
+.calendar-week .day .num{font-weight:750}
+.calendar-week .day.today .num{background:var(--navy)}
+.event-span{height:25px;min-height:25px;border-radius:4px;border:1px solid transparent;padding-inline:9px;margin:0 3px;box-shadow:none}
+.event-span.obs{background:#fff;border:1px dashed var(--accent)}
+.event-span.owned,.event-span.owned:hover{box-shadow:none}
+.event-span.linked:hover{box-shadow:none;filter:brightness(.96)}
+.event-span .span-title{font-size:11px;font-weight:650}
+.event-span .span-brand,.event-span .span-benefit{font-size:10px;font-weight:750}
+.event-span.single .span-content{gap:1px}
+.event-span.single .span-brand,.event-span.single .span-title{font-size:9.5px}
+.legend{font-size:11px;gap:14px}
+.legend i{border-left-width:1px;border-radius:2px}
+.sidebar .panel{padding:16px}
+.sidebar h2{font-size:15px;font-weight:800}
+.event{padding:12px 0}.event b{font-size:13px;font-weight:750;margin-top:5px}
+.tag{font-size:10px;border-radius:3px}.event .offer{font-size:15px}
+.intel-panel{margin-top:14px;padding:22px}
+.intel-head{margin-bottom:12px}
+.intel-kpis{gap:0;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.intel-kpi{border:0;border-radius:0;padding:15px 17px}
+.intel-kpi+.intel-kpi{border-left:1px solid var(--line)}
+.intel-kpi strong{font-size:29px;font-weight:850}
+.intel-table{font-size:12px}
+.intel-table th{background:#f5f7fa;color:#5c697b;font-weight:750;white-space:nowrap}
+.intel-table td,.intel-table th{padding:11px 12px;border-bottom-color:#e9edf2}
+.intel-table tbody tr:hover{background:#fafbfd}
+.market-brand-owned{background:#f2f5fa}
+.market-overview{grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr);gap:14px}
+.market-benefit-table{min-width:760px}
+.market-issue-scroll{max-height:720px}
+.market-issue strong{font-size:13px;font-weight:750}
+.mini-item{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:11px 0}
+.timeline{border-radius:5px}
+.tl-label{background:#f7f8fa}
+.tl-bar{height:24px;min-height:24px}
+.archive-grid{gap:14px}.archive-card{border-radius:6px}.archive-card img{height:clamp(150px,14vw,245px);object-fit:contain;background:#f6f7f9}
+.archive-copy{padding:14px}
+#perfCharts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+#perfCharts>div{min-width:0}
+#perfCharts .intel-chart{min-width:490px}
+[data-brand="tnf"]{--accent:#b65f67;--tint:#f8e8ea;--brandink:#8b3e46}
+[data-brand="blackyak"]{--accent:#64836e;--tint:#e5eee8;--brandink:#355d45}
+[data-brand="k2"]{--accent:#ba8c61;--tint:#f5eadc;--brandink:#795429}
+[data-brand="discovery"]{--accent:#ac843e;--tint:#f7efdd;--brandink:#775b29}
+[data-brand="nepa"]{--accent:#80975c;--tint:#ecf1e3;--brandink:#506737}
+[data-brand="kolonsport"]{--accent:#5c8c84;--tint:#e6f0ee;--brandink:#37665e}
+[data-brand="eider"]{--accent:#6380aa;--tint:#e8edf6;--brandink:#425e87}
+[data-brand="salomon"]{--accent:#53606e;--tint:#e9edf1;--brandink:#364658}
+[data-brand="millet"]{--accent:#9c7ab2;--tint:#f0eaf5;--brandink:#71558b}
+@media(max-width:1200px){.layout,.market-overview{grid-template-columns:1fr}.coverage-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.stats .stat{padding:12px}.sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){main{padding:18px 12px 40px}header{align-items:flex-start;padding-bottom:15px}header>div:last-child{text-align:left!important}h1{font-size:27px}.stats{grid-template-columns:repeat(2,minmax(0,1fr));padding:0;margin:14px 0;gap:0}.stats .stat,.stats .stat:nth-child(1),.stats .stat:nth-child(2){min-height:90px;padding:11px 13px;border-bottom:1px solid var(--line)}.stats .stat:nth-child(odd){border-left:0}.stats .stat strong{font-size:31px}.stats .stat:last-child{grid-column:1/-1;border-bottom:0}.intel-tabs{gap:18px;margin-bottom:12px}.toolbar-card,.coverage-panel,.panel,.intel-panel{padding:12px}.coverage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sidebar,#perfCharts{grid-template-columns:1fr}.calendar-week{min-height:108px}.intel-kpis{grid-template-columns:1fr}.intel-kpi+.intel-kpi{border-left:0;border-top:1px solid var(--line)}}
+
 </style></head><body>
 <main>
-<header><div><div class="overline">CSK E-COMM · PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
-<p>자사 행사 일정과 경쟁사 프로모션을 월별로 비교합니다.</p></div>
+<header><div><div class="overline">CSK E-COMM / MARKET INTELLIGENCE</div><h1>Competitive Intelligence</h1>
+<p>경쟁사 프로모션 · CRM 리워드 · 콘텐츠 및 자사 성과</p></div>
 <div style="text-align:right"><span class="pill" id="state">확인 중</span><p class="small" id="updated"></p></div></header>
 <div class="stats">
 <div class="stat owned"><span>Columbia · 자사 일정</span><strong id="ownedCount">—</strong><span>등록 일정 + 수집 행사</span></div>
@@ -223,6 +322,7 @@ header .overline:before{display:none}
 <div class="stat"><span>경쟁사 브랜드</span><strong id="brands">—</strong><span>선택 월 행사 기록 확보 브랜드</span></div>
 <div class="stat"><span>최신 배너 수집일</span><strong id="last">—</strong><span>기존 메인 배너 수집 기준</span></div>
 </div>
+<nav class="intel-tabs" aria-label="Promotion intelligence views"><button class="intel-tab active" data-view="calendar" type="button">CALENDAR</button><button class="intel-tab" data-view="timeline" type="button">BRAND TIMELINE</button><button class="intel-tab" data-view="analysis" type="button">PROMOTION ANALYSIS</button><button class="intel-tab" data-view="archive" type="button">BANNER ARCHIVE</button><button class="intel-tab" data-view="performance" type="button">OWNED PERFORMANCE</button></nav>
 <div class="panel toolbar-card row">
  <div class="nav"><button id="prev" aria-label="이전 달">‹</button><b id="monthTitle">2026. 11</b><button id="next" aria-label="다음 달">›</button><button id="current">기준월</button></div>
  <div class="filters">
@@ -232,7 +332,7 @@ header .overline:before{display:none}
  </div>
 </div>
 <section class="panel coverage-panel"><div class="coverage-head"><div><div class="section-label">Competitor Coverage</div><h2>컬럼비아 + 경쟁사 11개 모니터링 현황</h2></div><span class="pill" id="coverageSummary">불러오는 중</span></div><div class="coverage-grid" id="coverageGrid"></div><p class="small" id="coverageNote">행사 미확인은 세일이 없다는 뜻이 아닙니다. 브랜드를 누르면 해당 브랜드로 필터링됩니다.</p></section>
-<nav class="intel-tabs" aria-label="Promotion intelligence views"><button class="intel-tab active" data-view="calendar" type="button">CALENDAR</button><button class="intel-tab" data-view="timeline" type="button">BRAND TIMELINE</button><button class="intel-tab" data-view="analysis" type="button">PROMOTION ANALYSIS</button><button class="intel-tab" data-view="archive" type="button">BANNER ARCHIVE</button><button class="intel-tab" data-view="performance" type="button">OWNED PERFORMANCE</button></nav>
+
 <div class="layout intel-view" id="view-calendar">
 <section class="panel calendar-panel">
  <div class="calendar-heading"><div><div class="section-label">Promotion Calendar</div><div class="section-title">Monthly Overview</div></div><span class="pill">MONTHLY</span></div>
