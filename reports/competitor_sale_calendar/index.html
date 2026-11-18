@@ -493,7 +493,7 @@ var names=new Map(TARGET_BRANDS.map(function(x){return [x[0],x[1]]}));data.event
 names.forEach(function(name,key){var opt=document.createElement('option');opt.value=key;opt.textContent=name;$('brand').appendChild(opt)});
 render();
 Promise.allSettled([fetch('../competitor_intelligence/reviewed-market-baseline.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()}),fetch('../competitor_intelligence/latest-market-signals.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()})]).then(function(r){marketBaseline=r[0].status==='fulfilled'?r[0].value:null;marketFeed=r[1].status==='fulfilled'?r[1].value:null;marketLoadState='ready';if(activeView==='analysis')renderMarket()});
-fetch('../competitor_intelligence/latest-quality.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(function(q){crawlQuality=q;renderCoverage()}).catch(function(){renderCoverage()});
+fetch('../competitor_intelligence/latest-quality.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(function(q){crawlQuality=q;renderCoverage();if(q.checked_at_kst){$('updated').textContent+=' · 공식몰 점검 '+String(q.checked_at_kst).slice(0,16).replace('T',' ');if(q.job_status==='failure')$('state').textContent='부분 수집 · 검증 필요'}}).catch(function(){renderCoverage()});
 }).catch(function(err){$('state').textContent='데이터 오류';$('dayList').innerHTML='<p class="empty">집계 데이터를 불러오지 못했습니다.</p>';console.error(err)});
 })();
 </script></body></html>
