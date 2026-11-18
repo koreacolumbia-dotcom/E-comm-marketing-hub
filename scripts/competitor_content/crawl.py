@@ -40,11 +40,15 @@ SEEDS={"BLACKYAK":["https://www.byn.kr/story/blackyak/","https://www.byn.kr/stor
 "ARC'TERYX":["https://arcteryx.co.kr/explore/whoweare","https://arcteryx.co.kr/lp"],
 "SALOMON":["https://salomon.co.kr/pages/77years-of-salomon","https://salomon.co.kr/blogs/salomon-blog"],
 "KOLON SPORT":["https://www.kolonmall.com/Brands/KOLONSPORT/Special","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259601","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259682","https://www.kolonmall.com/Brands/kolonsport/Special/254611"],
-"TNF":["https://www.thenorthfacekorea.co.kr/brand/brandStory","https://www.thenorthfacekorea.co.kr/brand/technology","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93338","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93329","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93337","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93314","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93313","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93341","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93339","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93332","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93168"],
+"TNF":["https://www.thenorthfacekorea.co.kr/lookbook","https://www.thenorthfacekorea.co.kr/brand/vision","https://www.thenorthfacekorea.co.kr/brand/brandStory","https://www.thenorthfacekorea.co.kr/brand/technology","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93338","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93329","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93337","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93314","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93313","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93341","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93339","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93332","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93168"],
 "DISCOVERY":["https://www.discovery-expedition.com/display/promotions/collection/1556","https://www.discovery-expedition.com/display/promotions/collection/705"],
 "K2":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/k2/is","https://www.k-village.co.kr/k2/campaign","https://www.k-village.co.kr/k2/film","https://www.k-village.co.kr/k2/lookbook"],
 "EIDER":["https://www.k-village.co.kr/eider","https://www.k-village.co.kr/eider/film","https://www.k-village.co.kr/eider/lookbook","https://www.k-village.co.kr/eider/is"],
 "NATIONAL GEOGRAPHIC":["https://www.nstationmall.com/natgeo","https://www.nstationmall.com/event/planning/1155","https://www.nstationmall.com/event/planning/1157","https://nstationmall.com/event/planning/1124"],
+"NEPA":["https://www.nplus.co.kr/promotion/list.asp","https://www.nplus.co.kr/brand/nepa/story.asp","https://www.nplus.co.kr/brand/nepa/csr.asp"],
+"MAMMUT":["https://mammut.kr/stories.html","https://mammut.kr/board/promotion/list.html?board_no=8","https://mammut.kr/technologies.html","https://mammut.kr/responsibility.html"],
+"MERRELL":["https://merrellkorea.co.kr/archive.html","https://merrellkorea.co.kr/history.html","https://merrellkorea.co.kr/history2.html"],
+"SNOWLINE":["https://m.snowlinemall.com/pages/event/event-list.html"],
 "HOKA":["https://brand.naver.com/hoka"],
 "PATAGONIA":["https://www.patagonia.co.kr/stories/main","https://www.patagonia.co.kr/stories/all_films","https://www.patagonia.co.kr/stories/articleDetail/276","https://www.patagonia.co.kr/stories/articleDetail/255","https://www.patagonia.co.kr/stories/articleDetail/151","https://www.patagonia.co.kr/stories/filmDetail/275","https://www.patagonia.co.kr/stories/filmDetail/265","https://www.patagonia.co.kr/stories/filmDetail/264","https://www.patagonia.co.kr/stories/all","https://www.patagonia.co.kr/quality/main","https://www.patagonia.co.kr/stories/filmDetail/260","https://www.patagonia.co.kr/stories/filmDetail/272"],
 "SNOW PEAK":["https://www.snowpeak.co.kr/event-page/2026/lookBook2/apparel.html","https://www.snowpeak.co.kr/event-page/2026/lookBook/apparel.html"],
@@ -229,6 +233,10 @@ def brand_listing(brand,u):
         return (path=="/story/blackyak" and q.get("gb","list")!="detail") or (path=="/_container/exh_list.php" and q.get("hta_brand")=="blackyak") or (path=="/blackyak/_exh" and not q.get("no"))
     if brand in ("K2","EIDER"): return path in ("/"+brand.lower()+"/film","/"+brand.lower()+"/lookbook","/"+brand.lower()+"/campaign")
     if brand=="MILLET": return path=="/front/promo/pstories"
+    if brand=="MAMMUT": return path in ("/stories.html","/technologies.html") or (path=="/board/promotion/list.html" and q.get("board_no")=="8")
+    if brand=="MERRELL": return path=="/archive.html"
+    if brand=="NEPA": return path=="/promotion/list.asp"
+    if brand=="SNOWLINE": return path=="/pages/event/event-list.html"
     if brand=="TNF": return path in ("/lookbook","/event","/events")
     if brand=="PATAGONIA": return path in ("/stories/main","/stories/all","/stories/all_films","/stories/filmdetail","/stories/articledetail") or bool(re.fullmatch(r"/stories/(?:category|sports)(?:/[^/]+)?",path))
     return False
@@ -250,11 +258,38 @@ def film_archive_entries(brand,source,raw,checked):
         out.setdefault(key,{"brand":brand,"kind":"list_entry","title":title+" · "+season,"url":source,"season":season,"content_type":"FILM","source":"rendered_official_archive","listing_status":"제목·시즌 직접 관측","last_seen_at":checked,"published_at":None,"live_verified":False,"summary":"공식 목록에서 직접 관측; 개별 영상 및 발행일 미확인"})
     return list(out.values())
 
+def staff_archive_entries(source,raw,checked):
+    # A styling card is not a distinct brand campaign. Do not retain staff measurements or store identifiers.
+    if urlsplit(source).path.rstrip("/").lower()!="/lookbook": return []
+    if "STAFF GALLERY" not in raw.upper(): return []
+    body=re.split(r"STAFF GALLERY",raw,flags=re.I)[-1]
+    body=re.split(r"\babout us\b|고객지원실|개인정보처리방침",body,flags=re.I)[0]
+    lines=[" ".join(v.split()) for v in body.splitlines() if v.strip()]
+    out={}
+    for i,line in enumerate(lines):
+        if not re.match(r"^키\s*[:：]",line): continue
+        end=next((j for j in range(i+1,min(i+8,len(lines))) if re.match(r"^착용\s*사이즈\s*[:：]",lines[j])),None)
+        if not end or end<=i+1: continue
+        title=lines[end-1]
+        if not valid_title(title) or len(title)>120: continue
+        if re.search(r"비노출|이염확인|테스트용|삭제 예정",title): continue
+        color=re.search(r"색상\s*[:：]\s*([A-Za-z0-9_ -]+?)(?=\s*매장명\s*[:：]|$)",line)
+        c=color[1].strip() if color else ""
+        # Keep only a product/style + color key; not a claim of unique posts or unique people.
+        k=hashlib.sha256((title.casefold()+"|"+c.casefold()).encode()).hexdigest()[:20]
+        out.setdefault(k,{"brand":"TNF","kind":"list_entry","title":title+(" · "+c if c else "")+" · STAFF STYLE","url":source,"archive_id":k,"content_type":"STAFF_STYLE","source":"rendered_official_archive","listing_status":"제품·색상 직접 관측","last_seen_at":checked,"published_at":None,"live_verified":False,"summary":"공식 착장 목록 관측; 개별 게시물 URL·발행일 미확인"})
+    return list(out.values())
+
 def editorial_route(brand,u):
     p=urlsplit(u); path=p.path.lower(); q=dict(parse_qsl(p.query))
     if brand_listing(brand,u): return False
     if brand=="BLACKYAK" and (path.rstrip("/") in ("/blackyak/_exh","/story/blackyak") and q.get("no")): return True
     if brand=="NEW BALANCE" and re.search(r"/(?:nbmadehistory|nbrunningguide)\.action$",path): return True
+    if brand=="MAMMUT" and (re.fullmatch(r"/technologie_\d+\.html|/responsibility\.html",path) or re.match(r"/project/[^/]+/\d+/?$",path) or (path=="/product/project.html" and q.get("cate_no")) or (path=="/board/promotion/read.html" and q.get("board_no")=="8")): return True
+    if brand=="MERRELL" and path in ("/history.html","/history2.html"): return True
+    if brand=="NEPA" and (path in ("/brand/nepa/story.asp","/brand/nepa/csr.asp") or (path=="/promotion/view.asp" and q.get("EventNo"))): return True
+    if brand=="MILLET" and re.fullmatch(r"/front/promo/pstories/\d+",path): return True
+    if brand=="PATAGONIA" and path.startswith("/our_footprint/"): return True
     return bool(re.search(r"/(?:stories/(?:articledetail|filmdetail)/[^/]+|event/view/[^/]+/[^/]+|display/promotions/collection/[^/]+|blogs/[^/]+/[^/]+|special/\d+|journal/[^/]+|magazine/[^/]+|lookbook/[^/]+|campaign/[^/]+|pages/[^/]+|collections/[^/]+|s/[^/]+)",path,re.I))
 
 def sitemap_entries(raw):
@@ -421,13 +456,15 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                 if brand in ("K2","EIDER") and path=="/"+brand.lower()+"/film":
                     archive_text=await page.locator("body").inner_text(timeout=3000)
                     row["archive_entries"].extend(film_archive_entries(brand,source,archive_text,checked))
+                if brand=="TNF" and path=="/lookbook":
+                    row["archive_entries"].extend(staff_archive_entries(source,await page.locator("body").inner_text(timeout=3000),checked))
                 blocks=data["blocks"] if home else ([] if listing else [data["article"]])
                 for b in blocks:
                     evidence=(b.get("title") or "")+" "+(b.get("summary") or "")
                     if home and not b.get("image") and not KEY.search(evidence): continue
                     if home and re.search(r"\d[\d,]*\s*원|₩\s*\d",evidence) and not (KEY.search(b.get("title","")) or (b.get("image_details") and len(b.get("summary",""))>30)): continue
                     if home and b.get("links") and all(PRODUCT_PATH.search(v) for v in b["links"]) and not b.get("image"): continue
-                    if not home and not (KEY.search(source+" "+evidence) or tags(TYPES,evidence) or (brand=="BLACKYAK" and re.search(r"/blackyak/_(?:exh|event)/",urlsplit(source).path,re.I))): continue
+                    if not home and not (editorial_route(brand,source) or KEY.search(source+" "+evidence) or tags(TYPES,evidence) or (brand=="BLACKYAK" and re.search(r"/blackyak/_(?:exh|event)/",urlsplit(source).path,re.I))): continue
                     x=item(brand,source,b,checked,old,"main_visual" if home else "editorial_page")
                     if x and x["id"] not in ids:
                         row["items"].append(x);ids.add(x["id"])
@@ -562,6 +599,12 @@ def self_test():
     films=film_archive_entries("K2","https://www.k-village.co.kr/k2/film","NAV\nFILM\nALPHA\n2025 FW\nALPHA\n2025 FW\nBETA\n2026SS\nK.VILLAGE\nGAMMA\n2025 SS",now)
     assert len(films)==2 and films[1]["season"]=="2026 SS"
     assert brand_listing("EIDER","https://www.k-village.co.kr/eider/lookbook")
+    styles=staff_archive_entries("https://www.thenorthfacekorea.co.kr/lookbook","STAFF GALLERY\n키 : 170cm 사이즈 : 100L 색상 : BLACK 매장명 : Example\nTEST JACKET\n착용 사이즈 : 100L\n10\n키 : 175cm 사이즈 : 100L 색상 : BLACK 매장명 : Example\nTEST JACKET\n착용 사이즈 : 100L\nabout us",now)
+    assert len(styles)==1 and styles[0]["content_type"]=="STAFF_STYLE"
+    assert "Example" not in str(styles) and "170cm" not in str(styles)
+    assert editorial_route("MAMMUT","https://mammut.kr/technologie_02.html")
+    assert editorial_route("NEPA","https://www.nplus.co.kr/promotion/view.asp?EventNo=747")
+    assert brand_listing("MAMMUT","https://mammut.kr/board/promotion/list.html?board_no=8")
     print("content self-tests passed")
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
