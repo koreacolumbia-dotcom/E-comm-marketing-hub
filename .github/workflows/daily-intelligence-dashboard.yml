@@ -1,4 +1,4 @@
-name: Daily Intelligence Dashboard (01–13)
+name: Daily Intelligence Dashboard (01–14)
 on:
   workflow_dispatch:
   schedule:
@@ -24,8 +24,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Generate 13-section aggregate snapshot (no BigQuery queries)
+      - name: Generate 14-section aggregate snapshot (no BigQuery queries)
         run: |
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_inventory_intelligence.py'
           python scripts/personal_intelligence/build_dashboard.py --out reports/daily_intelligence/latest.json
       - name: Validate navigation and aggregate output
         run: |
@@ -33,11 +34,16 @@ jobs:
           from pathlib import Path
           import json
           x=json.loads(Path('reports/daily_intelligence/latest.json').read_text())
-          assert [s['number'] for s in x['sections']]==list(range(1,14))
+          assert [s['number'] for s in x['sections']]==list(range(1,15))
           assert sum(s['status']!='validation_required' for s in x['sections'])>=10
           assert x['sections'][10]['multi_touch_status']=='private_local_only'
+          inv=x['sections'][13]
+          assert inv['title']=='INVENTORY INTELLIGENCE'
+          assert inv['lost_sales'] is None and inv['stock_as_of'] is None
+          assert all(r['stock_status']=='not_verified' and r['coverage_days'] is None for r in inv['sku_candidates'])
+          assert "['daily_intelligence','인텔리전스','fa-chart-line']" in Path('assets/dashboard-redesign.js').read_text()
           assert Path('index.html').read_text().count('data-key="daily_intelligence"')==2
-          print('13 sections and PC/mobile tabs checked')
+          print('14 sections and PC/mobile tabs checked')
           PY
           node --version
           python - <<'PY'
