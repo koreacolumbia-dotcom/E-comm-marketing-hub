@@ -104,6 +104,12 @@
       transform: translateX(4px) translateY(-1px);
       box-shadow: 0 12px 24px rgba(15,23,42,0.06);
     }
+    .nav-item.content-intelligence-nav{font-size:13px;letter-spacing:-.025em;border-radius:10px;gap:10px;padding:12px 10px}
+    .nav-item.content-intelligence-nav:not(.active){color:#405b72}
+    .nav-item.content-intelligence-nav.active{color:#002d72;background:#eaf2f9;box-shadow:none;transform:none}
+    .nav-item.content-intelligence-nav.active::before{width:3px;background:#24679c;border-radius:0}
+    .nav-item.content-intelligence-nav.active::after{display:none}
+    .nav-item.content-intelligence-nav:not(.active):hover{transform:none;box-shadow:none;background:#f1f5f9}
     .nav-item:hover i{
       transform: scale(1.06);
     }
@@ -328,6 +334,18 @@
 
     <div class="nav-divider"></div>
 
+    <!-- CONTENT INTELLIGENCE -->
+    <div class="nav-section">
+      <div class="nav-section-title">Content Intelligence</div>
+      <div class="space-y-2">
+        <div class="nav-item content-intelligence-nav" role="button" tabindex="0" data-key="competitor_content" data-target="reports/competitor_content/index.html?v=20261118-editorial-v3" data-label="Content Intelligence">
+          <i class="fa-solid fa-book-open"></i><span>경쟁사 콘텐츠 분석</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-divider"></div>
+
     <!-- PRICE / COMPETITOR -->
     <div class="nav-section">
       <div class="nav-section-title">Price & Competitor</div>
@@ -342,10 +360,6 @@
 
         <div class="nav-item" data-key="sale_calendar" data-target="reports/competitor_sale_calendar/index.html?v=20261118-editorial" data-label="경쟁사 세일 캘린더">
           <i class="fa-solid fa-calendar-days"></i><span>경쟁사 세일 캘린더</span>
-        </div>
-
-        <div class="nav-item" data-key="competitor_content" data-target="reports/competitor_content/index.html?v=20261118-content" data-label="경쟁사 콘텐츠 모니터링">
-          <i class="fa-solid fa-book-open"></i><span>경쟁사 콘텐츠 모니터링</span>
         </div>
 
         <div class="nav-item" data-key="competitor" data-target="reports/competitor_intel/dashboard.html" data-label="경쟁사 상품 분석">
@@ -550,7 +564,7 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
       <div class="text-[10px]">세일</div>
     </div>
 
-    <div class="mo-tab" data-key="competitor_content" data-target="reports/competitor_content/index.html?v=20261118-content" data-label="경쟁사 콘텐츠 모니터링">
+    <div class="mo-tab" data-key="competitor_content" data-target="reports/competitor_content/index.html?v=20261118-editorial-v3" data-label="경쟁사 콘텐츠 모니터링">
       <i class="fa-solid fa-book-open text-base"></i>
       <div class="text-[10px]">콘텐츠</div>
     </div>
@@ -711,7 +725,8 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
         doc.body.style.overflow = "hidden";
         doc.body.style.margin = "0";
 
-        const h = Math.max(
+        const contentPage = window.location.hash === "#competitor_content" && doc.getElementById("contentPage");
+        const h = contentPage ? Math.ceil(contentPage.getBoundingClientRect().height) : Math.max(
           doc.body.scrollHeight,
           doc.documentElement.scrollHeight,
           doc.body.offsetHeight,
@@ -884,6 +899,7 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
 
     allNav.forEach(el => {
       el.addEventListener("click", () => navigate(el.getAttribute("data-target")));
+      if(el.classList.contains("content-intelligence-nav")) el.addEventListener("keydown", ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();navigate(el.getAttribute("data-target"));}});
     });
 
     function initialNavigate() {
@@ -899,6 +915,12 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
     window.addEventListener("message", (event) => {
       try {
         const data = event && event.data ? event.data : null;
+        if (data && data.type === "contentMonitorResize") {
+          if (event.origin !== window.location.origin || event.source !== frame.contentWindow || window.location.hash !== "#competitor_content") return;
+          const nextHeight=Number(data.height);
+          if(Number.isFinite(nextHeight)&&nextHeight>200) frame.style.height=(Math.ceil(nextHeight)+12)+"px";
+          return;
+        }
         if (!data || data.type !== "dailyDigestResize") return;
         const nextHeight = Number(data.height || 0);
         const currentKey = (window.location.hash || "").replace("#", "");
