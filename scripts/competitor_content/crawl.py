@@ -1,5 +1,6 @@
 """Independent public editorial crawler. Never treats discovery as publication."""
-import asyncio, hashlib, json, os, re, sys
+import asyncio, gzip, hashlib, io, json, os, re, sys
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
@@ -56,6 +57,8 @@ BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","1200"))
 SCROLL_LIMIT=int(os.getenv("CONTENT_SCROLL_LIMIT","80"))
 SCROLL_STABLE_LIMIT=4
 FRONTIER_LIMIT=5000
+SITEMAP_LIMIT=5
+SITEMAP_BYTES=4*1024*1024
 TARGET_SAMPLE=int(os.getenv("CONTENT_TARGET_SAMPLE","50"))
 CATCHUP_PAGE_LIMIT=int(os.getenv("CONTENT_CATCHUP_PAGE_LIMIT","250"))
 CATCHUP_SECONDS=int(os.getenv("CONTENT_CATCHUP_SECONDS","1500"))
@@ -173,7 +176,15 @@ def unique_urls(urls,accept):
 
 SCROLL_STATE=r"""() => {
  const root=document.scrollingElement||document.documentElement;
- const links=Array.from(document.querySelectorAll('a[href]')).filter(a=>{const r=a.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(a).visibility!=='hidden'}).map(a=>({url:a.href,label:(a.innerText||a.getAttribute('aria-label')||a.title||a.querySelector('img')?.alt||'').replace(/\s+/g,' ').trim().slice(0,180),pagination:a.rel==='next'||!!a.closest('[class*="pagination" i],[class*="paging" i],[aria-label*="pagination" i]')}));
+ const links=[];
+ for(const a of document.querySelectorAll('a[href],[data-href],[data-url]')){
+   const r=a.getBoundingClientRect();if(r.width<=0||r.height<=0||getComputedStyle(a).visibility==='hidden')continue;
+   const raw=a.getAttribute('href')||a.getAttribute('data-href')||a.getAttribute('data-url')||'';
+   if(!/^(?:https:\/\/|\/[^/]|\.\.?\/|\?)/i.test(raw))continue;
+   try{const url=new URL(raw,location.href);if(url.protocol!=='https:'||url.origin!==location.origin)continue;
+     links.push({url:url.href,label:(a.innerText||a.getAttribute('aria-label')||a.title||a.querySelector('img')?.alt||'').replace(/\s+/g,' ').trim().slice(0,180),pagination:a.rel==='next'||!!a.closest('[class*="pagination" i],[class*="paging" i],[aria-label*="pagination" i]')});
+   }catch{}
+ }
  const imgs=Array.from(document.images).filter(i=>i.complete&&i.naturalWidth>=400).length;
  return {height:root.scrollHeight,top:root.scrollTop,bottom:root.scrollTop+root.clientHeight>=root.scrollHeight-12,imgs,links};
 }"""
@@ -220,6 +231,56 @@ def brand_listing(brand,u):
     if brand=="PATAGONIA": return path in ("/stories/main","/stories/all","/stories/all_films","/stories/filmdetail","/stories/articledetail") or bool(re.fullmatch(r"/stories/(?:category|sports)(?:/[^/]+)?",path))
     return False
 
+def editorial_route(brand,u):
+    p=urlsplit(u); path=p.path.lower(); q=dict(parse_qsl(p.query))
+    if brand_listing(brand,u): return False
+    if brand=="BLACKYAK" and (path.rstrip("/") in ("/blackyak/_exh","/story/blackyak") and q.get("no")): return True
+    if brand=="NEW BALANCE" and re.search(r"/(?:nbmadehistory|nbrunningguide)\.action$",path): return True
+    return bool(re.search(r"/(?:stories/(?:articledetail|filmdetail)/[^/]+|event/view/[^/]+/[^/]+|display/promotions/collection/[^/]+|blogs/[^/]+/[^/]+|special/\d+|journal/[^/]+|magazine/[^/]+|lookbook/[^/]+|campaign/[^/]+|pages/[^/]+|collections/[^/]+|s/[^/]+)",path,re.I))
+
+def sitemap_entries(raw):
+    if raw.startswith(b"\x1f\x8b"):
+        with gzip.GzipFile(fileobj=io.BytesIO(raw)) as f: raw=f.read(SITEMAP_BYTES+1)
+    if len(raw)>SITEMAP_BYTES or b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper(): return [],[]
+    root=ET.fromstring(raw)
+    kind=root.tag.rsplit("}",1)[-1]
+    if kind not in ("sitemapindex","urlset"): return [],[]
+    urls=[]
+    for child in root:
+        for loc in child:
+            if loc.tag.rsplit("}",1)[-1]=="loc" and loc.text: urls.append(loc.text.strip())
+    return (urls,[]) if kind=="sitemapindex" else ([],urls)
+
+async def sitemap_discovery(session,policy,brand,source,deadline,blocked):
+    # Public robots-declared maps only, on an already successfully observed origin.
+    # Never use a sitemap to circumvent denied page navigation.
+    p=urlsplit(source); origin=p.scheme+"://"+p.netloc
+    rp=policy.cache.get(origin)
+    pending=list(rp.site_maps() or []) if rp else []
+    seen=set(); found=[]; errors=[]
+    def same_origin(u):
+        v=urlsplit(u)
+        return v.scheme=="https" and v.netloc==p.netloc and not v.username and not v.password
+    while pending and len(seen)<SITEMAP_LIMIT and asyncio.get_running_loop().time()+5<deadline and p.netloc not in blocked:
+        u=pending.pop(0)
+        if not same_origin(u) or u in seen: continue
+        seen.add(u)
+        if not await policy.permitted(u): continue
+        await asyncio.sleep(policy.delay(u))
+        try:
+            async with session.get(u,allow_redirects=False) as response:
+                if response.status in (403,429):
+                    blocked.add(p.netloc);errors.append({"url":u,"error":"sitemap HTTP "+str(response.status)+"; origin stopped"});break
+                if response.status!=200: continue
+                raw=await response.content.read(SITEMAP_BYTES+1)
+                if len(raw)>SITEMAP_BYTES or not response.content.at_eof(): continue
+            maps,urls=sitemap_entries(raw)
+            pending.extend(v for v in maps if same_origin(v) and v not in seen)
+            found.extend(v for v in urls if same_origin(v) and scoped(brand,v) and (editorial_route(brand,v) or brand_listing(brand,v)))
+        except (OSError,ValueError,ET.ParseError,asyncio.TimeoutError,aiohttp.ClientError) as e:
+            errors.append({"url":u,"error":"sitemap "+type(e).__name__})
+    return unique_urls(found,lambda v:scoped(brand,v)),len(seen),errors,bool(pending)
+
 def coverage_plan(brand,observed_count,pending_count=0,columbia_count=0):
     # Benchmark comparable deduplicated current-run observations, not indexed leads.
     # Missing comparator is not proof of parity; the absolute sample target remains active.
@@ -264,6 +325,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     backlog=unique_urls((frontier or {}).get("pending",[]),same)
     queue=unique_urls(seeds[:4]+backlog+seeds[4:],same)
     previous=sorted((x for x in old.values() if x.get("brand")==brand),key=lambda x:x.get("last_seen_at",""),reverse=True)
+    prior_urls={canonical(v) for x in previous for v in (x.get("url"),x.get("source_url")) if isinstance(v,str) and same(v)}
     for x in previous:
         v=x.get("url") if x.get("placement")=="main_visual" else x.get("source_url")
         if isinstance(v,str) and same(v) and KEY.search(v) and v not in queue: queue.append(v)
@@ -275,6 +337,8 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     row["official_social_links"]=[]
     row["scroll_steps"]=0;row["load_more_clicks"]=0;row["scroll_limited_pages"]=0
     row["pagination_links"]=0;row["frontier_start"]=len(backlog);row["frontier_truncated"]=0
+    row["sitemap_urls"]=0;row["sitemap_files_checked"]=0;row["sitemap_partial"]=False
+    sitemap_origins=set()
     deferred=[]
     deadline=asyncio.get_running_loop().time()+plan["seconds"]
     try:
@@ -308,6 +372,11 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                 if brand=="NATIONAL GEOGRAPHIC" and urlsplit(source).path.rstrip("/") in NATGEO_CURATED_PATHS and not re.search(r"national\s*geographic|내셔널지오그래픽",data["body"]+" "+data["title"],re.I):
                     raise RuntimeError("shared storefront brand attribution missing")
                 row["pages_checked"]+=1
+                if plan["undercovered"] and origin(source) not in sitemap_origins:
+                    sitemap_origins.add(origin(source))
+                    sm,checked_maps,errors,partial=await sitemap_discovery(session,policy,brand,source,deadline,blocked)
+                    row["sitemap_urls"]+=len(sm);row["sitemap_files_checked"]+=checked_maps;row["errors"].extend(errors);row["sitemap_partial"]|=partial
+                    queue.extend(v for v in sm if v not in seen)
                 path=urlsplit(source).path.lower().rstrip("/")
                 home=u==canonical(root) or (host(source)==ALTERNATE.get(brand) and path in ("/k2","/eider","/natgeo"))
                 if home:
@@ -365,13 +434,13 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                     v=canonical(link["url"])
                     if not same(v) or v in seen: continue
                     if SALE.search(link["label"]) and not brand_listing(brand,v) and not (brand=="PATAGONIA" and re.search(r"/stories/(?:articleDetail|filmDetail)/",v,re.I)): continue
-                    if content_link(v,link["label"],listing or list_hint,link.get("pagination",False)):
+                    if editorial_route(brand,v) or brand_listing(brand,v) or content_link(v,link["label"],listing or list_hint,link.get("pagination",False)):
                         if link.get("pagination"): row["pagination_links"]+=1
                         found.append(v)
                 queue.extend(found)
                 queue=list(dict.fromkeys(queue))
                 # Explicit editorial routes outrank generic category and promotion hubs.
-                queue.sort(key=lambda v: 0 if re.search(r"/(?:blogs/[^/]+/|special/\d+|story|stories|journal|magazine|lookbook|campaign|explore|collection/\d+)",urlsplit(v).path,re.I) else 1)
+                queue.sort(key=lambda v: (0 if editorial_route(brand,v) and v not in prior_urls else 1 if brand_listing(brand,v) else 2 if v not in prior_urls else 3))
                 row["discovered_urls"]=max(row["discovered_urls"],len(seen)+len(queue))
                 if len(queue)>FRONTIER_LIMIT:
                     row["frontier_truncated"]+=len(queue)-FRONTIER_LIMIT
@@ -386,7 +455,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     row["pending_urls"]=len(pending)
     row["_pending"]=pending[:FRONTIER_LIMIT]
     row["budget_exhausted"]=bool(queue and (len(seen)>=page_limit or asyncio.get_running_loop().time()>=deadline))
-    row["discovery_complete"]=not pending and not row["errors"] and not row["scroll_limited_pages"] and not row["frontier_truncated"]
+    row["discovery_complete"]=not pending and not row["errors"] and not row["scroll_limited_pages"] and not row["frontier_truncated"] and not row["sitemap_partial"]
     row["status"]="candidate" if row["items"] else "no_candidate" if row["pages_checked"] else "not_collected"
     return row
 def aggregate(rows,prior,checked,prior_brands=None):
@@ -458,6 +527,11 @@ def self_test():
     assert not coverage_plan("K2",13,0,13)["below_columbia"]
     assert not coverage_plan("COLUMBIA",0,0,13)["below_columbia"]
     assert coverage_plan("K2",TARGET_SAMPLE,0,TARGET_SAMPLE+1)["undercovered"]
+    assert editorial_route("PATAGONIA","https://www.patagonia.co.kr/stories/filmDetail/275")
+    assert editorial_route("BLACKYAK","https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
+    assert not editorial_route("PATAGONIA","https://www.patagonia.co.kr/stories/all_films")
+    assert sitemap_entries(b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.org/story/1</loc></url></url>')==([],["https://example.org/story/1"])
+    assert sitemap_entries(b'<!DOCTYPE urlset><urlset/>')==([],[])
     print("content self-tests passed")
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
