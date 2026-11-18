@@ -69,7 +69,7 @@ def extract_market_signals(body, links, page_url):
         if MEMBER.search(line) and (REWARD.search(line) or len(line)<70):
             nearby=lines[i+1:i+3]
             for next_line in nearby:
-                if len(next_line)<100 and (REWARD.search(next_line) or MONEY.search(next_line)) and not PRIVATE.search(next_line):
+                if len(next_line)<100 and not MEMBER.search(next_line) and (REWARD.search(next_line) or MONEY.search(next_line)) and not PRIVATE.search(next_line):
                     add(line+" "+next_line,source,page_url)
                     break
     for l in links:
