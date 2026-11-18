@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urljoin,urlparse
 from adapters import PROFILES,extract_cards
+from market_signals import PRIVATE, public_topic, extract_market_signals
 from reliability import PolicyCache, navigate, checkpoint
 from urllib.robotparser import RobotFileParser
 import aiohttp
@@ -17,15 +18,31 @@ DEAL=re.compile(r'할인|쿠폰|사은품|적립|특가|black friday|sale|%\s*of
 PRODUCT=re.compile(r'goods_view|product/detail|productdetail|/product/|/goods/|goodsNo=|productNo=',re.I)
 DATE=re.compile(r'20\d{2}[.\-/ ]\s*\d{1,2}[.\-/ ]\s*\d{1,2}|\d{1,2}[./]\d{1,2}\s*[~–-]\s*\d{1,2}[./]\d{1,2}')
 SEEDS={'BLACKYAK':['https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1','https://m.byn.kr/blackyak/_exh/'],'NEPA':['https://www.nplus.co.kr/promotion/list.asp','https://www.nplus.co.kr/product/list.asp','https://www.nplus.co.kr/promotion/view.asp?EventNo=856'],'KOLON SPORT':['https://www.kolonmall.com/Special/259472']}
+MARKET_SEEDS={
+    "COLUMBIA":["https://www.columbiakorea.co.kr/event/261101/new_members.asp","https://www.columbiakorea.co.kr/inside/benefit.asp","https://www.columbiakorea.co.kr/about/notice.asp","https://www.columbiakorea.co.kr/event/list.asp"],
+    "TNF":["https://image.thenorthfacekorea.co.kr/cscenter","https://image.thenorthfacekorea.co.kr/cscenter/faq"],
+    "K2":["https://www.k-village.co.kr/customer/grade"], "EIDER":["https://www.k-village.co.kr/customer/grade"],
+    "DISCOVERY":["https://www.discovery-expedition.com/display/promotions/event/641","https://www.discovery-expedition.com/register"],
+    "BLACKYAK":["https://m.byn.kr/board/?db=basic_2"],
+    "NEPA":["https://www.nplus.co.kr/customer/membership.asp","https://www.nplus.co.kr/promotion/view.asp?EventNo=241"],
+    "KOLON SPORT":["https://www.kolonsport.com/OLOMembership","https://www.kolonsport.com/Event","https://www.kolonmall.com/Brands/4894/Event/ThisMonth"],
+    "NATIONAL GEOGRAPHIC":["https://www.nstationmall.com/event/planning/356","https://www.nstationmall.com/cs-center/grade-benefit-info"],
+    "SNOW PEAK":["https://www.snowpeakstore.co.kr/member/join_agreement.php","https://m.snowpeakstore.co.kr/service/guide.php"],
+    "MILLET":["https://www.millet.co.kr/front/product/29587"],
+}
 def host(u): return (urlparse(u).hostname or '').removeprefix('www.').removeprefix('m.')
 async def scan(browser,session,name,root):
     result={'brand':name,'root':root,'status':'unverified','pages':[],'errors':[]}
     allowed=host(root)
     profile=PROFILES[name]
-    seeds=list(dict.fromkeys(SEEDS.get(name,[])+profile['seeds']))
-    def same(u): return host(u)==allowed or (urlparse(u).hostname or '') in profile.get('hosts',[])
+    market_seeds=MARKET_SEEDS.get(name,[])
+    seeds=list(dict.fromkeys(market_seeds+SEEDS.get(name,[])+profile['seeds']))
+    market_hosts={host(u) for u in market_seeds}
+    def same(u): return host(u)==allowed or host(u) in market_hosts or (urlparse(u).hostname or '') in profile.get('hosts',[])
     def brand_route(u):
         p=urlparse(u)
+        if PRIVATE.search(p.path): return False
+        if u in market_seeds: return True
         if name=="COLUMBIA":
             # Anonymous, public shopping pages only; never account, cart, order or admin routes.
             return p.path.lower().startswith(("/main/","/event/","/product/list","/product/view","/promotion/","/exhibition/"))
@@ -52,7 +69,7 @@ async def scan(browser,session,name,root):
             else: await route.continue_()
         await context.route('**/*',route_handler)
         page=await context.new_page()
-        queue=list(dict.fromkeys(seeds+[root]));seen=set();blocked_origins=set()
+        queue=list(dict.fromkeys([root]+seeds));seen=set();blocked_origins=set()
         def origin(u):
             p=urlparse(u);return (p.scheme,p.netloc)
         def priority(u):
@@ -60,8 +77,9 @@ async def scan(browser,session,name,root):
             p=urlparse(u);s=p.path+'?'+p.query
             listing=bool(re.search(r'category|product/list|goods_list|big_section|/list/|collection|search|/best|/new',s,re.I))
             product=bool(PRODUCT.search(u)) and not listing
-            if not result['pages']: return (0 if u in seeds or u==root else 1,)
-            return (0 if listing else 1 if product else 2 if u in seeds or u==root else 3, 0 if u in seeds else 1)
+            if u in market_seeds: return (-1,0)
+            if not result['pages']: return (0 if u in seeds or u==root else 1,0)
+            return (0 if public_topic(u) else 1 if listing else 2 if product else 3 if u in seeds or u==root else 4, 0 if u in seeds else 1)
         while queue and len(seen)<PAGE_LIMIT and asyncio.get_running_loop().time()<deadline:
             u=queue.pop(0)
             if u in seen or origin(u) in blocked_origins or not same(u) or not brand_route(u): continue
@@ -88,6 +106,7 @@ async def scan(browser,session,name,root):
                 structured=await page.locator('script[type="application/ld+json"]').all_text_contents()
                 images=await page.locator('img').evaluate_all("els=>els.slice(0,80).map(e=>({src:e.currentSrc||e.src,alt:e.alt}))")
                 links=await page.locator('a[href], img[alt]').evaluate_all("""els=>els.map(e=>({url:e.href||e.closest('a')?.href||'',label:[e.innerText,e.alt,e.title,e.querySelector('img')?.alt].filter(Boolean).join(' ')}))""")
+                signals=extract_market_signals(body,[x for x in links if same(x['url']) and brand_route(x['url'])],page.url)
                 cards=await extract_cards(page,profile)
                 if host(page.url)=='k-village.co.kr' and name in ('K2','EIDER'):
                     # Shared mall results must explicitly identify the target brand.
@@ -122,9 +141,9 @@ async def scan(browser,session,name,root):
                             pass
                 snippets=[x.strip()[:350] for x in body.splitlines() if DEAL.search(x) or DATE.search(x)][:60]
                 banners=[x for x in links if EVENT.search(x['label']) or DEAL.search(x['label'])][:25]
-                result['pages'].append({'url':page.url,'title':await page.title(),'product_cards':cards,'structured_data':structured[:15],'images':images,'hero_assets':hero_assets,'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
+                result['pages'].append({'url':page.url,'title':await page.title(),'product_cards':cards,'structured_data':structured[:15],'images':images,'hero_assets':hero_assets,'market_signals':signals,'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
                 checkpoint(name,result)
-                candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and same(x['url']) and brand_route(x['url']) and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']))]
+                candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and same(x['url']) and brand_route(x['url']) and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']) or public_topic(x['url'],x['label']))]
                 queue=list(dict.fromkeys(queue+[x for x in candidates if x not in seen]))
                 queue=sorted(queue,key=priority)[:120]
             except Exception as e: result['errors'].append({'url':u,'error':str(e)[:300]})
