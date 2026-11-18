@@ -1,13 +1,13 @@
 import re
 PROFILES={
 "TNF":{"seeds":["https://image.thenorthfacekorea.co.kr/category/n/Winter-supplies"],"hosts":["image.thenorthfacekorea.co.kr"],"cards":["li","article"]},
-"K2":{"seeds":[],"cards":["li","article"]},
-"DISCOVERY":{"seeds":["https://www.discovery-expedition.com/display/promotions/collection/705"],"cards":["article","li"]},
+"K2":{"seeds":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/eventDetail?eventNo=1096"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["li","article"]},
+"DISCOVERY":{"seeds":["https://www.discovery-expedition.com/display/promotions?type=EVENT&gf=F","https://www.discovery-expedition.com/display/promotions/event/1716","https://www.discovery-expedition.com/display/promotions/collection/705"],"cards":["article","li"]},
 "BLACKYAK":{"seeds":[],"cards":["li","article"]},
 "NEPA":{"seeds":[],"cards":["li","article"]},
 "KOLON SPORT":{"seeds":[],"cards":["article","li"]},
-"EIDER":{"seeds":["https://www.eider.co.kr/search?k=%EB%8B%A4%EC%9A%B4"],"cards":["article","li"]},
-"NATIONAL GEOGRAPHIC":{"seeds":[],"cards":["article","li"]},
+"EIDER":{"seeds":["https://www.k-village.co.kr/eider","https://www.k-village.co.kr/eventDetail?eventNo=1096","https://www.eider.co.kr/search?k=%EB%8B%A4%EC%9A%B4"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["article","li"]},
+"NATIONAL GEOGRAPHIC":{"seeds":["https://www.nstationmall.com/event/planning/1165","https://www.nstationmall.com/event/planning/1171","https://www.nstationmall.com/event/planning"],"hosts":["www.nstationmall.com","nstationmall.com"],"cards":["article","li"]},
 "SNOW PEAK":{"seeds":["https://www.snowpeakstore.co.kr/board/list.php?bdId=newevent","https://m.snowpeakstore.co.kr/goods/event_sale.php?sno=697"],"cards":["li",".item_cont"]},
 "MILLET":{"seeds":[],"cards":["article","li"]}}
 def normalize_cards(rows):
