@@ -2,40 +2,58 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>CSK 경쟁사 세일 캘린더</title>
 <style>
-:root{--navy:#1d365b;--light:#f5f7fb;--line:#e1e7f0;--muted:#6e809b;--ink:#203451}
-*{box-sizing:border-box}body{margin:0;background:var(--light);font:14px/1.55 system-ui,-apple-system,"Noto Sans KR",sans-serif;color:var(--ink)}
-main{max-width:1380px;margin:auto;padding:26px 20px 60px}h1{font-size:28px;letter-spacing:-.6px;margin:2px 0 7px}h2{font-size:17px;margin:0 0 12px}p{margin:5px 0;color:var(--muted)}
-header,.filters,.nav,.row{display:flex;align-items:center;justify-content:space-between;gap:13px;flex-wrap:wrap}
-.small{font-size:12px;color:var(--muted)}.overline{font-size:11px;letter-spacing:.14em;font-weight:800;color:#687e9e}
-.panel,.stat{background:#fff;border:1px solid var(--line);border-radius:15px}
-.panel{padding:16px}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0}
-.stat{padding:16px}.stat strong{display:block;font-size:23px;margin:6px 0}.stat span{font-size:12px;color:var(--muted)}
-button,select,input{font:inherit;border:1px solid var(--line);border-radius:9px;background:#fff;padding:9px 11px;color:var(--ink)}
-button{cursor:pointer}button:hover{border-color:#7f9bbd}input{max-width:175px}
-.nav b{font-size:20px;min-width:125px;text-align:center}.layout{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(305px,1fr);gap:15px;margin-top:16px;align-items:start}
-.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-bottom:7px}.week span{text-align:center;font-weight:700;color:var(--muted);font-size:12px}
-.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line);border-radius:8px;overflow:hidden}
-.day{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-height:104px;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0;text-align:left;padding:6px;min-width:0}
-.day:hover{background:#f4f8ff}.day.dim{background:#fafbfc}.day.sel{outline:2px solid #4c76ac;outline-offset:-2px;z-index:1;background:#eff6ff}
-.day .num{font-size:12px;font-weight:800;display:inline-grid;place-items:center;width:24px;height:24px}.day.today .num{background:var(--navy);color:#fff;border-radius:7px}
-.chip{padding:2px 5px;border-left:3px solid #437dae;background:#e8f1fa;border-radius:4px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-size:10px;color:#2c5c84}
-.chip.obs{background:#fff4e7;border:1px dashed #d8a473;border-left:3px solid #c58537;color:#925b26}
-.sidebar{display:grid;gap:14px}.tag{display:inline-block;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;color:#39628b;background:#eaf1f9}
-.tag.obs{background:#fff0de;color:#996022}.event{border-top:1px solid var(--line);padding:12px 0}.event:first-child{border:0}.event b{font-size:14px}.event .meta{margin-top:5px;font-size:12px;color:var(--muted)}
-.event .offer{color:#2a6295;font-weight:800;margin:3px 0}a{color:#285d9b;text-decoration:none;font-size:12px;font-weight:700}a:hover{text-decoration:underline}
-#monthEvents{max-height:430px;overflow:auto}.pill{padding:4px 8px;color:#587393;border-radius:30px;background:#eef3fa;font-size:12px}
-.legend{display:flex;flex-wrap:wrap;gap:12px;padding:12px 4px 0;color:var(--muted);font-size:12px}
-.legend i{display:inline-block;width:11px;height:11px;background:#d4e7f8;border-radius:3px;margin-right:4px}.legend i.obs{background:#fff3e5;border:1px dashed #c58537}
-.notice{font-size:12px;color:#728399;margin-top:18px;line-height:1.8}.empty{font-size:13px;color:#8695a8;padding:13px 0}
-@media(max-width:930px){.layout{grid-template-columns:1fr}.sidebar{grid-template-columns:1fr 1fr}}
-@media(max-width:650px){main{padding:16px 9px 42px}h1{font-size:22px}.stats{grid-template-columns:repeat(2,1fr)}.stat strong{font-size:20px}.layout,.sidebar{grid-template-columns:1fr}.filters{justify-content:stretch}.filters>*{flex:1;min-width:90px}.nav{justify-content:center}.day{min-height:75px;padding:3px}.chip{font-size:9px;padding:2px 3px}.chip:nth-of-type(n+3){display:none}.panel{padding:10px}}
+
+:root{--navy:#142b44;--light:#f5f7fa;--line:#e5e9ee;--muted:#667789;--ink:#192c40;--blue:#175e9e}
+*{box-sizing:border-box}body{margin:0;background:var(--light);font:14px/1.55 system-ui,-apple-system,"Noto Sans KR",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+main{width:100%;max-width:1840px;margin:auto;padding:36px clamp(18px,2.5vw,48px) 60px}h1{font-size:clamp(26px,2.1vw,36px);letter-spacing:-.045em;margin:5px 0 5px;line-height:1.25}h2{font-size:17px;letter-spacing:-.035em;margin:0}p{margin:5px 0;color:var(--muted)}
+header,.filters,.nav,.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+header{padding:0 0 7px}header .overline{display:flex;align-items:center;gap:10px}.overline:before{content:"";width:24px;height:3px;background:var(--blue);border-radius:3px}
+.small{font-size:12px;color:var(--muted)}.overline{font-size:11px;letter-spacing:.17em;font-weight:750;color:var(--blue)}
+.panel,.stat{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 3px 12px #142b4405}
+.panel{padding:18px;min-width:0}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:24px 0 20px}
+.stat{padding:17px 20px;border-top:3px solid #cbdbe9}.stat:nth-child(1){border-top-color:#2567a4}.stat:nth-child(2){border-top-color:#c58c42}.stat strong{display:block;font-size:30px;font-weight:750;letter-spacing:-.05em;line-height:1.25;margin:7px 0;font-variant-numeric:tabular-nums}.stat span{font-size:12px;color:var(--muted)}.stat span:first-child{font-weight:700;color:#475b70}
+button,select,input{font:inherit;border:1px solid #dce3eb;border-radius:8px;background:#fff;padding:9px 13px;color:var(--ink)}
+button{cursor:pointer}button:hover{border-color:#9db3c7}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:2px}input{width:200px;max-width:100%}
+.nav{gap:8px;flex-wrap:nowrap}.nav b{font-size:23px;min-width:120px;text-align:center;font-weight:750;letter-spacing:-.04em;font-variant-numeric:tabular-nums}.nav button:not(#current){font-size:21px;padding:2px 13px;line-height:1.5}.nav #current{margin-left:5px;background:#f1f5fa;color:var(--blue);font-size:12px;font-weight:700}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(310px,24%);gap:18px;margin-top:18px;align-items:start}
+.calendar-panel{padding:18px}.calendar-scroll{overflow-x:auto;scrollbar-color:#b7c7d6 transparent;scrollbar-width:thin}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-bottom:9px;gap:0}.week span{text-align:center;font-weight:700;color:var(--muted);font-size:12px;letter-spacing:.06em;padding:4px 0}.week span:first-child{color:#bd5961}.week span:last-child{color:#3c78a8}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--line);gap:1px}
+.day{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-height:150px;border:0;border-radius:0;text-align:left;padding:9px;min-width:0;background:#fff;transition:background .15s}
+.day:hover{background:#f4f8fc}.day.dim{background:#f7f8fa}.day.dim .num{opacity:.4}.day.sel{outline:2px solid #397ab5;outline-offset:-2px;z-index:1;background:#f3f8fd}
+.day .num{font-size:13px;font-weight:750;display:inline-grid;place-items:center;width:27px;height:27px;flex-shrink:0;font-variant-numeric:tabular-nums}.day:nth-child(7n+1) .num{color:#b64a55}.day:nth-child(7n) .num{color:#3974a4}.day.today .num{background:var(--navy);color:#fff;border-radius:50%}.day>.small{font-size:11px;font-weight:650;padding-left:4px}
+[data-brand]{--accent:#526b84;--tint:#edf2f7;--brandink:#344b65}
+[data-brand="tnf"]{--accent:#c05c62;--tint:#faecee;--brandink:#903a44}
+[data-brand="blackyak"],[data-brand="blackyak_kids"]{--accent:#547d68;--tint:#eaf3ee;--brandink:#315a44}
+[data-brand="snowpeak"]{--accent:#738aa6;--tint:#eaf0f8;--brandink:#365b80}
+[data-brand="millet"]{--accent:#9875af;--tint:#f2edf7;--brandink:#6c4788}
+[data-brand="discovery"],[data-brand="k2"]{--accent:#bd8750;--tint:#faf1e6;--brandink:#875520}
+[data-brand="kolonsport"],[data-brand="nepa"]{--accent:#719044;--tint:#f0f4e8;--brandink:#506b2c}
+[data-brand="salomon"],[data-brand="arcteryx"]{--accent:#637180;--tint:#edf0f3;--brandink:#334657}
+[data-brand="patagonia"],[data-brand="newbalance"]{--accent:#438a99;--tint:#e9f5f7;--brandink:#2f6672}
+.chip{display:block;min-width:0;padding:5px 7px 6px;border:1px solid transparent;border-left:3px solid var(--accent);background:var(--tint);border-radius:5px;font-size:11px;color:var(--brandink);line-height:1.35}
+.chip.obs{border-top:1px dashed var(--accent);border-right:1px dashed var(--accent);border-bottom:1px dashed var(--accent);background:#fff}
+.chip-top{display:flex;justify-content:space-between;align-items:baseline;gap:4px;min-width:0}.chip-brand{font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.chip-benefit{font-size:10px;font-weight:800;white-space:nowrap;flex-shrink:0;max-width:60%;overflow:hidden;text-overflow:ellipsis}.chip-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-weight:550;margin-top:2px;overflow-wrap:anywhere}
+.sidebar{display:grid;gap:14px;min-width:0}.sidebar .panel{padding:17px}.sidebar .row{padding-bottom:8px;border-bottom:1px solid var(--line)}
+.tag{display:inline-block;border-radius:5px;padding:3px 7px;font-size:10px;font-weight:750;color:var(--brandink);background:var(--tint)}
+.tag.kind{background:#eef2f7;color:#53687e}.tag.kind.obs{background:#fff4e7;color:#8b5c22}
+.event{border-bottom:1px solid var(--line);padding:14px 1px;overflow-wrap:anywhere}.event:last-child{border-bottom:0;padding-bottom:3px}.event b{display:block;font-size:14px;line-height:1.55;letter-spacing:-.02em;margin-top:8px}.event .meta{margin-top:5px;font-size:11px;color:var(--muted)}
+.event .offer{color:var(--brandink);font-weight:800;font-size:16px;letter-spacing:-.035em;margin:5px 0}a{color:var(--blue);text-decoration:none;font-size:12px;font-weight:700}a:hover{text-decoration:underline}
+#monthEvents{max-height:560px;overflow:auto;scrollbar-width:thin;scrollbar-color:#c3ceda transparent;padding-right:4px}.pill{padding:5px 10px;color:#526b84;border-radius:30px;background:#eef3f8;font-size:12px;font-weight:650}
+.legend{display:flex;flex-wrap:wrap;gap:14px;padding:14px 2px 0;color:var(--muted);font-size:12px}.legend span{display:flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:17px;height:12px;background:#dbe8f5;border-left:3px solid #6590b4;border-radius:3px}.legend i.obs{background:#fff;border:1px dashed #8399ae;border-left:3px solid #8399ae}
+.notice{font-size:12px;color:#728399;margin-top:18px;line-height:1.8}.empty{font-size:13px;color:var(--muted);padding:13px 0}.scroll-hint{display:none}
+@media(max-width:1150px){.layout{grid-template-columns:minmax(0,1fr)}.sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}.day{min-height:135px}}
+@media(max-width:720px){main{padding:20px 12px 42px}header{align-items:flex-start}header>div:last-child{text-align:left!important}.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:17px 0}.stat{padding:12px}.stat strong{font-size:24px}.sidebar{grid-template-columns:minmax(0,1fr)}.filters{width:100%;justify-content:stretch;gap:7px}.filters>*{flex:1;min-width:95px}.filters input{width:auto}.nav{justify-content:center;width:100%}.nav b{font-size:20px;min-width:104px}.panel,.calendar-panel{padding:12px}.calendar-scroll .week,.calendar-scroll .grid{min-width:755px}.day{min-height:122px;padding:6px}.scroll-hint{display:block;font-size:11px;margin:0 0 8px;color:var(--muted)}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
 </style></head><body>
 <main>
 <header><div><div class="overline">CSK · COMPETITOR PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
 <p>공식 행사 일정과 할인 배너 관측 기록을 월별로 확인하세요.</p></div>
 <div style="text-align:right"><span class="pill" id="state">확인 중</span><p class="small" id="updated"></p></div></header>
 <div class="stats">
-<div class="stat"><span>해당 월 공식 기간 확인</span><strong id="dated">—</strong><span>실제 행사 기간</span></div>
+<div class="stat"><span>해당 월 공식 일정 확인</span><strong id="dated">—</strong><span>공식 기간 또는 시작일</span></div>
 <div class="stat"><span>해당 월 할인 배너</span><strong id="observed">—</strong><span>수집 관측 이벤트</span></div>
 <div class="stat"><span>관련 브랜드</span><strong id="brands">—</strong><span>필터 적용 후</span></div>
 <div class="stat"><span>최신 배너 수집일</span><strong id="last">—</strong><span>기준일과 별개</span></div>
@@ -49,10 +67,11 @@ button{cursor:pointer}button:hover{border-color:#7f9bbd}input{max-width:175px}
  </div>
 </div>
 <div class="layout">
-<section class="panel">
- <div class="week"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
- <div class="grid" id="calendar" aria-label="경쟁사 세일 월간 달력"></div>
- <div class="legend"><span><i></i> 공식 세일 기간 확인</span><span><i class="obs"></i> 수집일에만 관측</span></div>
+<section class="panel calendar-panel">
+ <p class="scroll-hint">좌우로 스크롤하여 월간 달력을 확인하세요.</p>
+ <div class="calendar-scroll"><div class="week"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+ <div class="grid" id="calendar" aria-label="경쟁사 세일 월간 달력"></div></div>
+ <div class="legend"><span><i></i> 공식 일정 확인</span><span><i class="obs"></i> 수집일에만 관측</span><span>색상은 브랜드별 구분</span></div>
 </section>
 <aside class="sidebar">
 <section class="panel"><div class="row"><h2 id="dateTitle">날짜별 행사</h2><span class="pill" id="dayCount">—</span></div><div id="dayList" aria-live="polite"></div></section>
@@ -91,7 +110,7 @@ var when=e.kind==='verified_period'?pretty(e.start_date)+' ~ '+pretty(e.end_date
  '관측: '+(e.observed_on||[]).map(short).join(', ');
 var source=e.source_url&&e.source_url.indexOf('https://')===0?
  '<a rel="noopener noreferrer" target="_blank" href="'+esc(e.source_url)+'">공식 근거 확인</a>':'<span class="small">행사 상세 링크 확인 필요</span>';
-return '<div class="event"><div><span class="tag">'+esc(e.brand_name)+'</span> <span class="tag'+(verified?'':' obs')+'">'+(verified?'기간 확인':'관측')+'</span></div>'+
+return '<div class="event" data-brand="'+esc(e.brand)+'"><div><span class="tag">'+esc(e.brand_name)+'</span> <span class="tag kind'+(verified?'':' obs')+'">'+(e.kind==='verified_start'?'시작일 확인':verified?'기간 확인':'관측')+'</span></div>'+
  '<b>'+esc(e.title)+'</b>'+(e.benefit?'<div class="offer">'+esc(e.benefit)+'</div>':'')+
  '<div class="meta">'+esc(when)+'</div><div class="meta">'+esc(e.note||'')+'</div>'+source+'</div>';
 }
@@ -112,7 +131,7 @@ if(d>total){m=month===12?1:month+1;y=month===12?year+1:year;actual=d-total}
 var stamp=iso(y,m,actual),ev=dayEvents(stamp),b=document.createElement('button');
 b.type='button';b.className='day'+(m!==month?' dim':'')+(stamp===selected?' sel':'')+(stamp===data.as_of?' today':'');
 b.setAttribute('aria-label',stamp+' '+ev.length+'개');
-b.innerHTML='<span class="num">'+actual+'</span>'+ev.slice(0,3).map(function(x){return '<span title="'+esc(x.title)+'" class="chip'+(x.kind==='observed_banner'?' obs':'')+'">'+esc(x.brand_name+' · '+x.title)+'</span>'}).join('')+
+b.innerHTML='<span class="num">'+actual+'</span>'+ev.slice(0,3).map(function(x){return '<span title="'+esc(x.brand_name+' · '+x.title+(x.benefit?' · '+x.benefit:''))+'" data-brand="'+esc(x.brand)+'" class="chip'+(x.kind==='observed_banner'?' obs':'')+'"><span class="chip-top"><span class="chip-brand">'+esc(x.brand_name)+'</span>'+(x.benefit?'<span class="chip-benefit">'+esc(x.benefit)+'</span>':'')+'</span><span class="chip-title">'+esc(x.title)+'</span></span>'}).join('')+
 (ev.length>3?'<span class="small">+'+(ev.length-3)+'개</span>':'');
 (function(day,yy,mm){b.onclick=function(){selected=day;year=yy;month=mm;render()}})(stamp,y,m);
 host.appendChild(b);
