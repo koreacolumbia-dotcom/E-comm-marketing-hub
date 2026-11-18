@@ -318,6 +318,7 @@ def read_owned_archive(root: Path, as_of: dt.date, lookback: int) -> list[dict]:
 # campaign, but do not infer additional campaign days or combine separate phases.
 REVIEWED_BANNER_ALIASES = {
     "observed-21edff27ca43": "blackyak-fw-black-festa-20261109",
+    "observed-bce98cd62303": "blackyak-black-festa-2-20261117",
 }
 
 def consolidate_campaigns(events: list[dict]) -> list[dict]:
