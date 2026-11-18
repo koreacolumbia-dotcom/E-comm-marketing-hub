@@ -2990,6 +2990,51 @@ def build_trend_svg_map(series: dict) -> Dict[str, str]:
 # =========================
 # Best Sellers + trends per SKU (kept)
 # =========================
+def product_scope_data(client,w,image_map,best,rising,previous):
+    def get(a,b,dim,metric,daily=False):
+        dims=(["date"] if daily else ["itemId","itemName"]) if not daily else ["date",dim]
+        d=run_report(client,PROPERTY_ID,ymd(a),ymd(b),dims,[metric],limit=250000)
+        if not d.empty: d[metric]=pd.to_numeric(d[metric],errors="raise")
+        return d
+    def key(x): return " ".join(str(x).casefold().split())
+    def rows(a,b,metric,exclude=()):
+        d=get(a,b,"itemName",metric)
+        if d.empty:return []
+        d=d[~d.itemName.map(is_not_set)].copy()
+        d["key"]=d.itemName.map(key)
+        out=[]
+        for k,v in d.groupby("key")[metric].sum().sort_values(ascending=False).items():
+            if k in exclude or v<=0:continue
+            sub=d[d.key==k].sort_values(metric,ascending=False)
+            out.append(dict(itemName=str(sub.iloc[0].itemName),itemId="",qty=float(v) if metric=="itemsPurchased" else None,views=float(v) if metric=="itemsViewed" else None,image_url=image_map.get(normalize_sku_key(sub.iloc[0].itemId),"")))
+            if len(out)==10:break
+        return out
+    def graph(rs,a,b,p,q,metric,dim):
+        if not rs:return rs
+        data=[get(x,y,dim,metric,True) for x,y in [(a,b),(p,q)]]
+        dates=[[x+dt.timedelta(days=i) for i in range((y-x).days+1)] for x,y in [(a,b),(p,q)]]
+        norm=key if dim=="itemName" else normalize_sku_key
+        for d in data:
+            if not d.empty:
+                d["date"]=d.date.map(parse_yyyymmdd)
+                d["key"]=d[dim].map(norm)
+        for r in rs:
+            vals=[]
+            for d,days in zip(data,dates):
+                sub=d[d.key==norm(r[dim])] if not d.empty else d
+                ser=sub.groupby("date")[metric].sum() if not sub.empty else pd.Series(dtype=float)
+                vals.append([float(ser.get(day,0)) for day in days] if not sub.empty else None)
+            r["trend_svg"]=pdp_compare_svg([x.strftime("%m/%d") for x in dates[0]], vals[0] or [0]*len(dates[0]),vals[1],[x.strftime("%m/%d") for x in dates[1]],width=240,height=70,metric_label="판매수량" if metric=="itemsPurchased" else "PDP 조회수",current_color="#0055a5")
+        return rs
+    e=w.cur_end; a=e-dt.timedelta(days=6); y=w.yoy_end; p=y-dt.timedelta(days=6)
+    names=rows(e if w.mode=="daily" else w.cur_start,e,"itemsPurchased")
+    out={"best_name":graph(names,a,e,p,y,"itemsPurchased","itemName"),"best_sku":graph(best.to_dict("records"),a,e,p,y,"itemsPurchased","itemId")}
+    for label,x,z,df in [("current",a,e,rising),("previous",a-dt.timedelta(days=7),a-dt.timedelta(days=1),previous)]:
+        p=x-dt.timedelta(days=7);q=x-dt.timedelta(days=1)
+        out[label+"_name"]=graph(rows(x,z,"itemsViewed",{key(r["itemName"]) for r in names}),x,z,p,q,"itemsViewed","itemName")
+        out[label+"_sku"]=graph(df.to_dict("records"),x,z,p,q,"itemsViewed","itemId")
+    return out
+
 def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindow, image_map: Dict[str, str]) -> Tuple[pd.DataFrame, dict]:
     start = w.cur_end if w.mode == "daily" else w.cur_start
     end = w.cur_end
@@ -4447,6 +4492,7 @@ def render_page_html(
     brand_powerlink_status: Optional[List[dict]],
     nav_links: Dict[str, str],
     bundle_rel_path: str,
+    product_scopes: Optional[dict] = None,
 ) -> str:
     import html as _html
     import json as _json
@@ -4797,6 +4843,18 @@ def render_page_html(
 
     rising_rows = _rising_rows_html(rising)
     rising_prev_rows = _rising_rows_html(rising_prev)
+    scopes=product_scopes or {}
+    def cards(k,fallback=""):
+        if k not in scopes:return fallback or "<div>상품명 집계 없음</div>"
+        return "".join(f'<div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">{product_img(r.get("image_url",""))}<div class="min-w-0 flex-1"><div class="truncate text-sm font-extrabold">{esc(r["itemName"])}</div><div class="text-xs text-slate-500">{esc(r.get("itemId",""))} · Qty {fmt_int(r["qty"]) if r.get("qty") is not None else "—"} · Views {fmt_int(r["views"]) if r.get("views") is not None else "—"}</div></div><div class="shrink-0">{r.get("trend_svg","")}</div></div>' for r in scopes[k]) or "<div>No data</div>"
+    def switch(n,c):
+        return f'<div data-product-scope><div class="mt-2 flex gap-2"><button type="button" class="metric-tab active" data-mode="name">상품명</button><button type="button" class="metric-tab" data-mode="sku">상품코드</button></div><div class="mt-3 space-y-2" data-content="name">{n}</div><div class="mt-3 space-y-2" data-content="sku" style="display:none">{c}</div></div>'
+    best_scope=switch(cards("best_name"),cards("best_sku",bs_rows))
+    def periods(k,c,p):
+        return '<div data-rising-panel="current" class="space-y-2">'+cards("current_"+k,c)+'</div><div data-rising-panel="previous" class="hidden space-y-2">'+cards("previous_"+k,p)+'</div>'
+    rising_scope=switch(periods("name","",""),periods("sku",rising_rows,rising_prev_rows))
+    scope_js="""<script>document.querySelectorAll('[data-product-scope]').forEach(root=>{root.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>{root.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b===btn));root.querySelectorAll('[data-content]').forEach(p=>p.style.display=p.dataset.content===btn.dataset.mode?'':'none');}));});</script>"""
+
 
     pdp_rows = ""
     if category_pdp_trend is not None and (not category_pdp_trend.empty):
@@ -5464,7 +5522,7 @@ def render_page_html(
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="flex flex-wrap items-center justify-between gap-1"><div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Best Sellers (Top 10)</div><div class="flex gap-2 text-[10px] text-slate-500"><span><span style="display:inline-block;width:16px;border-top:2px solid #0055a5;vertical-align:middle;margin-right:3px"></span>올해 {w.cur_end.year}</span><span><span style="display:inline-block;width:16px;border-top:2px dashed #64748b;vertical-align:middle;margin-right:3px"></span>작년 {w.yoy_end.year}</span></div></div>
-        <div class="mt-3 space-y-2">{bs_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
+        {best_scope}
       </div>
 
       <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
@@ -5475,8 +5533,7 @@ def render_page_html(
             <button type="button" data-rising-tab="previous" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-500 transition hover:bg-slate-50">그 전주 7일</button>
           </div>
         </div>
-        <div data-rising-panel="current" class="mt-3 space-y-2">{rising_rows}</div>
-        <div data-rising-panel="previous" class="mt-3 hidden space-y-2">{rising_prev_rows}</div>
+        {rising_scope}
       </div>
     </div>
 
@@ -5507,6 +5564,7 @@ def render_page_html(
   {metric_switch_js}
 
   {paid_toggle_js}
+  {scope_js}
 
 </body>
 </html>
@@ -6419,6 +6477,7 @@ def build_one(
                 weather_forecast=rt.get("weather_forecast", {}),
                 brand_powerlink_status=rt.get("brand_powerlink_status", []),
                 nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
+                product_scopes=cached.get('product_scopes'),
                 bundle_rel_path=bundle_rel,
             )
             return html, cached
@@ -6517,6 +6576,10 @@ def build_one(
         brand_powerlink_status=brand_powerlink_status,
     )
 
+    try:
+        bundle['product_scopes']=product_scope_data(client,w,image_map,best_sellers,rising,rising_prev)
+    except Exception as exc:
+        print('[WARN] product scopes:',type(exc).__name__,str(exc)[:300],flush=True)
     if WRITE_DATA_CACHE:
         write_json(bpath, bundle)
 
@@ -6543,6 +6606,7 @@ def build_one(
         weather_forecast=weather_forecast,
         brand_powerlink_status=brand_powerlink_status,
         nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
+        product_scopes=bundle.get('product_scopes'),
         bundle_rel_path=bundle_rel,
     )
     return html, bundle
