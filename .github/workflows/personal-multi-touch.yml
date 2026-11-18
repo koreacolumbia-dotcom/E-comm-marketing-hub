@@ -27,12 +27,13 @@ jobs:
       GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
       GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
       REPORT_DATE_INPUT: ${{ inputs.report_date }}
-      PRIVATE_MTA_OUT: ${{ runner.temp }}/private-mta
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Prepare private output directory
+        run: echo "PRIVATE_MTA_OUT=$RUNNER_TEMP/private-mta" >> "$GITHUB_ENV"
       - name: Unit tests
         run: |
           python -m py_compile scripts/personal_intelligence/multi_touch*.py scripts/personal_intelligence/run_multi_touch.py
@@ -88,4 +89,4 @@ jobs:
           PY
       - name: Clean private results (no public artifacts or commits)
         if: always()
-        run: rm -rf "$PRIVATE_MTA_OUT" "$RUNNER_TEMP/mta-sa.json"
+        run: rm -rf "$RUNNER_TEMP/private-mta" "$RUNNER_TEMP/mta-sa.json"
