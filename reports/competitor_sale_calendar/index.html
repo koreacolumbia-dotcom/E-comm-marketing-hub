@@ -112,6 +112,12 @@ header .overline:before{display:none}
 .legend i.owned{background:#002d72;border-color:#002d72}
 @media(max-width:1100px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:720px){main{padding:18px 12px 42px}.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat{padding:12px}.stat strong{font-size:23px}.calendar-panel{padding:12px;border-radius:20px}.toolbar-card{padding:12px}.calendar-heading{margin-bottom:10px}}
+
+.coverage-panel{margin-top:16px;padding:16px}.coverage-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}.coverage-head h2{font-size:15px;font-weight:900}.coverage-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.coverage-brand{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;text-align:left;border-radius:12px;padding:11px 12px;border:1px solid #e2e8f0;background:#fff;border-left:3px solid var(--accent)}
+.coverage-brand b{font-size:12px;line-height:1.3;color:#0f172a;font-weight:800;overflow-wrap:anywhere}.coverage-brand small{font-size:11px;color:#64748b;line-height:1.4}.coverage-brand.has-events small{color:var(--brandink);font-weight:750}.coverage-brand.active{outline:2px solid #2563eb;outline-offset:-2px}
+[data-brand="national_geographic"]{--accent:#b99444;--tint:#faf4e3;--brandink:#785d26}
+@media(max-width:1000px){.coverage-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:550px){.coverage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style></head><body>
 <main>
 <header><div><div class="overline">CSK E-COMM · PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
@@ -121,7 +127,7 @@ header .overline:before{display:none}
 <div class="stat owned"><span>Columbia · 자사 일정</span><strong id="ownedCount">—</strong><span>등록된 자사 행사</span></div>
 <div class="stat"><span>경쟁사 공식 일정 확인</span><strong id="dated">—</strong><span>공식 기간 또는 시작일</span></div>
 <div class="stat"><span>해당 월 할인 배너</span><strong id="observed">—</strong><span>수집 관측 이벤트</span></div>
-<div class="stat"><span>경쟁사 브랜드</span><strong id="brands">—</strong><span>필터 적용 후</span></div>
+<div class="stat"><span>경쟁사 브랜드</span><strong id="brands">—</strong><span>핵심 10개 브랜드 모니터링</span></div>
 <div class="stat"><span>최신 배너 수집일</span><strong id="last">—</strong><span>기준일과 별개</span></div>
 </div>
 <div class="panel toolbar-card row">
@@ -132,6 +138,7 @@ header .overline:before{display:none}
  <input id="keyword" aria-label="행사 검색" type="search" placeholder="행사명 검색">
  </div>
 </div>
+<section class="panel coverage-panel"><div class="coverage-head"><div><div class="section-label">Competitor Coverage</div><h2>경쟁사 10개 모니터링 현황</h2></div><span class="pill" id="coverageSummary">불러오는 중</span></div><div class="coverage-grid" id="coverageGrid"></div><p class="small" id="coverageNote">행사 미확인은 세일이 없다는 뜻이 아닙니다. 브랜드를 누르면 해당 브랜드로 필터링됩니다.</p></section>
 <div class="layout">
 <section class="panel calendar-panel">
  <div class="calendar-heading"><div><div class="section-label">Promotion Calendar</div><div class="section-title">Monthly Overview</div></div><span class="pill">MONTHLY</span></div>
@@ -150,6 +157,7 @@ header .overline:before{display:none}
 (function(){
 'use strict';
 var $=function(id){return document.getElementById(id)},data=null,year=2026,month=11,selected='2026-11-15';
+var TARGET_BRANDS=[["tnf","The North Face","TNF"],["k2","K2","K2"],["discovery","Discovery Expedition","DISCOVERY"],["blackyak","Black Yak","BLACKYAK"],["nepa","NEPA","NEPA"],["kolonsport","Kolon Sport","KOLON SPORT"],["eider","Eider","EIDER"],["national_geographic","National Geographic","NATIONAL GEOGRAPHIC"],["snowpeak","Snow Peak","SNOW PEAK"],["millet","MILLET","MILLET"]];var crawlQuality=null;
 var OWNED_EVENTS=[{"id":"columbia-winter-festival-20261120","brand":"columbia","brand_name":"Columbia","title":"WINTER FESTIVAL","kind":"owned_planned","start_date":"2026-11-20","end_date":"2026-11-29","date_status":"user_provided_planned","observed_on":[],"benefit":null,"source_url":null,"source_type":"manual_owned_schedule","channel":"","note":"등록된 자사 행사 예정 일정입니다."}];
 function iso(y,m,d){return String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
 function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]})}
@@ -204,8 +212,8 @@ function weekSegments(groups,days,before,after){
 function shiftDay(day,n){var d=new Date(day+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 function eventRank(e){return e.kind==='owned_planned'?0:e.kind==='observed_banner'?2:1}
 function dayEvents(day){return data.events.filter(function(e){return filtered(e)&&applies(e,day)}).sort(function(a,b){return eventRank(a)-eventRank(b)})}
-function monthly(){var a=iso(year,month,1),b=iso(year,month,new Date(Date.UTC(year,month,0)).getUTCDate());
-return data.events.filter(function(e){if(!filtered(e))return false;
+function monthly(ignoreFilters){var a=iso(year,month,1),b=iso(year,month,new Date(Date.UTC(year,month,0)).getUTCDate());
+return data.events.filter(function(e){if(!ignoreFilters&&!filtered(e))return false;
 if(e.kind==='verified_period'||e.kind==='owned_planned')return e.start_date<=b&&e.end_date>=a;
 if(e.kind==='verified_start')return e.start_date>=a&&e.start_date<=b;
 return (e.observed_on||[]).some(function(x){return x>=a&&x<=b})})}
@@ -225,8 +233,25 @@ $('dateTitle').textContent=pretty(selected)+' 세일';
 var list=dayEvents(selected);$('dayCount').textContent=list.length+'건';
 $('dayList').innerHTML=list.length?list.map(eventCard).join(''):'<p class="empty">이 날짜에 확인된 세일 기록이 없습니다. 미확인은 행사 없음과 다릅니다.</p>';
 }
+function renderCoverage(){
+if(!data)return;
+var all=monthly(true).filter(function(e){return e.kind!=='owned_planned'}), qualityRows=crawlQuality&&Array.isArray(crawlQuality.brands)?crawlQuality.brands:[],host=$('coverageGrid');
+host.innerHTML='';
+TARGET_BRANDS.forEach(function(item){
+ var list=all.filter(function(e){return e.brand===item[0]}),q=qualityRows.find(function(r){return r.brand===item[2]});
+ var official=list.filter(function(e){return e.kind==='verified_period'||e.kind==='verified_start'}).length;
+ var obs=list.filter(function(e){return e.kind==='observed_banner'}).length;
+ var status=list.length?('공식 '+official+' · 관측 '+obs):q?(q.pages>0?'수집됨 · 행사 미확인':'수집 미완료 · 행사 미확인'):'행사 미확인 · 수집상태 미연결';
+ var b=document.createElement('button');b.type='button';b.className='coverage-brand'+(list.length?' has-events':'')+($('brand').value===item[0]?' active':'');b.dataset.brand=item[0];
+ b.innerHTML='<b>'+esc(item[1])+'</b><small>'+esc(status)+'</small>';b.onclick=function(){$('brand').value=$('brand').value===item[0]?'':item[0];render()};host.appendChild(b);
+});
+var found=TARGET_BRANDS.filter(function(item){return all.some(function(e){return e.brand===item[0]})}).length;
+$('coverageSummary').textContent='행사 기록 '+found+' / '+TARGET_BRANDS.length;
+$('coverageNote').textContent=(crawlQuality?'크롤러 접근 '+crawlQuality.accessible_brands+'/'+TARGET_BRANDS.length+' · 최근 점검 '+String(crawlQuality.checked_at_kst||'').slice(0,16).replace('T',' ')+' KST. ':'')+'행사 미확인은 세일 없음이 아닙니다. 브랜드를 누르면 필터링됩니다.';
+}
 function render(){
 if(!data)return;
+renderCoverage();
 $('monthTitle').textContent=year+'. '+String(month).padStart(2,'0');
 
 var first=new Date(Date.UTC(year,month-1,1)).getUTCDay(),total=new Date(Date.UTC(year,month,0)).getUTCDate();
@@ -274,9 +299,10 @@ if(value.schema_version!==1||!Array.isArray(value.events))throw Error('Schema in
 data=Object.assign({},value,{events:value.events.filter(function(e){return !OWNED_EVENTS.some(function(o){return o.id===e.id})}).concat(OWNED_EVENTS)});year=Number(data.as_of.slice(0,4));month=Number(data.as_of.slice(5,7));selected=data.as_of;
 $('state').textContent=data.status==='fresh'?'최근 수집 확인':data.status==='stale'?'수집 갱신 지연':'배너 데이터 없음';
 $('updated').textContent='기준 '+pretty(data.as_of)+' · 최신 수집 '+pretty(data.freshness.last_snapshot)+' · 관측일 '+data.freshness.snapshot_days+'일';
-Array.from(new Set(data.events.map(function(e){return e.brand}))).sort().forEach(function(key){
-var item=data.events.find(function(e){return e.brand===key}),opt=document.createElement('option');opt.value=key;opt.textContent=item.brand_name;$('brand').appendChild(opt)});
+var names=new Map(TARGET_BRANDS.map(function(x){return [x[0],x[1]]}));data.events.forEach(function(e){if(!names.has(e.brand))names.set(e.brand,e.brand_name)});
+names.forEach(function(name,key){var opt=document.createElement('option');opt.value=key;opt.textContent=name;$('brand').appendChild(opt)});
 render();
+fetch('../competitor_intelligence/latest-quality.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(function(q){crawlQuality=q;renderCoverage()}).catch(function(){renderCoverage()});
 }).catch(function(err){$('state').textContent='데이터 오류';$('dayList').innerHTML='<p class="empty">집계 데이터를 불러오지 못했습니다.</p>';console.error(err)});
 })();
 </script></body></html>
