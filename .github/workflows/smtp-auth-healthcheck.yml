@@ -1,5 +1,5 @@
 name: SMTP authentication healthcheck
-# Owner-only retest with historical BigQuery GA4 cohorts.
+# Owner-only SMTP retest requested at 14:35 KST.
 on:
   workflow_dispatch:
   push:
@@ -75,7 +75,7 @@ jobs:
           DAILY_DIGEST_USE_DATA_CACHE: 'false'
           DAILY_DIGEST_WRITE_DATA_CACHE: 'true'
           DAILY_DIGEST_END_DATE_OVERRIDE: '2026-11-17'
-          DAILY_DIGEST_SKIP_HUB_WRITE: 'true'
+          DAILY_DIGEST_SKIP_HUB_WRITE: 'false'
           REQUIRE_CRM_BUYERS: '1'
           GA4_START_DATE: '2026-11-17'
           GA4_END_DATE: '2026-11-17'
@@ -85,6 +85,7 @@ jobs:
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
           python -m py_compile daily_digest_live_final.py daily_digest_session_source.py
+          rm -f reports/daily_digest/data/daily/2026-11-17.json reports/daily_digest/daily/2026-11-17.html reports/daily_digest/daily/2026-11-17.png
           python -u daily_digest_live_final.py --out-dir reports/daily_digest
           python -u scripts/render_daily_png.py reports/daily_digest/daily/2026-11-17.html reports/daily_digest/daily/2026-11-17.png
           python - <<'PY'
@@ -93,7 +94,7 @@ jobs:
           assert d['end_date']=='2026-11-17'
           rows=d['channel_snapshot']
           assert rows and all(r.get('new_buyers') is not None and r.get('existing_buyers') is not None for r in rows)
-          print('[OK] CRM buyer counts available')
+          print('[OK] GA4 observed buyer counts available')
           PY
       - name: Send original CID PNG to report owner only after successful authentication
         env:
