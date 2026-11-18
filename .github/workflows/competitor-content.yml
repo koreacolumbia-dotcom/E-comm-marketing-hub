@@ -15,7 +15,7 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,6 +23,7 @@ jobs:
           python-version: '3.11'
       - run: pip install playwright==1.51.0 aiohttp==3.11.18
       - run: python -m py_compile scripts/competitor_content/crawl.py
+      - run: python scripts/competitor_content/evidence.py
       - run: python scripts/competitor_content/crawl.py --self-test
       - name: Prepare browser
         run: |
@@ -37,7 +38,9 @@ jobs:
         if: always()
         with:
           name: competitor-content
-          path: reports/competitor_content/*.json
+          path: |
+            reports/competitor_content/*.json
+            content-evidence/*.png
           if-no-files-found: warn
           retention-days: 30
       - name: Publish measured content feed
