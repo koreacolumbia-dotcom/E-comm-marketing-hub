@@ -15,6 +15,7 @@ on:
       - "config/competitor_sale_events_verified.json"
       - "reports/competitor_sale_calendar/index.html"
       - "reports/hero_main_banners_*.csv"
+      - "reports/competitor_intelligence/owned/20??-??-??.json"
 
 permissions:
   contents: write
@@ -40,6 +41,7 @@ jobs:
             /config/competitor_sale_events_verified.json
             /reports/competitor_sale_calendar/
             /reports/hero_main_banners_*.csv
+            /reports/competitor_intelligence/owned/20??-??-??.json
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
