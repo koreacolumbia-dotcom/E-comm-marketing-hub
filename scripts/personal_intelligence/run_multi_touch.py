@@ -10,6 +10,7 @@ sys.path.insert(0,str(ROOT))
 from multi_touch_bq import load
 from attribution import marketing_attribution
 from multi_touch import MODELS,CHANNELS
+from run_budget import load_budget,render_budget
 
 def render(m):
     def won(x): return f"{x:,.0f}"
@@ -35,7 +36,7 @@ def render(m):
 <footer>Unattributed: {m['unattributed_orders']:,} orders / KRW {won(m['unattributed_revenue'])}. Same-browser observed sessions only. Assists overlap; rule-based credit is not incremental lift. Paths below 5 orders are omitted. Do not publish or forward.</footer></main></html>"""
     return html
 
-def run(source,out,maximum_gib=15):
+def run(source,out,maximum_gib=15,budget_evidence=None):
     from daily_digest_live_final import classify_looker_channel,BQ_EVENTS_TABLE,BQ_LOCATION
     d=json.loads(Path(source).read_text(encoding="utf-8"))
     meta=d.get("meta") or {}
@@ -51,7 +52,11 @@ def run(source,out,maximum_gib=15):
         raise ValueError("Private outputs must be outside the repository")
     p.mkdir(parents=True,exist_ok=True,mode=0o700)
     (p/"multi_touch.json").write_text(json.dumps(m,ensure_ascii=False,indent=2,allow_nan=False),encoding="utf-8")
-    (p/"multi_touch.html").write_text(render(m),encoding="utf-8")
+    budget=load_budget(d,evidence_path=budget_evidence)
+    sections={"date":end.isoformat(),"sections":{"Marketing Attribution":{"status":"available","data":section},"Budget Optimizer":{"status":budget["status"],"data":budget}}}
+    (p/"report_sections.json").write_text(json.dumps(sections,ensure_ascii=False,indent=2,allow_nan=False),encoding="utf-8")
+    html=render(m).replace("</main></html>",render_budget(budget)+"</main></html>")
+    (p/"multi_touch.html").write_text(html,encoding="utf-8")
     return m
 
 def main():
@@ -59,11 +64,12 @@ def main():
     parser.add_argument("--date",default=(datetime.now(ZoneInfo("Asia/Seoul")).date()-timedelta(days=1)).isoformat())
     parser.add_argument("--out",required=True)
     parser.add_argument("--maximum-gib",type=int,default=15)
+    parser.add_argument("--budget-evidence",default=os.getenv("PRIVATE_BUDGET_EVIDENCE"))
     args=parser.parse_args()
     day=date.fromisoformat(args.date).isoformat()
     source=ROOT/"reports"/"daily_digest"/"data"/"daily"/(day+".json")
     try:
-        run(source,args.out,args.maximum_gib)
+        run(source,args.out,args.maximum_gib,args.budget_evidence)
     except Exception as exc:
         # Public Actions logs must never contain raw customer or financial data.
         print("[MTA] validation/execution failed:",type(exc).__name__,flush=True)
