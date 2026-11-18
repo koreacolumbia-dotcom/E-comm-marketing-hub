@@ -2,6 +2,7 @@
 from math import isfinite
 from statistics import mean
 from engine import revenue_bridge
+from attribution import marketing_attribution
 from product_card import enrich_cards
 from business_diagnosis import build_diagnosis
 from style_anomaly import rank_styles
@@ -396,8 +397,8 @@ def build_model(d,competitor=None,events=None,product_evidence=None,competitor_c
     put("Competitive Discount Matrix",discount_matrix,"partial" if discount_matrix["styles"] else "source_required")
     customer=customer_intelligence(d)
     put("Customer Intelligence",customer,"partial" if customer["signups"] is not None or customer["observed_buyers"] is not None else "source_required")
-    channels=d.get("channel_snapshot",[])
-    if channels: put("Marketing Attribution",{"reported_channel_rows":channels,"causal_incrementality":None},"partial")
+    attribution=marketing_attribution(d)
+    put("Marketing Attribution",attribution,"partial" if attribution["channels"] else "source_required")
     if d.get("glink_paid_snapshot"): put("Budget Optimizer",{"reported_paid_snapshot":d["glink_paid_snapshot"],"marginal_roas":None},"partial")
     put("Integrated Calendar",{"events":events or [],"pdp":pdp,"sample_product_sales":sales,"weather_forecast":weather,"historical_temperature":None,"category_sales":None},"partial")
     put("Business Impact Matrix",{"observed_dimensions":["traffic","conversion","aov","category PDP"],"causal_effects":None},"partial")
