@@ -24,7 +24,23 @@ def paired(page):
                 try: price=float(str(offer.get("price","")).replace(",",""))
                 except (ValueError,TypeError): continue
                 if math.isfinite(price) and price>0 and offer.get("priceCurrency")=="KRW" and isinstance(product.get("name"),str) and product["name"].strip():
-                    records.append({"name":product["name"],"price":price,"url":page["url"],"currency":"KRW"})
+                    record={"name":product["name"],"price":price,"url":page["url"],"currency":"KRW"}
+                    specs=offer.get("priceSpecification") or []
+                    if isinstance(specs,dict): specs=[specs]
+                    # Only explicit same-offer strikethrough/list prices, never highPrice or a different SKU.
+                    regular=set()
+                    for spec in specs if isinstance(specs,list) else []:
+                        if not isinstance(spec,dict) or spec.get("priceCurrency")!="KRW": continue
+                        kind=str(spec.get("priceType","")).rsplit("/",1)[-1].rsplit("#",1)[-1]
+                        if kind not in ("StrikethroughPrice","ListPrice"): continue
+                        if spec.get("validForMemberTier") or spec.get("eligibleQuantity"): continue
+                        try: v=float(str(spec.get("price","")).replace(",",""))
+                        except (ValueError,TypeError): continue
+                        if math.isfinite(v) and v>price: regular.add(v)
+                    if len(regular)==1 and not offer.get("validForMemberTier"):
+                        reg=next(iter(regular))
+                        record.update(regular_price=reg,sale_price=price,discount_pct=round((1-price/reg)*100,2),status="structured_candidate")
+                    records.append(record)
     return records
 rows=[]
 for b in data["brands"]:
