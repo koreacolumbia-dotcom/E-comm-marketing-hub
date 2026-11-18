@@ -4564,6 +4564,9 @@ def render_page_html(
             chan_html += table_row([
                 bucket_html,
                 *fixed_metric_value_cols(getattr(r, 'sessions', 0), getattr(r, 'transactions', 0), getattr(r, 'purchaseRevenue', 0)),
+                f"<div class='text-right'>{float(r.transactions) / float(r.sessions) * 100:.2f}%</div>" if float(r.sessions) > 0 else "<div class='text-right'>—</div>",
+                f"<div class='text-right'>{fmt_int(r.new_buyers) if pd.notna(getattr(r, 'new_buyers', None)) else '—'}</div>",
+                f"<div class='text-right'>{fmt_int(r.existing_buyers) if pd.notna(getattr(r, 'existing_buyers', None)) else '—'}</div>",
                 f"<div class='text-right metric-inline'>{metric_delta_slots('cs-wow', float(getattr(r, 'session_dod', getattr(r, 'rev_dod', 0)) or 0), float(getattr(r, 'orders_dod', 0) or 0), float(getattr(r, 'revenue_dod', 0) or 0))}</div>",
                 f"<div class='text-right metric-inline'>{metric_delta_slots('cs-yoy', float(getattr(r, 'session_yoy', getattr(r, 'rev_yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0))}</div>",
             ], bold=(bucket == "Total"), row_class=row_class, row_attrs=row_attrs)
@@ -4875,23 +4878,10 @@ def render_page_html(
             ])
 
 
-    paid_section_html = glink_paid_html or f"""
-      <div class="mt-3 text-xs font-semibold text-slate-500">글링크 해당 기간 실적 미수신 · GA4 세션 기준 CVR (원본 광고비 없음: 미수신)</div>
-      <div class="mt-2 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[760px]">
-          <thead class="text-xs text-slate-500">
-            <tr>
-              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
-            </tr>
-          </thead>
-          <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
-        </table>
-      </div>
-    """
+    paid_section_html = f"""<div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
+      {glink_paid_html}
+    </div>""" if glink_paid_html else ""
 
     weather = weather_forecast or {}
     weather_days = weather.get("days") or []
@@ -5375,7 +5365,7 @@ def render_page_html(
 
     {ly_marketing_calendar_html}
 
-    {etc_quality_html}
+
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -5390,6 +5380,9 @@ def render_page_html(
             <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">New Buyers</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Existing Buyers</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
             <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
           </tr>
@@ -5427,10 +5420,7 @@ def render_page_html(
 
     {brand_powerlink_html}
 
-    <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
-      {paid_section_html}
-    </div>
+    {paid_section_html}
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
