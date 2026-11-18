@@ -1,4 +1,4 @@
-import json, os, re
+import json, os, re, math
 from pathlib import Path
 p=Path("competitor-output")
 f=p/"snapshot.json"
@@ -23,7 +23,7 @@ def paired(page):
                 if not isinstance(offer,dict): continue
                 try: price=float(str(offer.get("price","")).replace(",",""))
                 except (ValueError,TypeError): continue
-                if price>0 and offer.get("priceCurrency")=="KRW" and product.get("name"):
+                if math.isfinite(price) and price>0 and offer.get("priceCurrency")=="KRW" and isinstance(product.get("name"),str) and product["name"].strip():
                     records.append({"name":product["name"],"price":price,"url":page["url"],"currency":"KRW"})
     return records
 rows=[]
@@ -38,7 +38,7 @@ for b in data["brands"]:
     for card in cards:
         try:
             regular,sale,rate=map(float,(card["regular_price"],card["sale_price"],card["discount_pct"]))
-            if regular>sale>0 and abs((1-sale/regular)*100-rate)<=1 and card.get("name") and card.get("url"):
+            if all(math.isfinite(v) for v in (regular,sale,rate)) and regular>sale>0 and abs((1-sale/regular)*100-rate)<=1 and card.get("name") and card.get("url"):
                 unique_cards[(card["url"],card["name"],regular,sale)]=card
         except (KeyError,ValueError,TypeError): continue
     cards=list(unique_cards.values())
@@ -56,6 +56,14 @@ structured=sum(bool(r["dated_promotion_pages"] and (r["structured_product_prices
 strict=sum(r["strict_candidate"] for r in rows)
 pair_brands=sum(bool(r["paired_discount_cards"]) for r in rows)
 quality={"discount_pair_brands":pair_brands,"discount_pair_coverage_pct":pct(pair_brands),"discount_pair_target_met":complete and pair_brands==TARGET,"discount_pair_missing_brands":[r["brand"] for r in rows if not r["paired_discount_cards"]],"owned_discount_pair_available":bool(owned and owned.get("paired_discount_cards")),"accessible_brands":sum(r["pages"]>0 for r in rows),"accessible_pct":pct(sum(r["pages"]>0 for r in rows)),"collected_pages":sum(r["pages"] for r in rows),"strict_candidate_brands":strict,"strict_candidate_pct":pct(strict),"target_met_strict_candidate":strict>=TARGET,"measurement_available":f.exists() and complete,"structured_evidence_brands":structured,"structured_evidence_pct":pct(structured),"verified_accuracy_pct":None,"verified_success_brands":None,"verified_success_pct":None,"verified_sample_count":None,"target_met_verified":None,"checked_at_kst":data.get("checked_at_kst"),"target":TARGET,"denominator":TARGET,"candidate_usable":n,"candidate_coverage_pct":pct(n),"target_met_candidate_only":n>=TARGET,"brands":rows,"owned":owned,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
+# An incomplete snapshot cannot establish a coverage percentage.
+if not quality["measurement_available"]:
+    for key in ("discount_pair_brands","discount_pair_coverage_pct","discount_pair_target_met",
+                "accessible_brands","accessible_pct","strict_candidate_brands","strict_candidate_pct",
+                "structured_evidence_brands","structured_evidence_pct","candidate_usable",
+                "candidate_coverage_pct","target_met_strict_candidate","target_met_candidate_only"):
+        quality[key]=None
+    quality["measurement_error"]="Missing snapshot or incomplete/duplicate brand rows"
 p.mkdir(exist_ok=True)
 (p/"quality.json").write_text(json.dumps(quality,ensure_ascii=False,indent=2))
 summary=["# Competitor collection quality",f"Candidate evidence: {n}/{TARGET} (target {TARGET}/{TARGET})",f"Same-product price pairs: {pair_brands}/{TARGET} (target {TARGET}/{TARGET})","| Brand | Pages | Promo | Price |","|---|---:|---:|---:|"]
