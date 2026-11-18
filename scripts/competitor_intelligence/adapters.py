@@ -1,5 +1,6 @@
 import re
 PROFILES={
+"SALOMON":{"seeds":["https://salomon.co.kr/collections/gnb-new-arrivals-all","https://salomon.co.kr/collections/sal_activities_hiking_acc_bag_backpack","https://salomon.co.kr/collections/launch-calendar","https://salomon.co.kr/collections/raffle-event","https://salomon.co.kr/blogs/salomon-blog"],"cards":["li","article",".product-card","[class*='product-card']"],"hosts":["salomon.co.kr","www.salomon.co.kr"]},
 "COLUMBIA":{"seeds":["https://www.columbiakorea.co.kr/main/main.asp","https://www.columbiakorea.co.kr/event/261120/teaser.asp","https://www.columbiakorea.co.kr/product/view.asp?pno=19322","https://www.columbiakorea.co.kr/product/view.asp?pno=18774"],"cards":["li","article","[class*=\'product\']"]},
 "TNF":{"seeds":["https://image.thenorthfacekorea.co.kr/category/n/Winter-supplies"],"hosts":["image.thenorthfacekorea.co.kr"],"cards":["li","article"]},
 "K2":{"seeds":["https://www.k-village.co.kr/K2/","https://www.k-village.co.kr/k2","https://www.k-village.co.kr/goods/KWU26546YS","https://www.k-village.co.kr/","https://www.k-village.co.kr/eventDetail?eventNo=1096"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["li","article"]},
@@ -59,7 +60,7 @@ async def extract_cards(page,profile):
     rows=await page.locator(selector).evaluate_all("""els=>{
       const reg='del,s,strike,[class*="original_price"],[class*="originalPrice"],[class*="regularPrice"],[class*="regular_price"],[class*="consumer_price"],[class*="normal_price"]';
       const sale='[class*="sale_price"],[class*="salePrice"],[class*="sellingPrice"],[class*="selling_price"],[class*="discountPrice"],[class*="discount_price"],[class*="finalPrice"]';
-      const product=/\\/product\\/|\\/product-detail\\/|\\/goods\\/|goodsNo=|productNo=|pno=|\\/prd\\/|\\/item\\/|\\/shop\\/view/i;
+      const product=/\\/products?\\/|\\/product-detail\\/|\\/goods\\/|goodsNo=|productNo=|pno=|\\/prd\\/|\\/item\\/|\\/shop\\/view/i;
       const nameSel='[class*="goods_name"],[class*="goodsName"],[class*="product_name"],[class*="productName"],[class*="product-name"],[class*="item_name"],[class*="itemName"],[class*="item-name"],[class*="prd_name"],[class*="prdName"],[class*="prd-name"],h3,h4';
       const describe=e=>{
         const text=(e.innerText||'').trim();
@@ -85,7 +86,7 @@ async def extract_cards(page,profile):
     # On a product detail page, the current item's price block may have no self-link.
     # Require a product-detail route, a title and semantic price roles in the SAME small block.
     detail=await page.evaluate("""()=>{
-      if(!/\\/product-detail\\/|\\/product\\/view|\\/product\\/[A-Za-z0-9-]+(?:$|\\?)|\\/goods\\/detail\\/|\\/goods\\/[A-Z0-9]+(?:$|\\?)|goods_view|\\/shop\\/view/i.test(location.href))return [];
+      if(!/\\/product-detail\\/|\\/products?\\/view|\\/products?\\/[A-Za-z0-9-]+(?:$|\\?)|\\/goods\\/detail\\/|\\/goods\\/[A-Z0-9]+(?:$|\\?)|goods_view|\\/shop\\/view/i.test(location.href))return [];
       const reg='del,s,strike,[class*="original_price"],[class*="originalPrice"],[class*="regularPrice"],[class*="regular_price"],[class*="consumer_price"],[class*="normal_price"]';
       const sale='[class*="sale_price"],[class*="salePrice"],[class*="sellingPrice"],[class*="selling_price"],[class*="discountPrice"],[class*="discount_price"],[class*="finalPrice"]';
       const candidates=[...document.querySelectorAll('h1,h2,h3,[class*="productName"],[class*="product_name"],[class*="goods_name"],[class*="goodsName"]')].filter(e=>e.getBoundingClientRect().width>0).slice(0,25);
