@@ -179,7 +179,7 @@ SCROLL_STATE=r"""() => {
  const links=[];
  for(const a of document.querySelectorAll('a[href],[data-href],[data-url]')){
    const r=a.getBoundingClientRect();if(r.width<=0||r.height<=0||getComputedStyle(a).visibility==='hidden')continue;
-   const raw=a.getAttribute('href')||a.getAttribute('data-href')||a.getAttribute('data-url')||'';
+   const raw=[a.getAttribute('href'),a.getAttribute('data-href'),a.getAttribute('data-url')].find(v=>v&&/^(?:https:\/\/|\/[^/]|\.\.?\/|\?)/i.test(v))||'';
    if(!/^(?:https:\/\/|\/[^/]|\.\.?\/|\?)/i.test(raw))continue;
    try{const url=new URL(raw,location.href);if(url.protocol!=='https:'||url.origin!==location.origin)continue;
      links.push({url:url.href,label:(a.innerText||a.getAttribute('aria-label')||a.title||a.querySelector('img')?.alt||'').replace(/\s+/g,' ').trim().slice(0,180),pagination:a.rel==='next'||!!a.closest('[class*="pagination" i],[class*="paging" i],[aria-label*="pagination" i]')});
@@ -272,8 +272,12 @@ async def sitemap_discovery(session,policy,brand,source,deadline,blocked):
                 if response.status in (403,429):
                     blocked.add(p.netloc);errors.append({"url":u,"error":"sitemap HTTP "+str(response.status)+"; origin stopped"});break
                 if response.status!=200: continue
-                raw=await response.content.read(SITEMAP_BYTES+1)
-                if len(raw)>SITEMAP_BYTES or not response.content.at_eof(): continue
+                buf=bytearray()
+                async for chunk in response.content.iter_chunked(65536):
+                    buf.extend(chunk)
+                    if len(buf)>SITEMAP_BYTES: break
+                if len(buf)>SITEMAP_BYTES: continue
+                raw=bytes(buf)
             maps,urls=sitemap_entries(raw)
             pending.extend(v for v in maps if same_origin(v) and v not in seen)
             found.extend(v for v in urls if same_origin(v) and scoped(brand,v) and (editorial_route(brand,v) or brand_listing(brand,v)))
