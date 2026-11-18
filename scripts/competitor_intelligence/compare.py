@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from market_signals import publish_signals
 p=Path('competitor-output')
 now=json.loads((p/'snapshot.json').read_text())
 oldfile=Path('previous-snapshot/snapshot.json')
@@ -67,3 +68,6 @@ if owned is not None:
     payload["latest_attempt_pages"]=owned["pages_checked"]
     daily.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
     (archive/"latest.json").write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
+
+# Publish a small evidence feed independently of the large product report.
+publish_signals(now)
