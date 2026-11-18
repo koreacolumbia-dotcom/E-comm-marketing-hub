@@ -8,17 +8,18 @@ from reliability import PolicyCache, OriginGate, navigate, checkpoint
 from urllib.robotparser import RobotFileParser
 import aiohttp
 from playwright.async_api import async_playwright
-BRANDS={"COLUMBIA":"https://www.columbiakorea.co.kr/main/main.asp","TNF":"https://www.thenorthfacekorea.co.kr/","K2":"https://www.k2.co.kr/","DISCOVERY":"https://www.discovery-expedition.com/","BLACKYAK":"https://www.byn.kr/blackyak","NEPA":"https://www.nplus.co.kr/main/main.asp","KOLON SPORT":"https://www.kolonmall.com/Brands/KOLONSPORT","EIDER":"https://www.eider.co.kr/","NATIONAL GEOGRAPHIC":"https://www.naturestore.co.kr/","SNOW PEAK":"https://www.snowpeakstore.co.kr/","MILLET":"https://www.millet.co.kr/"}
+BRANDS={"COLUMBIA":"https://www.columbiakorea.co.kr/main/main.asp","TNF":"https://www.thenorthfacekorea.co.kr/","K2":"https://www.k2.co.kr/","DISCOVERY":"https://www.discovery-expedition.com/","BLACKYAK":"https://www.byn.kr/blackyak","NEPA":"https://www.nplus.co.kr/main/main.asp","KOLON SPORT":"https://www.kolonmall.com/Brands/KOLONSPORT","EIDER":"https://www.eider.co.kr/","NATIONAL GEOGRAPHIC":"https://www.naturestore.co.kr/","SNOW PEAK":"https://www.snowpeakstore.co.kr/","MILLET":"https://www.millet.co.kr/","SALOMON":"https://salomon.co.kr/"}
 UA="CSKMarketResearchBot"
 FAST=os.getenv('CRAWLER_MODE','fast')=='fast'
 PAGE_LIMIT=16 if FAST else 36
 BRAND_SECONDS=210 if FAST else 480
 EVENT=re.compile(r'promo|collection|newevent|event|promotion|exhibition|/event/|/product/list|_exh|exh_list|special|企画|企画|기획전|이벤트|프로모션|세일|페스타|블랙프라이데이|혜택',re.I)
 DEAL=re.compile(r'할인|쿠폰|사은품|적립|특가|black friday|sale|%\s*off',re.I)
-PRODUCT=re.compile(r'goods_view|product/detail|productdetail|/product-detail/|/product/|/goods/|goodsNo=|productNo=|/shop/view',re.I)
+PRODUCT=re.compile(r'goods_view|product/detail|productdetail|/product-detail/|/products?/|/goods/|goodsNo=|productNo=|/shop/view',re.I)
 DATE=re.compile(r'20\d{2}[.\-/ ]\s*\d{1,2}[.\-/ ]\s*\d{1,2}|\d{1,2}[./]\d{1,2}\s*[~–-]\s*\d{1,2}[./]\d{1,2}')
 SEEDS={'BLACKYAK':['https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1','https://m.byn.kr/blackyak/_exh/'],'NEPA':['https://www.nplus.co.kr/promotion/list.asp','https://www.nplus.co.kr/product/list.asp','https://www.nplus.co.kr/promotion/view.asp?EventNo=856'],'KOLON SPORT':['https://www.kolonmall.com/Special/259472']}
 MARKET_SEEDS={
+    "SALOMON":["https://salomon.co.kr/pages/membership","https://salomon.co.kr/pages/faq","https://salomon.co.kr/pages/notice-1","https://salomon.co.kr/pages/event-page-v2","https://salomon.co.kr/collections/launch-calendar","https://salomon.co.kr/collections/raffle-event"],
     "COLUMBIA":["https://www.columbiakorea.co.kr/event/261101/new_members.asp","https://www.columbiakorea.co.kr/inside/benefit.asp","https://www.columbiakorea.co.kr/about/notice.asp","https://www.columbiakorea.co.kr/event/list.asp"],
     "TNF":["https://image.thenorthfacekorea.co.kr/cscenter","https://image.thenorthfacekorea.co.kr/cscenter/faq"],
     "K2":["https://www.k-village.co.kr/customer/grade"], "EIDER":["https://www.k-village.co.kr/customer/grade"],
@@ -43,6 +44,8 @@ async def scan(browser,session,name,root,gate):
         p=urlparse(u)
         if PRIVATE.search(p.path): return False
         if u in market_seeds: return True
+        if name=="SALOMON":
+            return p.path=="/" or p.path.startswith(("/collections/","/products/","/pages/","/blogs/")) or p.path=="/shop"
         if name=="COLUMBIA":
             # Anonymous, public shopping pages only; never account, cart, order or admin routes.
             return p.path.lower().startswith(("/main/","/event/","/product/list","/product/view","/promotion/","/exhibition/"))
