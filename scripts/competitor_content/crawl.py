@@ -63,6 +63,8 @@ SCROLL_STABLE_LIMIT=4
 FRONTIER_LIMIT=5000
 LEDGER_LIMIT=5000
 DETAIL_REVISIT_HOURS=24
+SITEMAP_REFRESH_HOURS=24
+VISUAL_EVIDENCE_LIMIT=int(os.getenv("CONTENT_VISUAL_EVIDENCE_LIMIT","2"))
 LEDGER_WINDOW_DAYS=30
 SITEMAP_LIMIT=5
 SITEMAP_BYTES=4*1024*1024
@@ -292,8 +294,8 @@ def editorial_route(brand,u):
     if brand=="MERRELL" and path in ("/history.html","/history2.html"): return True
     if brand=="NEPA" and (path in ("/brand/nepa/story.asp","/brand/nepa/csr.asp") or (path=="/promotion/view.asp" and q.get("EventNo"))): return True
     if brand=="MILLET" and re.fullmatch(r"/front/promo/pstories/\d+",path): return True
-    if brand=="PATAGONIA" and path.startswith("/our_footprint/"): return True
-    return bool(re.search(r"/(?:stories/(?:articledetail|filmdetail)/[^/]+|event/view/[^/]+/[^/]+|display/promotions/collection/[^/]+|blogs/[^/]+/[^/]+|special/\d+|journal/[^/]+|magazine/[^/]+|lookbook/[^/]+|campaign/[^/]+|pages/[^/]+|collections/[^/]+|s/[^/]+)",path,re.I))
+    if brand=="PATAGONIA" and (path.startswith("/our_footprint/") or path.rstrip("/") in ("/innovation-unusual","/company-history","/50/main")): return True
+    return bool(re.search(r"/(?:stories/(?:articledetail|filmdetail|view)/[^/]+|event/view/[^/]+/[^/]+|display/promotions/collection/[^/]+|blogs/[^/]+/[^/]+|special/\d+|journal/[^/]+|magazine/[^/]+|lookbook/[^/]+|campaign/[^/]+|pages/[^/]+|collections/[^/]+|s/[^/]+)",path,re.I))
 
 def sitemap_entries(raw):
     if raw.startswith(b"\x1f\x8b"):
@@ -308,39 +310,59 @@ def sitemap_entries(raw):
             if loc.tag.rsplit("}",1)[-1]=="loc" and loc.text: urls.append(loc.text.strip())
     return (urls,[]) if kind=="sitemapindex" else ([],urls)
 
-async def sitemap_discovery(session,policy,brand,source,deadline,blocked):
+async def sitemap_discovery(session,policy,brand,source,deadline,blocked,checkpoint=None,checked=None):
     # Public robots-declared maps only, on an already successfully observed origin.
     # Never use a sitemap to circumvent denied page navigation.
     p=urlsplit(source); origin=p.scheme+"://"+p.netloc
     rp=policy.cache.get(origin)
-    pending=list(rp.site_maps() or []) if rp else []
+    declared=list(rp.site_maps() or []) if rp else []
+    checkpoint=checkpoint or {}
+    checked=checked or datetime.now(timezone(timedelta(hours=9))).isoformat()
+    age=None
+    try: age=datetime.fromisoformat(checked)-datetime.fromisoformat(checkpoint.get("started_at",""))
+    except (ValueError,TypeError): pass
+    running=age is not None and timedelta(0)<=age<timedelta(days=7) and bool(checkpoint.get("pending"))
+    fresh=age is not None and timedelta(0)<=age<timedelta(hours=SITEMAP_REFRESH_HOURS) and checkpoint.get("complete")
+    pending=list(checkpoint.get("pending",[])) if running else [] if fresh else declared
+    done=set(checkpoint.get("done",[])) if running or fresh else set()
+    started_at=checkpoint.get("started_at") if running or fresh else checked
     seen=set(); found=[]; errors=[]
     def same_origin(u):
         v=urlsplit(u)
         return v.scheme=="https" and v.netloc==p.netloc and not v.username and not v.password
     while pending and len(seen)<SITEMAP_LIMIT and asyncio.get_running_loop().time()+5<deadline and p.netloc not in blocked:
         u=pending.pop(0)
-        if not same_origin(u) or u in seen: continue
+        if not same_origin(u) or u in seen or u in done: continue
         seen.add(u)
-        if not await policy.permitted(u): continue
+        if not await policy.permitted(u):
+            done.add(u);continue
         await asyncio.sleep(policy.delay(u))
         try:
             async with session.get(u,allow_redirects=False) as response:
                 if response.status in (403,429):
-                    blocked.add(p.netloc);errors.append({"url":u,"error":"sitemap HTTP "+str(response.status)+"; origin stopped"});break
-                if response.status!=200: continue
+                    blocked.add(p.netloc);errors.append({"url":u,"error":"sitemap HTTP "+str(response.status)+"; origin stopped"});pending.insert(0,u);break
+                if response.status!=200:
+                    if response.status in (408,500,502,503,504): pending.append(u)
+                    else: done.add(u)
+                    continue
                 buf=bytearray()
                 async for chunk in response.content.iter_chunked(65536):
                     buf.extend(chunk)
                     if len(buf)>SITEMAP_BYTES: break
-                if len(buf)>SITEMAP_BYTES: continue
+                if len(buf)>SITEMAP_BYTES:
+                    errors.append({"url":u,"error":"sitemap exceeds safe byte limit"});done.add(u);continue
                 raw=bytes(buf)
             maps,urls=sitemap_entries(raw)
-            pending.extend(v for v in maps if same_origin(v) and v not in seen)
+            done.add(u)
+            pending.extend(v for v in maps if same_origin(v) and v not in seen and v not in done)
             found.extend(v for v in urls if same_origin(v) and scoped(brand,v) and (editorial_route(brand,v) or brand_listing(brand,v)))
         except (OSError,ValueError,ET.ParseError,asyncio.TimeoutError,aiohttp.ClientError) as e:
             errors.append({"url":u,"error":"sitemap "+type(e).__name__})
-    return unique_urls(found,lambda v:scoped(brand,v)),len(seen),errors,bool(pending)
+            if isinstance(e,(asyncio.TimeoutError,aiohttp.ClientError)): pending.append(u)
+            else: done.add(u)
+    pending=unique_urls([v for v in pending if v not in done],same_origin)[:FRONTIER_LIMIT]
+    state={"pending":pending,"done":sorted(done)[:FRONTIER_LIMIT],"started_at":started_at,"complete":not pending}
+    return unique_urls(found,lambda v:scoped(brand,v)),len(seen),errors,bool(pending),state
 
 def recent_success(entry,checked):
     if entry.get("state")!="observed" or not entry.get("at"): return False
@@ -443,6 +465,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     row["pagination_links"]=0;row["frontier_start"]=len(backlog);row["frontier_truncated"]=0
     row["sitemap_urls"]=0;row["sitemap_files_checked"]=0;row["sitemap_partial"]=False
     sitemap_origins=set()
+    sitemap_state=dict((frontier or {}).get("sitemap_state",{}))
     deferred=[]
     deadline=asyncio.get_running_loop().time()+plan["seconds"]
     try:
@@ -486,7 +509,8 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                 note(source,page_state)
                 if plan["undercovered"] and origin(source) not in sitemap_origins:
                     sitemap_origins.add(origin(source))
-                    sm,checked_maps,errors,partial=await sitemap_discovery(session,policy,brand,source,deadline,blocked)
+                    sm,checked_maps,errors,partial,sm_state=await sitemap_discovery(session,policy,brand,source,deadline,blocked,sitemap_state.get(origin(source)),checked)
+                    sitemap_state[origin(source)]=sm_state
                     row["sitemap_urls"]+=len(sm);row["sitemap_files_checked"]+=checked_maps;row["errors"].extend(errors);row["sitemap_partial"]|=partial
                     known.update(sm)
                     queue.extend(v for v in sm if v not in seen and not skip_recent(v))
@@ -525,7 +549,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                         if home and x.get("url") and x["url"]!=source and same(x["url"]) and x["url"] not in seen:
                             known.add(x["url"])
                             if not skip_recent(x["url"]): queue.append(x["url"])
-                        if x["images"] and sum(bool(i.get("visual_palette")) for i in row["items"])<30:
+                        if x["images"] and sum(bool(i.get("visual_palette")) for i in row["items"])<VISUAL_EVIDENCE_LIMIT and asyncio.get_running_loop().time()+5<deadline:
                             # Sample pixels from an already rendered image, no additional image fetch.
                             # Keep two evidence screenshots per brand; store derived palette only for the rest.
                             handle=None
@@ -578,6 +602,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     pending=unique_urls([*queue,*deferred],same)
     row["pending_urls"]=len(pending)
     row["_pending"]=pending[:FRONTIER_LIMIT]
+    row["_sitemap_state"]=sitemap_state
     cutoff=(datetime.fromisoformat(checked)-timedelta(days=LEDGER_WINDOW_DAYS)).date().isoformat()
     ledger={u:v for u,v in ledger.items() if str(v.get("at",""))[:10]>=cutoff}
     known.update(pending)
@@ -624,7 +649,7 @@ def aggregate(rows,prior,checked,prior_brands=None):
         b["archive_entries_current"]=len({archive_key(x) for x in b.get("archive_entries",[])})
         b["archive_entries"]=retain_archive_entries(prior_brands.get(b["brand"],{}).get("archive_entries",[]),b.get("archive_entries",[]),cutoff)
         b["archive_entries_retained"]=len(b["archive_entries"])
-        summary.append({k:v for k,v in b.items() if k not in ("items","_pending","_url_ledger")}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
+        summary.append({k:v for k,v in b.items() if k not in ("items","_pending","_url_ledger","_sitemap_state")}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
     return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
@@ -682,6 +707,8 @@ def self_test():
     assert not coverage_plan("COLUMBIA",0,0,13)["below_columbia"]
     assert coverage_plan("K2",TARGET_SAMPLE,0,TARGET_SAMPLE+1)["undercovered"]
     assert editorial_route("PATAGONIA","https://www.patagonia.co.kr/stories/filmDetail/275")
+    assert editorial_route("PATAGONIA","https://www.patagonia.co.kr/stories/view/255")
+    assert editorial_route("PATAGONIA","https://www.patagonia.co.kr/innovation-unusual/")
     assert editorial_route("BLACKYAK","https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
     assert not editorial_route("PATAGONIA","https://www.patagonia.co.kr/stories/all_films")
     assert sitemap_entries(b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.org/story/1</loc></url></url>')==([],["https://example.org/story/1"])
@@ -747,7 +774,7 @@ async def main():
             rows=await asyncio.gather(*(task(b) for b in order))
             await browser.close()
     for b in rows:
-        if "_pending" in b: frontier[b["brand"]]={"pending":b["_pending"],"url_ledger":b.get("_url_ledger",{}),"checked_at_kst":checked}
+        if "_pending" in b: frontier[b["brand"]]={"pending":b["_pending"],"url_ledger":b.get("_url_ledger",{}),"sitemap_state":b.get("_sitemap_state",{}),"checked_at_kst":checked}
     temp=FRONTIER_FILE.with_suffix(".tmp")
     temp.write_text(json.dumps({"schema_version":1,"brands":frontier},ensure_ascii=False,separators=(",",":")))
     temp.replace(FRONTIER_FILE)
