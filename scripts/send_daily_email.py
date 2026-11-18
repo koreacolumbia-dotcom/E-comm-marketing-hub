@@ -434,7 +434,7 @@ def main():
         daily_url=report_url,
         hub_url=hub_link,
         inline_img_cid=inline_cid,
-        missing_reason=missing_reason,
+        missing_reason=None,
         mode_weekly=mode_weekly,
         report_period=report_period,
     )
