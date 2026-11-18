@@ -1,0 +1,76 @@
+name: Pages Release Preflight
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Validate a fixed integration snapshot once an hour, not on every push.
+    - cron: '35 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-release-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout immutable integration snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate dashboard navigation and promotion data
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          root=Path(".").resolve()
+          index=Path("index.html").read_text(encoding="utf-8")
+          targets=sorted(set(re.findall(r'data-target="([^"]+)"',index)))
+          assert targets, "No navigation targets"
+          for target in targets:
+              rel=target.split("#",1)[0].split("?",1)[0]
+              if re.match(r"^[a-z]+://",rel,re.I): continue
+              p=(root/rel).resolve()
+              assert p.is_relative_to(root) and p.is_file(), f"Missing or unsafe target: {rel}"
+          folder=Path("reports/competitor_sale_calendar")
+          cal=json.loads((folder/"latest.json").read_text(encoding="utf-8"))
+          assert cal["schema_version"]==1 and cal["events"]
+          for e in cal["events"]:
+              if e["kind"] in {"observed_banner","verified_start"}:
+                  assert e.get("end_date") is None, e["id"]
+              if e["kind"]=="verified_period":
+                  assert e["start_date"]<=e["end_date"], e["id"]
+          q=json.loads(Path("reports/competitor_intelligence/latest-quality.json").read_text(encoding="utf-8"))
+          rows=q.get("brands",[])
+          assert q["denominator"]==len({r["brand"] for r in rows}), "Competitor denominator mismatch"
+          assert q["accessible_brands"]==sum(r.get("pages",0)>0 for r in rows), "Incorrect access count"
+          b=json.loads(Path("reports/competitor_intelligence/reviewed-market-baseline.json").read_text(encoding="utf-8"))
+          assert len({r["brand"] for r in b["memberships"]})==len(b["memberships"]), "Duplicate benefit brand"
+          page=(folder/"index.html").read_text(encoding="utf-8")
+          scripts=re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>",page,re.I)
+          assert scripts, "No scripts in calendar"
+          Path("/tmp/csk-calendar-release-check.js").write_text("\n".join(scripts),encoding="utf-8")
+          print("Navigation, calendar and CRM schema checks passed.")
+          PY
+          node --check /tmp/csk-calendar-release-check.js
+      - name: Validate calendar regression tests
+        run: python -m unittest discover -s tests -p 'test_competitor_sale_calendar.py' -v
+      - name: Check existing public artifact security policy without modifying data
+        run: python scripts/dashboard_security.py --root reports --root site
+      - name: Record verified candidate
+        shell: bash
+        run: |
+          printf 'Release candidate: %s\n' "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          git diff --exit-code
