@@ -47,6 +47,13 @@ async def navigate(page,url):
     for attempt in range(2):
         try:
             response=await page.goto(url,wait_until='domcontentloaded',timeout=15000)
+            if response and response.status == 429 and not attempt:
+                # Respect server-specified backoff; do not bypass rate limits.
+                retry=(await response.header_value("retry-after") or "").strip()
+                if retry.isdigit() and int(retry)<=30:
+                    await asyncio.sleep(max(8,int(retry)))
+                    continue
+                return response
             if response and response.status in (500,502,503,504) and not attempt:
                 await asyncio.sleep(4);continue
             return response
