@@ -234,3 +234,38 @@ def load_session_frame(wildcard, location, start, end):
     df.attrs["partitions"] = status
     print(f"[SESSION_BQ] {start}..{end}: unique={actual:,}, transactions={df['transactions'].sum():,.0f}, partitions={status}", flush=True)
     return df
+
+def load_buyer_frame(wildcard, location, start, end):
+    """Match valid CRM orders to the exact GA purchase session attribution."""
+    client = bigquery.Client(project=wildcard.split(".")[0], location=location or None)
+    parts = select_partitions(client, wildcard, start, end)
+    prefix = build_sql(parts, start.isoformat(), end.isoformat()).split("session_keys AS (", 1)[0]
+    sql = prefix + f"""
+ga_orders AS (
+ SELECT transaction_id, session_key FROM keyed
+ WHERE event_name='purchase' AND event_day BETWEEN DATE('{start}') AND DATE('{end}')
+ AND clean(transaction_id) IS NOT NULL
+ QUALIFY ROW_NUMBER() OVER(PARTITION BY transaction_id ORDER BY IF(session_key IS NULL,1,0),event_timestamp)=1
+),
+crm AS (
+ SELECT TRIM(CAST(OrderNo AS STRING)) AS order_no,
+ TRIM(CAST(MemberID AS STRING)) AS member_id,
+ SAFE_CAST(SUBSTR(CAST(OrderRegdate AS STRING),1,10) AS DATE) AS order_day
+ FROM `columbia-ga4.crm_raw.tb_order_staging` t
+ WHERE SAFE_CAST(COALESCE(JSON_VALUE(TO_JSON_STRING(t),'$.OrderStatusNo'),JSON_VALUE(TO_JSON_STRING(t),'$.CodeOrderStatusNo')) AS INT64) IN (4,5)
+ AND COALESCE(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(t),'$.OrderTotalPay') AS FLOAT64),SAFE_CAST(JSON_VALUE(TO_JSON_STRING(t),'$.OrderTotalPrice') AS FLOAT64),0)-COALESCE(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(t),'$.OrderCancelPrice') AS FLOAT64),0)>0
+ AND clean(CAST(MemberID AS STRING)) IS NOT NULL
+ QUALIFY ROW_NUMBER() OVER(PARTITION BY CAST(OrderNo AS STRING) ORDER BY SAFE_CAST(SUBSTR(CAST(OrderRegdate AS STRING),1,10) AS DATE),CAST(MemberID AS STRING))=1
+),
+firsts AS (SELECT member_id, MIN(order_day) AS first_day FROM crm GROUP BY 1)
+SELECT c.member_id, f.first_day < DATE('{start}') AS existing,
+ CONCAT(IFNULL(a.source,'(not set)'), ' / ', IFNULL(a.medium,'(not set)')) AS sessionSourceMedium,
+ IFNULL(a.campaign,'(not set)') AS sessionCampaignName,
+ IFNULL(a.default_group,'') AS sessionDefaultChannelGroup
+FROM ga_orders g JOIN crm c ON TRIM(g.transaction_id)=c.order_no
+JOIN firsts f USING(member_id)
+LEFT JOIN attribution a USING(session_key)
+WHERE f.first_day IS NOT NULL
+"""
+    df = client.query(sql, location=location or None, job_config=bigquery.QueryJobConfig(maximum_bytes_billed=20*1024**3)).result().to_dataframe(create_bqstorage_client=False)
+    return df
