@@ -361,13 +361,13 @@ roster.filter(function(b){return !$('brand').value||$('brand').value===b[0]}).fo
 pack.segments.forEach(function(seg){var e=seg.event,dest=eventDestination(e),bar=document.createElement(dest?'a':'span');bar.className='event-span tl-bar'+(dest?' linked':'')+(e.kind==='owned_planned'?' owned':e.kind==='observed_banner'?' obs':'');bar.dataset.brand=e.brand;bar.style.gridColumn=(seg.start+2)+' / '+(seg.end+3);bar.style.gridRow=String(seg.lane+1);bar.title=e.brand_name+' · '+e.title+' | '+pretty(days[seg.start])+' ~ '+pretty(days[seg.end]);if(dest){bar.href=dest.url;bar.target='_blank';bar.rel='noopener noreferrer'}bar.innerHTML='<span class="span-content"><span class="span-title">'+esc(eventTitle(e))+'</span></span>';row.appendChild(bar)});host.appendChild(row)})}
 function benefitTypes(e){
  var t=[e.title||'',e.benefit||''].concat((e.banner_evidence||[]).map(function(x){return (x.title||'')+' '+(x.benefit||'')})).join(' '),out=[];
- function push(type,m){var n=Number(m[2]);if(!Number.isFinite(n)||n<=0||n>100)return;out.push({type:type,value:n,qualifier:(m[1]||'').replace(/\s+/g,'')})}
+ function push(type,m){var n=Number(m[2]);if(!Number.isFinite(n)||n<=0||n>100)return;out.push({type:type,value:n,qualifier:(m[1]||'').trim().replace(/\s+/g,' ')})}
  var m,re=/(최대\s*|추가\s*|단독\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(추가\s*|단독\s*)?(?:할인|OFF|세일)/gi;
- while((m=re.exec(t))!==null){if(!m[1]&&m[3])m[1]=m[3];push('할인',m)}
+ while((m=re.exec(t))!==null){if(m[3])m[1]=[m[1],m[3]].filter(Boolean).join(' ');push('할인',m)}
  re=/(최대\s*|추가\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:장바구니\s*)?쿠폰/gi;while((m=re.exec(t))!==null)push('쿠폰',m);
  re=/(최대\s*|추가\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:마일리지\s*)?페이백/gi;while((m=re.exec(t))!==null)push('페이백',m);
  re=/(최대\s*|추가\s*)?(\d{1,3})\s*만\s*원\s*(?:즉시\s*)?할인/g;while((m=re.exec(t))!==null)out.push({type:'만원 할인',value:Number(m[2]),qualifier:(m[1]||'').trim()});
- var groups=new Map();out.forEach(function(x){var k=x.type+'|'+x.value;if(!groups.has(k)||(!groups.get(k).qualifier&&x.qualifier))groups.set(k,x)});
+ var groups=new Map();out.forEach(function(x){var k=x.type+'|'+x.value;if(!groups.has(k)||(x.qualifier.length>groups.get(k).qualifier.length))groups.set(k,x)});
  var labels=Array.from(groups.values()).map(function(x){return (x.qualifier?x.qualifier+' ':'')+x.value+(x.type==='만원 할인'?'만원 할인':'% '+x.type)});
  if(/쿠폰팩/.test(t))labels.push('쿠폰팩');if(/래플/.test(t))labels.push('래플');if(/증정|사은품/.test(t))labels.push('사은품');
  return labels;
