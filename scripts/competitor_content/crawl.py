@@ -57,6 +57,8 @@ SCROLL_LIMIT=int(os.getenv("CONTENT_SCROLL_LIMIT","80"))
 SCROLL_STABLE_LIMIT=4
 FRONTIER_LIMIT=5000
 TARGET_SAMPLE=int(os.getenv("CONTENT_TARGET_SAMPLE","50"))
+CATCHUP_PAGE_LIMIT=int(os.getenv("CONTENT_CATCHUP_PAGE_LIMIT","250"))
+CATCHUP_SECONDS=int(os.getenv("CONTENT_CATCHUP_SECONDS","1500"))
 MAINTENANCE_PAGE_LIMIT=int(os.getenv("CONTENT_MAINTENANCE_PAGE_LIMIT","40"))
 MAINTENANCE_SECONDS=int(os.getenv("CONTENT_MAINTENANCE_SECONDS","300"))
 PRIORITY_BRANDS={"TNF","HOKA","DECATHLON","BLACKYAK","NEPA","PATAGONIA","MILLET","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
@@ -218,14 +220,19 @@ def brand_listing(brand,u):
     if brand=="PATAGONIA": return path in ("/stories/main","/stories/all","/stories/all_films","/stories/filmdetail","/stories/articledetail") or bool(re.fullmatch(r"/stories/(?:category|sports)(?:/[^/]+)?",path))
     return False
 
-def coverage_plan(brand,observed_count,pending_count=0):
-    # A target is a sampling goal, never a fabricated count or claim of complete coverage.
-    undercovered=observed_count<TARGET_SAMPLE
+def coverage_plan(brand,observed_count,pending_count=0,columbia_count=0):
+    # Benchmark comparable deduplicated current-run observations, not indexed leads.
+    # Missing comparator is not proof of parity; the absolute sample target remains active.
+    sample_target=max(TARGET_SAMPLE,columbia_count)
+    catchup=brand!="COLUMBIA" and observed_count<columbia_count
+    undercovered=observed_count<sample_target
     deep=undercovered or pending_count>0
-    return {"sample_target":TARGET_SAMPLE,"prior_sample":observed_count,
-            "undercovered":undercovered,
-            "page_limit":PRIORITY_PAGE_LIMIT if deep else MAINTENANCE_PAGE_LIMIT,
-            "seconds":BRAND_SECONDS if deep else MAINTENANCE_SECONDS}
+    return {"sample_target":sample_target,"prior_sample":observed_count,
+            "columbia_benchmark":columbia_count,
+            "gap_to_columbia":max(0,columbia_count-observed_count),
+            "below_columbia":catchup,"undercovered":undercovered,
+            "page_limit":max(CATCHUP_PAGE_LIMIT,PRIORITY_PAGE_LIMIT) if catchup else PRIORITY_PAGE_LIMIT if deep else MAINTENANCE_PAGE_LIMIT,
+            "seconds":max(CATCHUP_SECONDS,BRAND_SECONDS) if catchup else BRAND_SECONDS if deep else MAINTENANCE_SECONDS}
 
 async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     plan=plan or coverage_plan(brand,0)
@@ -445,6 +452,12 @@ def self_test():
     assert coverage_plan("TNF",0)["undercovered"]
     assert coverage_plan("SALOMON",TARGET_SAMPLE)["page_limit"]==MAINTENANCE_PAGE_LIMIT
     assert coverage_plan("SALOMON",TARGET_SAMPLE,10)["page_limit"]==PRIORITY_PAGE_LIMIT
+    assert coverage_plan("PATAGONIA",0,0,13)["below_columbia"]
+    assert coverage_plan("PATAGONIA",0,0,13)["gap_to_columbia"]==13
+    assert coverage_plan("PATAGONIA",0,0,13)["page_limit"]>=PRIORITY_PAGE_LIMIT
+    assert not coverage_plan("K2",13,0,13)["below_columbia"]
+    assert not coverage_plan("COLUMBIA",0,0,13)["below_columbia"]
+    assert coverage_plan("K2",TARGET_SAMPLE,0,TARGET_SAMPLE+1)["undercovered"]
     print("content self-tests passed")
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
@@ -462,8 +475,9 @@ async def main():
     except (OSError,ValueError,TypeError,KeyError): counts={}
     for brand in ROOTS:
         counts.setdefault(brand,len({x["id"] for x in prior if x.get("brand")==brand}))
-    plans={b:coverage_plan(b,counts[b],len(frontier.get(b,{}).get("pending",[]))) for b in ROOTS}
-    order=sorted(ROOTS,key=lambda b:(not plans[b]["undercovered"],counts[b],b not in PRIORITY_BRANDS,b))
+    columbia_count=counts.get("COLUMBIA",0)
+    plans={b:coverage_plan(b,counts[b],len(frontier.get(b,{}).get("pending",[])),columbia_count) for b in ROOTS}
+    order=sorted(ROOTS,key=lambda b:(not plans[b]["below_columbia"],not plans[b]["undercovered"],counts[b],b not in PRIORITY_BRANDS,b))
     origin_locks={}
     def group(brand): return ALTERNATE.get(brand) or host(ROOTS[brand])
     async with aiohttp.ClientSession(headers={"User-Agent":UA},timeout=aiohttp.ClientTimeout(total=15)) as session:
@@ -471,11 +485,11 @@ async def main():
             browser=await p.chromium.launch(headless=True,**({"executable_path":os.environ["CRAWLER_CHROME"]} if os.environ.get("CRAWLER_CHROME") else {}))
             sem=asyncio.Semaphore(4)
             async def task(brand):
-                async with sem:
-                    try:
-                        async with origin_locks.setdefault(group(brand),asyncio.Lock()):
+                try:
+                    async with origin_locks.setdefault(group(brand),asyncio.Lock()):
+                        async with sem:
                             return await asyncio.wait_for(scan(browser,session,brand,checked,old,frontier.get(brand),plans[brand]),timeout=plans[brand]["seconds"]+60)
-                    except Exception as e: return {"brand":brand,"root":ROOTS[brand],"pages_checked":0,"items":[],"status":"not_collected","errors":[{"error":str(e) or type(e).__name__}]}
+                except Exception as e: return {"brand":brand,"root":ROOTS[brand],"pages_checked":0,"items":[],"status":"not_collected","coverage_plan":plans[brand],"errors":[{"error":str(e) or type(e).__name__}]}
             rows=await asyncio.gather(*(task(b) for b in order))
             await browser.close()
     for b in rows:
