@@ -30,7 +30,8 @@ jobs:
         run: |
           python -m unittest discover -s scripts/personal_intelligence -p 'test_inventory_intelligence.py'
           python -m unittest discover -s scripts/personal_intelligence -p 'test_advanced_intelligence.py'
-          python -m unittest discover -s scripts/personal_intelligence -p 'test_product_signal_hub.py'
+          test -s scripts/personal_intelligence/test_product_signal_hub.py
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_product_signal_hub.py' -v
           python scripts/personal_intelligence/build_dashboard.py --out reports/daily_intelligence/latest.json
       - name: Validate navigation and aggregate output
         run: |
