@@ -1,0 +1,63 @@
+name: Daily Intelligence Dashboard (01–13)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '35 1 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/daily-intelligence-dashboard.yml'
+permissions:
+  contents: write
+concurrency:
+  group: daily-intelligence-dashboard
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate 13-section aggregate snapshot (no BigQuery queries)
+        run: |
+          python scripts/personal_intelligence/build_dashboard.py --out reports/daily_intelligence/latest.json
+      - name: Validate navigation and aggregate output
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          x=json.loads(Path('reports/daily_intelligence/latest.json').read_text())
+          assert [s['number'] for s in x['sections']]==list(range(1,14))
+          assert sum(s['status']!='validation_required' for s in x['sections'])>=10
+          assert x['sections'][10]['multi_touch_status']=='private_local_only'
+          assert Path('index.html').read_text().count('data-key="daily_intelligence"')==2
+          print('13 sections and PC/mobile tabs checked')
+          PY
+          node --version
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          src=Path('reports/daily_intelligence/index.html').read_text()
+          Path('/tmp/intelligence.js').write_text(re.findall(r'<script>(.*?)</script>',src,re.S)[0])
+          PY
+          node --check /tmp/intelligence.js
+      - name: Publish only aggregate dashboard snapshot
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/daily_intelligence/latest.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Refresh daily intelligence aggregate snapshot"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then exit 0; fi
+            git rebase --abort || true
+          done
+          exit 1
