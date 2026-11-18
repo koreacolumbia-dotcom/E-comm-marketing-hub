@@ -26,6 +26,9 @@ async def scan(browser,session,name,root):
     def same(u): return host(u)==allowed or (urlparse(u).hostname or '') in profile.get('hosts',[])
     def brand_route(u):
         p=urlparse(u)
+        if name=="COLUMBIA":
+            # Anonymous, public shopping pages only; never account, cart, order or admin routes.
+            return p.path.lower().startswith(("/main/","/event/","/product/list","/product/view","/promotion/","/exhibition/"))
         if host(u) == "k-village.co.kr" and name in ("K2","EIDER"):
             # Multi-brand storefront: only named brand routes and curated shared events.
             prefix = "/k2" if name == "K2" else "/eider"
@@ -73,6 +76,26 @@ async def scan(browser,session,name,root):
                     # Use visible banner images with public event destinations only.
                     hero_assets=await page.locator("a[href] img").evaluate_all("""els=>els.map(e=>{const a=e.closest('a');const r=e.getBoundingClientRect();return {image:e.currentSrc||e.src,url:a?.href||'',title:(e.alt||a?.title||a?.innerText||'').trim().slice(0,160),width:e.naturalWidth,height:e.naturalHeight,visible:r.width>=180&&r.height>=70}}).filter(x=>x.visible&&x.width>=400&&x.height>=120&&/(?:\\/event\\/|\\/promotion\\/|\\/exhibition\\/)/i.test(x.url)).slice(0,24)""")
                     hero_assets=[h for h in hero_assets if same(h["url"]) and h["url"].startswith("https://") and h["image"].startswith("https://")]
+                    for asset in hero_assets[:8]:
+                        if not asset.get("title"):
+                            asset["title"]="공식 이벤트 배너"
+                        # Preserve rendered public assets locally rather than claiming that a URL is an archived image.
+                        try:
+                            if not same(asset["url"]) or not brand_route(asset["url"]): continue
+                            key=hashlib.sha256((asset["image"]+"|"+asset["url"]).encode()).hexdigest()[:20]
+                            target=Path("reports/competitor_intelligence/owned/assets")/(key+".png")
+                            target.parent.mkdir(parents=True,exist_ok=True)
+                            if not target.exists():
+                                indexed=page.locator("a[href] img")
+                                for ix in range(min(await indexed.count(),120)):
+                                    el=indexed.nth(ix)
+                                    src=await el.evaluate("(e)=>e.currentSrc||e.src",timeout=1200)
+                                    if src==asset["image"] and await el.is_visible():
+                                        await el.screenshot(path=str(target),timeout=3500,animations="disabled")
+                                        break
+                            if target.exists() and target.stat().st_size>0: asset["local_image"]=target.name
+                        except Exception:
+                            pass
                 snippets=[x.strip()[:350] for x in body.splitlines() if DEAL.search(x) or DATE.search(x)][:60]
                 banners=[x for x in links if EVENT.search(x['label']) or DEAL.search(x['label'])][:25]
                 result['pages'].append({'url':page.url,'title':await page.title(),'product_cards':cards,'structured_data':structured[:15],'images':images,'hero_assets':hero_assets,'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
