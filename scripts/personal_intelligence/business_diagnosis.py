@@ -5,6 +5,42 @@ from engine import revenue_bridge
 def _row(raw):
     return {k: float(raw[v]) for k,v in (("sessions","sessions"),("orders","transactions"),("revenue","purchaseRevenue"))}
 
+
+def _observations(report):
+    """Rank comparable observations without inventing prior values or funnel data."""
+    channels=[]
+    for group, rows in (report.get("channel_detail_map") or {}).items():
+        for row in rows or []:
+            if not isinstance(row,dict): continue
+            current, change=row.get("purchaseRevenue"),row.get("revenue_yoy")
+            if not isinstance(current,(int,float)) or not isinstance(change,(int,float)): continue
+            if not isfinite(current) or not isfinite(change) or current<=0 or change<=-1: continue
+            prior=current/(1+change)
+            channels.append(dict(group=group,label=row.get("sub_channel"),current=current,
+                prior_estimate=round(prior,2),delta_estimate=round(current-prior,2),
+                yoy_pct=round(change*100,2),evidence="prior reconstructed from reported YoY; not raw attribution"))
+    channels.sort(key=lambda x:x["delta_estimate"])
+    pdp=[]
+    for row in (report.get("pdp_series") or {}).get("rows",[]):
+        a,b=row.get("ys",[]),row.get("ys_yoy",[])
+        if not row.get("has_yoy") or not a or len(a)!=len(b): continue
+        if any(not isinstance(v,(int,float)) or not isfinite(v) or v<0 for v in a+b): continue
+        if row.get("views_d1")!=a[-1]: continue
+        pdp.append(dict(label=row.get("itemCategory"),current=a[-1],prior=b[-1],
+            delta=a[-1]-b[-1],yoy_pct=round((a[-1]/b[-1]-1)*100,2) if b[-1]>0 else None,
+            week_delta=sum(a)-sum(b),source_status=row.get("source_status"),
+            validation="Verify taxonomy and source reconciliation" if a[-1]==0 or row.get("source_status")!="ok" else "Compare PDP-to-cart and purchase funnel"))
+    pdp.sort(key=lambda x:x["delta"])
+    actions=[]
+    if channels and channels[0]["delta_estimate"]<0:
+        x=channels[0];actions.append(dict(priority="P1",check="Investigate "+str(x["label"])+" revenue decline: traffic, CVR, AOV and campaign mix",dimension="channel"))
+    if pdp and pdp[0]["delta"]<0:
+        x=pdp[0];actions.append(dict(priority="P2",check=str(x["label"])+": "+x["validation"],dimension="pdp"))
+    return dict(channel_observations=channels,pdp_observations=pdp,
+        positive_channel_signals=sorted([x for x in channels if x["delta_estimate"]>0],key=lambda x:-x["delta_estimate"])[:3],
+        positive_pdp_signals=sorted([x for x in pdp if x["delta"]>0],key=lambda x:-x["delta"])[:3],
+        targeted_actions=actions)
+
 def build_diagnosis(report, model=None):
     """Returns ranked observed revenue contributions, hypotheses and next checks.
     Optional source domains remain explicitly missing until verified."""
@@ -47,6 +83,7 @@ def build_diagnosis(report, model=None):
         if not report.get(key):
             missing.append(name)
     positive=[x for x in candidates if x["observed_revenue_contribution"]>0]
+    observations=_observations(report)
     return {
         "title":"AI BUSINESS DIAGNOSIS",
         "date":report.get("end_date"),
@@ -56,6 +93,7 @@ def build_diagnosis(report, model=None):
         "positive_signals":positive,
         "actions":[{"priority":x["priority"],"check":x["validation"],"dimension":x["dimension"]} for x in candidates],
         "missing_evidence":missing,
+        **observations,
         "limitations":"Accounting decomposition, not incremental causal attribution; hypotheses require independent validation.",
     }
 
