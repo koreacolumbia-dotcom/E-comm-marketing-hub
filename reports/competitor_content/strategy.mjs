@@ -23,7 +23,11 @@ export function classifyPurpose(x){
  const campaign=/\/(?:Brands\/KOLONSPORT\/Special\/\d+|event\/view\/eventCategoryNF\/\d+|event\/\d{6}(?:_\d+)?\/[^/?#]+\.asp|promotion\/view\.asp|etc\/collection\.action|app\/planning2\/views\/|display\/promotions\/collection\/\d+|20\d{2}[a-z-]+\/)/i.test(url);
  const commerce=direct||buy||products>0||prices>=2, narrative=story||storyRoute||read||tech;
  let code="UNCLASSIFIED",confidence="insufficient";
- if(promo){code="PROMOTION";confidence="evidence_based"}else if(community){code="COMMUNITY";confidence="evidence_based"}else if(narrative&&commerce){code="HYBRID";confidence="evidence_based"}else if(story||storyRoute||read){code="EDITORIAL";confidence="evidence_based"}else if(commerce){code="COMMERCIAL";confidence="evidence_based"}else if(campaign&&(tech||product||collection)){code=tech?"HYBRID":"COMMERCIAL";confidence="inferred";ev.push("기획 상세 경로 + 제품 문구; 실제 판매 구조 재확인") }else if(tech||product&&local&&body.length>title.length+12){code=tech?"EDITORIAL":"COMMERCIAL";confidence="inferred";ev.push("제품 문구 기반 추정")}else if(collection&&(article||local)){code="COMMERCIAL";confidence="inferred";ev.push("컬렉션 문구 기반 추정; 구매 구조 미확인")}
+ if(promo){code="PROMOTION";confidence="evidence_based"}else if(community){code="COMMUNITY";confidence="evidence_based"}else if(narrative&&commerce){code="HYBRID";confidence="evidence_based"}else if(story||storyRoute||read){code="EDITORIAL";confidence="evidence_based"}else if(commerce){code="COMMERCIAL";confidence="evidence_based"}else if(campaign&&(tech||product||collection)){code=tech?"HYBRID":"COMMERCIAL";confidence="inferred";ev.push("기획 상세 경로 + 제품 문구; 실제 판매 구조 재확인") }else if(tech||product&&local&&body.length>title.length+12){code=tech?"EDITORIAL":"COMMERCIAL";confidence="inferred";ev.push("제품 문구 기반 추정")}else if(/상품\s*기획전|쇼핑\s*기획전|상품\s*모아보기/i.test(title)){code="COMMERCIAL";confidence="evidence_based";ev.push("제목에 상품 기획전 명시")}
+ else if(collection&&(article||local)){code="COMMERCIAL";confidence="inferred";ev.push("컬렉션 문구 기반 추정; 구매 구조 미확인")}
+ else if(/\/etc\/collection\.action\?[^#]*collectionIdx=\d+|\/Brands\/KOLONSPORT\/Special\/\d+|\/event\/view\/eventCategoryNF\/\d+|\/(?:outdoor|lifestyle)\/[^?]*collection\/[^/?]+/i.test(url)&&title.length>=5&&(x.thumbnail||body.length>=12)){code="COMMERCIAL";confidence="inferred";ev.push("확인된 브랜드별 큐레이션 상세 경로 및 소재; 실제 목적 검토 필요")}
+ else if(/\b(?:LOOKBOOK|STYLEBOOK|EDITORIAL|STORY|JOURNAL|EXPERIENCE|EXPEDITION|FILM)\b|룩북|스토리|착장|정은채와 함께|\d{4}.*(?:역사|이어온)/i.test(title)){code="EDITORIAL";confidence="inferred";ev.push("콘텐츠 제목 형식 기반 추정")}
+ else if(/\b(?:DOWN|PUFFER|JACKET|OUTER|FLEECE|PARKA|WARMTH|BACKPACK|TENT|WINTER|SHOES)\b|따뜻함|온기|다운|재킷|자켓|아우터|플리스|백팩|방한|소재|가벼움/i.test(title)&&title.length>=5&&(x.thumbnail||local)){code="COMMERCIAL";confidence="inferred";ev.push("개별 제품·시즌 소개 제목; 판매 구조 미확인")}
  if(code==="UNCLASSIFIED")ev.push("개별 콘텐츠 근거 부족");
  return {code,confidence,evidence:[...new Set(ev)],commercial_evidence:commerce,promotion_evidence:promo};
 }
@@ -37,7 +41,7 @@ export function analyze(feed){
  const index=/\/(?:list|category|search|ranking)(?:\/|$)|\/special\/?$|\/blogs\/[^/]+\/?$|\/stories\/(?:main|all)\/?$/i;
  const rules=[
  ["TPO","TPO·스타일링",/하이킹|트레킹|등산|캠핑|러닝|여행|도심|일상|데일리|스타일링|hiking|trekking|camping|running|urban|daily|styling/i,"도심·트레일·여행 상황별 착장과 제품 CTA 연결","콘텐츠→PDP 클릭률"],
- ["TECH","제품 기능·기술",/경량|방수|보온|투습|통기|내구|기술력|고어텍스|프리마로프트|기능성|waterproof|lightweight|insulation|technology|breathab|gore.?tex/i,"27SS 제품 스펙을 실제 사용 테스트와 짧은 비주얼로 증명","PDP→Cart"],
+ ["TECH","제품 기능·기술",/경량|방수|보온|투습|통기|내구|기술력|고어텍스|프리마로프트|기능성|체열|옴니히트|인터체인지|omni.?heat|BOA.{0,4}핏|핏 시스템|waterproof|lightweight|insulation|technology|breathab|gore.?tex/i,"27SS 제품 스펙을 실제 사용 테스트와 짧은 비주얼로 증명","PDP→Cart"],
  ["PEOPLE","인물·크리에이터",/앰배서더|애슬릿|크리에이터|인플루언서|ambassador|athlete|creator|[가-힣]{2,4}(?:와|과) 함께한/i,"크리에이터 크루의 실제 착용 스토리를 상품 CTA와 연결","콘텐츠→PDP 클릭률"],
  ["HERITAGE","브랜드 스토리",/헤리티지|브랜드 스토리|브랜드의 역사|heritage|brand story|history|지속가능|환경|worn wear/i,"검증 가능한 브랜드 역사와 기술을 27SS 상품에 연결","콘텐츠 참여율"],
  ["COMMUNITY","커뮤니티·체험",/커뮤니티|워크숍|클리닉|community|workshop|clinic|crew|club/i,"트레킹·러닝 활동 후기를 제품 연계형 콘텐츠로 발행","신규회원 전환율"],
@@ -60,7 +64,7 @@ export function analyze(feed){
    const old={...m},prefer=x.placement!=="main_visual"&&m.placement==="main_visual";
    if(prefer)Object.assign(m,x);
    m.keys=[...new Set([...old.keys,...keys])];m.placements=[...new Set([...old.placements,x.placement].filter(Boolean))];m.source_urls=[...new Set([...old.source_urls,src])];m.member_ids=[...new Set([...old.member_ids,x.id].filter(Boolean))];m.first_seen_at=[old.first_seen_at,x.first_seen_at].filter(Boolean).sort()[0]??null;m.last_seen_at=[old.last_seen_at,x.last_seen_at].filter(Boolean).sort().at(-1)??null;m.changed_at=[old.changed_at,x.changed_at].filter(Boolean).sort().at(-1)??null;const dates=[...new Set([old.published_at,x.published_at].filter(Boolean))];if(old.publication_status==="conflicting"||x.publication_status==="conflicting"||dates.length>1){m.published_at=null;m.publication_status="conflicting"}else if(dates.length===1){m.published_at=dates[0];m.publication_status=old.publication_status==="explicit"||x.publication_status==="explicit"?"explicit":m.publication_status}
-   for(const fld of ["tpo","selling_points","type_tags"])m[fld]=[...new Set([...(old[fld]||[]),...(x[fld]||[])])];
+   if(!m.page_metrics&&old.page_metrics)m.page_metrics=old.page_metrics;for(const fld of ["tpo","selling_points","type_tags"])m[fld]=[...new Set([...(old[fld]||[]),...(x[fld]||[])])];
    for(const fld of ["products","influencer","images","publication_evidence"]){const a=[...(Array.isArray(old[fld])?old[fld]:[]),...(Array.isArray(x[fld])?x[fld]:[])];m[fld]=a.length?[...new Map(a.map(v=>[JSON.stringify(v),v])).values()]:null}
    merged.push({brand:x.brand,member_id:x.id,representative_id:m.id,reason:keys.find(k=>old.keys.includes(k))?.split(":")[0]||"matched"});
   }
