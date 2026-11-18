@@ -2,8 +2,19 @@
 from calendar import monthrange
 from datetime import date
 from html import escape
+from urllib.parse import urlparse
 
 ROWS=("공식몰 프로모션","LMS","KAKAO","EDM","상품 출시","Paid Media","Meta Creative","노스페이스","K2","디스커버리","블랙야크","네파","코오롱스포츠","아이더","내셔널지오그래픽","스노우피크","밀레")
+BRANDS={"blackyak":"블랙야크","discovery":"디스커버리","eider":"아이더","k2":"K2","kolonsport":"코오롱스포츠","millet":"밀레","national_geographic":"내셔널지오그래픽","nepa":"네파","snowpeak":"스노우피크","tnf":"노스페이스"}
+def calendar_events(feed, internal=()):
+    result=list(internal)
+    for e in feed.get("events",[]):
+        row=BRANDS.get(e.get("brand"))
+        if not row:continue
+        exact=e.get("date_status") in ("official_period","first_party_landing_text") and e.get("start_date") and e.get("end_date")
+        result.append(dict(row=row,title=e["title"]+(" · "+e["channel"] if e.get("source_type")=="official_retailer_page" else ""),start=e.get("start_date"),end=e.get("end_date"),status="confirmed" if exact else "unverified",url=e.get("source_url"),channel=e.get("channel"),observed_on=e.get("observed_on",[])))
+    return result
+
 def calendar_svg(year,month,events,today=None):
     days=monthrange(year,month)[1]
     first,last=date(year,month,1),date(year,month,days)
@@ -26,7 +37,7 @@ def calendar_svg(year,month,events,today=None):
     for row,items in grouped.items():
         merged=[]
         for a,b,e in sorted(items,key=lambda x:(x[0],x[1])):
-            match=next((i for i,(aa,bb,ee) in enumerate(merged) if ee["title"]==e["title"] and ee.get("status")==e.get("status") and a.toordinal()<=bb.toordinal()+1),None)
+            match=next((i for i,(aa,bb,ee) in enumerate(merged) if ee["title"]==e["title"] and ee.get("status")==e.get("status") and ee.get("url")==e.get("url") and ee.get("channel")==e.get("channel") and a.toordinal()<=bb.toordinal()+1),None)
             if match is not None:
                 aa,bb,ee=merged[match];merged[match]=(aa,max(bb,b),ee)
             else:merged.append((a,b,e))
@@ -55,7 +66,11 @@ def calendar_svg(year,month,events,today=None):
                 opacity=.2 if planned else 1
                 dash="4 3" if planned else "none"
                 ink=color if planned else "white"
-                add(f'<g><title>{title}</title><rect x="{x}" y="{y+3}" width="{w}" height="20" rx="4" fill="{color}" fill-opacity="{opacity}" stroke="{color}" stroke-dasharray="{dash}"/><clipPath id="{clip}"><rect x="{x}" y="{y+3}" width="{w}" height="20"/></clipPath><text x="{x+5}" y="{y+17}" font-size="11" fill="{ink}" clip-path="url(#{clip})">{title}</text></g>')
+                url=e.get("url") or ""
+                link=urlparse(url).scheme=="https" and bool(urlparse(url).hostname)
+                if link:add(f'<a href="{esc(url)}" target="_blank" rel="noopener noreferrer">')
+                add(f'<g><title>{title}</title><rect x="{x}" y="{y+3}" width="{w}" height="20" rx="4" fill="{color}" fill-opacity="{opacity}" stroke="{color}" stroke-dasharray="{dash}"/><clipPath id="{clip}"><rect x="{x}" y="{y+3}" width="{w}" height="20"/></clipPath><text x="{x+w/2}" y="{y+17}" text-anchor="middle" font-size="11" fill="{ink}" clip-path="url(#{clip})">{title}</text></g>')
+                if link:add("</a>")
             y+=26
         add(f'<line x1="0" x2="{width-12}" y1="{y}" y2="{y}" stroke="#e0e7ee"/>');y+=6
     if today and first<=today<=last:
