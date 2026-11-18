@@ -58,7 +58,7 @@ async def scan(browser,session,name,root):
         def priority(u):
             # Favor product/list evidence after the first promotion or root page.
             p=urlparse(u);s=p.path+'?'+p.query
-            listing=bool(re.search(r'category|product/list|goods_list|collection|search|/best|/new',s,re.I))
+            listing=bool(re.search(r'category|product/list|goods_list|big_section|/list/|collection|search|/best|/new',s,re.I))
             product=bool(PRODUCT.search(u)) and not listing
             if not result['pages']: return (0 if u in seeds or u==root else 1,)
             return (0 if listing else 1 if product else 2 if u in seeds or u==root else 3, 0 if u in seeds else 1)
@@ -78,7 +78,7 @@ async def scan(browser,session,name,root):
                 await page.wait_for_timeout(1000)
                 await page.evaluate('window.scrollTo(0, Math.min(document.body?.scrollHeight ?? document.documentElement?.scrollHeight ?? 0, 1400))')
                 await page.wait_for_timeout(700)
-                if re.search(r'category|product/list|goods_list|collection|search',page.url,re.I):
+                if re.search(r'category|product/list|goods_list|big_section|/list/|collection|search',page.url,re.I):
                     # Allow ordinary lazy-loaded product cards to appear through bounded scrolling.
                     for _ in range(2 if FAST else 4):
                         await page.evaluate('window.scrollBy(0, Math.max(window.innerHeight, 600))')
@@ -89,6 +89,12 @@ async def scan(browser,session,name,root):
                 images=await page.locator('img').evaluate_all("els=>els.slice(0,80).map(e=>({src:e.currentSrc||e.src,alt:e.alt}))")
                 links=await page.locator('a[href], img[alt]').evaluate_all("""els=>els.map(e=>({url:e.href||e.closest('a')?.href||'',label:[e.innerText,e.alt,e.title,e.querySelector('img')?.alt].filter(Boolean).join(' ')}))""")
                 cards=await extract_cards(page,profile)
+                if host(page.url)=='k-village.co.kr' and name in ('K2','EIDER'):
+                    # Shared mall results must explicitly identify the target brand.
+                    cards=[r for r in cards if re.match(r'^'+name+r'\s+',r['name'],re.I)]
+                    structured=[]
+                if host(page.url)=='nstationmall.com' and urlparse(page.url).path.rstrip('/')=='/event/planning':
+                    cards=[];structured=[]  # Multi-brand event index only.
                 hero_assets=[]
                 if name=="COLUMBIA":
                     # Use visible banner images with public event destinations only.
