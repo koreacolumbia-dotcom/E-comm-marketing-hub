@@ -130,6 +130,32 @@ def product_intelligence(d):
         "sample_best_sellers":d.get("best_sellers") or [],"best_seller_scope":"reported top SKU sample, not full style totals",
         "missing":["category sales totals","reconciled category sources where unavailable"]}
 
+
+def product_intelligence(d):
+    """Category demand, matched daily comparisons, and reported SKU sales; no invented category sales."""
+    from statistics import mean
+    pdp=d.get("pdp_series") or {}
+    rows=[]
+    for r in pdp.get("rows",[]):
+        a,b=r.get("ys") or [],r.get("ys_yoy") or []
+        if not a or any(not isinstance(v,(int,float)) or not isfinite(v) or v<0 for v in a):continue
+        matched=r.get("has_yoy") and len(a)==len(b) and all(isinstance(v,(int,float)) and isfinite(v) and v>=0 for v in b)
+        valid=r.get("views_d1")==a[-1]
+        rows.append({**r,"day_yoy_pct":change(a[-1],b[-1]) if matched and valid else None,
+            "vs_prior_days_pct":change(a[-1],mean(a[:-1])) if len(a)>1 and valid else None,
+            "week_yoy_pct":change(sum(a),sum(b)) if matched and valid else None,
+            "day_delta":a[-1]-b[-1] if matched and valid else None,
+            "week_delta":sum(a)-sum(b) if matched and valid else None,
+            "trend_status":"review" if not valid or not any(a) else "available",
+            "sales_units":None,"source_detail_verified":r.get("source_status") in ("ok","reconciled")})
+    eligible=[x for x in rows if x["day_delta"] is not None and x["trend_status"]=="available"]
+    sku_rows=[{k:r.get(k) for k in ("itemId","itemName","qty","views","revenue","image_url")} for r in d.get("best_sellers",[])]
+    return {"dates":pdp.get("x"),"prior_dates":pdp.get("yoy_x"),"categories":rows,
+        "growth":sorted([x for x in eligible if x["day_delta"]>0],key=lambda x:-x["day_delta"])[:5],
+        "declines":sorted([x for x in eligible if x["day_delta"]<0],key=lambda x:x["day_delta"])[:5],
+        "sku_sales_sample":sku_rows,"sku_sales_series":d.get("best_sellers_series"),
+        "category_sales_status":"source_required","scope":"PDP category counts may overlap; SKU top-N is not full catalog coverage"}
+
 def build_model(d,competitor=None,events=None,product_evidence=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
