@@ -1,0 +1,40 @@
+name: Competitor CRM Scenario Intelligence
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '45 20 * * *'
+  push:
+    paths:
+      - 'scripts/crm_intelligence/scan.py'
+      - '.github/workflows/competitor-crm-scenarios.yml'
+permissions:
+  contents: write
+concurrency:
+  group: competitor-crm-scenarios
+  cancel-in-progress: false
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install aiohttp==3.11.18 beautifulsoup4==4.13.4
+      - run: python -m py_compile scripts/crm_intelligence/scan.py && python scripts/crm_intelligence/scan.py --self-test
+      - run: python scripts/crm_intelligence/scan.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-crm-scenario-evidence
+          path: reports/crm_intelligence/scenario-data.json
+          retention-days: 14
+      - name: Publish public evidence only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/crm_intelligence/scenario-data.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Update public CRM scenario observations"
+          git pull --rebase origin main
+          git push origin HEAD:main
