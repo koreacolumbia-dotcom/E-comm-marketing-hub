@@ -7,12 +7,12 @@ from reliability import PolicyCache, navigate, checkpoint
 from urllib.robotparser import RobotFileParser
 import aiohttp
 from playwright.async_api import async_playwright
-BRANDS={"TNF":"https://www.thenorthfacekorea.co.kr/","K2":"https://www.k2.co.kr/","DISCOVERY":"https://www.discovery-expedition.com/","BLACKYAK":"https://www.byn.kr/blackyak","NEPA":"https://www.nplus.co.kr/main/main.asp","KOLON SPORT":"https://www.kolonmall.com/Brands/KOLONSPORT","EIDER":"https://www.eider.co.kr/","NATIONAL GEOGRAPHIC":"https://www.naturestore.co.kr/","SNOW PEAK":"https://www.snowpeakstore.co.kr/","MILLET":"https://www.millet.co.kr/"}
+BRANDS={"COLUMBIA":"https://www.columbiakorea.co.kr/main/main.asp","TNF":"https://www.thenorthfacekorea.co.kr/","K2":"https://www.k2.co.kr/","DISCOVERY":"https://www.discovery-expedition.com/","BLACKYAK":"https://www.byn.kr/blackyak","NEPA":"https://www.nplus.co.kr/main/main.asp","KOLON SPORT":"https://www.kolonmall.com/Brands/KOLONSPORT","EIDER":"https://www.eider.co.kr/","NATIONAL GEOGRAPHIC":"https://www.naturestore.co.kr/","SNOW PEAK":"https://www.snowpeakstore.co.kr/","MILLET":"https://www.millet.co.kr/"}
 UA="CSKMarketResearchBot"
 FAST=os.getenv('CRAWLER_MODE','fast')=='fast'
 PAGE_LIMIT=8 if FAST else 18
 BRAND_SECONDS=120 if FAST else 360
-EVENT=re.compile(r'promo|collection|newevent|event|promotion|exhibition|_exh|exh_list|special|企画|企画|기획전|이벤트|프로모션|세일|페스타|블랙프라이데이|혜택',re.I)
+EVENT=re.compile(r'promo|collection|newevent|event|promotion|exhibition|/event/|/product/list|_exh|exh_list|special|企画|企画|기획전|이벤트|프로모션|세일|페스타|블랙프라이데이|혜택',re.I)
 DEAL=re.compile(r'할인|쿠폰|사은품|적립|특가|black friday|sale|%\s*off',re.I)
 PRODUCT=re.compile(r'goods_view|product/detail|productdetail|/product/|/goods/|goodsNo=|productNo=',re.I)
 DATE=re.compile(r'20\d{2}[.\-/ ]\s*\d{1,2}[.\-/ ]\s*\d{1,2}|\d{1,2}[./]\d{1,2}\s*[~–-]\s*\d{1,2}[./]\d{1,2}')
@@ -68,9 +68,14 @@ async def scan(browser,session,name,root):
                 images=await page.locator('img').evaluate_all("els=>els.slice(0,80).map(e=>({src:e.currentSrc||e.src,alt:e.alt}))")
                 links=await page.locator('a[href], img[alt]').evaluate_all("""els=>els.map(e=>({url:e.href||e.closest('a')?.href||'',label:[e.innerText,e.alt,e.title,e.querySelector('img')?.alt].filter(Boolean).join(' ')}))""")
                 cards=await extract_cards(page,profile)
+                hero_assets=[]
+                if name=="COLUMBIA":
+                    # Use visible banner images with public event destinations only.
+                    hero_assets=await page.locator("a[href] img").evaluate_all("""els=>els.map(e=>{const a=e.closest('a');const r=e.getBoundingClientRect();return {image:e.currentSrc||e.src,url:a?.href||'',title:(e.alt||a?.title||a?.innerText||'').trim().slice(0,160),width:e.naturalWidth,height:e.naturalHeight,visible:r.width>=180&&r.height>=70}}).filter(x=>x.visible&&x.width>=400&&x.height>=120&&/(?:\\/event\\/|\\/promotion\\/|\\/exhibition\\/)/i.test(x.url)).slice(0,24)""")
+                    hero_assets=[h for h in hero_assets if same(h["url"]) and h["url"].startswith("https://") and h["image"].startswith("https://")]
                 snippets=[x.strip()[:350] for x in body.splitlines() if DEAL.search(x) or DATE.search(x)][:60]
                 banners=[x for x in links if EVENT.search(x['label']) or DEAL.search(x['label'])][:25]
-                result['pages'].append({'url':page.url,'title':await page.title(),'product_cards':cards,'structured_data':structured[:15],'images':images,'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
+                result['pages'].append({'url':page.url,'title':await page.title(),'product_cards':cards,'structured_data':structured[:15],'images':images,'hero_assets':hero_assets,'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
                 checkpoint(name,result)
                 candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and same(x['url']) and brand_route(x['url']) and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']))]
                 queue=list(dict.fromkeys(queue+[x for x in candidates if x not in seen]))
