@@ -2,15 +2,15 @@ import re
 PROFILES={
 "COLUMBIA":{"seeds":["https://www.columbiakorea.co.kr/main/main.asp","https://www.columbiakorea.co.kr/event/261120/teaser.asp","https://www.columbiakorea.co.kr/product/view.asp?pno=19322","https://www.columbiakorea.co.kr/product/view.asp?pno=18774"],"cards":["li","article","[class*=\'product\']"]},
 "TNF":{"seeds":["https://image.thenorthfacekorea.co.kr/category/n/Winter-supplies"],"hosts":["image.thenorthfacekorea.co.kr"],"cards":["li","article"]},
-"K2":{"seeds":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/","https://www.k-village.co.kr/eventDetail?eventNo=1096"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["li","article"]},
-"DISCOVERY":{"seeds":["https://www.discovery-expedition.com/display/promotions?type=EVENT&gf=F","https://www.discovery-expedition.com/display/promotions/event/1716","https://www.discovery-expedition.com/display/promotions/collection/705"],"cards":["article","li"]},
-"BLACKYAK":{"seeds":["https://www.byn.kr/blackyak/shop/big_section.php?cno1=1612","https://www.byn.kr/blackyak/shop/big_section.php?cno1=1012"],"cards":["li","article"]},
+"K2":{"seeds":["https://www.k-village.co.kr/K2/","https://www.k-village.co.kr/k2","https://www.k-village.co.kr/goods/KWU26546YS","https://www.k-village.co.kr/","https://www.k-village.co.kr/eventDetail?eventNo=1096"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["li","article"]},
+"DISCOVERY":{"seeds":["https://www.discovery-expedition.com/product-detail/DMDJ7E056-BKS","https://www.discovery-expedition.com/display/promotions/collection/1556","https://www.discovery-expedition.com/display/promotions?type=EVENT&gf=F","https://www.discovery-expedition.com/display/promotions/event/1716","https://www.discovery-expedition.com/display/promotions/collection/705"],"cards":["article","li"]},
+"BLACKYAK":{"seeds":["https://www.byn.kr/_exh/?no=2336","https://www.byn.kr/blackyak/shop/big_section.php?cno1=1612","https://www.byn.kr/blackyak/shop/big_section.php?cno1=1012"],"cards":["li","article"]},
 "NEPA":{"seeds":[],"cards":["li","article"]},
 "KOLON SPORT":{"seeds":["https://www.kolonmall.com/Brands/kolonsport/List/4895","https://www.kolonmall.com/Brands/KOLONSPORT/List/133010020000","https://www.kolonmall.com/Brands/KOLONSPORT/List/4898"],"cards":["article","li"]},
 "EIDER":{"seeds":["https://www.k-village.co.kr/eider","https://www.k-village.co.kr/","https://www.k-village.co.kr/eventDetail?eventNo=1096","https://www.eider.co.kr/search?k=%EB%8B%A4%EC%9A%B4"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["article","li"]},
-"NATIONAL GEOGRAPHIC":{"seeds":["https://www.nstationmall.com/event/planning/1165","https://www.nstationmall.com/event/planning/1171","https://www.nstationmall.com/natgeo","https://www.nstationmall.com/event/planning"],"hosts":["www.nstationmall.com","nstationmall.com"],"cards":["article","li"]},
+"NATIONAL GEOGRAPHIC":{"seeds":["https://nstationmall.com/goods/detail/24055","https://nstationmall.com/goods/category/002014004","https://www.nstationmall.com/event/planning/1165","https://www.nstationmall.com/event/planning/1171","https://www.nstationmall.com/natgeo","https://www.nstationmall.com/event/planning"],"hosts":["www.nstationmall.com","nstationmall.com"],"cards":["article","li"]},
 "SNOW PEAK":{"seeds":["https://www.snowpeakstore.co.kr/board/list.php?bdId=newevent","https://m.snowpeakstore.co.kr/goods/event_sale.php?sno=697"],"cards":["li",".item_cont"]},
-"MILLET":{"seeds":[],"cards":["article","li"]}}
+"MILLET":{"seeds":["https://www.millet.co.kr/front/promo/event/348","https://www.millet.co.kr/front/product/25561","https://www.millet.co.kr/front/product/18060"],"cards":["article","li"]}}
 def normalize_cards(rows):
     out={}
     def amounts(text):
@@ -37,7 +37,8 @@ def normalize_cards(rows):
             # Without independent semantic price roles require two currency amounts
             # and an advertised percentage that reconciles to the same card.
             prices=re.findall(r'(?<!\d)([1-9][0-9,]{3,})\s*원',text)
-            if not prices:
+            if len(prices)<2:
+                # Mixed suffixes (599,000 / 239,000원) and bare KRW on list cards.
                 prices=re.findall(r"(?<![\d,])([1-9]\d{0,2}(?:,\d{3})+)(?![\d,])",text)
             if len(prices)!=2 or len(rates)!=1: continue
             regular,sale=sorted([int(x.replace(",","")) for x in prices],reverse=True)
@@ -58,8 +59,8 @@ async def extract_cards(page,profile):
     rows=await page.locator(selector).evaluate_all("""els=>{
       const reg='del,s,strike,[class*="original_price"],[class*="originalPrice"],[class*="regularPrice"],[class*="regular_price"],[class*="consumer_price"],[class*="normal_price"]';
       const sale='[class*="sale_price"],[class*="salePrice"],[class*="sellingPrice"],[class*="selling_price"],[class*="discountPrice"],[class*="discount_price"],[class*="finalPrice"]';
-      const product=/\\/product\\/|\\/goods\\/|goodsNo=|productNo=|pno=|\\/prd\\/|\\/item\\//i;
-      const nameSel='[class*="goods_name"],[class*="product_name"],[class*="productName"],[class*="item_name"],[class*="itemName"],[class*="prd_name"],h3,h4';
+      const product=/\\/product\\/|\\/product-detail\\/|\\/goods\\/|goodsNo=|productNo=|pno=|\\/prd\\/|\\/item\\/|\\/shop\\/view/i;
+      const nameSel='[class*="goods_name"],[class*="goodsName"],[class*="product_name"],[class*="productName"],[class*="product-name"],[class*="item_name"],[class*="itemName"],[class*="item-name"],[class*="prd_name"],[class*="prdName"],[class*="prd-name"],h3,h4';
       const describe=e=>{
         const text=(e.innerText||'').trim();
         if(text.length<6||text.length>420)return null;
