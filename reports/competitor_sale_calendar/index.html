@@ -396,7 +396,7 @@ function productFocus(e){var t=e.title+' '+(e.benefit||'');var hits=[['다운·�
 function marketLink(url,label){return validLink(url)?'<a rel="noopener noreferrer" target="_blank" href="'+esc(url)+'">'+esc(label||'원문')+' ↗</a>':'—'}
 function marketBrand(key){var item=TARGET_BRANDS.find(function(b){return b[2]===key||b[0]===key});return key==='COLUMBIA'||key==='columbia'?['columbia','COLUMBIA']:item?[item[0],item[1]]:[key,key]}
 function marketFilter(brand,content){var key=$('brand').value,q=$('keyword').value.toLowerCase().trim();return (!key||key===brand||brand==='industry')&&(!q||String(content).toLowerCase().includes(q))}
-function marketState(r){return r.status==='crawler_banner'?'배너 관측 · 세부 미확인':r.status==='official_index_conflict'?'공식 색인 간 불일치':'공식 공개 자료 검토'}
+function marketState(r){return r.status==='crawler_banner'?'배너 관측 · 세부 미확인':r.status==='official_faq_rechecked'?'공식 FAQ 재확인':r.status==='official_index_conflict'?'공식 색인 간 불일치':'공식 공개 자료 검토'}
 function renderMarket(){
  if(!data)return;
  var base=marketBaseline,feed=marketFeed,allSignals=feed&&Array.isArray(feed.signals)?feed.signals:[],asof=feed&&feed.checked_at_kst,baseRows=base&&Array.isArray(base.memberships)?base.memberships:[],rows=baseRows.filter(function(r){return marketFilter(r.brand,[r.brand_name,r.channel,r.signup,r.first_purchase,r.conditions].join(' '))});
@@ -488,7 +488,7 @@ fetch('./latest.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error(
 if(value.schema_version!==1||!Array.isArray(value.events))throw Error('Schema invalid');
 data=Object.assign({},value,{events:value.events.filter(function(e){return !OWNED_EVENTS.some(function(o){return o.id===e.id})}).concat(OWNED_EVENTS)});year=Number(data.as_of.slice(0,4));month=Number(data.as_of.slice(5,7));selected=data.as_of;
 $('state').textContent=data.status==='fresh'?'최근 수집 확인':data.status==='stale'?'수집 갱신 지연':'배너 데이터 없음';
-$('updated').textContent='기준 '+pretty(data.as_of)+' · 최신 수집 '+pretty(data.freshness.last_snapshot)+' · 관측일 '+data.freshness.snapshot_days+'일';
+$('updated').textContent='기준 '+pretty(data.as_of)+' · 최신 배너 수집 '+pretty(data.freshness.last_snapshot)+' · 관측일 '+data.freshness.snapshot_days+'일'+(data.provenance&&data.provenance.last_manual_review_on?' · 수동 검증 '+pretty(data.provenance.last_manual_review_on):'');
 var names=new Map(TARGET_BRANDS.map(function(x){return [x[0],x[1]]}));data.events.forEach(function(e){if(!names.has(e.brand))names.set(e.brand,e.brand_name)});
 names.forEach(function(name,key){var opt=document.createElement('option');opt.value=key;opt.textContent=name;$('brand').appendChild(opt)});
 render();
