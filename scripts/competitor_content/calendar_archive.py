@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime,timedelta
 ROOT=Path("reports/competitor_content")
 def compact(x):
-    return {k:x.get(k) for k in ("id","brand","title","summary","url","source_url","source_scope","placement","type","type_tags","tpo","selling_points","thumbnail","first_seen_at","last_seen_at","published_at","publication_status","publication_evidence","change","fingerprint","products","influencer","cta","images","page_metrics","evidence_scope","visual_palette")}
+    return {k:x.get(k) for k in ("id","brand","title","summary","url","source_url","source_scope","placement","type","type_tags","tpo","selling_points","thumbnail","first_seen_at","last_seen_at","published_at","publication_status","publication_evidence","change","fingerprint","products","influencer","cta","images","page_metrics","evidence_scope","visual_palette","visual_signature")}
 def build(payload,earlier=None):
     checked=payload["checked_at_kst"]; cutoff=(datetime.fromisoformat(checked)-timedelta(days=180)).date().isoformat()
     earlier=earlier or {};items={x["id"]:x for x in earlier.get("items",[]) if x.get("id")}
@@ -12,6 +12,7 @@ def build(payload,earlier=None):
         if not x.get("id"):continue
         old=items.get(x["id"],{});new=compact(x)
         if old.get("first_seen_at") and (not new.get("first_seen_at") or old["first_seen_at"]<new["first_seen_at"]):new["first_seen_at"]=old["first_seen_at"]
+        if old.get("fingerprint")==new.get("fingerprint") and not new.get("visual_signature"):new["visual_signature"]=old.get("visual_signature")
         new["changed_at"]=old.get("changed_at")
         if x.get("change")=="changed" and x.get("last_seen_at")==checked:new["changed_at"]=checked
         if not new["changed_at"] and x.get("change")=="changed" and x.get("last_seen_at"):new["changed_at"]=x["last_seen_at"]
