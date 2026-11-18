@@ -17,6 +17,7 @@ jobs:
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASS: ${{ secrets.SMTP_PASS }}
     steps:
+      - uses: actions/checkout@v4
       - name: Check TLS and authentication without sending mail
         shell: bash
         run: |
@@ -53,3 +54,12 @@ jobs:
           else:
               raise SystemExit('SMTP authentication failed; check provider credentials and policy')
           PY
+      - name: Send original CID PNG to report owner only after successful authentication
+        env:
+          DAILY_RECIPIENTS: hugh.kang@columbia.com
+          DAILY_DIGEST_TEST_RECIPIENT: hugh.kang@columbia.com
+          REPORT_DATE: '2026-11-17'
+          REPORT_MODE: daily
+          MODE_DAILY_ONLY: 'true'
+          HUB_URL: https://koreacolumbia-dotcom.github.io/E-comm-marketing-hub
+        run: python scripts/send_daily_email.py
