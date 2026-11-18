@@ -15,7 +15,7 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-24.04
-    timeout-minutes: 85
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -42,6 +42,11 @@ jobs:
       - name: Test interactive drilldowns in Chromium
         run: python scripts/competitor_content/drilldown_test.py
       - name: Crawl official editorial pages
+        env:
+          CONTENT_PAGE_LIMIT: '120'
+          CONTENT_PRIORITY_PAGE_LIMIT: '180'
+          CONTENT_BRAND_SECONDS: '1200'
+          CONTENT_SCROLL_LIMIT: '80'
         run: python scripts/competitor_content/crawl.py
       - name: Update content calendar archive
         run: python scripts/competitor_content/calendar_archive.py
