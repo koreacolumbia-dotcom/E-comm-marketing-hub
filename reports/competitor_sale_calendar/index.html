@@ -133,6 +133,12 @@ header .overline:before{display:none}
 .event-span .span-arrow{position:absolute;top:50%;transform:translateY(-50%);pointer-events:none}
 .event-span .span-arrow.left{left:5px}.event-span .span-arrow.right{right:5px}
 
+
+.event-span.linked{text-decoration:none;color:var(--brandink)}
+.event-span.owned.linked{color:#fff}
+.event-span.linked:hover{text-decoration:none;filter:saturate(1.3);box-shadow:0 2px 7px rgba(15,23,42,.12)}
+.event-span.linked:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.event-span.linked .span-content:after{content:'↗';font-size:10px;flex:0 0 auto;opacity:.65}
 </style></head><body>
 <main>
 <header><div><div class="overline">CSK E-COMM · PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
@@ -161,6 +167,7 @@ header .overline:before{display:none}
  <div class="calendar-scroll"><div class="week"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
  <div class="grid" id="calendar" aria-label="경쟁사 세일 월간 달력"></div></div>
  <div class="legend"><span><i class="owned"></i> 컬럼비아 자사 일정</span><span><i></i> 공식 일정 확인</span><span><i class="obs"></i> 수집일에만 관측</span><span>색상은 브랜드별 구분 · 이어지는 막대는 동일 행사</span></div>
+ <p class="small">행사 막대 ↗ 클릭: 행사 근거 페이지 또는 공식몰·기획전 목록 새 탭 열기 · 날짜 클릭: 상세 정보</p>
 </section>
 <aside class="sidebar">
 <section class="panel"><div class="row"><h2 id="dateTitle">날짜별 행사</h2><span class="pill" id="dayCount">—</span></div><div id="dayList" aria-live="polite"></div></section>
@@ -232,13 +239,15 @@ return data.events.filter(function(e){if(!ignoreFilters&&!filtered(e))return fal
 if(e.kind==='verified_period'||e.kind==='owned_planned')return e.start_date<=b&&e.end_date>=a;
 if(e.kind==='verified_start')return e.start_date>=a&&e.start_date<=b;
 return (e.observed_on||[]).some(function(x){return x>=a&&x<=b})})}
+function validLink(raw){if(typeof raw!=='string'||!/^https:\/\/[a-z0-9.-]+(?::443)?(?:[/?#]|$)/i.test(raw)||/[\s\\]/.test(raw))return null;return raw}
+function eventDestination(e){var direct=validLink(e.source_url);if(direct)return {url:direct,label:'행사 근거 페이지',fallback:false};var fallbacks={blackyak:'https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1',columbia:'https://www.columbiakorea.co.kr/main/main.asp'};var url=validLink(fallbacks[e.brand]);return url?{url:url,label:e.brand==='columbia'?'공식몰 메인':'공식 기획전 목록',fallback:true}:null}
 function eventCard(e){
 var owned=e.kind==='owned_planned',verified=e.kind!=='observed_banner'&&!owned;
 var when=owned?'예정: '+pretty(e.start_date)+' ~ '+pretty(e.end_date):e.kind==='verified_period'?pretty(e.start_date)+' ~ '+pretty(e.end_date):
  e.kind==='verified_start'?pretty(e.start_date)+' 시작 / 종료일 미확인':
  '관측: '+(e.observed_on||[]).map(short).join(', ');
-var source=owned?'':e.source_url&&e.source_url.indexOf('https://')===0?
- '<a rel="noopener noreferrer" target="_blank" href="'+esc(e.source_url)+'">공식 근거 확인</a>':'<span class="small">행사 상세 링크 확인 필요</span>';
+var dest=eventDestination(e);
+var source=dest?'<a rel="noopener noreferrer" target="_blank" href="'+esc(dest.url)+'">'+esc(dest.label)+' ↗</a>'+(dest.fallback?' <span class="small">개별 행사 URL 미확인</span>':''):'<span class="small">행사 상세 링크 확인 필요</span>';
 return '<div class="event" data-brand="'+esc(e.brand)+'"><div><span class="tag">'+esc(e.brand_name)+'</span> <span class="tag kind'+(owned?' owned':verified?'':' obs')+'">'+(owned?'자사 예정':e.kind==='verified_start'?'시작일 확인':verified?'기간 확인':'관측')+'</span></div>'+
  '<b>'+esc(e.title)+'</b>'+(e.benefit?'<div class="offer">'+esc(e.benefit)+'</div>':'')+
  '<div class="meta">'+esc(when)+'</div><div class="meta">'+esc(e.note||'')+'</div>'+source+'</div>';
@@ -286,14 +295,16 @@ for(var w=0;w<count;w+=7){
     b.innerHTML='<span class="num">'+actual+'</span>';b.onclick=function(){selectDay(stamp)};row.appendChild(b);
   });
   packed.segments.forEach(function(seg){
-    var e=seg.event,bar=document.createElement('button'),n=seg.end-seg.start+1;
-    bar.type='button';bar.className='event-span'+(e.kind==='owned_planned'?' owned':e.kind==='observed_banner'?' obs':'')+(n===1?' single':'')+(seg.carryIn?' carry-in':'')+(seg.carryOut?' carry-out':'');
+    var e=seg.event,dest=eventDestination(e),bar=document.createElement(dest?'a':'button'),n=seg.end-seg.start+1;
+    if(dest){bar.href=dest.url;bar.target='_blank';bar.rel='noopener noreferrer'}else{bar.type='button'}
+    bar.className='event-span'+(dest?' linked':'')+(e.kind==='owned_planned'?' owned':e.kind==='observed_banner'?' obs':'')+(n===1?' single':'')+(seg.carryIn?' carry-in':'')+(seg.carryOut?' carry-out':'');
     bar.dataset.brand=e.brand;bar.style.gridColumn=(seg.start+1)+' / '+(seg.end+2);bar.style.gridRow=String(seg.lane+2);
     var status=e.kind==='owned_planned'?'자사 예정':e.kind==='observed_banner'?'배너 관측':e.kind==='verified_start'?'시작일 확인':'공식 행사';
     bar.title=e.brand_name+' · '+e.title+(e.benefit?' · '+e.benefit:'')+' | '+status+' '+pretty(days[seg.start])+' ~ '+pretty(days[seg.end]);
+    bar.title+=' | '+(dest?(dest.fallback?'개별 링크 미확인 · ':'')+dest.label+' (새 탭)':'날짜별 상세 보기');
     bar.setAttribute('aria-label',bar.title);
     bar.innerHTML=(seg.carryIn?'<span class="span-arrow left" aria-hidden="true">‹</span>':'')+'<span class="span-content"><span class="span-brand">'+esc(e.brand_name)+'</span><span class="span-title">'+esc(e.title)+'</span>'+(e.benefit&&n>1?'<span class="span-benefit">'+esc(e.benefit)+'</span>':'')+'</span>'+(seg.carryOut?'<span class="span-arrow right" aria-hidden="true">›</span>':'');
-    bar.onclick=function(ev){var rect=bar.getBoundingClientRect(),offset=ev.detail===0?0:Math.max(0,Math.min(n-1,Math.floor((ev.clientX-rect.left)/Math.max(1,rect.width)*n)));selectDay(days[seg.start+offset])};
+    if(!dest)bar.onclick=function(ev){var rect=bar.getBoundingClientRect(),offset=ev.detail===0?0:Math.max(0,Math.min(n-1,Math.floor((ev.clientX-rect.left)/Math.max(1,rect.width)*n)));selectDay(days[seg.start+offset])};
     row.appendChild(bar);
   });
   host.appendChild(row);
