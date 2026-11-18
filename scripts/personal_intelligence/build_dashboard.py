@@ -1,4 +1,4 @@
-"""Single dashboard for 01–14. Only minimum aggregates from already-published inputs.
+"""Single dashboard for 01–18. Only minimum aggregates from already-published inputs.
 Private computed journeys and verified cost evidence never enter the public snapshot.
 """
 import argparse,json
@@ -13,6 +13,7 @@ from attribution import marketing_attribution
 from run_budget import load_budget
 from social_listening import build_social
 from inventory_intelligence import build_inventory
+from advanced_intelligence import integrated_calendar,impact_matrix,predict,strategy
 
 ROOT=Path(__file__).resolve().parents[2]
 def read(p):
@@ -116,16 +117,30 @@ def build(root=ROOT,day=None):
     def inventory():
         warehouse=(read(rep/"marketing_intelligence_v2/latest.json").get("integrations") or {}).get("warehouse")
         return build_inventory(d,warehouse=warehouse)
+    def calendar_section():
+        own=read(rep/"owned_portal/data/owned"/("owned_"+d["end_date"]+".json"))
+        return integrated_calendar(d,calendar,read(root/"config/marketing_calendar_2026.json"),own)
+    def impact_section():
+        return impact_matrix(d,calendar_section())
+    def prediction_section():
+        history=[]
+        end=date.fromisoformat(d["end_date"])
+        for offset in (28,56,84):
+            doc=read(rep/"daily_digest/data/daily"/((end-timedelta(days=offset)).isoformat()+".json"))
+            if doc:history.append(doc)
+        return predict(d,history)
+    def strategy_section():
+        return strategy(d,impact_section(),prediction_section(),inventory(),budget(),social())
     for n,name,fn in [(1,"AI BUSINESS DIAGNOSIS",diagnosis),(2,"EXECUTIVE SUMMARY",summary),(3,"ROOT CAUSE ANALYSIS",cause),
     (4,"WEATHER INTELLIGENCE",weather),(5,"PRODUCT INTELLIGENCE",product),(6,"PRODUCT EARLY WARNING",early),
     (7,"COMPETITIVE INTELLIGENCE",comp),(8,"COMPETITIVE CONTENT",editorial),(9,"COMPETITIVE DISCOUNT MATRIX",matrix),
-    (10,"CUSTOMER INTELLIGENCE",customers),(11,"MARKETING ATTRIBUTION",attribution),(12,"BUDGET OPTIMIZER",budget),(13,"SOCIAL LISTENING",social),(14,"INVENTORY INTELLIGENCE",inventory)]: add(n,name,fn)
+    (10,"CUSTOMER INTELLIGENCE",customers),(11,"MARKETING ATTRIBUTION",attribution),(12,"BUDGET OPTIMIZER",budget),(13,"SOCIAL LISTENING",social),(14,"INVENTORY INTELLIGENCE",inventory),(15,"INTEGRATED CALENDAR",calendar_section),(16,"BUSINESS IMPACT MATRIX",impact_section),(17,"PREDICTIVE INTELLIGENCE",prediction_section),(18,"EXECUTIVE AI STRATEGY",strategy_section)]: add(n,name,fn)
     return {"schema":1,"report_date":d["end_date"],"target_date":target,"source_scope":"existing public aggregate caches only; private journey files not included","sections":results}
 def main():
     p=argparse.ArgumentParser();p.add_argument("--out",required=True);a=p.parse_args()
     target=Path(a.out);target.parent.mkdir(parents=True,exist_ok=True)
-    m=build();assert [s["number"] for s in m["sections"]]==list(range(1,15))
+    m=build();assert [s["number"] for s in m["sections"]]==list(range(1,19))
     assert all(k not in json.dumps(m) for k in ('"path_json"','"user_pseudo_id"','"member_id"','"models"'))
     target.write_text(json.dumps(m,ensure_ascii=False,allow_nan=False,separators=(",",":")),encoding="utf-8")
-    print("[DASHBOARD] 14 sections generated; dates and section statuses only:",m["report_date"],[(s["number"],s["status"]) for s in m["sections"]])
+    print("[DASHBOARD] 18 sections generated; dates and section statuses only:",m["report_date"],[(s["number"],s["status"]) for s in m["sections"]])
 if __name__=="__main__":main()
