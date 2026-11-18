@@ -78,6 +78,30 @@ def weather_business(d,events=None):
     result["interpretation"]="Date-aligned observations; no causal weather or promotion attribution. Missing is null, not zero."
     return result
 
+
+def root_cause(d, current, prior):
+    from math import isclose
+    try: effects=revenue_bridge(current,prior)
+    except (ValueError,KeyError,TypeError,ZeroDivisionError): effects=None
+    delta=current["revenue"]-prior["revenue"]
+    rows=[]
+    for x in d.get("channel_snapshot",[]):
+        if x.get("bucket")=="Total":continue
+        a,b=x.get("purchaseRevenue"),x.get("revenue_yoy")
+        if not isinstance(a,(int,float)) or not isfinite(a):continue
+        old=a/(1+b) if a>0 and isinstance(b,(int,float)) and isfinite(b) and b>-1 else None
+        rows.append({"channel":x.get("bucket"),"current":a,"prior_estimate":old,
+            "delta_estimate":a-old if old is not None else None,
+            "revenue_yoy_pct":b*100 if isinstance(b,(int,float)) else None})
+    known=sum(x["delta_estimate"] for x in rows if x["delta_estimate"] is not None)
+    rows.sort(key=lambda x:(x["delta_estimate"] is None,x["delta_estimate"] or 0))
+    return {"current":current,"prior":prior,"delta":delta,"effects":effects,
+        "reconciled":effects is not None and isclose(sum(effects.values()),delta,abs_tol=.01),
+        "channels":rows,"channel_unallocated_delta":delta-known,
+        "channel_current_reconciled":isclose(sum(x["current"] for x in rows),current["revenue"],abs_tol=.01),
+        "channel_note":"Prior estimated from reported revenue_yoy. Zero or unavailable bases remain unknown; residual is not assigned to a channel.",
+        "causal":False,"separate_decompositions":True}
+
 def build_model(d,competitor=None,events=None,product_evidence=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
@@ -87,7 +111,7 @@ def build_model(d,competitor=None,events=None,product_evidence=None):
     def row(x): return {"sessions":x["sessions"],"orders":x["transactions"],"revenue":x["purchaseRevenue"]}
     cy,ly=row(overall["current"]),row(overall["yoy"])
     put("Executive Summary",executive_summary(d))
-    put("Root Cause Analysis",revenue_bridge(cy,ly))
+    put("Root Cause Analysis",root_cause(d,cy,ly),"partial")
     weather=d.get("weather_forecast",{})
     put("Weather Intelligence",weather_business(d,events),"partial")
     pdp=d.get("pdp_series",{})
