@@ -4,6 +4,7 @@ from statistics import mean
 from engine import revenue_bridge
 from product_card import enrich_cards
 from business_diagnosis import build_diagnosis
+from style_anomaly import rank_styles
 
 SECTIONS=("AI BUSINESS DIAGNOSIS","Executive Summary","Root Cause Analysis","Weather Intelligence","Product Intelligence","Product Early Warning","Competitive Intelligence","Competitive Discount Matrix","Customer Intelligence","Marketing Attribution","Budget Optimizer","Social Listening","Inventory Intelligence","Integrated Calendar","Business Impact Matrix","Predictive Intelligence","Executive AI Strategy")
 
@@ -104,34 +105,6 @@ def root_cause(d, current, prior):
 
 
 def product_intelligence(d):
-    pdp=d.get("pdp_series") or {}
-    dates=pdp.get("x") or []; prior_dates=pdp.get("yoy_x") or []
-    rows=[]
-    for r in pdp.get("rows",[]):
-        a,b=r.get("ys") or [],r.get("ys_yoy") or []
-        valid=lambda seq,n: len(seq)==n and n>0 and all(isinstance(v,(int,float)) and isfinite(v) and v>=0 for v in seq)
-        current_ok=valid(a,len(dates)) and r.get("views_d1")==a[-1]
-        prior_ok=r.get("has_yoy") and valid(b,len(prior_dates)) and len(a)==len(b)
-        quality="check_zero_series" if current_ok and not any(a) and prior_ok and any(b) else ("reported" if current_ok else "invalid")
-        comparable=current_ok and prior_ok and quality!="check_zero_series"
-        rows.append({"name":r.get("itemCategory"),"current":a if current_ok else None,"prior":b if prior_ok else None,
-            "daily_views":a[-1] if current_ok else None,"weekly_views":sum(a) if current_ok else None,
-            "day_yoy_pct":change(a[-1],b[-1]) if comparable else None,
-            "week_yoy_pct":change(sum(a),sum(b)) if comparable else None,
-            "week_delta":sum(a)-sum(b) if comparable else None,
-            "quality":quality,"sources_current":r.get("top_sources") if r.get("source_status")=="ok" else None,
-            "sources_prior":r.get("top_sources_yoy") if r.get("source_status_yoy")=="ok" else None,
-            "source_status":r.get("source_status"),"source_status_prior":r.get("source_status_yoy"),
-            "sales_units":None,"sales_status":"category sales source required"})
-    ranked=[x for x in rows if x["week_delta"] is not None]
-    return {"dates":dates,"prior_dates":prior_dates,"categories":rows,
-        "growth":sorted([x for x in ranked if x["week_delta"]>0],key=lambda x:-x["week_delta"])[:3],
-        "declines":sorted([x for x in ranked if x["week_delta"]<0],key=lambda x:x["week_delta"])[:3],
-        "sample_best_sellers":d.get("best_sellers") or [],"best_seller_scope":"reported top SKU sample, not full style totals",
-        "missing":["category sales totals","reconciled category sources where unavailable"]}
-
-
-def product_intelligence(d):
     """Category demand, matched daily comparisons, and reported SKU sales; no invented category sales."""
     from statistics import mean
     pdp=d.get("pdp_series") or {}
@@ -176,7 +149,7 @@ def build_model(d,competitor=None,events=None,product_evidence=None):
         previous=a[:-1]
         categories.append({**r,"day_yoy_pct":change(a[-1],b[-1]) if b and r.get("has_yoy") else None,"vs_prior_days_pct":change(a[-1],mean(previous)) if previous else None})
     if categories: put("Product Intelligence",product_intelligence(d),"partial")
-    valid=[r for r in categories if r["day_yoy_pct"] is not None]
+    valid=[r for r in product_intelligence(d)["categories"] if r["day_yoy_pct"] is not None and r["trend_status"]=="available"]
     sales=d.get("best_sellers_series",{})
     candidates=[]
     products={r["itemId"]:r for r in d.get("best_sellers",[])}
@@ -186,7 +159,15 @@ def build_model(d,competitor=None,events=None,product_evidence=None):
         if not a: continue
         candidates.append({"name":names.get(r["itemId"],r["itemId"]),"sku":r["itemId"],"image_url":products.get(r["itemId"],{}).get("image_url"),"daily_pdp":products.get(r["itemId"],{}).get("views"),"pdp_series":None,"sales_dates":sales.get("x"),"prior_dates":sales.get("yoy_x"),"daily_change_pct":change(a[-1],a[-2]) if len(a)>1 else None,"series":a,"prior_series":b,"scope":r.get("comparison_scope"),"yoy_pct":change(sum(a),sum(b)) if b else None})
     enrich_cards(candidates,weather,events,product_evidence)
-    put("Product Early Warning",{"category_declines":sorted(valid,key=lambda r:r["day_yoy_pct"])[:5],"category_growth":sorted(valid,key=lambda r:-r["day_yoy_pct"])[:5],"sample_sku_sales":candidates,"style_aggregation_available":False},"partial")
+    style_alerts=None
+    style_status="complete daily style source required"
+    if d.get("style_daily_complete") is True and d.get("style_daily_rows"):
+        try:
+            style_alerts=rank_styles(d["style_daily_rows"],d["end_date"])
+            style_status="available"
+        except (ValueError,TypeError,KeyError) as exc:
+            style_status="validation failed: "+str(exc)
+    put("Product Early Warning",{"style_alerts":style_alerts,"style_status":style_status,"category_declines":sorted(valid,key=lambda r:r["day_yoy_pct"])[:5],"category_growth":sorted(valid,key=lambda r:-r["day_yoy_pct"])[:5],"sample_sku_sales":candidates,"style_aggregation_available":style_alerts is not None},"partial")
     if competitor: put("Competitive Intelligence",competitor,"partial")
     # Never infer zero discounts or absence of promotions from missing evidence.
     put("Competitive Discount Matrix",{"brands":10,"verified_cells":[],"unknown_is_zero":False},"source_required")
