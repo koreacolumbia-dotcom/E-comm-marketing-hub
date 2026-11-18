@@ -35,6 +35,49 @@ def executive_summary(d):
         "source":overall.get("current",{}).get("source"),"built_at_kst":d.get("built_at_kst"),
         "comparison":"weekday aligned per source; not calendar-date YoY"}
 
+
+def weather_business(d,events=None):
+    from datetime import date,timedelta
+    end=date.fromisoformat(d["end_date"])
+    axis=[(end+timedelta(days=i)).isoformat() for i in range(-29,8)]
+    prior=[(date.fromisoformat(x)-timedelta(days=364)).isoformat() for x in axis]
+    observed=d.get("weather_observed") or {}
+    if not isinstance(observed,dict): observed={}
+    def temp(day):
+        x=observed.get(day) or {}
+        v=x.get("mean_temp")
+        return v if x.get("verified") is True and x.get("kind")=="observed" and str(x.get("station"))=="108" and isinstance(v,(int,float)) and isfinite(v) else None
+    def aligned(dates,values):
+        lookup=dict(zip(dates,values or []))
+        return [lookup.get(x) for x in axis]
+    trend=d.get("trend_series") or {}
+    result={"dates":axis,"prior_dates":prior,"actual_through":end.isoformat(),
+        "temperature_current":[temp(x) for x in axis],
+        "temperature_prior":[temp(x) for x in prior],
+        "forecast":d.get("weather_forecast"),"events":events or [],
+        "overall":{k:aligned(trend.get("dates",[]),trend.get(k)) for k in ("sessions","revenue","cvr")},
+        "overall_source":"GA4 trend series (not BQ headline KPI)","categories":[]}
+    pdp=d.get("pdp_series") or {}
+    def resolve(labels,last):
+        n=len(labels or [])
+        ds=[(last-timedelta(days=n-1-i)).isoformat() for i in range(n)]
+        return ds if all(date.fromisoformat(x).strftime("%m/%d")==l for x,l in zip(ds,labels or [])) else []
+    current_dates=resolve(pdp.get("x"),end)
+    prior_dates=resolve(pdp.get("yoy_x"),end-timedelta(days=364))
+    for row in pdp.get("rows",[]):
+        a,b=row.get("ys") or [],row.get("ys_yoy") or []
+        prior_lookup=dict(zip(prior_dates,b)) if row.get("has_yoy") else {}
+        cy=aligned(current_dates,a)
+        ly=[prior_lookup.get(x) for x in prior]
+        pairs=[(u,v) for u,v in zip(cy,ly) if u is not None and v is not None]
+        result["categories"].append({"name":row.get("itemCategory"),"pdp_current":cy,"pdp_prior":ly,
+            "matched_yoy_pct":change(sum(u for u,v in pairs),sum(v for u,v in pairs)) if pairs else None,
+            "matched_days":len(pairs),"sales_current":None,"sales_prior":None})
+    result["missing"]=["category daily sales","prior overall trend"]
+    if any(v is None for v in result["temperature_current"][:30]+result["temperature_prior"][:30]):result["missing"].append("complete verified historical ASOS 108 observations")
+    result["interpretation"]="Date-aligned observations; no causal weather or promotion attribution. Missing is null, not zero."
+    return result
+
 def build_model(d,competitor=None,events=None,product_evidence=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
@@ -46,7 +89,7 @@ def build_model(d,competitor=None,events=None,product_evidence=None):
     put("Executive Summary",executive_summary(d))
     put("Root Cause Analysis",revenue_bridge(cy,ly))
     weather=d.get("weather_forecast",{})
-    if weather.get("days"): put("Weather Intelligence",{"forecast":weather,"historical_temperature":None},"partial")
+    put("Weather Intelligence",weather_business(d,events),"partial")
     pdp=d.get("pdp_series",{})
     categories=[]
     for r in pdp.get("rows",[]):
