@@ -159,15 +159,34 @@ def build_model(d,competitor=None,events=None,product_evidence=None):
         if not a: continue
         candidates.append({"name":names.get(r["itemId"],r["itemId"]),"sku":r["itemId"],"image_url":products.get(r["itemId"],{}).get("image_url"),"daily_pdp":products.get(r["itemId"],{}).get("views"),"pdp_series":None,"sales_dates":sales.get("x"),"prior_dates":sales.get("yoy_x"),"daily_change_pct":change(a[-1],a[-2]) if len(a)>1 else None,"series":a,"prior_series":b,"scope":r.get("comparison_scope"),"yoy_pct":change(sum(a),sum(b)) if b else None})
     enrich_cards(candidates,weather,events,product_evidence)
+    from style_anomaly import rank_styles
+    from statistics import median
+    evidence=product_evidence or {}
     style_alerts=None
     style_status="complete daily style source required"
-    if d.get("style_daily_complete") is True and d.get("style_daily_rows"):
+    rows=evidence.get("style_daily_rows") or d.get("style_daily_rows")
+    if rows and (evidence.get("style_daily_complete") is True if evidence.get("style_daily_rows") else d.get("style_daily_complete") is True):
         try:
-            style_alerts=rank_styles(d["style_daily_rows"],d["end_date"])
+            style_alerts=rank_styles(rows,d["end_date"],limit=3)
             style_status="available"
         except (ValueError,TypeError,KeyError) as exc:
             style_status="validation failed: "+str(exc)
-    put("Product Early Warning",{"style_alerts":style_alerts,"style_status":style_status,"category_declines":sorted(valid,key=lambda r:r["day_yoy_pct"])[:5],"category_growth":sorted(valid,key=lambda r:-r["day_yoy_pct"])[:5],"sample_sku_sales":candidates,"style_aggregation_available":style_alerts is not None},"partial")
+    sample=[]
+    for r in candidates:
+        a=r.get("series") or []
+        if len(a)<7 or any(not isinstance(v,(int,float)) or not isfinite(v) or v<0 for v in a):continue
+        baseline=median(a[:-1])
+        delta=a[-1]-baseline
+        if baseline>0 and abs(delta)>=3 and abs(delta/baseline)>=.3:
+            sample.append({**r,"baseline":baseline,"delta_units":delta,"direction":"rise" if delta>0 else "fall","alert_scope":"selected bestseller SKU only"})
+    sample.sort(key=lambda r:-abs(r["delta_units"]))
+    put("Product Early Warning",{"style_alerts":style_alerts,"style_status":style_status,
+        "category_declines":sorted(valid,key=lambda r:r["day_yoy_pct"])[:5],
+        "category_growth":sorted(valid,key=lambda r:-r["day_yoy_pct"])[:5],
+        "sample_sku_sales":candidates,"sample_sku_alerts":sample[:6],
+        "style_aggregation_available":style_alerts is not None,
+        "sample_threshold":{"absolute_units":3,"relative_pct":30},
+        "note":"Sample alerts are not full catalog rankings; missing is not zero."},"available" if style_alerts is not None else "partial")
     if competitor: put("Competitive Intelligence",competitor,"partial")
     # Never infer zero discounts or absence of promotions from missing evidence.
     put("Competitive Discount Matrix",{"brands":10,"verified_cells":[],"unknown_is_zero":False},"source_required")
