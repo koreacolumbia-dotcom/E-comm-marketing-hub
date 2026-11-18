@@ -10,6 +10,31 @@ SECTIONS=("AI BUSINESS DIAGNOSIS","Executive Summary","Root Cause Analysis","Wea
 def change(a,b):
     return (a/b-1)*100 if b else None
 
+
+def executive_summary(d):
+    """GA4 session-based metrics; admin zero placeholders are not used."""
+    overall=d.get("overall",{})
+    def vals(key):
+        x=overall.get(key) or {}
+        v={"sessions":x.get("sessions"),"orders":x.get("transactions"),"revenue":x.get("purchaseRevenue")}
+        def ratio(n,den):
+            return v[n]/v[den] if v[n] is not None and v[den] else None
+        v["cvr"]=ratio("orders","sessions")
+        v["aov"]=ratio("revenue","orders")
+        v["signups"]=(d.get("signup_users") or {}).get(key)
+        return v
+    cy,ly,pw=map(vals,("current","yoy","prev"))
+    def diff(a,b,k):
+        if a is None or b is None: return None
+        return (a-b)*100 if k=="cvr" else change(a,b)
+    cards=[{"metric":k,"current":v,"prior":ly[k],"prior_week":pw[k],
+        "yoy":diff(v,ly[k],k),"wow":diff(v,pw[k],k),
+        "delta_unit":"pp" if k=="cvr" else "percent"} for k,v in cy.items()]
+    return {"current":cy,"prior":ly,"prior_week":pw,"signups":cy["signups"],"cards":cards,
+        "period":d.get("period"),"compare":d.get("compare"),"yoy_period":d.get("yoy"),
+        "source":overall.get("current",{}).get("source"),"built_at_kst":d.get("built_at_kst"),
+        "comparison":"weekday aligned per source; not calendar-date YoY"}
+
 def build_model(d,competitor=None,events=None,product_evidence=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
@@ -18,7 +43,7 @@ def build_model(d,competitor=None,events=None,product_evidence=None):
     overall=d["overall"]
     def row(x): return {"sessions":x["sessions"],"orders":x["transactions"],"revenue":x["purchaseRevenue"]}
     cy,ly=row(overall["current"]),row(overall["yoy"])
-    put("Executive Summary",{"current":cy,"prior":ly,"signups":d.get("kpis",{}).get("signups")})
+    put("Executive Summary",executive_summary(d))
     put("Root Cause Analysis",revenue_bridge(cy,ly))
     weather=d.get("weather_forecast",{})
     if weather.get("days"): put("Weather Intelligence",{"forecast":weather,"historical_temperature":None},"partial")
