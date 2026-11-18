@@ -340,6 +340,10 @@
           <i class="fa-solid fa-calendar-days"></i><span>경쟁사 세일 캘린더</span>
         </div>
 
+        <div class="nav-item" data-key="competitor_content" data-target="reports/competitor_content/index.html?v=20261118-content" data-label="경쟁사 콘텐츠 모니터링">
+          <i class="fa-solid fa-book-open"></i><span>경쟁사 콘텐츠 모니터링</span>
+        </div>
+
         <div class="nav-item" data-key="competitor" data-target="reports/competitor_intel/dashboard.html" data-label="경쟁사 상품 분석">
           <i class="fa-solid fa-chart-column"></i><span>경쟁사 상품 분석</span>
         </div>
@@ -537,6 +541,11 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
       <div class="text-[10px]">세일</div>
     </div>
 
+    <div class="mo-tab" data-key="competitor_content" data-target="reports/competitor_content/index.html?v=20261118-content" data-label="경쟁사 콘텐츠 모니터링">
+      <i class="fa-solid fa-book-open text-base"></i>
+      <div class="text-[10px]">콘텐츠</div>
+    </div>
+
     <div class="mo-tab" data-key="competitor" data-target="reports/competitor_intel/dashboard.html" data-label="경쟁사 상품 분석">
       <i class="fa-solid fa-chart-column text-base"></i>
       <div class="text-[10px]">경쟁사</div>
@@ -585,6 +594,7 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
       price:   "reports/meta.json",
       hero:    "reports/meta.json",
       competitor: "reports/meta.json",
+      competitor_content: "reports/competitor_content/latest.json",
       voc:     "reports/meta.json",
       crema:   "reports/voc_crema/data/meta.json",
       blogvoc: "reports/voc_blog/data/meta.json",
@@ -669,8 +679,8 @@ button{cursor:pointer}button.active{border-color:var(--accent);background:#101d3
         const res = await fetch(metaPath + `?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("meta.json not found");
         const meta = await res.json();
-        elUpdated.textContent = meta.updated_at_kst || meta.generated_at_kst || meta.generated_at || "-";
-        elPeriod.textContent  = meta.period_text || meta.period_label || meta.date_range || "-";
+        elUpdated.textContent = meta.updated_at_kst || meta.generated_at_kst || meta.generated_at || (key === "competitor_content" ? meta.checked_at_kst : null) || "-";
+        elPeriod.textContent  = meta.period_text || meta.period_label || meta.date_range || (key === "competitor_content" ? "최근 수집 / 30일 관측" : "-");
       } catch (e) {
         const now = new Date();
         elUpdated.textContent = fmtKST(now);
