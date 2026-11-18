@@ -61,6 +61,9 @@ BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","1200"))
 SCROLL_LIMIT=int(os.getenv("CONTENT_SCROLL_LIMIT","80"))
 SCROLL_STABLE_LIMIT=4
 FRONTIER_LIMIT=5000
+LEDGER_LIMIT=5000
+DETAIL_REVISIT_HOURS=24
+LEDGER_WINDOW_DAYS=30
 SITEMAP_LIMIT=5
 SITEMAP_BYTES=4*1024*1024
 TARGET_SAMPLE=int(os.getenv("CONTENT_TARGET_SAMPLE","50"))
@@ -339,6 +342,37 @@ async def sitemap_discovery(session,policy,brand,source,deadline,blocked):
             errors.append({"url":u,"error":"sitemap "+type(e).__name__})
     return unique_urls(found,lambda v:scoped(brand,v)),len(seen),errors,bool(pending)
 
+def recent_success(entry,checked):
+    if entry.get("state")!="observed" or not entry.get("at"): return False
+    try:
+        delta=datetime.fromisoformat(checked)-datetime.fromisoformat(entry["at"])
+        return timedelta(0)<=delta<timedelta(hours=DETAIL_REVISIT_HOURS)
+    except (TypeError,ValueError): return False
+
+def coverage_audit(ledger,known,checked):
+    # Denominator is known in-scope URLs, never a claim of full-site recall.
+    cutoff=(datetime.fromisoformat(checked)-timedelta(days=LEDGER_WINDOW_DAYS)).date().isoformat()
+    states={}
+    for u in known:
+        entry=ledger.get(u,{})
+        state=entry.get("state") if str(entry.get("at",""))[:10]>=cutoff else None
+        states[state or "unobserved"]=states.get(state or "unobserved",0)+1
+    n=len(known);observed=states.get("observed",0)
+    return {"scope":"known_scoped_urls_30d","known_urls":n,"observed_urls":observed,
+            "unobserved_urls":n-observed,"observed_pct":round(100*observed/n,1) if n else None,
+            "states":states,"window_days":LEDGER_WINDOW_DAYS}
+
+def visual_signature(im):
+    from PIL import Image
+    # Compare only rendered assets. Near matches are review leads, not automatic duplicate merges.
+    rgb=im.convert("RGB")
+    p=rgb.resize((9,8),Image.Resampling.LANCZOS).convert("L")
+    values=list(p.getdata())
+    bits=sum(int(values[y*9+x]>values[y*9+x+1])<<(y*8+x) for y in range(8) for x in range(8))
+    return {"dhash":f"{bits:016x}","aspect":round(rgb.width/max(1,rgb.height),3),
+            "pixel_sha256":hashlib.sha256((str(rgb.size)+":").encode()+rgb.tobytes()).hexdigest(),
+            "method":"rendered_pixels"}
+
 def coverage_plan(brand,observed_count,pending_count=0,columbia_count=0):
     # Benchmark comparable deduplicated current-run observations, not indexed leads.
     # Missing comparator is not proof of parity; the absolute sample target remains active.
@@ -383,12 +417,21 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     seeds=unique_urls(queue,same)
     backlog=unique_urls((frontier or {}).get("pending",[]),same)
     queue=unique_urls(seeds[:4]+backlog+seeds[4:],same)
+    ledger={u:v for u,v in (frontier or {}).get("url_ledger",{}).items() if same(u) and isinstance(v,dict)}
+    known=set(queue)|set(ledger)
+    refresh=set(seeds[:4])
+    row["recent_skip_count"]=0
+    def note(u,state):
+        ledger[u]={"state":state,"at":checked};known.add(u)
+    def skip_recent(u):
+        return u not in refresh and editorial_route(brand,u) and recent_success(ledger.get(u,{}),checked)
     previous=sorted((x for x in old.values() if x.get("brand")==brand),key=lambda x:x.get("last_seen_at",""),reverse=True)
     prior_urls={canonical(v) for x in previous for v in (x.get("url"),x.get("source_url")) if isinstance(v,str) and same(v)}
     for x in previous:
         v=x.get("url") if x.get("placement")=="main_visual" else x.get("source_url")
         if isinstance(v,str) and same(v) and KEY.search(v) and v not in queue: queue.append(v)
         if len(queue)>=FRONTIER_LIMIT: break
+    known.update(queue)
     seen=set();ids=set()
     row["discovered_urls"]=0;row["pages_attempted"]=0;row["pending_urls"]=0;row["budget_limit"]=page_limit
     row["coverage_plan"]=plan
@@ -405,12 +448,15 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
         while queue and len(seen)<page_limit and asyncio.get_running_loop().time()<deadline:
             u=canonical(queue.pop(0))
             if u in seen or not same(u): continue
+            if skip_recent(u):
+                row["recent_skip_count"]+=1;continue
             if origin(u) in blocked:
                 deferred.append(u);continue
             seen.add(u)
             row["pages_attempted"]+=1
             if not await policy.permitted(u):
                 reason=policy.reason(u)
+                note(u,"policy_denied")
                 row["errors"].append({"url":u,"error":reason})
                 if re.search(r"HTTP (?:403|429)|CertificateError",str(reason)):
                     blocked.add(origin(u));deferred.append(u)
@@ -419,7 +465,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                 resp=await page.goto(u,wait_until="domcontentloaded",timeout=18000)
                 if resp and resp.status in (403,429):
                     blocked.update([origin(u),origin(page.url)]);raise RuntimeError("HTTP "+str(resp.status)+"; origin stopped")
-                if not resp or resp.status>=400 or not same(page.url): raise RuntimeError("navigation failed or out of scope")
+                if not resp or resp.status>=400 or not same(page.url): raise RuntimeError("navigation HTTP "+str(resp.status) if resp and resp.status>=400 else "navigation failed or out of scope")
                 await page.wait_for_timeout(1200)
                 path_hint=urlsplit(page.url).path.lower()
                 list_hint=u==canonical(root) or brand_listing(brand,page.url) or bool(re.search(r"list|archive|/special/?$|/campaign/?$|/stories/(?:main|all)|/blogs/[^/]+/?$|/events/?$|/promotion/?$",path_hint)) or any(e.get("kind")=="list" and e.get("brand")==brand and canonical(e.get("url",""))==u for e in locals().get("discovered",[]))
@@ -427,16 +473,21 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                 row["scroll_steps"]+=scroll["steps"];row["load_more_clicks"]+=scroll["more_clicks"]
                 row["scroll_limited_pages"]+=int(scroll["stop"]!="stable_bottom")
                 data=await page.evaluate(EXTRACT)
-                if len(data["body"])<100 or re.search(r"access denied|captcha|접근이 제한",data["body"][:600],re.I): raise RuntimeError("blocked or empty document")
+                if re.search(r"access denied|captcha|접근이 제한",data["body"][:600],re.I):
+                    blocked.add(origin(page.url));raise RuntimeError("access challenge; origin stopped")
+                if len(data["body"])<100: raise RuntimeError("empty document")
                 source=canonical(page.url)
                 if brand=="NATIONAL GEOGRAPHIC" and urlsplit(source).path.rstrip("/") in NATGEO_CURATED_PATHS and not re.search(r"national\s*geographic|내셔널지오그래픽",data["body"]+" "+data["title"],re.I):
                     raise RuntimeError("shared storefront brand attribution missing")
                 row["pages_checked"]+=1
+                note(u,"observed")
+                note(source,"observed")
                 if plan["undercovered"] and origin(source) not in sitemap_origins:
                     sitemap_origins.add(origin(source))
                     sm,checked_maps,errors,partial=await sitemap_discovery(session,policy,brand,source,deadline,blocked)
                     row["sitemap_urls"]+=len(sm);row["sitemap_files_checked"]+=checked_maps;row["errors"].extend(errors);row["sitemap_partial"]|=partial
-                    queue.extend(v for v in sm if v not in seen)
+                    known.update(sm)
+                    queue.extend(v for v in sm if v not in seen and not skip_recent(v))
                 path=urlsplit(source).path.lower().rstrip("/")
                 home=u==canonical(root) or (host(source)==ALTERNATE.get(brand) and path in ("/k2","/eider","/natgeo"))
                 if home:
@@ -469,7 +520,9 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                     x=item(brand,source,b,checked,old,"main_visual" if home else "editorial_page")
                     if x and x["id"] not in ids:
                         row["items"].append(x);ids.add(x["id"])
-                        if home and x.get("url") and x["url"]!=source and same(x["url"]) and x["url"] not in seen: queue.append(x["url"])
+                        if home and x.get("url") and x["url"]!=source and same(x["url"]) and x["url"] not in seen:
+                            known.add(x["url"])
+                            if not skip_recent(x["url"]): queue.append(x["url"])
                         if x["images"] and sum(bool(i.get("visual_palette")) for i in row["items"])<30:
                             # Sample pixels from an already rendered image, no additional image fetch.
                             # Keep two evidence screenshots per brand; store derived palette only for the rest.
@@ -483,6 +536,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                                 if el and await el.is_visible():
                                     image_bytes=await el.screenshot(timeout=2500,animations="disabled")
                                     with Image.open(BytesIO(image_bytes)) as im:
+                                        x["visual_signature"]=visual_signature(im)
                                         sample=im.convert("RGB");sample.thumbnail((64,64))
                                         colors=sample.quantize(colors=5).convert("RGB").getcolors(4096) or []
                                         x["visual_palette"]=["#%02x%02x%02x"%rgb for _,rgb in sorted(colors,reverse=True)[:5]]
@@ -501,24 +555,35 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                     if SALE.search(link["label"]) and not brand_listing(brand,v) and not (brand=="PATAGONIA" and re.search(r"/stories/(?:articleDetail|filmDetail)/",v,re.I)): continue
                     if editorial_route(brand,v) or brand_listing(brand,v) or content_link(v,link["label"],listing or list_hint,link.get("pagination",False)):
                         if link.get("pagination"): row["pagination_links"]+=1
-                        found.append(v)
+                        known.add(v)
+                        if not skip_recent(v): found.append(v)
                 queue.extend(found)
                 queue=list(dict.fromkeys(queue))
                 # Explicit editorial routes outrank generic category and promotion hubs.
-                queue.sort(key=lambda v: (0 if editorial_route(brand,v) and v not in prior_urls else 1 if brand_listing(brand,v) else 2 if v not in prior_urls else 3))
+                queue.sort(key=lambda v: (0 if editorial_route(brand,v) and v not in prior_urls else 1 if brand_listing(brand,v) else 2 if v not in prior_urls else 3,ledger.get(v,{}).get("at","")))
                 row["discovered_urls"]=max(row["discovered_urls"],len(seen)+len(queue))
                 if len(queue)>FRONTIER_LIMIT:
                     row["frontier_truncated"]+=len(queue)-FRONTIER_LIMIT
                     queue=queue[:FRONTIER_LIMIT]
             except Exception as e:
-                row["errors"].append({"url":u,"error":str(e)[:300]})
-                if origin(u) in blocked or "Timeout" in str(e): deferred.append(u)
+                reason=str(e)[:300]
+                note(u,"access_blocked" if origin(u) in blocked else "not_found" if "HTTP 404" in reason else "timeout" if "timeout" in reason.lower() else "error")
+                row["errors"].append({"url":u,"error":reason})
+                if origin(u) in blocked or "timeout" in reason.lower(): deferred.append(u)
             await asyncio.sleep(policy.delay(u))
     finally:
         await context.close()
     pending=unique_urls([*queue,*deferred],same)
     row["pending_urls"]=len(pending)
     row["_pending"]=pending[:FRONTIER_LIMIT]
+    cutoff=(datetime.fromisoformat(checked)-timedelta(days=LEDGER_WINDOW_DAYS)).date().isoformat()
+    ledger={u:v for u,v in ledger.items() if str(v.get("at",""))[:10]>=cutoff}
+    known.update(pending)
+    row["url_coverage"]=coverage_audit(ledger,known,checked)
+    # Retain discovered-but-unvisited addresses as well as checked URLs across runs.
+    for u in pending: ledger.setdefault(u,{"state":"unobserved","at":checked})
+    row["_url_ledger"]=dict(sorted(ledger.items(),key=lambda kv:kv[1].get("at",""),reverse=True)[:LEDGER_LIMIT])
+    row["url_coverage"]["ledger_truncated"]=max(0,len(ledger)-LEDGER_LIMIT)
     row["budget_exhausted"]=bool(queue and (len(seen)>=page_limit or asyncio.get_running_loop().time()>=deadline))
     row["discovery_complete"]=not pending and not row["errors"] and not row["scroll_limited_pages"] and not row["frontier_truncated"] and not row["sitemap_partial"]
     row["status"]="candidate" if row["items"] else "no_candidate" if row["pages_checked"] else "not_collected"
@@ -551,7 +616,7 @@ def aggregate(rows,prior,checked,prior_brands=None):
         b["archive_entries_current"]=len({archive_key(x) for x in b.get("archive_entries",[])})
         b["archive_entries"]=retain_archive_entries(prior_brands.get(b["brand"],{}).get("archive_entries",[]),b.get("archive_entries",[]),cutoff)
         b["archive_entries_retained"]=len(b["archive_entries"])
-        summary.append({k:v for k,v in b.items() if k not in ("items","_pending")}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
+        summary.append({k:v for k,v in b.items() if k not in ("items","_pending","_url_ledger")}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
     return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
@@ -626,6 +691,15 @@ def self_test():
     assert coverage_plan("TNF",17,0,13)["sample_target"]>=100
     assert len(retain_archive_entries(styles,styles,"2026-11-01"))==1
     assert len(retain_archive_entries(styles,[],"2026-11-19"))==0
+    assert recent_success({"state":"observed","at":now},"2026-11-19T02:00:00+09:00")
+    assert not recent_success({"state":"observed","at":now},"2026-11-20T02:00:00+09:00")
+    assert not recent_success({"state":"policy_denied","at":now},now)
+    audit=coverage_audit({"x":{"state":"observed","at":now},"y":{"state":"policy_denied","at":now}},{"x","y","z"},now)
+    assert audit["observed_urls"]==1 and audit["unobserved_urls"]==2 and audit["observed_pct"]==33.3
+    from PIL import Image
+    uniform=Image.new("RGB",(16,16),(10,20,30))
+    assert visual_signature(uniform)["dhash"]=="0000000000000000"
+    assert visual_signature(uniform)["pixel_sha256"]!=visual_signature(Image.new("RGB",(16,16),(20,30,40)))["pixel_sha256"]
     print("content self-tests passed")
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
@@ -661,7 +735,7 @@ async def main():
             rows=await asyncio.gather(*(task(b) for b in order))
             await browser.close()
     for b in rows:
-        if "_pending" in b: frontier[b["brand"]]={"pending":b["_pending"],"checked_at_kst":checked}
+        if "_pending" in b: frontier[b["brand"]]={"pending":b["_pending"],"url_ledger":b.get("_url_ledger",{}),"checked_at_kst":checked}
     temp=FRONTIER_FILE.with_suffix(".tmp")
     temp.write_text(json.dumps({"schema_version":1,"brands":frontier},ensure_ascii=False,separators=(",",":")))
     temp.replace(FRONTIER_FILE)
