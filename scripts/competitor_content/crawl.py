@@ -49,6 +49,7 @@ SEEDS={"BLACKYAK":["https://www.byn.kr/story/blackyak/","https://www.byn.kr/stor
 "MAMMUT":["https://mammut.kr/stories.html","https://mammut.kr/board/promotion/list.html?board_no=8","https://mammut.kr/technologies.html","https://mammut.kr/responsibility.html"],
 "MERRELL":["https://merrellkorea.co.kr/archive.html","https://merrellkorea.co.kr/history.html","https://merrellkorea.co.kr/history2.html"],
 "SNOWLINE":["https://m.snowlinemall.com/pages/event/event-list.html"],
+"COLUMBIA":["https://www.columbiakorea.co.kr/event/list.asp","https://www.columbiakorea.co.kr/event/261112/ohidown.asp","https://www.columbiakorea.co.kr/event/261109/winter_acc.asp","https://www.columbiakorea.co.kr/event/261029/efw.asp","https://www.columbiakorea.co.kr/montrail/montrail.asp"],
 "HOKA":["https://brand.naver.com/hoka"],
 "PATAGONIA":["https://www.patagonia.co.kr/stories/main","https://www.patagonia.co.kr/stories/all_films","https://www.patagonia.co.kr/stories/articleDetail/276","https://www.patagonia.co.kr/stories/articleDetail/255","https://www.patagonia.co.kr/stories/articleDetail/151","https://www.patagonia.co.kr/stories/filmDetail/275","https://www.patagonia.co.kr/stories/filmDetail/265","https://www.patagonia.co.kr/stories/filmDetail/264","https://www.patagonia.co.kr/stories/all","https://www.patagonia.co.kr/quality/main","https://www.patagonia.co.kr/stories/filmDetail/260","https://www.patagonia.co.kr/stories/filmDetail/272"],
 "SNOW PEAK":["https://www.snowpeak.co.kr/event-page/2026/lookBook2/apparel.html","https://www.snowpeak.co.kr/event-page/2026/lookBook/apparel.html"],
@@ -111,7 +112,7 @@ def scoped(brand,u):
         prefix={"K2":"/k2","EIDER":"/eider","NATIONAL GEOGRAPHIC":"/natgeo"}[brand]
         return path.rstrip("/")==prefix or path.startswith(prefix+"/") and not PDP.search(u)
     if PRODUCT_PATH.search(u): return False
-    if brand=="COLUMBIA": return path.startswith(("/main/","/event/","/promotion/","/exhibition/","/about/","/technology/","/pc/technology/"))
+    if brand=="COLUMBIA": return path.startswith(("/main/","/event/","/promotion/","/exhibition/","/about/","/technology/","/pc/technology/","/montrail/"))
     if brand=="KOLON SPORT": return path.startswith("/brands/kolonsport")
     if brand=="BLACKYAK":
         return (path.rstrip("/") in ("/blackyak","/story/blackyak") or path.startswith(("/blackyak/","/story/blackyak/")) or (path=="/_container/exh_list.php" and dict(parse_qsl(p.query)).get("hta_brand")=="blackyak")) and not PDP.search(u)
@@ -165,7 +166,9 @@ if(articleRoot){for(const e of articleRoot.querySelectorAll('header time, [class
 const heads=Array.from(main.querySelectorAll('h1,h2,h3')).filter(e=>visible(e)&&!e.closest('header,footer,nav,[role=navigation]')).slice(0,35);
 const productPath=u=>/\/product\/(?:productDetail\.action|view\.asp|detail\.html|[A-Z0-9_-]{5,}(?:[/?#]|$))|\/products\/(?:view\/\d+|[^/?#]+$)|\/goods\/(?:view|detail)|[?&](?:goodsNo|productNo|styleCode|product_no)=/i.test(u)&&!/category|catalog|\/list|activity\.asp/i.test(u);
 const audit=e=>{const txt=clean(e.innerText),ls=linkDetails(e),productLinks=[...new Set(ls.filter(l=>productPath(l.url)).map(l=>l.url))],cta=Array.from(e.querySelectorAll('a,button')).filter(v=>visible(v)&&!v.closest('header,footer,nav,[role=navigation]')).map(v=>clean(v.innerText||v.getAttribute('aria-label'))).filter(v=>/구매|쇼핑|상품\s*보기|제품\s*보기|shop|buy|read more|learn more|read article|자세히|신청|참가/i.test(v)&&v.length<70).slice(0,35);const sections=[];for(const n of e.querySelectorAll('h1,h2,h3,p,img,video,iframe,a[href],button')){if(!visible(n)||n.closest('header,footer,nav,[role=navigation]'))continue;const tag=n.tagName,label=clean(n.innerText||n.alt);let k=/^H[123]$/.test(tag)?'HEADING':tag==='IMG'&&n.naturalWidth>=400?'IMAGE':tag==='VIDEO'||tag==='IFRAME'&&/youtube|vimeo/i.test(n.src||'')?'VIDEO':tag==='A'&&productPath(n.href)?'PRODUCT':tag==='P'&&label.length>=40?'COPY':/구매|shop now|buy now|read article|제품 보기|참가 신청/i.test(label)&&label.length<70?'CTA':null;if(k&&sections.at(-1)!==k)sections.push(k);if(sections.length>=16)break}return {text_chars:txt.length,headings:e.querySelectorAll('h1,h2,h3').length,paragraphs:Array.from(e.querySelectorAll('p')).filter(v=>visible(v)&&clean(v.innerText).length>=40).length,images:imageDetails(e).length,videos:Array.from(e.querySelectorAll('video,iframe')).filter(v=>visible(v)&&(v.tagName==='VIDEO'||/youtube|vimeo/i.test(v.src||''))).length,product_links:productLinks.length,price_mentions:(txt.match(/\d{1,3}(?:,\d{3})+\s*원/g)||[]).length,cta_count:cta.length,cta_labels:cta,sequence:sections,source:'rendered_dom'}};
-const rootTitle=()=>clean(articleRoot?.querySelector('h1,h2')?.innerText||document.querySelector('meta[property="og:title"]')?.content||heads.find(h=>! /자주 묻는 질문|개인정보|stay connected|고객 서비스/i.test(h.innerText))?.innerText||document.title);
+const genericTitle=s=>!s||/^(?:event|events|promotion|promotions|all promotions|campaign|collection|story|stories|기획전|이벤트|컬렉션|공식몰|공식 온라인스토어|COLUMBIA|MILLET|PATAGONIA|DISCOVERY|디스커버리 익스페디션)$/i.test(clean(s));
+const titleCandidates=[articleRoot?.querySelector('h1,h2')?.innerText,document.querySelector('meta[property="og:title"]')?.content,document.title,...heads.map(h=>h.innerText)].map(s=>clean(s).replace(/\s*[|]\s*(?:컬럼비아.*|COLUMBIA|MILLET|PATAGONIA|DISCOVERY)\s*$/i,'').replace(/^디스커버리 익스페디션\s*-\s*/,''));
+const rootTitle=()=>titleCandidates.find(s=>!genericTitle(s)&&!/자주 묻는 질문|개인정보|stay connected|고객 서비스|로그인|회원가입/i.test(s))||clean(document.title);
 
 const block=h=>{let e=h.parentElement;for(let i=0;i<3&&e.parentElement&&e!==main;i++){if(images(e).length&&e.querySelector('a[href]'))break;const next=e.parentElement;if(next===main||next===document.body||next.querySelectorAll('h1,h2,h3').length>2||clean(next.innerText).length>1800)break;e=next;}const evidence=audit(e);return {title:clean(h.innerText),summary:clean(e.innerText).slice(0,500),image:images(e)[0]||null,image_details:imageDetails(e),body_evidence:clean(e.innerText).slice(0,2500),link_details:linkDetails(e),links:Array.from(e.querySelectorAll('a[href]')).map(a=>a.href).slice(0,8),cta:evidence.cta_labels,page_metrics:evidence,evidence_scope:'local_block'}};
 const blocks=heads.map(block);
@@ -216,8 +219,8 @@ async def explore_scroll(page, deadline, listing=False, archive_capture=None):
         prev=signature
         if stable>=SCROLL_STABLE_LIMIT:
             # Only a normal, visible public list expansion control. No forced/private actions.
-            if listing and more_clicks<12:
-                btn=page.get_by_role("button",name=re.compile(r"^(?:콘텐츠\s*더\s*보기|기획전\s*더\s*보기|더\s*보기|load more|show more|view more)$",re.I)).first
+            if listing and more_clicks<24:
+                btn=page.get_by_role("button",name=re.compile(r"^(?:콘텐츠\s*더\s*보기|기획전\s*더\s*보기|더\s*보기|더\s*불러오기|더\s*가져오기|load more|show more|view more)$",re.I)).first
                 try:
                     if await btn.count() and await btn.is_visible() and await btn.is_enabled():
                         await btn.click(timeout=2000);more_clicks+=1;stable=0
@@ -240,7 +243,9 @@ def brand_listing(brand,u):
     if brand=="BLACKYAK":
         return (path=="/story/blackyak" and q.get("gb","list")!="detail") or (path=="/_container/exh_list.php" and q.get("hta_brand")=="blackyak") or (path=="/blackyak/_exh" and not q.get("no"))
     if brand in ("K2","EIDER"): return path in ("/"+brand.lower()+"/film","/"+brand.lower()+"/lookbook","/"+brand.lower()+"/campaign")
-    if brand=="MILLET": return path=="/front/promo/pstories"
+    if brand=="COLUMBIA": return path=="/event/list.asp"
+    if brand=="DISCOVERY": return path=="/display/promotions"
+    if brand=="MILLET": return path in ("/front/promo/pstories","/front/promo/event")
     if brand=="MAMMUT": return path in ("/stories.html","/technologies.html") or (path=="/board/promotion/list.html" and q.get("board_no")=="8")
     if brand=="MERRELL": return path=="/archive.html"
     if brand=="NEPA": return path=="/promotion/list.asp"
@@ -296,7 +301,8 @@ def editorial_route(brand,u):
     if brand=="MAMMUT" and (re.fullmatch(r"/technologie_\d+\.html|/responsibility\.html",path) or re.match(r"/project/[^/]+/\d+/?$",path) or (path=="/product/project.html" and q.get("cate_no")) or (path=="/board/promotion/read.html" and q.get("board_no")=="8")): return True
     if brand=="MERRELL" and path in ("/history.html","/history2.html"): return True
     if brand=="NEPA" and (path in ("/brand/nepa/story.asp","/brand/nepa/csr.asp") or (path=="/promotion/view.asp" and q.get("EventNo"))): return True
-    if brand=="MILLET" and re.fullmatch(r"/front/promo/pstories/\d+",path): return True
+    if brand=="COLUMBIA" and (re.fullmatch(r"/event/\d{6}(?:_\d+)?/[^/]+\.asp",path) or (path=="/event/view.asp" and q.get("en")) or path=="/montrail/montrail.asp"): return True
+    if brand=="MILLET" and re.fullmatch(r"/front/promo/(?:pstories|event)/\d+",path): return True
     if brand=="PATAGONIA" and (path.startswith("/our_footprint/") or path.rstrip("/") in ("/innovation-unusual","/innovation-unusual/main","/company-history","/50/main")): return True
     return bool(re.search(r"/(?:stories/(?:articledetail|filmdetail|view)/[^/]+|event/view/[^/]+/[^/]+|display/promotions/collection/[^/]+|blogs/[^/]+/[^/]+|special/\d+|journal/[^/]+|magazine/[^/]+|lookbook/[^/]+|campaign/[^/]+|pages/[^/]+|collections/[^/]+|s/[^/]+)",path,re.I))
 
@@ -400,7 +406,7 @@ def visual_signature(im):
 
 def take_next_url(queue,brand,scanned,prior_urls,ledger):
     # Reserve recurring slots for hub/pagination exploration; otherwise detail pages can starve the next archive page.
-    if scanned%5==0:
+    if scanned>0 and scanned%5==0:
         for i,v in enumerate(queue):
             if brand_listing(brand,v) and v not in prior_urls and not ledger.get(v): return queue.pop(i)
         for i,v in enumerate(queue):
@@ -739,6 +745,11 @@ def self_test():
     assert editorial_route("MAMMUT","https://mammut.kr/technologie_02.html")
     assert editorial_route("NEPA","https://www.nplus.co.kr/promotion/view.asp?EventNo=747")
     assert brand_listing("MAMMUT","https://mammut.kr/board/promotion/list.html?board_no=8")
+    assert brand_listing("COLUMBIA","https://www.columbiakorea.co.kr/event/list.asp")
+    assert editorial_route("COLUMBIA","https://www.columbiakorea.co.kr/event/261112/ohidown.asp")
+    assert editorial_route("COLUMBIA","https://www.columbiakorea.co.kr/event/view.asp?ct=&en=1088")
+    assert scoped("COLUMBIA","https://www.columbiakorea.co.kr/montrail/montrail.asp")
+    assert editorial_route("MILLET","https://www.millet.co.kr/front/promo/event/344")
     assert brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/all/003001001000000")
     q=["https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/lookbook?page=3"]
     assert take_next_url(q,"TNF",5,set(),{}).endswith("page=3") and len(q)==1
