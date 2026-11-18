@@ -56,6 +56,9 @@ BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","1200"))
 SCROLL_LIMIT=int(os.getenv("CONTENT_SCROLL_LIMIT","80"))
 SCROLL_STABLE_LIMIT=4
 FRONTIER_LIMIT=5000
+TARGET_SAMPLE=int(os.getenv("CONTENT_TARGET_SAMPLE","50"))
+MAINTENANCE_PAGE_LIMIT=int(os.getenv("CONTENT_MAINTENANCE_PAGE_LIMIT","40"))
+MAINTENANCE_SECONDS=int(os.getenv("CONTENT_MAINTENANCE_SECONDS","300"))
 PRIORITY_BRANDS={"TNF","HOKA","DECATHLON","BLACKYAK","NEPA","PATAGONIA","MILLET","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
 UA="CSKMarketResearchBot"
 OUT=Path("reports/competitor_content")
@@ -215,8 +218,18 @@ def brand_listing(brand,u):
     if brand=="PATAGONIA": return path in ("/stories/main","/stories/all","/stories/all_films","/stories/filmdetail","/stories/articledetail") or bool(re.fullmatch(r"/stories/(?:category|sports)(?:/[^/]+)?",path))
     return False
 
-async def scan(browser,session,brand,checked,old,frontier=None):
-    root=ROOTS[brand]; page_limit=PRIORITY_PAGE_LIMIT if brand in PRIORITY_BRANDS else PAGE_LIMIT; row={"brand":brand,"root":root,"pages_checked":0,"items":[],"errors":[]}
+def coverage_plan(brand,observed_count,pending_count=0):
+    # A target is a sampling goal, never a fabricated count or claim of complete coverage.
+    undercovered=observed_count<TARGET_SAMPLE
+    deep=undercovered or pending_count>0
+    return {"sample_target":TARGET_SAMPLE,"prior_sample":observed_count,
+            "undercovered":undercovered,
+            "page_limit":PRIORITY_PAGE_LIMIT if deep else MAINTENANCE_PAGE_LIMIT,
+            "seconds":BRAND_SECONDS if deep else MAINTENANCE_SECONDS}
+
+async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
+    plan=plan or coverage_plan(brand,0)
+    root=ROOTS[brand]; page_limit=plan["page_limit"]; row={"brand":brand,"root":root,"pages_checked":0,"items":[],"errors":[]}
     same=lambda u: scoped(brand,u)
     # robots retrieval is origin-level; allow only the official host.
     policy=PolicyCache(session,UA,lambda u:urlsplit(u).scheme=="https" and official_host(brand,u))
@@ -250,12 +263,13 @@ async def scan(browser,session,brand,checked,old,frontier=None):
         if len(queue)>=FRONTIER_LIMIT: break
     seen=set();ids=set()
     row["discovered_urls"]=0;row["pages_attempted"]=0;row["pending_urls"]=0;row["budget_limit"]=page_limit
+    row["coverage_plan"]=plan
     row["homepage_observed"]=False
     row["official_social_links"]=[]
     row["scroll_steps"]=0;row["load_more_clicks"]=0;row["scroll_limited_pages"]=0
     row["pagination_links"]=0;row["frontier_start"]=len(backlog);row["frontier_truncated"]=0
     deferred=[]
-    deadline=asyncio.get_running_loop().time()+BRAND_SECONDS
+    deadline=asyncio.get_running_loop().time()+plan["seconds"]
     try:
         while queue and len(seen)<page_limit and asyncio.get_running_loop().time()<deadline:
             u=canonical(queue.pop(0))
@@ -428,6 +442,9 @@ def self_test():
     assert content_link("https://example.org/events?page=2","2",True,True)
     assert not content_link("https://example.org/about","2",False,False)
     assert unique_urls(["https://salomon.co.kr/pages/x?utm_source=a","https://salomon.co.kr/pages/x"],lambda u:scoped("SALOMON",u))==["https://salomon.co.kr/pages/x"]
+    assert coverage_plan("TNF",0)["undercovered"]
+    assert coverage_plan("SALOMON",TARGET_SAMPLE)["page_limit"]==MAINTENANCE_PAGE_LIMIT
+    assert coverage_plan("SALOMON",TARGET_SAMPLE,10)["page_limit"]==PRIORITY_PAGE_LIMIT
     print("content self-tests passed")
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
@@ -438,6 +455,15 @@ async def main():
     old={x["id"]:x for x in prior}
     try: frontier=json.loads(FRONTIER_FILE.read_text()).get("brands",{})
     except (OSError,ValueError): frontier={}
+    # Prioritize the deduplicated previous strategy sample if available; otherwise use recent direct observations.
+    try:
+        audit=json.loads((OUT/"strategy-summary.json").read_text())
+        counts={b["brand"]:int(b.get("unique_count") or 0) for b in audit.get("brands",[])}
+    except (OSError,ValueError,TypeError,KeyError): counts={}
+    for brand in ROOTS:
+        counts.setdefault(brand,len({x["id"] for x in prior if x.get("brand")==brand}))
+    plans={b:coverage_plan(b,counts[b],len(frontier.get(b,{}).get("pending",[]))) for b in ROOTS}
+    order=sorted(ROOTS,key=lambda b:(not plans[b]["undercovered"],counts[b],b not in PRIORITY_BRANDS,b))
     origin_locks={}
     def group(brand): return ALTERNATE.get(brand) or host(ROOTS[brand])
     async with aiohttp.ClientSession(headers={"User-Agent":UA},timeout=aiohttp.ClientTimeout(total=15)) as session:
@@ -448,9 +474,9 @@ async def main():
                 async with sem:
                     try:
                         async with origin_locks.setdefault(group(brand),asyncio.Lock()):
-                            return await asyncio.wait_for(scan(browser,session,brand,checked,old,frontier.get(brand)),timeout=BRAND_SECONDS+60)
+                            return await asyncio.wait_for(scan(browser,session,brand,checked,old,frontier.get(brand),plans[brand]),timeout=plans[brand]["seconds"]+60)
                     except Exception as e: return {"brand":brand,"root":ROOTS[brand],"pages_checked":0,"items":[],"status":"not_collected","errors":[{"error":str(e) or type(e).__name__}]}
-            rows=await asyncio.gather(*(task(b) for b in ROOTS))
+            rows=await asyncio.gather(*(task(b) for b in order))
             await browser.close()
     for b in rows:
         if "_pending" in b: frontier[b["brand"]]={"pending":b["_pending"],"checked_at_kst":checked}
