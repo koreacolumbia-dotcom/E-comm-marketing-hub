@@ -24,6 +24,7 @@ jobs:
       - run: pip install playwright==1.51.0 aiohttp==3.11.18
       - run: python -m py_compile scripts/competitor_content/crawl.py
       - run: python scripts/competitor_content/evidence.py
+      - run: python scripts/competitor_content/publication.py
       - run: python scripts/competitor_content/crawl.py --self-test
       - name: Prepare browser
         run: |
