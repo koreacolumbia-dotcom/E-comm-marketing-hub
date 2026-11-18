@@ -6,6 +6,7 @@ from attribution import marketing_attribution
 from budget_optimizer import optimize
 from social_listening import build_social
 from inventory_intelligence import build_inventory
+from advanced_intelligence import integrated_calendar,impact_matrix,predict,strategy
 from product_card import enrich_cards
 from business_diagnosis import build_diagnosis
 from style_anomaly import rank_styles
@@ -408,8 +409,10 @@ def build_model(d,competitor=None,events=None,product_evidence=None,competitor_c
     if social: put("Social Listening",social,social["status"])
     inventory=build_inventory(d)
     put("Inventory Intelligence",inventory,inventory["status"])
-    put("Integrated Calendar",{"events":events or [],"pdp":pdp,"sample_product_sales":sales,"weather_forecast":weather,"historical_temperature":None,"category_sales":None},"partial")
-    put("Business Impact Matrix",{"observed_dimensions":["traffic","conversion","aov","category PDP"],"causal_effects":None},"partial")
-    put("Predictive Intelligence",{"forecast":None,"reason":"Backtest and prediction interval validation required"},"validation_required")
-    put("Executive AI Strategy",{"actions":["Investigate largest negative revenue bridge contribution","Review category declines across every product category","Verify size/color availability before attributing lost sales"]},"partial")
+    cal=integrated_calendar(d,competitor_calendar,{"entries":events or []},d.get("owned_calendar_source"))
+    impact=impact_matrix(d,cal)
+    prediction=predict(d,d.get("forecast_history") or [])
+    plan=strategy(d,impact,prediction,inventory,budget,{"observed":social.get("observed_community_mentions")} if social else None)
+    for section,value in (("Integrated Calendar",cal),("Business Impact Matrix",impact),("Predictive Intelligence",prediction),("Executive AI Strategy",plan)):
+        put(section,value,value["status"])
     return {"date":d.get("end_date"),"sections":model}
