@@ -261,6 +261,77 @@ def competitive_discount_matrix(feed):
             "owned_baseline_available":bool(rows[0]["style_count"]),
             "note":"Same-card candidate prices; arithmetic checked only, not independent verification. Style-weighted sample statistics, not catalog averages. Single price and promotional claims are not discount rates."}
 
+def customer_intelligence(d):
+    """Aggregate only. GA4 observed buyers are not ERP lifetime members."""
+    def count(v):
+        return int(v) if isinstance(v,(int,float)) and not isinstance(v,bool) and isfinite(v) and v>=0 and int(v)==v else None
+    def pct(n,den):
+        return round(100*n/den,2) if n is not None and den is not None and den>0 else None
+    def delta(n,b):
+        return round(100*(n/b-1),2) if n is not None and b is not None and b>0 else None
+    def pair(r):
+        n,e=count(r.get("new_buyers")),count(r.get("existing_buyers"))
+        return n,e,n+e if n is not None and e is not None else None
+    source_rows=d.get("channel_snapshot") or []
+    source_rows=[r for r in source_rows if isinstance(r,dict)]
+    totals=[r for r in source_rows if str(r.get("bucket","")).strip().lower()=="total"]
+    t=totals[0] if len(totals)==1 else {}
+    new,existing,buyers=pair(t)
+    orders=count((d.get("overall",{}).get("current") or {}).get("transactions"))
+    # One observed purchase can have at most one buyer; fail closed for inconsistent aggregates.
+    invalid=buyers is not None and orders is not None and buyers>orders
+    if invalid: new=existing=buyers=None
+    channels=[]
+    seen=set()
+    duplicate=False
+    for r in source_rows:
+        name=str(r.get("bucket","")).strip()
+        if not name or name.lower()=="total": continue
+        if name.casefold() in seen: duplicate=True; continue
+        seen.add(name.casefold())
+        n,e,b=pair(r)
+        tx=count(r.get("transactions"))
+        if b is not None and ((tx is not None and b>tx) or (new is not None and n>new) or (existing is not None and e>existing)):
+            n=e=b=None
+        s=count(r.get("sessions"))
+        channels.append({"channel":name,"new_buyers":n,"existing_buyers":e,"observed_buyers":b,
+                         "new_mix_pct":pct(n,b),"existing_mix_pct":pct(e,b),
+                         "sessions":s,"orders":tx,
+                         "orders_per_session_pct":pct(tx,s),
+                         "status":"available" if b is not None and not invalid else "source_required"})
+    if invalid or duplicate:
+        for r in channels:
+            for k in ("new_buyers","existing_buyers","observed_buyers","new_mix_pct","existing_mix_pct"): r[k]=None
+            r["status"]="validation_required"
+    if duplicate: new=existing=buyers=None
+    signup=d.get("signup_users") or {}
+    sign,prior,week=(count(signup.get(k)) for k in ("current","yoy","prev"))
+    meta=d.get("meta") or {}
+    # Historical comparisons require a matching cohort definition and an explicit aggregate source.
+    definition="ga4_observed_purchase_since_2024"
+    comparisons={}
+    for label,periodkeys in (("yoy",("yoy_start","yoy_end")),("wow",("prev_start","prev_end"))):
+        x=(d.get("buyer_comparisons") or {}).get(label) or {}
+        if (x.get("definition")==definition and meta.get(periodkeys[0]) and meta.get(periodkeys[1])
+                and x.get("period_start")==meta.get(periodkeys[0]) and x.get("period_end")==meta.get(periodkeys[1])):
+            a,b,c=pair(x)
+            comparisons[label]={"new_buyers":a,"existing_buyers":b,"observed_buyers":c,
+                                "new_yoy_or_wow_pct":delta(new,a),"existing_yoy_or_wow_pct":delta(existing,b)}
+        else: comparisons[label]=None
+    available=[r for r in channels if r["status"]=="available"]
+    new_top=sorted([r for r in available if r["new_buyers"]>0],key=lambda r:-r["new_buyers"])[:3]
+    existing_top=sorted([r for r in available if r["existing_buyers"]>0],key=lambda r:-r["existing_buyers"])[:3]
+    return {"date":d.get("end_date"),"period_start":meta.get("cur_start"),"period_end":meta.get("cur_end"),
+            "definition":definition,"source":"existing Daily Digest channel snapshot; GA4 historical identity proxy",
+            "signups":sign,"signups_yoy":prior,"signups_prior_week":week,
+            "signups_yoy_pct":delta(sign,prior),"signups_wow_pct":delta(sign,week),
+            "new_buyers":new,"existing_buyers":existing,"observed_buyers":buyers,
+            "new_mix_pct":pct(new,buyers),"existing_mix_pct":pct(existing,buyers),
+            "orders":orders,"channels":channels,"top_new_channels":new_top,"top_existing_channels":existing_top,
+            "buyer_comparisons":comparisons,"buyer_status":"available" if buyers is not None else "validation_required" if invalid or duplicate else "source_required",
+            "cohort_revenue":None,"signup_to_purchase_cvr":None,"repeat_purchase_rate":None,
+            "note":"Period-level distinct buyer totals use the Total row, not the channel sum; a buyer may appear in several channels. GA4 user_id/pseudo identity and history since 2024 are not ERP lifetime members. New buyer means no earlier observed purchase before the period. Same-day signups and new buyers are not the same cohort. Do not derive signup conversion, repeat rate or segment revenue from these counts."}
+
 def build_model(d,competitor=None,events=None,product_evidence=None,competitor_calendar=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
@@ -323,6 +394,8 @@ def build_model(d,competitor=None,events=None,product_evidence=None,competitor_c
     # Never infer zero discounts or absence of promotions from missing evidence.
     discount_matrix=competitive_discount_matrix(competitor)
     put("Competitive Discount Matrix",discount_matrix,"partial" if discount_matrix["styles"] else "source_required")
+    customer=customer_intelligence(d)
+    put("Customer Intelligence",customer,"partial" if customer["signups"] is not None or customer["observed_buyers"] is not None else "source_required")
     channels=d.get("channel_snapshot",[])
     if channels: put("Marketing Attribution",{"reported_channel_rows":channels,"causal_incrementality":None},"partial")
     if d.get("glink_paid_snapshot"): put("Budget Optimizer",{"reported_paid_snapshot":d["glink_paid_snapshot"],"marginal_roas":None},"partial")
