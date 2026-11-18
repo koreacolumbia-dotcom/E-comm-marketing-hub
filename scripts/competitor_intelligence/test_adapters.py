@@ -30,4 +30,13 @@ class PriceTests(unittest.TestCase):
         self.assertEqual(normalize_cards([self.card("테스트 다운 439,000원 379,000원")]),[])
     def test_coupon_price_rejected(self):
         self.assertEqual(normalize_cards([self.card("테스트 다운 439,000원 쿠폰 적용가 379,000원 14%")]),[])
+    def test_mixed_currency_suffix(self):
+        r=self.card("테스트 다운 599,000 60% 239,000원")
+        self.assertEqual(normalize_cards([r])[0]["regular_price"],599000)
+    def test_bare_won_amounts(self):
+        r=self.card("테스트 다운 229,000 259,000 12%")
+        self.assertEqual(normalize_cards([r])[0]["sale_price"],229000)
+    def test_mixed_three_amounts_rejected(self):
+        r=self.card("테스트 다운 599,000 60% 239,000원 199,000")
+        self.assertEqual(normalize_cards([r]),[])
 if __name__=="__main__": unittest.main()
