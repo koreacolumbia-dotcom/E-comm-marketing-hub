@@ -1,5 +1,5 @@
 name: SMTP authentication healthcheck
-# Validate rotated sender credentials (all settings updated).
+# Owner requested fresh buyer-column test; 2026-11-18.
 on:
   workflow_dispatch:
   push:
@@ -11,6 +11,9 @@ jobs:
   auth:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    concurrency:
+      group: owner-crm-digest-test
+      cancel-in-progress: true
     env:
       SMTP_HOST: ${{ vars.SMTP_HOST }}
       SMTP_PORT: ${{ vars.SMTP_PORT }}
@@ -72,6 +75,7 @@ jobs:
           DAILY_DIGEST_USE_DATA_CACHE: 'false'
           DAILY_DIGEST_WRITE_DATA_CACHE: 'true'
           DAILY_DIGEST_END_DATE_OVERRIDE: '2026-11-17'
+          DAILY_DIGEST_SKIP_HUB_WRITE: 'true'
           REQUIRE_CRM_BUYERS: '1'
           GA4_START_DATE: '2026-11-17'
           GA4_END_DATE: '2026-11-17'
