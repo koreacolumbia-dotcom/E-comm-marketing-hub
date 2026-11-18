@@ -10,9 +10,6 @@ on:
         description: 'Send standalone section to the existing private report owner'
         type: boolean
         default: false
-  push:
-    branches: [main]
-    paths: ['.github/workflows/personal-multi-touch.yml']
 permissions:
   contents: read
 concurrency:
@@ -101,7 +98,7 @@ jobs:
               text_fallback='Private sections 11 and 12. See attached PNG.',
               html_body='<p>Private report</p><img src="cid:mta_preview" style="max-width:100%">',
               inline_png_cid='mta_preview',inline_png_bytes=png,
-              attachments=[('multi_touch_budget.png','png',png)])
+              attachments=[('multi_touch_budget.png','png',png),('report_sections.json','json',(p/'report_sections.json').read_bytes())])
           PY
       - name: Clean private results (no public artifacts or commits)
         if: always()
