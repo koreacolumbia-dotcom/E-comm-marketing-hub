@@ -4,7 +4,7 @@ from pathlib import Path
 from urllib.parse import urljoin,urlparse
 from adapters import PROFILES,extract_cards
 from market_signals import PRIVATE, public_topic, extract_market_signals
-from reliability import PolicyCache, navigate, checkpoint
+from reliability import PolicyCache, OriginGate, navigate, checkpoint
 from urllib.robotparser import RobotFileParser
 import aiohttp
 from playwright.async_api import async_playwright
@@ -31,7 +31,7 @@ MARKET_SEEDS={
     "MILLET":["https://www.millet.co.kr/front/product/29587"],
 }
 def host(u): return (urlparse(u).hostname or '').removeprefix('www.').removeprefix('m.')
-async def scan(browser,session,name,root):
+async def scan(browser,session,name,root,gate):
     result={'brand':name,'root':root,'status':'unverified','pages':[],'errors':[]}
     allowed=host(root)
     profile=PROFILES[name]
@@ -65,7 +65,7 @@ async def scan(browser,session,name,root):
         context=await browser.new_context(user_agent=UA,locale='ko-KR')
         async def route_handler(route):
             u=route.request.url
-            if route.request.resource_type=='document' and (not same(u) or not await policy.permitted(u)): await route.abort()
+            if route.request.resource_type=='document' and (not same(u) or not brand_route(u) or gate.key(u) in gate.stopped or not await policy.permitted(u)): await route.abort()
             else: await route.continue_()
         await context.route('**/*',route_handler)
         page=await context.new_page()
@@ -82,16 +82,23 @@ async def scan(browser,session,name,root):
             return (0 if public_topic(u) else 1 if listing else 2 if product else 3 if u in seeds or u==root else 4, 0 if u in seeds else 1)
         while queue and len(seen)<PAGE_LIMIT and asyncio.get_running_loop().time()<deadline:
             u=queue.pop(0)
-            if u in seen or origin(u) in blocked_origins or not same(u) or not brand_route(u): continue
+            if u in seen or origin(u) in blocked_origins or gate.key(u) in gate.stopped or not same(u) or not brand_route(u): continue
             seen.add(u)
             if not await policy.permitted(u):
                 result['errors'].append({'url':u,'error':policy.reason(u)}); continue
             try:
-                response=await navigate(page,u)
-                if response and response.status in (403,429):
-                    blocked_origins.add(origin(u))
-                    blocked_origins.add(origin(page.url))
-                    raise RuntimeError('HTTP '+str(response.status)+'; stop requests to origin for this run')
+                async with gate.slot(u,policy.delay(u)) as permitted:
+                    if not permitted:
+                        result['errors'].append({'url':u,'error':'shared origin suspended: '+gate.stopped.get(gate.key(u),'')})
+                        continue
+                    response=await navigate(page,u)
+                    if response and response.status in (403,429):
+                        reason='HTTP '+str(response.status)+'; stop requests to origin for this run'
+                        gate.stop(u,reason)
+                        if response.url.startswith('https://'): gate.stop(response.url,reason)
+                        blocked_origins.add(origin(u))
+                        blocked_origins.add(origin(page.url))
+                        raise RuntimeError(reason)
                 if not response or response.status>=400 or not same(page.url) or not brand_route(page.url): raise RuntimeError('navigation failed HTTP '+str(response.status if response else 'none'))
                 await page.wait_for_timeout(1000)
                 await page.evaluate('window.scrollTo(0, Math.min(document.body?.scrollHeight ?? document.documentElement?.scrollHeight ?? 0, 1400))')
@@ -102,7 +109,10 @@ async def scan(browser,session,name,root):
                         await page.evaluate('window.scrollBy(0, Math.max(window.innerHeight, 600))')
                         await page.wait_for_timeout(500)
                 body=await page.locator('body').inner_text(timeout=8000)
-                if len(body.strip())<100 or re.search(r'access denied|captcha|접근이 제한',body[:1000],re.I): raise RuntimeError('empty or blocked document')
+                if re.search(r'access denied|captcha|접근이 제한',body[:1000],re.I):
+                    gate.stop(page.url,'explicit access restriction')
+                    raise RuntimeError('explicit access restriction; origin suspended')
+                if len(body.strip())<100: raise RuntimeError('empty document')
                 structured=await page.locator('script[type="application/ld+json"]').all_text_contents()
                 images=await page.locator('img').evaluate_all("els=>els.slice(0,80).map(e=>({src:e.currentSrc||e.src,alt:e.alt}))")
                 links=await page.locator('a[href], img[alt]').evaluate_all("""els=>els.map(e=>({url:e.href||e.closest('a')?.href||'',label:[e.innerText,e.alt,e.title,e.querySelector('img')?.alt].filter(Boolean).join(' ')}))""")
@@ -164,9 +174,10 @@ async def main():
         async with async_playwright() as p:
             browser=await p.chromium.launch(headless=True, **({'executable_path':os.environ['CRAWLER_CHROME']} if os.environ.get('CRAWLER_CHROME') else {}))
             limit=asyncio.Semaphore(5 if FAST else 3)
+            gate=OriginGate()
             async def bounded(name,root):
                 async with limit:
-                    try: return await asyncio.wait_for(scan(browser,session,name,root),timeout=BRAND_SECONDS+40)
+                    try: return await asyncio.wait_for(scan(browser,session,name,root,gate),timeout=BRAND_SECONDS+40)
                     except Exception as e:
                         cp=Path('competitor-output/checkpoints')/(name+'.json')
                         row=json.loads(cp.read_text()) if cp.exists() else {'brand':name,'root':root,'status':'unverified','pages':[],'errors':[]}
