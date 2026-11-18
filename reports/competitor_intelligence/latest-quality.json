@@ -12,22 +12,22 @@
     "MILLET",
     "SALOMON"
   ],
-  "owned_discount_pair_available": false,
+  "owned_discount_pair_available": true,
   "accessible_brands": 10,
   "accessible_pct": 90.91,
-  "collected_pages": 122,
+  "collected_pages": 125,
   "strict_candidate_brands": 1,
   "strict_candidate_pct": 9.09,
   "target_met_strict_candidate": false,
   "measurement_available": true,
-  "structured_evidence_brands": 1,
-  "structured_evidence_pct": 9.09,
+  "structured_evidence_brands": 0,
+  "structured_evidence_pct": 0.0,
   "verified_accuracy_pct": null,
   "verified_success_brands": null,
   "verified_success_pct": null,
   "verified_sample_count": null,
   "target_met_verified": null,
-  "checked_at_kst": "2026-11-19T01:47:16.844565+09:00",
+  "checked_at_kst": "2026-11-19T02:45:59.471226+09:00",
   "target": 11,
   "denominator": 11,
   "candidate_usable": 3,
@@ -64,7 +64,7 @@
           "error": "navigation failed HTTP 200"
         }
       ],
-      "paired_discount_cards_count": 92,
+      "paired_discount_cards_count": 94,
       "structured_product_prices_count": 0
     },
     {
@@ -102,39 +102,25 @@
     },
     {
       "brand": "NEPA",
-      "pages": 15,
+      "pages": 16,
       "promotion_pages": 1,
       "price_pages": 2,
       "candidate_usable": true,
       "strict_candidate": false,
       "dated_promotion_pages": 1,
-      "errors": [
-        {
-          "url": "https://www.nplus.co.kr/member/join.asp",
-          "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.nplus.co.kr/member/join.asp\", waiting until \"domcontentloaded\"\n"
-        }
-      ],
+      "errors": [],
       "paired_discount_cards_count": 0,
       "structured_product_prices_count": 0
     },
     {
       "brand": "KOLON SPORT",
-      "pages": 14,
-      "promotion_pages": 1,
-      "price_pages": 14,
+      "pages": 16,
+      "promotion_pages": 2,
+      "price_pages": 15,
       "candidate_usable": true,
       "strict_candidate": true,
-      "dated_promotion_pages": 1,
-      "errors": [
-        {
-          "url": "https://www.kolonsport.com/OLOMembership",
-          "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.kolonsport.com/OLOMembership\", waiting until \"domcontentloaded\"\n"
-        },
-        {
-          "url": "https://www.kolonsport.com/Event",
-          "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.kolonsport.com/Event\", waiting until \"domcontentloaded\"\n"
-        }
-      ],
+      "dated_promotion_pages": 2,
+      "errors": [],
       "paired_discount_cards_count": 21,
       "structured_product_prices_count": 0
     },
@@ -236,19 +222,44 @@
   ],
   "owned": {
     "brand": "COLUMBIA",
-    "pages": 16,
+    "pages": 8,
     "promotion_pages": 2,
-    "price_pages": 11,
+    "price_pages": 3,
     "candidate_usable": true,
     "strict_candidate": false,
-    "paired_discount_cards": [],
+    "paired_discount_cards": [
+      {
+        "name": "공용 다운 투 다크 트래퍼",
+        "url": "https://www.columbiakorea.co.kr/product/view.asp?pno=20808",
+        "image": "https://assetscdn49.styleship.com/assets/columbia/data/productimages/a/3/C66YM0696231.jpg",
+        "regular_price": 85000,
+        "sale_price": 51000,
+        "discount_pct": 40,
+        "evidence": "공용 다운 투 다크 트래퍼\n\n51,000원\n\n85,000원\n40%",
+        "status": "candidate_same_card",
+        "price_pair_method": "advertised_rate_check"
+      }
+    ],
     "dated_promotion_pages": 0,
     "structured_product_prices": [],
-    "errors": []
+    "errors": [
+      {
+        "url": "https://www.columbiakorea.co.kr/product/list.asp?cno=219&gdv=1,3",
+        "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.columbiakorea.co.kr/product/list.asp?cno=219&gdv=1,3\", waiting until \"domcontentloaded\"\n"
+      },
+      {
+        "url": "https://www.columbiakorea.co.kr/product/list.asp?cno=216&gdv=1,3",
+        "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.columbiakorea.co.kr/product/list.asp?cno=216&gdv=1,3\", waiting until \"domcontentloaded\"\n"
+      },
+      {
+        "url": "https://www.columbiakorea.co.kr/product/list.asp?cno=201&gdv=1,3",
+        "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.columbiakorea.co.kr/product/list.asp?cno=201&gdv=1,3\", waiting until \"domcontentloaded\"\n"
+      }
+    ]
   },
   "note": "Candidate coverage only; human verification of dates and paired prices still required.",
-  "run_id": "44350938079",
-  "source_sha": "ff7ca6f5772d38d0ea88ab0e1266365e7729a419",
+  "run_id": "44362061349",
+  "source_sha": "17d2ab365376afb96a4de142e0ca5cfbc3ec7f01",
   "job_status": "failure",
-  "published_at": "2026-11-18T16:52:33.508409+00:00"
+  "published_at": "2026-11-18T17:51:14.716147+00:00"
 }
