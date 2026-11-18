@@ -26,7 +26,7 @@ export function analyze(feed){
    if(!m){keep.push({...x,keys,placements:[x.placement].filter(Boolean),source_urls:[src],member_ids:[x.id].filter(Boolean)});continue}
    const old={...m},prefer=x.placement!=="main_visual"&&m.placement==="main_visual";
    if(prefer)Object.assign(m,x);
-   m.keys=[...new Set([...old.keys,...keys])];m.placements=[...new Set([...old.placements,x.placement].filter(Boolean))];m.source_urls=[...new Set([...old.source_urls,src])];m.member_ids=[...new Set([...old.member_ids,x.id].filter(Boolean))];m.first_seen_at=[old.first_seen_at,x.first_seen_at].filter(Boolean).sort()[0]??null;
+   m.keys=[...new Set([...old.keys,...keys])];m.placements=[...new Set([...old.placements,x.placement].filter(Boolean))];m.source_urls=[...new Set([...old.source_urls,src])];m.member_ids=[...new Set([...old.member_ids,x.id].filter(Boolean))];m.first_seen_at=[old.first_seen_at,x.first_seen_at].filter(Boolean).sort()[0]??null;m.last_seen_at=[old.last_seen_at,x.last_seen_at].filter(Boolean).sort().at(-1)??null;m.changed_at=[old.changed_at,x.changed_at].filter(Boolean).sort().at(-1)??null;
    for(const fld of ["tpo","selling_points","type_tags"])m[fld]=[...new Set([...(old[fld]||[]),...(x[fld]||[])])];
    for(const fld of ["products","influencer","images","publication_evidence"]){const a=[...(Array.isArray(old[fld])?old[fld]:[]),...(Array.isArray(x[fld])?x[fld]:[])];m[fld]=a.length?[...new Map(a.map(v=>[JSON.stringify(v),v])).values()]:null}
    merged.push({brand:x.brand,member_id:x.id,representative_id:m.id,reason:keys.find(k=>old.keys.includes(k))?.split(":")[0]||"matched"});

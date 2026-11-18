@@ -98,7 +98,7 @@ def item(brand, source, block, checked, old, placement):
     if not valid_title(title) or SALE.search(title) or re.fullmatch(r"(?:home|main|shop|공식몰|공식 온라인스토어|메인|더보기|new arrivals|best sellers)",title,re.I): return None
     # Preserve official product CTA destinations as evidence without crawling PDPs.
     urls=[canonical(u) for u in block.get("links",[]) if allowed_link(brand,u)]
-    dest=urls[0] if urls else canonical(source)
+    dest=(urls[0] if urls else canonical(source)) if placement=="main_visual" else canonical(source)
     identity=hashlib.sha256((brand+"|"+(canonical(source)+"|"+title.casefold() if placement=="main_visual" else canonical(source))).encode()).hexdigest()[:24]
     txt=title+" "+body
     rich_text=(title+" "+(block.get("body_evidence") or body))[:2500]
@@ -123,8 +123,9 @@ const dateEvidence=[];
 const dateAdd=(raw,method)=>{if(raw)dateEvidence.push({raw:clean(raw),method});};
 for(const e of document.querySelectorAll('meta[property="article:published_time"]'))dateAdd(e.content,'article_meta');
 const articleRoot=main.querySelector('article,[itemtype*="Article"]');
+const editorialRoot=articleRoot||main;
 for(const e of (articleRoot||main).querySelectorAll('meta[itemprop="datePublished"],time[itemprop="datePublished"]'))dateAdd(e.content||e.dateTime||e.innerText,'datePublished_itemprop');
-for(const el of document.querySelectorAll('script[type="application/ld+json"]')){try{const walk=x=>{if(Array.isArray(x))x.forEach(walk);else if(x&&typeof x==='object'){if(/Article|BlogPosting|NewsArticle/i.test(String(x['@type']))&&x.datePublished){const raw=x.url||x.mainEntityOfPage?.['@id']||x.mainEntityOfPage?.url;let same=false;try{same=typeof raw==='string'&&new URL(raw,location.href).pathname===location.pathname;}catch{}if(same||(!raw&&articleRoot))dateAdd(x.datePublished,'article_jsonld');}if(x['@graph'])walk(x['@graph']);}};walk(JSON.parse(el.textContent));}catch(e){}}
+for(const el of document.querySelectorAll('script[type="application/ld+json"]')){try{const walk=x=>{if(Array.isArray(x))x.forEach(walk);else if(x&&typeof x==='object'){if(/Article|BlogPosting|NewsArticle/i.test(String(x['@type']))&&x.datePublished){const raw=x.url||x.mainEntityOfPage?.['@id']||x.mainEntityOfPage?.url;let same=false;try{same=typeof raw==='string'&&new URL(raw,location.href).origin===location.origin&&new URL(raw,location.href).pathname===location.pathname&&new URL(raw,location.href).search===location.search;}catch{}if(same||(!raw&&articleRoot))dateAdd(x.datePublished,'article_jsonld');}if(x['@graph'])walk(x['@graph']);}};walk(JSON.parse(el.textContent));}catch(e){}}
 const label=/^(?:게시일|등록일|발행일|작성일|공개일|published(?:\s+on)?|posted(?:\s+on)?)\s*[:：]?\s*(?:20\d{2}|\d{2})/i;
 for(const line of (articleRoot||main).innerText.split(/\n/).slice(0,80)){if(label.test(clean(line)))dateAdd(line,'explicit_publication_label');}
 if(articleRoot){for(const e of articleRoot.querySelectorAll('header time, [class*="article-date"] time, [class*="published"] time')){if(!/modified|updated/i.test(e.className||''))dateAdd(e.dateTime||e.innerText,'article_header_time');}}
@@ -133,7 +134,7 @@ const block=h=>{let e=h.parentElement;for(let i=0;i<3&&e.parentElement&&e!==main
 const blocks=heads.map(block);
 for(const a of main.querySelectorAll('a[href] img')){if(!visible(a)||a.getBoundingClientRect().width<400||a.getBoundingClientRect().height<120||!clean(a.alt))continue; const p=a.closest('a');blocks.push({title:clean(a.alt),summary:clean(p.innerText),image:a.currentSrc||a.src,image_details:[{url:a.currentSrc||a.src,alt:a.alt,width:a.naturalWidth,height:a.naturalHeight,method:'rendered_image'}],link_details:linkDetails(p),links:[p.href],cta:[]});if(blocks.length>=50)break;}
 const og=k=>document.querySelector('meta[property="'+k+'"]')?.content;
-return {title:clean(heads[0]?.innerText||og('og:title')||document.title),body:clean(main.innerText).slice(0,10000),blocks,links,article:{title:clean(heads[0]?.innerText||og('og:title')||document.title),summary:clean(og('og:description')||main.innerText).slice(0,500),description:clean(og('og:description')),og_title:clean(og('og:title')),body_evidence:clean(main.innerText).slice(0,2500),image:og('og:image')||images(main)[0]||null,image_details:imageDetails(main),link_details:linkDetails(main),links:links.map(x=>x.url).slice(0,30),cta:links.filter(x=>x.label).map(x=>x.label).slice(0,30),date_evidence:dateEvidence}};
+return {title:clean(heads[0]?.innerText||og('og:title')||document.title),body:clean(main.innerText).slice(0,10000),blocks,links,article:{title:clean(heads[0]?.innerText||og('og:title')||document.title),summary:clean(og('og:description')||editorialRoot.innerText).slice(0,500),description:clean(og('og:description')),og_title:clean(og('og:title')),body_evidence:clean(editorialRoot.innerText).slice(0,2500),image:og('og:image')||images(editorialRoot)[0]||null,image_details:imageDetails(editorialRoot),link_details:linkDetails(editorialRoot),links:linkDetails(editorialRoot).map(x=>x.url).slice(0,30),cta:linkDetails(editorialRoot).filter(x=>x.label).map(x=>x.label).slice(0,30),date_evidence:dateEvidence}};
 }"""
 async def scan(browser,session,brand,checked,old):
     root=ROOTS[brand]; page_limit=PRIORITY_PAGE_LIMIT if brand=='TNF' else PAGE_LIMIT; row={"brand":brand,"root":root,"pages_checked":0,"items":[],"errors":[]}
@@ -217,7 +218,8 @@ async def scan(browser,session,brand,checked,old):
         await context.close()
     row["status"]="candidate" if row["items"] else "no_candidate" if row["pages_checked"] else "not_collected"
     return row
-def aggregate(rows,prior,checked):
+def aggregate(rows,prior,checked,prior_brands=None):
+    prior_brands={b['brand']:b for b in (prior_brands or [])}
     current=[x for b in rows for x in b["items"]]
     archive={x["id"]:x for x in prior}
     archive.update({x["id"]:x for x in current})
@@ -228,7 +230,7 @@ def aggregate(rows,prior,checked):
     for b in rows:
         hist=[x for x in history if x["brand"]==b["brand"]]
         known=[x for x in hist if x.get("published_at")]
-        summary.append({k:v for k,v in b.items() if k!="items"}|{"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
+        summary.append({k:v for k,v in b.items() if k!="items"}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
     return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
@@ -260,7 +262,8 @@ async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
     OUT.mkdir(parents=True,exist_ok=True)
     dest=OUT/"latest.json"
-    prior=json.loads(dest.read_text()).get("history",[]) if dest.exists() else []
+    previous=json.loads(dest.read_text()) if dest.exists() else {}
+    prior=previous.get("history",[])
     old={x["id"]:x for x in prior}
     async with aiohttp.ClientSession(headers={"User-Agent":UA},timeout=aiohttp.ClientTimeout(total=15)) as session:
         async with async_playwright() as p:
@@ -272,7 +275,7 @@ async def main():
                     except Exception as e: return {"brand":brand,"root":ROOTS[brand],"pages_checked":0,"items":[],"status":"not_collected","errors":[{"error":str(e) or type(e).__name__}]}
             rows=await asyncio.gather(*(task(b) for b in ROOTS))
             await browser.close()
-    payload=aggregate(rows,prior,checked)
+    payload=aggregate(rows,prior,checked,previous.get('brands',[]))
     if not payload["coverage"]["accessible"]:
         (OUT/"failed-run.json").write_text(json.dumps(payload,ensure_ascii=False,indent=2))
         raise SystemExit("No accessible brands; prior feed preserved")

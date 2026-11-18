@@ -30,6 +30,7 @@ jobs:
         with:
           node-version: '22'
       - run: node scripts/competitor_content/strategy.test.mjs
+      - run: node scripts/competitor_content/calendar.test.mjs
       - name: Prepare browser
         run: |
           if command -v google-chrome >/dev/null; then
@@ -41,6 +42,8 @@ jobs:
         run: python scripts/competitor_content/drilldown_test.py
       - name: Crawl official editorial pages
         run: python scripts/competitor_content/crawl.py
+      - name: Update content calendar archive
+        run: python scripts/competitor_content/calendar_archive.py
       - name: Generate strategy audit from measured feed
         run: |
           node --input-type=module -e "import {readFileSync,writeFileSync} from 'node:fs'; import {analyze} from './reports/competitor_content/strategy.mjs'; const r=analyze(JSON.parse(readFileSync('reports/competitor_content/latest.json','utf8'))); delete r.items; delete r.history; writeFileSync('reports/competitor_content/strategy-summary.json',JSON.stringify(r,null,2)); console.log(JSON.stringify(r.quality));"
