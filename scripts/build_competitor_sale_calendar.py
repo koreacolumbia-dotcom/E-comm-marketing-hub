@@ -33,6 +33,7 @@ SALE_PATTERN = re.compile(
 )
 GENERIC = {"메인 배너","메인","image","main visual section","main banner"}
 BRANDS = {
+    "columbia":"Columbia",
     "tnf": "The North Face", "blackyak":"Black Yak",
     "snowpeak":"Snow Peak", "discovery":"Discovery Expedition",
     "kolonsport":"Kolon Sport", "k2":"K2", "salomon":"Salomon",
@@ -42,6 +43,7 @@ BRANDS = {
     "eider":"Eider", "national_geographic":"National Geographic"
 }
 HOSTS = {
+    "columbia":("columbiakorea.co.kr",),
     "tnf": ("thenorthfacekorea.co.kr",),
     "blackyak":("byn.kr",),
     "snowpeak":("snowpeakstore.co.kr",),
@@ -168,7 +170,7 @@ def read_snapshots(root: Path, as_of: dt.date, lookback: int = MAX_SNAPSHOT_DAYS
                     if date(item.get("date")) != day:
                         continue
                     key=str(item.get("brand_key") or "").strip().lower()
-                    if key not in BRANDS or key=="columbia":
+                    if key not in BRANDS:
                         continue
                     title=clean(item.get("title"),120)
                     landing=clean(item.get("landing_title"),170)
@@ -280,26 +282,59 @@ def observed_events(rows: list[dict]) -> list[dict]:
     return out
 
 
+
+def read_owned_archive(root: Path, as_of: dt.date, lookback: int) -> list[dict]:
+    """Own public-crawl observations only; do not infer dates from page titles."""
+    rows=[]
+    for file in sorted((root/"competitor_intelligence"/"owned").glob("20??-??-??.json")):
+        day=date(file.stem)
+        if day is None or not 0 <= (as_of-day).days <= lookback:
+            continue
+        try:
+            value=json.loads(file.read_text(encoding="utf-8"))
+        except (OSError,ValueError):
+            continue
+        if value.get("brand")!="COLUMBIA" or value.get("date")!=day.isoformat():
+            continue
+        for page in value.get("promotions",[]):
+            if not isinstance(page,dict): continue
+            url=safe_url(page.get("url"),"columbia")
+            title=clean(page.get("title"),120)
+            if not url or "/event/" not in urlsplit(url).path.lower() or not title:
+                continue
+            # WINTER FESTIVAL 2026 has its own user-provided confirmed plan.
+            if "/event/261120/" in urlsplit(url).path.lower():
+                continue
+            if not SALE_PATTERN.search(title):
+                continue
+            rows.append({"brand":"columbia","brand_name":"Columbia","title":title,
+                         "observed":day.isoformat(),"url":url,"benefit":benefit(title),
+                         "landing_summary":"","landing_status":"","fallback":True})
+    return rows
+
+
 def build(as_of:dt.date, root:Path=ROOT, registry:Path=REGISTRY, lookback:int=MAX_SNAPSHOT_DAYS) -> dict:
     rows,files=read_snapshots(root,as_of,lookback)
     documented=read_registry(registry,as_of)
-    events=documented+observed_events(rows)
+    events=documented+observed_events(rows+read_owned_archive(root,as_of,lookback))
     events.sort(key=lambda x:(x["brand"],x["kind"],x.get("start_date") or x.get("first_seen") or "",x["title"]))
     captures=sorted({dt.datetime.strptime(re.match(OBS_RE, f).group(1),"%Y%m%d").date().isoformat()
                     for f in files if OBS_RE.match(f)})
     most_recent=captures[-1] if captures else None
     lag=(as_of-date(most_recent)).days if most_recent else None
-    sale_observed=[x for x in events if x["kind"]=="observed_banner"]
-    confirmed=[x for x in events if x["kind"]=="verified_period"]
+    competitors=[x for x in events if x["brand"]!="columbia"]
+    own=[x for x in events if x["brand"]=="columbia"]
+    sale_observed=[x for x in competitors if x["kind"]=="observed_banner"]
+    confirmed=[x for x in competitors if x["kind"]=="verified_period"]
     return {
         "schema_version":1,"as_of":as_of.isoformat(),
         "generated_at_kst":dt.datetime.now(KST).isoformat(timespec="seconds"),
         "status":"fresh" if lag is not None and lag<=1 else ("stale" if captures else "no_snapshots"),
         "freshness":{"last_snapshot":most_recent,"lag_days":lag,
                      "snapshot_days":len(captures),"lookback_days":lookback},
-        "counts":{"events":len(events),"dated_periods":len(confirmed),
-                  "observed_only":len(sale_observed),"verified_starts":sum(x["kind"]=="verified_start" for x in events)},
-        "brands":sorted({x["brand"] for x in events}),
+        "counts":{"events":len(competitors),"owned_captured_events":len(own),"dated_periods":len(confirmed),
+                  "observed_only":len(sale_observed),"verified_starts":sum(x["kind"]=="verified_start" for x in competitors)},
+        "brands":sorted({x["brand"] for x in competitors}),
         "events":events,
         "provenance":{
             "snapshots":len(files),"registry_events":len(documented),
