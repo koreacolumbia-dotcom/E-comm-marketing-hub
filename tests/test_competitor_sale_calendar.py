@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from scripts.build_competitor_sale_calendar import (
     read_snapshots, observed_events, build, benefit, extract_period,
-    safe_url, read_registry, date, SALE_PATTERN,
+    safe_url, read_registry, date, SALE_PATTERN, consolidate_campaigns,
 )
 
 ASOF = dt.date(2026,11,15)
@@ -159,6 +159,31 @@ class EndToEnd(unittest.TestCase):
             self.assertNotIn("2026-11-14",item["observed_on"])
             self.assertIsNone(item["end_date"])
 
+
+
+class CampaignConsolidationTests(unittest.TestCase):
+    def records(self):
+        return [
+            {"id":"blackyak-fw-black-festa-20261109","brand":"blackyak","kind":"verified_period",
+             "start_date":"2026-11-09","end_date":"2026-11-22","observed_on":[],"title":"공식 블랙페스타"},
+            {"id":"observed-21edff27ca43","brand":"blackyak","kind":"observed_banner",
+             "observed_on":["2026-11-09","2026-11-18"],"title":"2026 BLACK FESTA"},
+            {"id":"observed-bce98cd62303","brand":"blackyak","kind":"observed_banner",
+             "observed_on":["2026-11-17","2026-11-18"],"title":"BLACK FESTA 2"}
+        ]
+
+    def test_reviewed_alias_merged_only_within_confirmed_interval(self):
+        result=consolidate_campaigns(self.records())
+        self.assertEqual(len(result),2)
+        self.assertEqual(result[0]["observed_on"],["2026-11-09","2026-11-18"])
+        self.assertEqual(result[0]["banner_evidence"][0]["id"],"observed-21edff27ca43")
+        self.assertEqual(result[1]["id"],"observed-bce98cd62303")
+        self.assertEqual(result[0]["end_date"],"2026-11-22")
+
+    def test_outside_interval_preserved(self):
+        rows=self.records()
+        rows[1]["observed_on"].append("2026-11-23")
+        self.assertEqual(len(consolidate_campaigns(rows)),3)
 
 if __name__=="__main__":
     unittest.main()
