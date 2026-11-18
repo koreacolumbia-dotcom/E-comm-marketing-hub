@@ -22,6 +22,8 @@ ROOTS={
 "K2":"https://www.k2.co.kr/",
 "EIDER":"https://www.eider.co.kr/",
 "NEW BALANCE":"https://www.nbkorea.com/",
+"HOKA":"https://linktr.ee/hoka_korea",
+"DECATHLON":"https://www.decathlon.co.kr/",
 "NEPA":"https://www.nplus.co.kr/main/main.asp",
 "NATIONAL GEOGRAPHIC":"https://www.naturestore.co.kr/",
 "MILLET":"https://www.millet.co.kr/",
@@ -42,10 +44,11 @@ SEEDS={"BLACKYAK":["https://www.byn.kr/story/blackyak/","https://www.byn.kr/stor
 "K2":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/k2/is","https://www.k-village.co.kr/k2/campaign"],
 "EIDER":["https://www.k-village.co.kr/eider"],
 "NATIONAL GEOGRAPHIC":["https://www.nstationmall.com/natgeo","https://www.nstationmall.com/event/planning/1155","https://www.nstationmall.com/event/planning/1157","https://nstationmall.com/event/planning/1124"],
-"PATAGONIA":["https://www.patagonia.co.kr/stories/main","https://www.patagonia.co.kr/stories/all","https://www.patagonia.co.kr/quality/main","https://www.patagonia.co.kr/stories/filmDetail/260","https://www.patagonia.co.kr/stories/filmDetail/272"],
+"HOKA":["https://brand.naver.com/hoka"],
+"PATAGONIA":["https://www.patagonia.co.kr/stories/main","https://www.patagonia.co.kr/stories/all_films","https://www.patagonia.co.kr/stories/articleDetail/276","https://www.patagonia.co.kr/stories/articleDetail/255","https://www.patagonia.co.kr/stories/articleDetail/151","https://www.patagonia.co.kr/stories/filmDetail/275","https://www.patagonia.co.kr/stories/filmDetail/265","https://www.patagonia.co.kr/stories/filmDetail/264","https://www.patagonia.co.kr/stories/all","https://www.patagonia.co.kr/quality/main","https://www.patagonia.co.kr/stories/filmDetail/260","https://www.patagonia.co.kr/stories/filmDetail/272"],
 "SNOW PEAK":["https://www.snowpeak.co.kr/event-page/2026/lookBook2/apparel.html","https://www.snowpeak.co.kr/event-page/2026/lookBook/apparel.html"],
 "MILLET":["https://www.millet.co.kr/front/main","https://www.millet.co.kr/front/etc/brand_story","https://www.millet.co.kr/front/promo/pstories/196","https://www.millet.co.kr/front/promo/pstories/154","https://www.millet.co.kr/front/promo/pstories/161"]}
-ALTERNATE={"K2":"k-village.co.kr","EIDER":"k-village.co.kr","NATIONAL GEOGRAPHIC":"nstationmall.com","SNOW PEAK":"snowpeak.co.kr"}
+ALTERNATE={"HOKA":"brand.naver.com","K2":"k-village.co.kr","EIDER":"k-village.co.kr","NATIONAL GEOGRAPHIC":"nstationmall.com","SNOW PEAK":"snowpeak.co.kr"}
 NATGEO_CURATED_PATHS={"/event/planning/1155","/event/planning/1157","/event/planning/1124"}
 PAGE_LIMIT=int(os.getenv("CONTENT_PAGE_LIMIT","120"))
 PRIORITY_PAGE_LIMIT=int(os.getenv("CONTENT_PRIORITY_PAGE_LIMIT","180"))
@@ -53,7 +56,7 @@ BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","1200"))
 SCROLL_LIMIT=int(os.getenv("CONTENT_SCROLL_LIMIT","80"))
 SCROLL_STABLE_LIMIT=4
 FRONTIER_LIMIT=5000
-PRIORITY_BRANDS={"TNF","BLACKYAK","NEPA","PATAGONIA","MILLET","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
+PRIORITY_BRANDS={"TNF","HOKA","DECATHLON","BLACKYAK","NEPA","PATAGONIA","MILLET","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
 UA="CSKMarketResearchBot"
 OUT=Path("reports/competitor_content")
 DISCOVERY_FILE=OUT/"public-discovery.json"
@@ -82,6 +85,9 @@ def scoped(brand,u):
     if not allowed_link(brand,u): return False
     if re.search(r"/(?:sign-in|sign-up|image_zoom[^/]*|personal-information-collection-statement[^/]*|service/company)(?:/|\.html|$)",path,re.I): return False
     if re.search(r"(?:^|&)(?:product_no|goodsNo|productNo|styleCode)=",p.query,re.I): return False
+    if brand=="HOKA":
+        return (host(u)=="linktr.ee" and path.rstrip("/")=="/hoka_korea") or (host(u)=="brand.naver.com" and path.rstrip("/")=="/hoka")
+    if brand=="DECATHLON": return path=="/" or (path.startswith("/s/") and not re.search(r"membership|shipping|payment|return|refund|help|contact|store",path,re.I))
     if host(u)==ALTERNATE.get(brand):
         if brand=="SNOW PEAK": return (path.startswith("/event-page/") and ("/lookbook" in path or "/takibidai/" in path) and path.endswith(".html")) or path.rstrip("/") in ("/events","/events/detail")
         if brand=="NATIONAL GEOGRAPHIC" and path.rstrip("/") in NATGEO_CURATED_PATHS: return True
@@ -105,7 +111,7 @@ def published(raw):
 def item(brand, source, block, checked, old, placement):
     title=editorial_title(block.get("title"),block.get("description") or block.get("summary"),block.get("og_title"))
     body=" ".join((block.get("summary") or "").split())[:500]
-    if not valid_title(title) or SALE.search(title) or re.fullmatch(r"(?:home|main|shop|공식몰|공식 온라인스토어|메인|더보기|new arrivals|best sellers)",title,re.I): return None
+    if not valid_title(title) or (SALE.search(title) and not (brand=="PATAGONIA" and placement=="editorial_page" and re.search(r"/stories/(?:articleDetail|filmDetail)/",source,re.I) and re.search(r"don.t buy this jacket|이 재킷을 사지 마세요",title,re.I))) or re.fullmatch(r"(?:home|main|shop|공식몰|공식 온라인스토어|메인|더보기|new arrivals|best sellers)",title,re.I): return None
     # Preserve official product CTA destinations as evidence without crawling PDPs.
     urls=[canonical(u) for u in block.get("links",[]) if allowed_link(brand,u)]
     dest=(urls[0] if urls else canonical(source)) if placement=="main_visual" else canonical(source)
@@ -119,7 +125,7 @@ def item(brand, source, block, checked, old, placement):
     fp=hashlib.sha256(json.dumps([title,body,block.get("image"),urls,products,people,assets],ensure_ascii=False,sort_keys=True).encode()).hexdigest()
     prior=old.get(identity,{})
     date_info=publication(block,checked) if placement!="main_visual" else {"date":None,"status":"unknown","evidence":[]}
-    scope="official_brand_editorial" if brand=="SNOW PEAK" and host(source)=="snowpeak.co.kr" else "official_mall"
+    scope="official_brand_editorial" if (brand=="SNOW PEAK" and host(source)=="snowpeak.co.kr") or (brand=="HOKA" and host(source)=="linktr.ee") else "official_mall"
     return dict(page_metrics=block.get("page_metrics") or None,evidence_scope=block.get("evidence_scope"),source_scope=scope,publication_status=date_info["status"],publication_evidence=date_info["evidence"],id=identity,brand=brand,title=title,url=dest,source_url=source,placement=placement,type=ty[0] if ty else ("MAIN_VISUAL" if placement=="main_visual" else "EDITORIAL_CANDIDATE"),type_tags=ty,tpo=tags(TPO,txt),selling_points=tags(USP,txt),classification_status="text_inferred",summary=body,thumbnail=assets[0]["url"] if assets else None,images=assets,image_status="rendered_candidates" if assets else "unverified",cta=[x[:80] for x in block.get("cta",[]) if CTA.search(x)][:5],cta_urls=list(dict.fromkeys(urls))[:8],influencer=people or None,products=products or None,published_at=date_info["date"],first_seen_at=prior.get("first_seen_at") or checked,last_seen_at=checked,collected_at=checked,fingerprint=fp,change="newly_observed" if not prior else "unchanged" if prior.get("fingerprint")==fp else "changed",status="candidate")
 EXTRACT=r"""() => {
 const clean=s=>(s||'').replace(/\s+/g,' ').trim();
@@ -206,6 +212,7 @@ def brand_listing(brand,u):
     if brand=="BLACKYAK":
         return (path=="/story/blackyak" and q.get("gb","list")!="detail") or (path=="/_container/exh_list.php" and q.get("hta_brand")=="blackyak") or (path=="/blackyak/_exh" and not q.get("no"))
     if brand=="TNF": return path in ("/lookbook","/event","/events")
+    if brand=="PATAGONIA": return path in ("/stories/main","/stories/all","/stories/all_films","/stories/filmdetail","/stories/articledetail") or bool(re.fullmatch(r"/stories/(?:category|sports)(?:/[^/]+)?",path))
     return False
 
 async def scan(browser,session,brand,checked,old,frontier=None):
@@ -336,7 +343,7 @@ async def scan(browser,session,brand,checked,old,frontier=None):
                 for link in [*scroll_links,*data["links"]]:
                     v=canonical(link["url"])
                     if not same(v) or v in seen: continue
-                    if SALE.search(link["label"]) and not brand_listing(brand,v): continue
+                    if SALE.search(link["label"]) and not brand_listing(brand,v) and not (brand=="PATAGONIA" and re.search(r"/stories/(?:articleDetail|filmDetail)/",v,re.I)): continue
                     if content_link(v,link["label"],listing or list_hint,link.get("pagination",False)):
                         if link.get("pagination"): row["pagination_links"]+=1
                         found.append(v)
@@ -377,6 +384,16 @@ def aggregate(rows,prior,checked,prior_brands=None):
     return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
+    assert scoped("HOKA","https://linktr.ee/hoka_korea")
+    assert scoped("HOKA","https://brand.naver.com/hoka")
+    assert not scoped("HOKA","https://brand.naver.com/other")
+    assert not scoped("HOKA","https://linktr.ee/other")
+    assert scoped("DECATHLON","https://www.decathlon.co.kr/s/running-campaign")
+    assert not scoped("DECATHLON","https://www.decathlon.co.kr/p/test.html")
+    assert not scoped("DECATHLON","https://www.decathlon.co.kr/c/test.html")
+    assert brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/all_films")
+    assert not brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/filmDetail/275")
+    assert not scoped("NEW BALANCE","https://devapm-m.nbkorea.com/event/test.action")
     assert not scoped("BLACKYAK","https://www.byn.kr/other")
     assert scoped("BLACKYAK","https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
     assert not scoped("BLACKYAK","https://www.byn.kr/story/blackyakkids/")
