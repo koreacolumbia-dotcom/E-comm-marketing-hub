@@ -87,6 +87,13 @@ jobs:
           from datetime import datetime,timezone
           p=Path('competitor-output/quality.json')
           d=json.loads(p.read_text()) if p.exists() else {'measurement_available':False}
+          # Publish usable evidence even when the strict coverage gate fails.
+          feed_path=Path('competitor-output/report-feed.json')
+          if feed_path.exists():
+              feed=json.loads(feed_path.read_text())
+              feed.update(run_id=os.environ['RUN_ID'],source_sha=os.environ['SOURCE_SHA'],job_status=os.environ['JOB_STATUS'],verification_status='candidate_only')
+              feed['price_candidates']=[{'brand':r['brand'],'paired_discount_cards':r.get('paired_discount_cards',[]),'structured_product_prices':r.get('structured_product_prices',[])} for r in d.get('brands',[])]
+              Path('reports/competitor_intelligence/latest-report-feed.json').write_text(json.dumps(feed,ensure_ascii=False,indent=2))
           for r in d.get('brands',[]):
               for k in ('paired_discount_cards','structured_product_prices'):
                   r[k+'_count']=len(r.pop(k,[]))
@@ -95,6 +102,6 @@ jobs:
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add reports/competitor_intelligence/latest-quality.json
+          git add reports/competitor_intelligence/
           git commit -m "Publish competitor quality run $RUN_ID" || exit 0
           git pull --rebase origin main && git push origin HEAD:main
