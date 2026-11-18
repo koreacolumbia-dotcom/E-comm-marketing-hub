@@ -147,6 +147,34 @@ header .overline:before{display:none}
 .overlap-grid{display:grid;grid-template-columns:repeat(var(--days),minmax(26px,1fr));min-width:640px;gap:4px;margin:12px 0}.overlap-cell{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:132px;gap:4px;background:#f8fafc;border:0;border-radius:5px;font-size:10px;color:#64748b;padding:6px 1px}.overlap-cell.own{background:#e8effc;color:#002d72}.overlap-cell .bar-track{height:86px;width:65%;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch}.overlap-cell i{display:block;background:#94a3b8;border-radius:3px 3px 0 0;min-height:0}.overlap-cell.own i{background:#002d72}.overlap-cell b{font-size:11px;color:#0f172a}.overlap-cell span{white-space:nowrap}
 .intel-table{border-collapse:collapse;width:100%;font-size:12px;min-width:620px}.intel-table th{text-align:left;font-size:11px;color:#64748b;font-weight:800;background:#f8fafc}.intel-table th,.intel-table td{padding:10px 9px;border-bottom:1px solid #e2e8f0;vertical-align:top}.intel-table td.num,.intel-table th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.intel-table tr:last-child td{border-bottom:0}.benefit-badge{display:inline-block;border-radius:6px;padding:3px 7px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:800;margin:2px}.status-label{font-size:10px;font-weight:800;color:#64748b}.mini-list{display:grid;gap:8px}.mini-item{border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;background:#fff}.mini-item strong{font-size:12px}.mini-item small{color:#64748b;display:block;margin-top:3px;font-size:11px}.archive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.archive-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;min-width:0}.archive-card img{width:100%;height:154px;object-fit:contain;background:#f1f5f9;display:block}.archive-copy{padding:12px}.archive-copy b{display:block;margin:6px 0;line-height:1.45;overflow-wrap:anywhere}.archive-copy small{font-size:11px;color:#64748b}.archive-copy a{display:inline-block;margin-top:7px}.archive-control{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.archive-control input{width:auto}.intel-chart{width:100%;min-width:650px;display:block}.intel-chart text{font-family:inherit;fill:#64748b;font-size:10px}.intel-chart .axis{stroke:#e2e8f0}.intel-chart .ref{fill:#eaf1fc}.intel-chart .series{fill:none;stroke:#002d72;stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}.intel-chart .series.secondary{stroke:#64748b;stroke-width:1.6;stroke-dasharray:4 3}.intel-chart .dot{fill:#002d72}.intel-chart-label{font-weight:800;color:#334155;font-size:12px;margin:15px 0 4px}.chart-scroll{overflow:auto}.chart-empty{padding:24px;color:#64748b;background:#f8fafc;border-radius:10px}.intel-note{font-size:11px;color:#64748b;line-height:1.7}
 @media(max-width:1000px){.intel-grid{grid-template-columns:1fr}.archive-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.archive-grid{grid-template-columns:1fr}.intel-panel{padding:12px}.intel-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.intel-tab{font-size:11px;padding:8px 10px}}
+
+/* Refined top-level KPI and filter design: neutral surfaces, no coloured bracket/edge ornaments. */
+.stats{gap:12px;margin:18px 0 16px}
+.stats .stat,.stats .stat:nth-child(1),.stats .stat:nth-child(2){position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 19px;box-shadow:none;transform:none;min-height:104px;overflow:hidden}
+.stats .stat:before,.stats .stat:after,.coverage-brand:before,.coverage-brand:after{content:none!important;display:none!important}
+.stats .stat:hover{transform:none;box-shadow:none;border-color:#cbd5e1}
+.stats .stat span:first-child{font-size:12px;letter-spacing:-.02em;text-transform:none;font-weight:700;color:#475569}
+.stats .stat strong{margin:2px 0;font-size:31px;font-weight:850;letter-spacing:-.045em;line-height:1.15;color:#0f172a}
+.stats .stat.owned strong{color:#002d72}
+.stats .stat span:last-child{font-size:11px;color:#64748b;line-height:1.4}
+.coverage-panel{border-radius:10px;padding:15px 17px}
+.coverage-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:7px}
+.coverage-brand{border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:10px 12px;gap:4px;text-align:left}
+.coverage-brand.has-events small,.coverage-brand small{color:#64748b;font-weight:500}
+.coverage-brand[data-brand="columbia"]{background:#f4f7fc;border-color:#cbd9ee}
+.coverage-brand[data-brand="columbia"] b{color:#002d72}
+.coverage-brand.active{outline:none;border-color:#002d72;background:#edf3fc}
+.coverage-brand:hover{border-color:#94a3b8}
+.coverage-brand small{font-size:11px}
+.intel-tabs{gap:24px;border-bottom:1px solid #dce3ed;margin-top:17px;padding:0 4px}
+.intel-tab,.intel-tab.active{border:0;background:transparent;border-radius:0;box-shadow:none;padding:12px 1px;color:#64748b;border-bottom:2px solid transparent}
+.intel-tab.active{color:#002d72;border-bottom-color:#002d72}
+.intel-tab:hover{background:transparent;color:#002d72}
+.intel-kpi{border-radius:10px;box-shadow:none}.intel-kpi strong{color:#0f172a}
+#strategyInsight{font-size:12px;color:#334155;line-height:1.7;border-top:1px solid #e2e8f0;padding:12px 0 0;margin:10px 0 0}
+#strategyInsight b{color:#002d72}
+@media(max-width:1100px){.coverage-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:720px){.stats .stat,.stats .stat:nth-child(1),.stats .stat:nth-child(2){min-height:85px;padding:12px}.stats .stat strong{font-size:25px}.coverage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.intel-tabs{gap:14px;flex-wrap:nowrap;overflow-x:auto}.intel-tab{white-space:nowrap;flex:none}}
 </style></head><body>
 <main>
 <header><div><div class="overline">CSK E-COMM · PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
@@ -154,10 +182,10 @@ header .overline:before{display:none}
 <div style="text-align:right"><span class="pill" id="state">확인 중</span><p class="small" id="updated"></p></div></header>
 <div class="stats">
 <div class="stat owned"><span>Columbia · 자사 일정</span><strong id="ownedCount">—</strong><span>등록 일정 + 수집 행사</span></div>
-<div class="stat"><span>경쟁사 공식 일정 확인</span><strong id="dated">—</strong><span>공식 기간 또는 시작일</span></div>
-<div class="stat"><span>해당 월 할인 배너</span><strong id="observed">—</strong><span>수집 관측 이벤트</span></div>
-<div class="stat"><span>경쟁사 브랜드</span><strong id="brands">—</strong><span>핵심 10개 브랜드 모니터링</span></div>
-<div class="stat"><span>최신 배너 수집일</span><strong id="last">—</strong><span>기준일과 별개</span></div>
+<div class="stat"><span>경쟁사 공식 일정 확인</span><strong id="dated">—</strong><span>기간 또는 시작일 확인 · 중복 제외</span></div>
+<div class="stat"><span>해당 월 할인 배너</span><strong id="observed">—</strong><span>실제 관측일만 표시</span></div>
+<div class="stat"><span>경쟁사 브랜드</span><strong id="brands">—</strong><span>선택 월 행사 기록 확보 브랜드</span></div>
+<div class="stat"><span>최신 배너 수집일</span><strong id="last">—</strong><span>기존 메인 배너 수집 기준</span></div>
 </div>
 <div class="panel toolbar-card row">
  <div class="nav"><button id="prev" aria-label="이전 달">‹</button><b id="monthTitle">2026. 11</b><button id="next" aria-label="다음 달">›</button><button id="current">기준월</button></div>
@@ -184,7 +212,7 @@ header .overline:before{display:none}
 </aside></div>
 <section class="panel intel-panel intel-view" id="view-timeline" hidden><div class="intel-head"><div><div class="section-label">Brand Timeline</div><h2>브랜드별 프로모션 타임라인</h2></div><span class="pill" id="timelineMonth"></span></div><p class="intel-sub">컬럼비아 행사일은 파란색 음영, 확인된 기간은 실선, 관측 배너는 점선. 막대 클릭 시 공식 근거 페이지로 이동합니다.</p><div class="timeline-scroll"><div id="brandTimeline" class="timeline"></div></div></section>
 <div class="intel-view" id="view-analysis" hidden>
-<section class="panel intel-panel"><div class="intel-head"><div><div class="section-label">Promotion Overlap</div><h2>자사 행사와 경쟁사 중복 현황</h2></div><span class="pill" id="overlapMonth"></span></div><div id="overlapKpis" class="intel-kpis"></div><div class="overlap-scroll"><div id="overlapGraph" class="overlap-grid"></div></div><div class="intel-table-wrap" id="overlapTable"></div><p class="intel-note">공식 기간 확인 행사만 기준으로 브랜드를 중복 제거하여 집계합니다. 날짜가 없는 관측 배너는 미래 일정에 포함하지 않습니다. 한 행사가 여러 판매처에서 잡힐 수 있습니다.</p></section>
+<section class="panel intel-panel"><div class="intel-head"><div><div class="section-label">Promotion Overlap</div><h2>자사 행사와 경쟁사 중복 현황</h2></div><span class="pill" id="overlapMonth"></span></div><div id="overlapKpis" class="intel-kpis"></div><div class="overlap-scroll"><div id="overlapGraph" class="overlap-grid"></div></div><div class="intel-table-wrap" id="overlapTable"></div><p id="strategyInsight"></p><p class="intel-note">공식 기간 확인 행사만 기준으로 브랜드를 중복 제거하여 집계합니다. 회원 쿠폰팩 등 상시성 혜택도 총계에 포함하며 아래 해석에서는 분리합니다. 날짜가 없는 관측 배너는 미래 일정에 포함하지 않습니다. 한 행사가 여러 판매처에서 잡힐 수 있습니다.</p></section>
 <div class="intel-grid"><section class="panel intel-panel"><div class="section-label">Discount Comparison</div><h2>자사·경쟁사 할인 · 쿠폰 · 페이백 비교</h2><p class="intel-sub">할인율과 다른 유형의 혜택을 구분하며 합산하지 않습니다.</p><div class="intel-table-wrap" id="discountTable"></div></section>
 <section class="panel intel-panel"><div class="section-label">Today's Update</div><h2 id="updateTitle">기준일 변화 기록</h2><p class="intel-sub">첫 관측일은 실제 행사 개시일이 아닙니다.</p><div class="mini-list" id="updateList"></div></section></div>
 <div class="intel-grid"><section class="panel intel-panel"><div class="section-label">Product Focus</div><h2>프로모션 소구 상품</h2><p class="intel-sub">행사명·혜택 문구에 실제 포함된 키워드 기준입니다.</p><div id="focusTable" class="intel-table-wrap"></div></section><section class="panel intel-panel"><div class="section-label">Promotion History</div><h2>월별 행사 이력 · YoY</h2><p class="intel-sub">확인된 기간 행사만 평균 기간에 포함합니다. 현재 저장된 이력 범위 내 집계입니다.</p><div id="historyTable" class="intel-table-wrap"></div><p id="yoyNote" class="intel-note"></p></section></div>
@@ -250,6 +278,7 @@ function weekSegments(groups,days,before,after){
   return {segments:segments,laneCount:lanes.length};
 }
 function shiftDay(day,n){var d=new Date(day+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function isMemberBenefit(e){return /회원|로그인|멤버십|가입/.test((e.title||'')+' '+(e.benefit||''))&&/쿠폰팩|회원가입|로그인|멤버십/.test((e.title||'')+' '+(e.benefit||''))&&!/블랙|BLACK|페스타|FESTA|세일|SALE|특가/i.test(e.title||'')}
 function eventRank(e){return e.brand==='columbia'?0:e.kind==='observed_banner'?2:1}
 function dayEvents(day){return data.events.filter(function(e){return filtered(e)&&applies(e,day)}).sort(function(a,b){return eventRank(a)-eventRank(b)})}
 function monthly(ignoreFilters){var a=iso(year,month,1),b=iso(year,month,new Date(Date.UTC(year,month,0)).getUTCDate());
@@ -284,13 +313,13 @@ TARGET_BRANDS.forEach(function(item){
  var list=all.filter(function(e){return e.brand===item[0]}),q=qualityRows.find(function(r){return r.brand===item[2]});
  var official=list.filter(function(e){return e.kind==='verified_period'||e.kind==='verified_start'}).length;
  var obs=list.filter(function(e){return e.kind==='observed_banner'}).length;
- var status=list.length?('공식 '+official+' · 관측 '+obs):q?(q.pages>0?'수집됨 · 행사 미확인':'수집 미완료 · 행사 미확인'):'행사 미확인 · 수집상태 미연결';
+ var status='공식 '+official+' · 관측 '+obs+' · '+(q?(q.pages>0?'접근 '+q.pages+'p':'접근 실패'):'접근 미확인');
  var b=document.createElement('button');b.type='button';b.className='coverage-brand'+(list.length?' has-events':'')+($('brand').value===item[0]?' active':'');b.dataset.brand=item[0];
  b.innerHTML='<b>'+esc(item[1])+'</b><small>'+esc(status)+'</small>';b.onclick=function(){$('brand').value=$('brand').value===item[0]?'':item[0];render()};host.appendChild(b);
 });
 var found=TARGET_BRANDS.filter(function(item){return all.some(function(e){return e.brand===item[0]})}).length;
 $('coverageSummary').textContent='행사 기록 '+found+' / '+TARGET_BRANDS.length;
-$('coverageNote').textContent=(crawlQuality?'크롤러 접근 '+crawlQuality.accessible_brands+'/'+TARGET_BRANDS.length+' · 최근 점검 '+String(crawlQuality.checked_at_kst||'').slice(0,16).replace('T',' ')+' KST. ':'')+'행사 미확인은 세일 없음이 아닙니다. 브랜드를 누르면 필터링됩니다.';
+$('coverageNote').textContent=(crawlQuality?'크롤러 접근 '+crawlQuality.accessible_brands+'/'+TARGET_BRANDS.length+' · 최근 점검 '+String(crawlQuality.checked_at_kst||'').slice(0,16).replace('T',' ')+' KST. ':'')+'행사 기록과 최신 크롤러 접근 성공은 별개입니다. 브랜드를 눌러 필터링할 수 있습니다.';
 }
 
 var ownedArchive=null;var activeView='calendar',archiveRaw=[],archiveCacheDay='',archiveLoadingDay='',perfRows=[],perfKey='',perfLoading='',perfToken=0,perfWeather=null;
@@ -311,10 +340,12 @@ function benefitTypes(e){var t=(e.title||'')+' '+(e.benefit||''),out=[];function
 function productFocus(e){var t=e.title+' '+(e.benefit||'');var hits=[['다운·패딩',/다운|패딩|down|padding|puffer/i],['아우터',/아우터|outer|재킷|자켓|jacket/i],['플리스',/플리스|fleece/i],['백팩',/백팩|backpack/i],['신발',/신발|슈즈|shoes|footwear|트레킹화/i],['키즈',/키즈|kids|아동/i]].filter(function(x){return x[1].test(t)}).map(function(x){return x[0]});return hits.length?hits:['카테고리 미명시']}
 function renderAnalysis(){var days=monthDays(year,month),all=monthly(),comp=all.filter(function(e){return e.brand!=='columbia'}),ownDates=days.filter(ownedDay),ov=ownDates.map(function(d){return {day:d,brands:officialBrands(d,comp)}}),max=Math.max(0,...ov.map(function(o){return o.brands.size})),distinct=new Set(ov.flatMap(function(o){return Array.from(o.brands)})),overlapDays=ov.filter(function(o){return o.brands.size>0}).length;
 $('overlapMonth').textContent=year+'. '+String(month).padStart(2,'0');$('overlapKpis').innerHTML=kpi('자사 행사 중복일',ownDates.length?overlapDays+' / '+ownDates.length+'일':'—','공식 일정 기준')+kpi('중복 경쟁사',ownDates.length?distinct.size+'개':'—','브랜드 중복 제거')+kpi('최대 동시 행사',ownDates.length?max+'개':'—','일별 경쟁사 브랜드 수');
+var sales=comp.filter(function(e){return !isMemberBenefit(e)}),saleOv=ownDates.map(function(d){return {day:d,n:officialBrands(d,sales).size}}),salePeak=Math.max(0,...saleOv.map(function(x){return x.n})),peakDays=salePeak?saleOv.filter(function(x){return x.n===salePeak}).map(function(x){return short(x.day)}):[],memberCount=new Set(comp.filter(function(e){return isMemberBenefit(e)&&official(e)&&ownDates.some(function(d){return applies(e,d)})}).map(function(e){return e.brand})).size;
+$('strategyInsight').innerHTML=ownDates.length?'<b>CHECK POINT</b> · '+(salePeak?'회원 상시성 혜택을 제외한 공식 프로모션 최대 '+salePeak+'개 브랜드 동시 진행 ('+esc(peakDays.join(', '))+'). 해당 날짜의 구매 CVR·매출 추이를 상대적으로 집중 점검하세요.':'회원 상시성 혜택을 제외한 공식 중복 일정 미확인.')+(memberCount?' 회원성 혜택 '+memberCount+'개 브랜드 별도 포함.':'')+' 행사가 성과 변동의 원인이라는 의미는 아닙니다.':'선택 월에 등록된 자사 기간 일정이 없습니다.';
 var graph=$('overlapGraph');graph.style.setProperty('--days',days.length);graph.innerHTML='';days.forEach(function(d){var n=officialBrands(d,comp).size,b=document.createElement('button');b.type='button';b.className='overlap-cell'+(ownedDay(d)?' own':'');b.title=d+' · '+n+'개 경쟁사';b.innerHTML='<b>'+n+'</b><div class="bar-track"><i style="height:'+n/Math.max(1,TARGET_BRANDS.length)*100+'%"></i></div><span>'+Number(d.slice(-2))+'</span>';b.onclick=function(){selected=d;setView('calendar');render()};graph.appendChild(b)});
 var overlap=TARGET_BRANDS.map(function(b){var ds=ownDates.filter(function(d){return comp.some(function(e){return e.brand===b[0]&&official(e)&&applies(e,d)})}),es=comp.filter(function(e){return e.brand===b[0]&&official(e)&&ownDates.some(function(d){return applies(e,d)})});return {name:b[1],days:ds.length,events:es}}).filter(function(x){return x.days}).sort(function(a,b){return b.days-a.days});$('overlapTable').innerHTML=overlap.length?table(['브랜드','중복 일수','관련 행사'],overlap.map(function(x){return [esc(x.name),x.days+'일',x.events.map(function(e){return esc(e.title)+' '+linkHTML(e)}).join('<br>')]})):'<p class="empty">선택 월·필터에 해당하는 확인된 중복 일정 없음.</p>';
 $('discountTable').innerHTML=all.length?table(['브랜드 / 행사','혜택 분류','원문'],all.slice().sort(function(a,b){return eventRank(a)-eventRank(b)}).map(function(e){var types=benefitTypes(e);return [esc(e.brand_name)+'<br><small>'+esc(e.title)+'</small>',(types.length?types.map(function(x){return '<span class="benefit-badge">'+esc(x)+'</span>'}).join(''):'<span class="status-label">정량 혜택 미확인</span>')+(e.benefit?'<br><small>'+esc(e.benefit)+'</small>':''),linkHTML(e)]})): '<p class="empty">확인된 행사 없음</p>';
-var day=data.as_of,changes=[];comp.forEach(function(e){if((e.kind==='verified_period'||e.kind==='verified_start')&&e.start_date===day)changes.push(['공식 시작',e]);if(e.kind==='verified_period'&&e.end_date===day)changes.push(['공식 종료 예정',e]);if(e.kind==='observed_banner'){var dates=(e.observed_on||[]).slice().sort();if(dates[0]===day)changes.push(['첫 관측',e]);else if(dates.includes(day))changes.push(['당일 관측',e])}});$('updateTitle').textContent=pretty(day)+' 업데이트';$('updateList').innerHTML=changes.length?changes.map(function(x){return '<div class="mini-item"><span class="status-label">'+esc(x[0])+'</span><br><strong>'+esc(x[1].brand_name+' · '+x[1].title)+'</strong><small>'+linkHTML(x[1])+'</small></div>'}).join(''):'<p class="empty">이 기준일·필터의 변화 기록 없음</p>';
+var day=data.as_of,changes=[];all.forEach(function(e){if((e.kind==='verified_period'||e.kind==='verified_start'||e.kind==='owned_planned')&&e.start_date===day)changes.push(['공식 시작',e]);if((e.kind==='verified_period'||e.kind==='owned_planned')&&e.end_date===day)changes.push(['공식 종료 예정',e]);if(e.kind==='observed_banner'){var dates=(e.observed_on||[]).slice().sort();if(dates[0]===day)changes.push(['첫 관측',e]);else if(dates.includes(day))changes.push(['당일 관측',e])}});$('updateTitle').textContent=pretty(day)+' 업데이트';$('updateList').innerHTML=changes.length?changes.map(function(x){return '<div class="mini-item"><span class="status-label">'+esc(x[0])+'</span><br><strong>'+esc(x[1].brand_name+' · '+x[1].title)+'</strong><small>'+linkHTML(x[1])+'</small></div>'}).join(''):'<p class="empty">이 기준일·필터의 변화 기록 없음</p>';
 var cats=new Map();comp.forEach(function(e){productFocus(e).forEach(function(c){if(!cats.has(c))cats.set(c,{events:0,brands:new Set()});cats.get(c).events++;cats.get(c).brands.add(e.brand_name)})});$('focusTable').innerHTML=table(['키워드','행사 수','브랜드'],Array.from(cats.entries()).sort(function(a,b){return b[1].events-a[1].events}).map(function(x){return [esc(x[0]),x[1].events+'건',esc(Array.from(x[1].brands).join(', '))]}));
 var prevYearDays=monthDays(year-1,month),past=data.events.filter(function(e){return e.brand!=='columbia'&&filtered(e)&&prevYearDays.some(function(d){return applies(e,d)})}),history=TARGET_BRANDS.filter(function(b){return !$('brand').value||$('brand').value===b[0]}).map(function(b){var es=comp.filter(function(e){return e.brand===b[0]}),period=es.filter(official),mean=period.length?period.reduce(function(a,e){return a+(Date.parse(e.end_date)-Date.parse(e.start_date))/86400000+1},0)/period.length:null;return [esc(b[1]),es.length+'건',mean===null?'—':mean.toFixed(1)+'일',past.some(function(e){return e.brand===b[0]})?past.filter(function(e){return e.brand===b[0]}).length+'건':'미확인']});$('historyTable').innerHTML=table(['브랜드','월 행사 기록','평균 공식 기간','전년 동월 기록'],history);$('yoyNote').textContent=past.length?'전년 동월 기록이 일부 확보되었으나 수집 범위가 동일하지 않아 증감률은 계산하지 않습니다.':'전년도 동월 경쟁사 세일 기록 미확보 · YoY 비교 불가';
 }
