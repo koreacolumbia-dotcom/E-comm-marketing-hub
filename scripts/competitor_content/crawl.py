@@ -342,16 +342,17 @@ async def sitemap_discovery(session,policy,brand,source,deadline,blocked):
 def coverage_plan(brand,observed_count,pending_count=0,columbia_count=0):
     # Benchmark comparable deduplicated current-run observations, not indexed leads.
     # Missing comparator is not proof of parity; the absolute sample target remains active.
-    sample_target=max(TARGET_SAMPLE,columbia_count)
+    sample_target=max(TARGET_SAMPLE,columbia_count,100 if brand=="TNF" else 0)
     catchup=brand!="COLUMBIA" and observed_count<columbia_count
+    focus=brand=="TNF" and observed_count<sample_target
     undercovered=observed_count<sample_target
     deep=undercovered or pending_count>0
     return {"sample_target":sample_target,"prior_sample":observed_count,
             "columbia_benchmark":columbia_count,
             "gap_to_columbia":max(0,columbia_count-observed_count),
-            "below_columbia":catchup,"undercovered":undercovered,
-            "page_limit":max(CATCHUP_PAGE_LIMIT,PRIORITY_PAGE_LIMIT) if catchup else PRIORITY_PAGE_LIMIT if deep else MAINTENANCE_PAGE_LIMIT,
-            "seconds":max(CATCHUP_SECONDS,BRAND_SECONDS) if catchup else BRAND_SECONDS if deep else MAINTENANCE_SECONDS}
+            "below_columbia":catchup,"focus_brand":focus,"undercovered":undercovered,
+            "page_limit":max(CATCHUP_PAGE_LIMIT,PRIORITY_PAGE_LIMIT) if catchup or focus else PRIORITY_PAGE_LIMIT if deep else MAINTENANCE_PAGE_LIMIT,
+            "seconds":max(CATCHUP_SECONDS,BRAND_SECONDS) if catchup or focus else BRAND_SECONDS if deep else MAINTENANCE_SECONDS}
 
 async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     plan=plan or coverage_plan(brand,0)
@@ -522,6 +523,19 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     row["discovery_complete"]=not pending and not row["errors"] and not row["scroll_limited_pages"] and not row["frontier_truncated"] and not row["sitemap_partial"]
     row["status"]="candidate" if row["items"] else "no_candidate" if row["pages_checked"] else "not_collected"
     return row
+def archive_key(x):
+    return (x.get("brand"),x.get("content_type"),x.get("archive_id") or str(x.get("title","")).casefold().strip())
+
+def retain_archive_entries(previous,current,cutoff):
+    seen={}
+    for x in [*(previous or []),*(current or [])]:
+        if (x.get("last_seen_at") or "")[:10]<cutoff: continue
+        k=archive_key(x)
+        old=seen.get(k)
+        if old and (old.get("last_seen_at") or "")>(x.get("last_seen_at") or ""): continue
+        seen[k]=dict(x)
+    return list(seen.values())
+
 def aggregate(rows,prior,checked,prior_brands=None):
     prior_brands={b['brand']:b for b in (prior_brands or [])}
     current=[x for b in rows for x in b["items"]]
@@ -534,6 +548,9 @@ def aggregate(rows,prior,checked,prior_brands=None):
     for b in rows:
         hist=[x for x in history if x["brand"]==b["brand"]]
         known=[x for x in hist if x.get("published_at")]
+        b["archive_entries_current"]=len({archive_key(x) for x in b.get("archive_entries",[])})
+        b["archive_entries"]=retain_archive_entries(prior_brands.get(b["brand"],{}).get("archive_entries",[]),b.get("archive_entries",[]),cutoff)
+        b["archive_entries_retained"]=len(b["archive_entries"])
         summary.append({k:v for k,v in b.items() if k not in ("items","_pending")}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
     return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
@@ -605,6 +622,10 @@ def self_test():
     assert editorial_route("MAMMUT","https://mammut.kr/technologie_02.html")
     assert editorial_route("NEPA","https://www.nplus.co.kr/promotion/view.asp?EventNo=747")
     assert brand_listing("MAMMUT","https://mammut.kr/board/promotion/list.html?board_no=8")
+    assert coverage_plan("TNF",17,0,13)["focus_brand"]
+    assert coverage_plan("TNF",17,0,13)["sample_target"]>=100
+    assert len(retain_archive_entries(styles,styles,"2026-11-01"))==1
+    assert len(retain_archive_entries(styles,[],"2026-11-19"))==0
     print("content self-tests passed")
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
@@ -624,7 +645,7 @@ async def main():
         counts.setdefault(brand,len({x["id"] for x in prior if x.get("brand")==brand}))
     columbia_count=counts.get("COLUMBIA",0)
     plans={b:coverage_plan(b,counts[b],len(frontier.get(b,{}).get("pending",[])),columbia_count) for b in ROOTS}
-    order=sorted(ROOTS,key=lambda b:(not plans[b]["below_columbia"],not plans[b]["undercovered"],counts[b],b not in PRIORITY_BRANDS,b))
+    order=sorted(ROOTS,key=lambda b:(not plans[b]["focus_brand"],not plans[b]["below_columbia"],not plans[b]["undercovered"],counts[b],b not in PRIORITY_BRANDS,b))
     origin_locks={}
     def group(brand): return ALTERNATE.get(brand) or host(ROOTS[brand])
     async with aiohttp.ClientSession(headers={"User-Agent":UA},timeout=aiohttp.ClientTimeout(total=15)) as session:
