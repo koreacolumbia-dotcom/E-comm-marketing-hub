@@ -1,5 +1,5 @@
 name: SMTP authentication healthcheck
-# Owner-only retest after Adwords and CRM join corrections.
+# Owner-only retest with historical BigQuery GA4 cohorts.
 on:
   workflow_dispatch:
   push:
@@ -64,7 +64,7 @@ jobs:
         run: |
           python -m pip install -r requirements.txt
           python -m playwright install --with-deps chromium
-      - name: Rebuild report with verified CRM buyer data
+      - name: Rebuild report with observed GA4 buyer data
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
