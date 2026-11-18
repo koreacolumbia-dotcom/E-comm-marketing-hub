@@ -313,10 +313,36 @@ def read_owned_archive(root: Path, as_of: dt.date, lookback: int) -> list[dict]:
     return rows
 
 
+
+# Explicit reviewed aliases only. Preserve the observation record in the confirmed
+# campaign, but do not infer additional campaign days or combine separate phases.
+REVIEWED_BANNER_ALIASES = {
+    "observed-21edff27ca43": "blackyak-fw-black-festa-20261109",
+}
+
+def consolidate_campaigns(events: list[dict]) -> list[dict]:
+    canonical={e["id"]:e for e in events if e["kind"]=="verified_period"}
+    duplicate=set()
+    for e in events:
+        target=canonical.get(REVIEWED_BANNER_ALIASES.get(e["id"]))
+        if not target or e["kind"]!="observed_banner" or target["brand"]!=e["brand"]:
+            continue
+        days=e.get("observed_on",[])
+        if not days or not all(target["start_date"]<=d<=target["end_date"] for d in days):
+            continue
+        target["observed_on"]=sorted(set(target.get("observed_on",[])+days))
+        target.setdefault("banner_evidence",[]).append({
+            "id":e["id"],"title":e["title"],"observed_on":days,
+            "source_url":e.get("source_url"),"benefit":e.get("benefit")
+        })
+        duplicate.add(e["id"])
+    return [e for e in events if e["id"] not in duplicate]
+
+
 def build(as_of:dt.date, root:Path=ROOT, registry:Path=REGISTRY, lookback:int=MAX_SNAPSHOT_DAYS) -> dict:
     rows,files=read_snapshots(root,as_of,lookback)
     documented=read_registry(registry,as_of)
-    events=documented+observed_events(rows+read_owned_archive(root,as_of,lookback))
+    events=consolidate_campaigns(documented+observed_events(rows+read_owned_archive(root,as_of,lookback)))
     events.sort(key=lambda x:(x["brand"],x["kind"],x.get("start_date") or x.get("first_seen") or "",x["title"]))
     captures=sorted({dt.datetime.strptime(re.match(OBS_RE, f).group(1),"%Y%m%d").date().isoformat()
                     for f in files if OBS_RE.match(f)})
