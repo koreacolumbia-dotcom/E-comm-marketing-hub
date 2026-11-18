@@ -1,27 +1,27 @@
-# CSK Marketing Intelligence 2.0 — 2026-11-16
+# CSK Marketing Intelligence 2.0 — 2026-11-17
 
 데이터 상태: **READY**
 
 ## 주요 지표
-- 세션: 15,867 | 전주 -9.6% | 전년 -19.4%
-- 주문: 85 | 전주 -26.1% | 전년 -25.4%
-- 매출: 12,064,520 | 전주 -48.8% | 전년 -31.7%
-- 구매 CVR: 0 | 전주 -18.3% | 전년 -7.5%
+- 세션: 14,657 | 전주 -7.4% | 전년 -25.0%
+- 주문: 92 | 전주 -14.0% | 전년 -29.2%
+- 매출: 13,688,400 | 전주 -38.8% | 전년 -30.3%
+- 구매 CVR: 0 | 전주 -7.2% | 전년 -5.6%
 
 ## QA
 - ADMIN_UNAVAILABLE (info): 어드민 실적이 0으로 내려왔습니다. 실제 매출 0으로 단정하지 않습니다.
 
 ## PDP 상품 분석 (ready)
-- PDP 상품 분석 종료일 2026-11-17은 Daily Digest 기준일 2026-11-16과 다름. 별도 30일 관측으로만 사용하며 당일 매출 감소의 원인으로 단정하지 않음
+- PDP 상품 분석 종료일 2026-11-18은 Daily Digest 기준일 2026-11-17과 다름. 별도 30일 관측으로만 사용하며 당일 매출 감소의 원인으로 단정하지 않음
 - 상품 퍼널 지표는 30일 GA4 상품별 세션 기준. 재고/광고 원인 및 매출 하락 기여도를 직접 증명하지 않음
-- C74YM3674342 M`s MT.Hood Down Jacket: 14,072 세션 · ATC 0.1% · 구매 0.0%
-- C71XM4875265 CSC1938 Dually Mountain Outerchange: 786 세션 · ATC 0.1% · 구매 0.0%
-- C74WR9847309 Amaze Puff Hooded Jacket: 352 세션 · ATC 0.0% · 구매 0.0%
-- C74WE4490235 Sauvie Sky Quad Parka IC Jacket: 222 세션 · ATC 0.0% · 구매 0.0%
-- C76BL5658010 SNOWTROT PEAK ODX: 206 세션 · ATC 0.0% · 구매 0.0%
-- C76PU7259461 Birdree Lite Sacoche: 162 세션 · ATC 0.0% · 구매 0.0%
-- C71WR6042027 W Saudan Pro 3L Shell: 156 세션 · ATC 0.0% · 구매 0.0%
-- C76BL0303550 KONOS SPEED TRAIL ATR: 145 세션 · ATC 0.0% · 구매 0.0%
+- C74YM3674342 M`s MT.Hood Down Jacket: 14,282 세션 · ATC 0.1% · 구매 0.0%
+- C71XM4875265 CSC1938 Dually Mountain Outerchange: 774 세션 · ATC 0.1% · 구매 0.0%
+- C74WR9847309 Amaze Puff Hooded Jacket: 357 세션 · ATC 0.0% · 구매 0.0%
+- C74WE4490235 Sauvie Sky Quad Parka IC Jacket: 218 세션 · ATC 0.0% · 구매 0.0%
+- C76BL5658010 SNOWTROT PEAK ODX: 211 세션 · ATC 0.0% · 구매 0.0%
+- C71WR6042027 W Saudan Pro 3L Shell: 153 세션 · ATC 0.0% · 구매 0.0%
+- C76BL0303550 KONOS SPEED TRAIL ATR: 147 세션 · ATC 0.0% · 구매 0.0%
+- C74XR1616256 Amaze Puff Vest: 143 세션 · ATC 0.0% · 구매 0.0%
 
 ## 광고 대행사 점검 (traffic_only)
 - PMax: 최근 7일 캠페인별 비용·전환가치·주문·상품군·검색어/브랜드 유입 비중을 확인하고, Demand Gen/GDN과 별도 집계되는지 점검해 주세요.
@@ -43,15 +43,15 @@
 - 등록된 개선 실험 없음
 
 ## 미해결 액션
-- [OPEN] P0 · DATA · MSSQL 실재고 조회 접근 문제 해결 (최근 관측 2026-11-16; 담당 인프라/DBA 담당)
-- [OPEN] P0 · PAID · 광고비 원본 자동 수집 재개 (최근 관측 2026-11-16; 담당 퍼포먼스 대행사/매체 담당)
-- [OPEN] P0 · DATA · CSC1938 Dually Mountain Outerchange 상품별 이벤트 정합성 검증 (최근 관측 2026-11-16; 담당 데이터/이커머스)
-- [OPEN] P0 · DATA · M`s MT.Hood Down Jacket 상품별 이벤트 정합성 검증 (최근 관측 2026-11-16; 담당 데이터/이커머스)
-- [OPEN] P0 · DATA · MSSQL → BigQuery 주문·CRM 적재 갱신 (최근 관측 2026-11-16; 담당 데이터 엔지니어/BigQuery 담당)
-- [OPEN] P1 · PRODUCT · Sauvie Sky Quad Parka IC Jacket 상세페이지 개선 검토 (최근 관측 2026-11-16; 담당 이커머스/MD)
-- [OPEN] P1 · PRODUCT · Amaze Puff Hooded Jacket 상세페이지 개선 검토 (최근 관측 2026-11-16; 담당 이커머스/MD)
-- [OPEN] P2 · COMMERCE · 주문당 매출 감소 (최근 관측 2026-11-16; 담당 이커머스/MD)
-- [OPEN] P2 · CRM · CRM 세그먼트 집계 연동 (최근 관측 2026-11-16; 담당 CRM/데이터 담당)
+- [OPEN] P0 · DATA · MSSQL 실재고 조회 접근 문제 해결 (최근 관측 2026-11-17; 담당 인프라/DBA 담당)
+- [OPEN] P0 · PAID · 광고비 원본 자동 수집 재개 (최근 관측 2026-11-17; 담당 퍼포먼스 대행사/매체 담당)
+- [OPEN] P0 · DATA · CSC1938 Dually Mountain Outerchange 상품별 이벤트 정합성 검증 (최근 관측 2026-11-17; 담당 데이터/이커머스)
+- [OPEN] P0 · DATA · M`s MT.Hood Down Jacket 상품별 이벤트 정합성 검증 (최근 관측 2026-11-17; 담당 데이터/이커머스)
+- [OPEN] P0 · DATA · MSSQL → BigQuery 주문·CRM 적재 갱신 (최근 관측 2026-11-17; 담당 데이터 엔지니어/BigQuery 담당)
+- [OPEN] P1 · PRODUCT · Sauvie Sky Quad Parka IC Jacket 상세페이지 개선 검토 (최근 관측 2026-11-17; 담당 이커머스/MD)
+- [OPEN] P1 · PRODUCT · Amaze Puff Hooded Jacket 상세페이지 개선 검토 (최근 관측 2026-11-17; 담당 이커머스/MD)
+- [OPEN] P2 · COMMERCE · 주문당 매출 감소 (최근 관측 2026-11-17; 담당 이커머스/MD)
+- [OPEN] P2 · CRM · CRM 세그먼트 집계 연동 (최근 관측 2026-11-17; 담당 CRM/데이터 담당)
 - [OPEN] P0 · PAID · 대행사 채널 귀속 데이터 우선 점검 (최근 관측 2026-11-15; 담당 데이터/퍼포먼스 대행사)
 - [OPEN] P0 · DATA · 채널별 성과 분석 보류 (최근 관측 2026-11-14; 담당 데이터/GA4 담당)
 - [OPEN] P0 · DATA · PDP 일별 조회 데이터 복구 (최근 관측 2026-11-14; 담당 데이터/BigQuery 담당)
