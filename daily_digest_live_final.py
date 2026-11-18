@@ -5412,8 +5412,8 @@ def render_page_html(
             <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">New Buyers</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">Existing Buyers</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">New Buyers (GA4)</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Existing Buyers (GA4)</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
             <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
           </tr>
