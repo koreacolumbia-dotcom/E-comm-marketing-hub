@@ -47,18 +47,30 @@ SELECT path_json,orders,revenue,expected_orders,expected_revenue
 FROM totals LEFT JOIN agg ON TRUE
 """
 
-def load(wildcard,location,start,end,classify,lookback=30):
+def load(wildcard,location,start,end,classify,lookback=30,maximum_gib=15):
     from google.cloud import bigquery
     from daily_digest_session_source import select_partitions
     from multi_touch import summarize
+    if not isinstance(maximum_gib,int) or not 1<=maximum_gib<=15:
+        raise ValueError("Query limit must be 1–15 GiB")
+    ceiling=maximum_gib*1024**3
     client=bigquery.Client(project=wildcard.split(".")[0],location=location or None)
     parts=select_partitions(client,wildcard,start-timedelta(days=lookback),end)
     # Strictly reject intraday or incomplete lookback; no silent coverage inflation.
     if any(kind!="daily" for _,kind,_ in parts):
         raise RuntimeError("Complete daily export partitions required")
     sql=build_path_sql(parts,start,end,lookback)
+    # A multi-statement dry run may return incomplete estimates. Never execute
+    # a query if its measured estimate is missing or zero.
+    dry=client.query(sql,location=location or None,
+                     job_config=bigquery.QueryJobConfig(dry_run=True,use_query_cache=False))
+    estimate=dry.total_bytes_processed
+    if estimate is None or estimate<=0:
+        raise RuntimeError("No usable dry-run estimate; execution skipped")
+    if estimate>ceiling:
+        raise RuntimeError("Dry-run estimate exceeds configured limit; execution skipped")
     job=client.query(sql,location=location or None,
-                     job_config=bigquery.QueryJobConfig(maximum_bytes_billed=100*1024**3))
+                     job_config=bigquery.QueryJobConfig(maximum_bytes_billed=ceiling,use_query_cache=True))
     output=[]
     totals=None
     for row in job.result():
@@ -70,4 +82,5 @@ def load(wildcard,location,start,end,classify,lookback=30):
     if totals is None: raise RuntimeError("No query totals")
     result=summarize(output,*totals,start.isoformat(),end.isoformat(),lookback)
     result["partition_status"]="daily_complete"
+    result["cost"]={"estimated_bytes":int(estimate),"billed_bytes":job.total_bytes_billed,"maximum_bytes_billed":ceiling,"cache_hit":job.cache_hit}
     return result
