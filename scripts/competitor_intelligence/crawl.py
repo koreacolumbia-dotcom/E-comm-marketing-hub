@@ -15,7 +15,7 @@ PAGE_LIMIT=16 if FAST else 36
 BRAND_SECONDS=210 if FAST else 480
 EVENT=re.compile(r'promo|collection|newevent|event|promotion|exhibition|/event/|/product/list|_exh|exh_list|special|企画|企画|기획전|이벤트|프로모션|세일|페스타|블랙프라이데이|혜택',re.I)
 DEAL=re.compile(r'할인|쿠폰|사은품|적립|특가|black friday|sale|%\s*off',re.I)
-PRODUCT=re.compile(r'goods_view|product/detail|productdetail|/product/|/goods/|goodsNo=|productNo=',re.I)
+PRODUCT=re.compile(r'goods_view|product/detail|productdetail|/product-detail/|/product/|/goods/|goodsNo=|productNo=|/shop/view',re.I)
 DATE=re.compile(r'20\d{2}[.\-/ ]\s*\d{1,2}[.\-/ ]\s*\d{1,2}|\d{1,2}[./]\d{1,2}\s*[~–-]\s*\d{1,2}[./]\d{1,2}')
 SEEDS={'BLACKYAK':['https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1','https://m.byn.kr/blackyak/_exh/'],'NEPA':['https://www.nplus.co.kr/promotion/list.asp','https://www.nplus.co.kr/product/list.asp','https://www.nplus.co.kr/promotion/view.asp?EventNo=856'],'KOLON SPORT':['https://www.kolonmall.com/Special/259472']}
 MARKET_SEEDS={
@@ -110,7 +110,7 @@ async def scan(browser,session,name,root):
                 cards=await extract_cards(page,profile)
                 if host(page.url)=='k-village.co.kr' and name in ('K2','EIDER'):
                     # Shared mall results must explicitly identify the target brand.
-                    cards=[r for r in cards if re.match(r'^'+name+r'\s+',r['name'],re.I)]
+                    cards=[r for r in cards if re.match(r'^'+name+r'\s+',r['name'],re.I) or re.match(r'^'+name+r'\s+',r.get('evidence',''),re.I)]
                     structured=[]
                 if host(page.url)=='nstationmall.com' and urlparse(page.url).path.rstrip('/')=='/event/planning':
                     cards=[];structured=[]  # Multi-brand event index only.
@@ -143,7 +143,7 @@ async def scan(browser,session,name,root):
                 banners=[x for x in links if EVENT.search(x['label']) or DEAL.search(x['label'])][:25]
                 result['pages'].append({'url':page.url,'title':await page.title(),'product_cards':cards,'structured_data':structured[:15],'images':images,'hero_assets':hero_assets,'market_signals':signals,'evidence':snippets,'banner_labels':banners,'date_mentions':DATE.findall(body)[:30],'percent_mentions':re.findall(r'\d{1,3}\s*%',body)[:40],'price_mentions':re.findall(r'[\d,]+\s*원',body)[:40],'fingerprint':hashlib.sha256(json.dumps([snippets,banners],ensure_ascii=False).encode()).hexdigest()})
                 checkpoint(name,result)
-                candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and same(x['url']) and brand_route(x['url']) and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']) or public_topic(x['url'],x['label']))]
+                candidates=[x['url'].split('#')[0] for x in links if x['url'].startswith('https://') and same(x['url']) and brand_route(x['url']) and (EVENT.search(x['url']+' '+x['label']) or PRODUCT.search(x['url']) or re.search(r'category|big_section|/list/|goods_list',x['url'],re.I) or public_topic(x['url'],x['label']))]
                 queue=list(dict.fromkeys(queue+[x for x in candidates if x not in seen]))
                 queue=sorted(queue,key=priority)[:120]
             except Exception as e: result['errors'].append({'url':u,'error':str(e)[:300]})
