@@ -18,7 +18,7 @@ EXCLUDED_PREFIXES = (
     Path("voc_crema/member_funnel"),
     Path("daily_digest/daily"),
 )
-DESIGN_VERSION = "20260716-v6"
+DESIGN_VERSION = "20261118-intelligence-mobile-v7"
 DESIGN_HEAD = (
     f'<link rel="stylesheet" href="/assets/dashboard-redesign.css?v={DESIGN_VERSION}">\n'
     f'<link rel="stylesheet" href="/assets/dashboard-mobile-compact.css?v={DESIGN_VERSION}">'
