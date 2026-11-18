@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {analyze} from '../../reports/competitor_content/strategy.mjs';
+const x={brand:'TEST',placement:'main_visual',title:'Trail Story',source_url:'https://test.example/',url:'https://test.example/Special/12',thumbnail:'https://test.example/hero.jpg',id:'a'};
+const rows=[x,{...x,id:'b',placement:'editorial_page',source_url:x.url},{...x,id:'c',title:'slider1'},{...x,id:'e',title:'3595-img'},{...x,id:'d',brand:'OTHER'},{...x,id:'f',title:'PACKS',url:'https://test.example/products/category/410'}];
+const r=analyze({items:rows,brands:[{brand:'TEST',candidate_count:5},{brand:'OTHER',candidate_count:1},{brand:'MISSING',candidate_count:0}]});
+assert.equal(r.quality.unique_count,2);
+assert.equal(r.quality.merged_count,1);
+assert.equal(r.quality.rejected_count,3);
+assert.equal(r.brands[2].signals.TPO,null);
+assert.equal(r.items.find(a=>a.brand==='TEST').member_ids.length,2);
+assert.equal(r.items.find(a=>a.brand==='TEST').placements.length,2);
+assert.equal(r.insights.every(a=>a.owned_total===0&&a.gap_pp===null),true);
+console.log('Content strategy regression tests passed');
