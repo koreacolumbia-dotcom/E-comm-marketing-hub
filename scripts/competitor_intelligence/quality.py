@@ -45,10 +45,12 @@ for b in data["brands"]:
     strict_candidate=bool(dated and cards)
     usable=bool(promo and (priced or cards))
     rows.append({"brand":b["brand"],"pages":len(pages),"promotion_pages":len(promo),"price_pages":len(priced),"candidate_usable":usable,"strict_candidate":strict_candidate,"paired_discount_cards":cards,"dated_promotion_pages":len(dated),"structured_product_prices":records,"errors":b.get("errors",[])})
+owned=next((r for r in rows if r["brand"]=="COLUMBIA"),None)
+rows=[r for r in rows if r["brand"]!="COLUMBIA"]
 n=sum(r["candidate_usable"] for r in rows)
 structured=sum(bool(r["dated_promotion_pages"] and (r["structured_product_prices"] or r["paired_discount_cards"])) for r in rows)
 strict=sum(r["strict_candidate"] for r in rows)
-quality={"accessible_brands":sum(r["pages"]>0 for r in rows),"accessible_pct":sum(r["pages"]>0 for r in rows)*10,"collected_pages":sum(r["pages"] for r in rows),"strict_candidate_brands":strict,"strict_candidate_pct":strict*10,"target_met_strict_candidate":strict>=10,"measurement_available":f.exists() and len(rows)==10,"structured_evidence_brands":structured,"structured_evidence_pct":structured*10,"verified_accuracy_pct":None,"verified_success_brands":None,"verified_success_pct":None,"verified_sample_count":None,"target_met_verified":None,"checked_at_kst":data.get("checked_at_kst"),"target":10,"denominator":10,"candidate_usable":n,"candidate_coverage_pct":n*10,"target_met_candidate_only":n>=10,"brands":rows,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
+quality={"accessible_brands":sum(r["pages"]>0 for r in rows),"accessible_pct":sum(r["pages"]>0 for r in rows)*10,"collected_pages":sum(r["pages"] for r in rows),"strict_candidate_brands":strict,"strict_candidate_pct":strict*10,"target_met_strict_candidate":strict>=10,"measurement_available":f.exists() and len(rows)==10,"structured_evidence_brands":structured,"structured_evidence_pct":structured*10,"verified_accuracy_pct":None,"verified_success_brands":None,"verified_success_pct":None,"verified_sample_count":None,"target_met_verified":None,"checked_at_kst":data.get("checked_at_kst"),"target":10,"denominator":10,"candidate_usable":n,"candidate_coverage_pct":n*10,"target_met_candidate_only":n>=10,"brands":rows,"owned":owned,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
 p.mkdir(exist_ok=True)
 (p/"quality.json").write_text(json.dumps(quality,ensure_ascii=False,indent=2))
 summary=["# Competitor collection quality",f"Candidate evidence: {n}/10 (target 10/10)","| Brand | Pages | Promo | Price |","|---|---:|---:|---:|"]
