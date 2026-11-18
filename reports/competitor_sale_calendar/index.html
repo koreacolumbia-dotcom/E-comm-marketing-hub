@@ -72,54 +72,98 @@ button{cursor:pointer}button:hover{border-color:#9db3c7}button:focus-visible,sel
 .span-arrow{font-size:12px;opacity:.7;flex:none}
 @media(max-width:720px){.calendar-week{min-height:126px;grid-template-rows:34px repeat(var(--lanes),32px) minmax(24px,1fr)}.calendar-week .day{padding:4px 6px}.event-span{font-size:11px}}
 
+
+/* Owned.com Report visual system: report-body, toolbar-card, report-card and KPI styles. */
+:root{--navy:#002d72;--blue:#002d72;--light:#f8fafc;--line:#e2e8f0;--muted:#64748b;--ink:#0f172a;--motion-ease:cubic-bezier(.2,.8,.2,1)}
+body{background:linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);min-height:100vh}
+main{max-width:none;padding:24px clamp(20px,2.5vw,40px) 60px}
+header{padding:0 0 2px}h1{font-size:24px;line-height:1.35;font-weight:900;letter-spacing:-.035em;margin:4px 0}
+.overline{font-size:11px;font-weight:800;letter-spacing:.22em;color:#64748b}
+header .overline:before{display:none}
+.panel,.stat{background:rgba(255,255,255,.7);border:1px solid #e2e8f0;border-radius:16px;box-shadow:none}
+.panel{padding:16px}.toolbar-card{background:rgba(255,255,255,.88);border:1px solid rgba(226,232,240,.95);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,.05)}
+.stats{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:18px 0 16px}
+.stat,.stat:nth-child(1),.stat:nth-child(2){padding:16px;border:1px solid #e2e8f0;transition:transform .24s var(--motion-ease),box-shadow .24s var(--motion-ease),border-color .24s var(--motion-ease)}
+.stat:hover{transform:translateY(-3px);box-shadow:0 18px 40px rgba(15,23,42,.08);border-color:rgba(59,130,246,.22)}
+.stat span:first-child,.section-label{font-size:11px;letter-spacing:.12em;font-weight:800;text-transform:uppercase;color:#64748b}
+.stat strong{font-size:25px;letter-spacing:-.035em;font-weight:900;color:#0f172a;margin:6px 0}
+.stat span:last-child{font-size:11px;color:#64748b}
+.stat.owned strong{color:#002d72}
+.nav b{font-weight:900;font-size:22px;color:#0f172a}
+.nav #current{background:#002d72;color:white;border-color:#002d72;font-weight:900;padding:10px 12px;border-radius:14px}
+.toolbar-card select,.toolbar-card input,.toolbar-card .nav button:not(#current){border:1px solid rgba(148,163,184,.28);background:#fff;border-radius:14px;color:#0f172a;font-size:12px;font-weight:800;padding:10px 12px}
+.toolbar-card .nav button:not(#current){font-size:18px;line-height:1.3;padding:6px 14px}
+.pill{border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:11px;font-weight:800;border-radius:999px}
+.layout{gap:16px;margin-top:16px}
+.calendar-panel{border-radius:28px;background:linear-gradient(135deg,#f0f9ff 0%,#fff 42%,#eef2ff 100%);padding:20px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+.calendar-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:15px;flex-wrap:wrap}
+.calendar-heading .section-label{color:#0369a1;letter-spacing:.22em}
+.calendar-heading .section-title{font-size:20px;font-weight:900;color:#0f172a;margin-top:2px;letter-spacing:-.035em}
+.grid{border-radius:16px;background:#fff}
+.calendar-week .day.today .num{background:#0f172a}
+.calendar-week .day.sel{outline:2px solid #3b82f6;background:#eff6ff}
+.sidebar .panel{border-radius:16px;padding:16px}
+.sidebar h2{font-size:15px;font-weight:900;color:#0f172a;letter-spacing:-.015em}
+.event b{font-weight:800;color:#0f172a}.event .meta{color:#64748b}
+.event-span{border-radius:7px;font-weight:650}.event-span .span-brand{font-weight:900}
+[data-brand="columbia"]{--accent:#002d72;--tint:#e6eefb;--brandink:#002d72}
+.event-span.owned{background:#002d72;border-color:#002d72;color:#fff;box-shadow:0 3px 8px rgba(0,45,114,.14);font-weight:800}
+.event-span.owned:hover{background:#154780}.tag.kind.owned{color:#fff;background:#002d72}
+.legend i.owned{background:#002d72;border-color:#002d72}
+@media(max-width:1100px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){main{padding:18px 12px 42px}.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat{padding:12px}.stat strong{font-size:23px}.calendar-panel{padding:12px;border-radius:20px}.toolbar-card{padding:12px}.calendar-heading{margin-bottom:10px}}
 </style></head><body>
 <main>
-<header><div><div class="overline">CSK · COMPETITOR PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
-<p>공식 행사 일정과 할인 배너 관측 기록을 월별로 확인하세요.</p></div>
+<header><div><div class="overline">CSK E-COMM · PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
+<p>자사 행사 일정과 경쟁사 프로모션을 월별로 비교합니다.</p></div>
 <div style="text-align:right"><span class="pill" id="state">확인 중</span><p class="small" id="updated"></p></div></header>
 <div class="stats">
-<div class="stat"><span>해당 월 공식 일정 확인</span><strong id="dated">—</strong><span>공식 기간 또는 시작일</span></div>
+<div class="stat owned"><span>Columbia · 자사 일정</span><strong id="ownedCount">—</strong><span>등록된 자사 행사</span></div>
+<div class="stat"><span>경쟁사 공식 일정 확인</span><strong id="dated">—</strong><span>공식 기간 또는 시작일</span></div>
 <div class="stat"><span>해당 월 할인 배너</span><strong id="observed">—</strong><span>수집 관측 이벤트</span></div>
-<div class="stat"><span>관련 브랜드</span><strong id="brands">—</strong><span>필터 적용 후</span></div>
+<div class="stat"><span>경쟁사 브랜드</span><strong id="brands">—</strong><span>필터 적용 후</span></div>
 <div class="stat"><span>최신 배너 수집일</span><strong id="last">—</strong><span>기준일과 별개</span></div>
 </div>
-<div class="panel row">
+<div class="panel toolbar-card row">
  <div class="nav"><button id="prev" aria-label="이전 달">‹</button><b id="monthTitle">2026. 11</b><button id="next" aria-label="다음 달">›</button><button id="current">기준월</button></div>
  <div class="filters">
  <select id="brand" aria-label="브랜드 선택"><option value="">전체 브랜드</option></select>
- <select id="type" aria-label="이벤트 유형"><option value="">전체 유형</option><option value="verified">기간 확인</option><option value="observation">배너 관측</option></select>
+ <select id="type" aria-label="이벤트 유형"><option value="">전체 유형</option><option value="verified">기간 확인</option><option value="observation">배너 관측</option><option value="owned">자사 일정</option></select>
  <input id="keyword" aria-label="행사 검색" type="search" placeholder="행사명 검색">
  </div>
 </div>
 <div class="layout">
 <section class="panel calendar-panel">
+ <div class="calendar-heading"><div><div class="section-label">Promotion Calendar</div><div class="section-title">Monthly Overview</div></div><span class="pill">MONTHLY</span></div>
  <p class="scroll-hint">좌우로 스크롤하여 월간 달력을 확인하세요.</p>
  <div class="calendar-scroll"><div class="week"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
  <div class="grid" id="calendar" aria-label="경쟁사 세일 월간 달력"></div></div>
- <div class="legend"><span><i></i> 공식 일정 확인</span><span><i class="obs"></i> 수집일에만 관측</span><span>색상은 브랜드별 구분 · 이어지는 막대는 동일 행사</span></div>
+ <div class="legend"><span><i class="owned"></i> 컬럼비아 자사 일정</span><span><i></i> 공식 일정 확인</span><span><i class="obs"></i> 수집일에만 관측</span><span>색상은 브랜드별 구분 · 이어지는 막대는 동일 행사</span></div>
 </section>
 <aside class="sidebar">
 <section class="panel"><div class="row"><h2 id="dateTitle">날짜별 행사</h2><span class="pill" id="dayCount">—</span></div><div id="dayList" aria-live="polite"></div></section>
 <section class="panel"><div class="row"><h2>이달의 세일·혜택</h2><span class="pill" id="monthCount">—</span></div><p class="small">기간 미확인 배너는 실제 수집된 날짜에만 표시합니다.</p><div id="monthEvents"></div></section>
 </aside></div>
-<p class="notice">기간을 확인한 공식 행사만 시작일부터 종료일까지 표시합니다. 행사 종료일이 없거나 홍보 배너만 수집되었다면 미래 날짜에 임의로 연장하지 않습니다. 수집 기록이 없다는 것은 세일이 없다는 의미가 아닙니다.</p>
+<p class="notice">공식 기간이 확인된 경쟁사 행사와 등록된 자사 일정만 시작일부터 종료일까지 표시합니다. 행사 종료일이 없거나 홍보 배너만 수집되었다면 미래 날짜에 임의로 연장하지 않습니다. 수집 기록이 없다는 것은 세일이 없다는 의미가 아닙니다.</p>
 </main>
 <script>
 (function(){
 'use strict';
 var $=function(id){return document.getElementById(id)},data=null,year=2026,month=11,selected='2026-11-15';
+var OWNED_EVENTS=[{"id":"columbia-winter-festival-20261120","brand":"columbia","brand_name":"Columbia","title":"WINTER FESTIVAL","kind":"owned_planned","start_date":"2026-11-20","end_date":"2026-11-29","date_status":"user_provided_planned","observed_on":[],"benefit":null,"source_url":null,"source_type":"manual_owned_schedule","channel":"","note":"등록된 자사 행사 예정 일정입니다."}];
 function iso(y,m,d){return String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
 function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]})}
 function short(s){return s?String(Number(s.slice(5,7)))+'/'+String(Number(s.slice(8,10))):'—'}
 function pretty(s){return s?s.replace(/-/g,'.'):'미확인'}
 function filtered(e){
 if($('brand').value&&e.brand!==$('brand').value)return false;
-if($('type').value==='verified'&&e.kind==='observed_banner')return false;
+if($('type').value==='verified'&&e.kind!=='verified_period'&&e.kind!=='verified_start')return false;
+if($('type').value==='owned'&&e.kind!=='owned_planned')return false;
 if($('type').value==='observation'&&e.kind!=='observed_banner')return false;
 var q=$('keyword').value.toLowerCase().trim();
 return !q||(e.title+' '+e.brand_name+' '+(e.benefit||'')).toLowerCase().indexOf(q)!==-1;
 }
-function applies(e,day){if(e.kind==='verified_period')return e.start_date<=day&&day<=e.end_date;
+function applies(e,day){if(e.kind==='verified_period'||e.kind==='owned_planned')return e.start_date<=day&&day<=e.end_date;
 if(e.kind==='verified_start')return day===e.start_date;
 return (e.observed_on||[]).indexOf(day)!==-1}
 function eventKey(e){
@@ -143,29 +187,36 @@ function weekSegments(groups,days,before,after){
     }
   });
   segments.sort(function(a,b){return a.start-b.start||Number(b.carryIn)-Number(a.carryIn)||(b.end-b.start)-(a.end-a.start)||a.key.localeCompare(b.key)});
+  var own=segments.filter(function(seg){return seg.event.kind==='owned_planned'}),others=segments.filter(function(seg){return seg.event.kind!=='owned_planned'});
   var lanes=[];
-  segments.forEach(function(seg){
-    var lane=lanes.findIndex(function(end){return end<seg.start});
-    if(lane===-1){lane=lanes.length;lanes.push(seg.end)}else lanes[lane]=seg.end;
-    seg.lane=lane;
-  });
+  function pack(list,offset){
+    var ends=[];
+    list.forEach(function(seg){
+      var lane=ends.findIndex(function(end){return end<seg.start});
+      if(lane===-1){lane=ends.length;ends.push(seg.end)}else ends[lane]=seg.end;
+      seg.lane=offset+lane;
+    });
+    return ends.length;
+  }
+  var laneCount=pack(own,0);laneCount+=pack(others,laneCount);lanes.length=laneCount;
   return {segments:segments,laneCount:lanes.length};
 }
 function shiftDay(day,n){var d=new Date(day+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
-function dayEvents(day){return data.events.filter(function(e){return filtered(e)&&applies(e,day)}).sort(function(a,b){return (a.kind==='observed_banner'?1:0)-(b.kind==='observed_banner'?1:0)})}
+function eventRank(e){return e.kind==='owned_planned'?0:e.kind==='observed_banner'?2:1}
+function dayEvents(day){return data.events.filter(function(e){return filtered(e)&&applies(e,day)}).sort(function(a,b){return eventRank(a)-eventRank(b)})}
 function monthly(){var a=iso(year,month,1),b=iso(year,month,new Date(Date.UTC(year,month,0)).getUTCDate());
 return data.events.filter(function(e){if(!filtered(e))return false;
-if(e.kind==='verified_period')return e.start_date<=b&&e.end_date>=a;
+if(e.kind==='verified_period'||e.kind==='owned_planned')return e.start_date<=b&&e.end_date>=a;
 if(e.kind==='verified_start')return e.start_date>=a&&e.start_date<=b;
 return (e.observed_on||[]).some(function(x){return x>=a&&x<=b})})}
 function eventCard(e){
-var verified=e.kind!=='observed_banner';
-var when=e.kind==='verified_period'?pretty(e.start_date)+' ~ '+pretty(e.end_date):
+var owned=e.kind==='owned_planned',verified=e.kind!=='observed_banner'&&!owned;
+var when=owned?'예정: '+pretty(e.start_date)+' ~ '+pretty(e.end_date):e.kind==='verified_period'?pretty(e.start_date)+' ~ '+pretty(e.end_date):
  e.kind==='verified_start'?pretty(e.start_date)+' 시작 / 종료일 미확인':
  '관측: '+(e.observed_on||[]).map(short).join(', ');
-var source=e.source_url&&e.source_url.indexOf('https://')===0?
+var source=owned?'':e.source_url&&e.source_url.indexOf('https://')===0?
  '<a rel="noopener noreferrer" target="_blank" href="'+esc(e.source_url)+'">공식 근거 확인</a>':'<span class="small">행사 상세 링크 확인 필요</span>';
-return '<div class="event" data-brand="'+esc(e.brand)+'"><div><span class="tag">'+esc(e.brand_name)+'</span> <span class="tag kind'+(verified?'':' obs')+'">'+(e.kind==='verified_start'?'시작일 확인':verified?'기간 확인':'관측')+'</span></div>'+
+return '<div class="event" data-brand="'+esc(e.brand)+'"><div><span class="tag">'+esc(e.brand_name)+'</span> <span class="tag kind'+(owned?' owned':verified?'':' obs')+'">'+(owned?'자사 예정':e.kind==='verified_start'?'시작일 확인':verified?'기간 확인':'관측')+'</span></div>'+
  '<b>'+esc(e.title)+'</b>'+(e.benefit?'<div class="offer">'+esc(e.benefit)+'</div>':'')+
  '<div class="meta">'+esc(when)+'</div><div class="meta">'+esc(e.note||'')+'</div>'+source+'</div>';
 }
@@ -196,9 +247,9 @@ for(var w=0;w<count;w+=7){
   });
   packed.segments.forEach(function(seg){
     var e=seg.event,bar=document.createElement('button'),n=seg.end-seg.start+1;
-    bar.type='button';bar.className='event-span'+(e.kind==='observed_banner'?' obs':'')+(n===1?' single':'')+(seg.carryIn?' carry-in':'')+(seg.carryOut?' carry-out':'');
+    bar.type='button';bar.className='event-span'+(e.kind==='owned_planned'?' owned':e.kind==='observed_banner'?' obs':'')+(n===1?' single':'')+(seg.carryIn?' carry-in':'')+(seg.carryOut?' carry-out':'');
     bar.dataset.brand=e.brand;bar.style.gridColumn=(seg.start+1)+' / '+(seg.end+2);bar.style.gridRow=String(seg.lane+2);
-    var status=e.kind==='observed_banner'?'배너 관측':e.kind==='verified_start'?'시작일 확인':'공식 행사';
+    var status=e.kind==='owned_planned'?'자사 예정':e.kind==='observed_banner'?'배너 관측':e.kind==='verified_start'?'시작일 확인':'공식 행사';
     bar.title=e.brand_name+' · '+e.title+(e.benefit?' · '+e.benefit:'')+' | '+status+' '+pretty(days[seg.start])+' ~ '+pretty(days[seg.end]);
     bar.setAttribute('aria-label',bar.title);
     bar.innerHTML=(seg.carryIn?'<span class="span-arrow" aria-hidden="true">‹</span>':'')+'<span class="span-brand">'+esc(e.brand_name)+'</span><span class="span-title">'+esc(e.title)+'</span>'+(e.benefit&&n>1?'<span class="span-benefit">'+esc(e.benefit)+'</span>':'')+(seg.carryOut?'<span class="span-arrow" aria-hidden="true">›</span>':'');
@@ -207,10 +258,11 @@ for(var w=0;w<count;w+=7){
   });
   host.appendChild(row);
 }
-var all=monthly(),ver=all.filter(function(e){return e.kind!=='observed_banner'}),obs=all.filter(function(e){return e.kind==='observed_banner'});
-$('dated').textContent=ver.length;$('observed').textContent=obs.length;$('brands').textContent=new Set(all.map(function(e){return e.brand})).size;
+var all=monthly(),own=all.filter(function(e){return e.kind==='owned_planned'}),competitors=all.filter(function(e){return e.kind!=='owned_planned'}),ver=competitors.filter(function(e){return e.kind!=='observed_banner'}),obs=competitors.filter(function(e){return e.kind==='observed_banner'});
+$('ownedCount').textContent=own.length;
+$('dated').textContent=ver.length;$('observed').textContent=obs.length;$('brands').textContent=new Set(competitors.map(function(e){return e.brand})).size;
 $('last').textContent=short(data.freshness.last_snapshot);$('monthCount').textContent=all.length+'건';
-$('monthEvents').innerHTML=all.length?all.sort(function(a,b){return (a.kind==='observed_banner'?1:0)-(b.kind==='observed_banner'?1:0)}).map(eventCard).join(''):'<p class="empty">해당 조건의 기록이 없습니다.</p>';
+$('monthEvents').innerHTML=all.length?all.sort(function(a,b){return eventRank(a)-eventRank(b)}).map(eventCard).join(''):'<p class="empty">해당 조건의 기록이 없습니다.</p>';
 showDay();
 }
 function move(diff){month+=diff;if(month===0){month=12;year--}if(month===13){month=1;year++}selected=iso(year,month,1);render()}
@@ -219,7 +271,7 @@ $('current').onclick=function(){year=Number(data.as_of.slice(0,4));month=Number(
 ['brand','type','keyword'].forEach(function(id){$(id).addEventListener(id==='keyword'?'input':'change',render)});
 fetch('./latest.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(function(value){
 if(value.schema_version!==1||!Array.isArray(value.events))throw Error('Schema invalid');
-data=value;year=Number(data.as_of.slice(0,4));month=Number(data.as_of.slice(5,7));selected=data.as_of;
+data=Object.assign({},value,{events:value.events.filter(function(e){return !OWNED_EVENTS.some(function(o){return o.id===e.id})}).concat(OWNED_EVENTS)});year=Number(data.as_of.slice(0,4));month=Number(data.as_of.slice(5,7));selected=data.as_of;
 $('state').textContent=data.status==='fresh'?'최근 수집 확인':data.status==='stale'?'수집 갱신 지연':'배너 데이터 없음';
 $('updated').textContent='기준 '+pretty(data.as_of)+' · 최신 수집 '+pretty(data.freshness.last_snapshot)+' · 관측일 '+data.freshness.snapshot_days+'일';
 Array.from(new Set(data.events.map(function(e){return e.brand}))).sort().forEach(function(key){
