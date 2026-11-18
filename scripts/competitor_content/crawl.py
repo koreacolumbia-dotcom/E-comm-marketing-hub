@@ -357,7 +357,7 @@ def coverage_audit(ledger,known,checked):
         entry=ledger.get(u,{})
         state=entry.get("state") if str(entry.get("at",""))[:10]>=cutoff else None
         states[state or "unobserved"]=states.get(state or "unobserved",0)+1
-    n=len(known);observed=states.get("observed",0)
+    n=len(known);observed=states.get("observed",0)+states.get("partial_observed",0)
     return {"scope":"known_scoped_urls_30d","known_urls":n,"observed_urls":observed,
             "unobserved_urls":n-observed,"observed_pct":round(100*observed/n,1) if n else None,
             "states":states,"window_days":LEDGER_WINDOW_DAYS}
@@ -417,7 +417,8 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     seeds=unique_urls(queue,same)
     backlog=unique_urls((frontier or {}).get("pending",[]),same)
     queue=unique_urls(seeds[:4]+backlog+seeds[4:],same)
-    ledger={u:v for u,v in (frontier or {}).get("url_ledger",{}).items() if same(u) and isinstance(v,dict)}
+    ledger_cutoff=(datetime.fromisoformat(checked)-timedelta(days=LEDGER_WINDOW_DAYS)).date().isoformat()
+    ledger={u:v for u,v in (frontier or {}).get("url_ledger",{}).items() if same(u) and isinstance(v,dict) and str(v.get("at",""))[:10]>=ledger_cutoff}
     known=set(queue)|set(ledger)
     refresh=set(seeds[:4])
     row["recent_skip_count"]=0
@@ -480,8 +481,9 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                 if brand=="NATIONAL GEOGRAPHIC" and urlsplit(source).path.rstrip("/") in NATGEO_CURATED_PATHS and not re.search(r"national\s*geographic|내셔널지오그래픽",data["body"]+" "+data["title"],re.I):
                     raise RuntimeError("shared storefront brand attribution missing")
                 row["pages_checked"]+=1
-                note(u,"observed")
-                note(source,"observed")
+                page_state="observed" if scroll["stop"]=="stable_bottom" else "partial_observed"
+                note(u,page_state)
+                note(source,page_state)
                 if plan["undercovered"] and origin(source) not in sitemap_origins:
                     sitemap_origins.add(origin(source))
                     sm,checked_maps,errors,partial=await sitemap_discovery(session,policy,brand,source,deadline,blocked)
@@ -581,7 +583,8 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     known.update(pending)
     row["url_coverage"]=coverage_audit(ledger,known,checked)
     # Retain discovered-but-unvisited addresses as well as checked URLs across runs.
-    for u in pending: ledger.setdefault(u,{"state":"unobserved","at":checked})
+    for u in pending:
+        if u not in ledger or ledger[u].get("state")=="unobserved": ledger[u]={"state":"unobserved","at":checked}
     row["_url_ledger"]=dict(sorted(ledger.items(),key=lambda kv:kv[1].get("at",""),reverse=True)[:LEDGER_LIMIT])
     row["url_coverage"]["ledger_truncated"]=max(0,len(ledger)-LEDGER_LIMIT)
     row["budget_exhausted"]=bool(queue and (len(seen)>=page_limit or asyncio.get_running_loop().time()>=deadline))
@@ -694,6 +697,7 @@ def self_test():
     assert recent_success({"state":"observed","at":now},"2026-11-19T02:00:00+09:00")
     assert not recent_success({"state":"observed","at":now},"2026-11-20T02:00:00+09:00")
     assert not recent_success({"state":"policy_denied","at":now},now)
+    assert not recent_success({"state":"partial_observed","at":now},now)
     audit=coverage_audit({"x":{"state":"observed","at":now},"y":{"state":"policy_denied","at":now}},{"x","y","z"},now)
     assert audit["observed_urls"]==1 and audit["unobserved_urls"]==2 and audit["observed_pct"]==33.3
     from PIL import Image
@@ -713,12 +717,15 @@ async def main():
     # Prioritize the deduplicated previous strategy sample if available; otherwise use recent direct observations.
     try:
         audit=json.loads((OUT/"strategy-summary.json").read_text())
-        counts={b["brand"]:int(b.get("unique_count") or 0) for b in audit.get("brands",[])}
-    except (OSError,ValueError,TypeError,KeyError): counts={}
+        audit_brands=audit.get("brands",[])
+        retained_basis=bool(audit_brands) and all(b.get("retained_unique_count") is not None for b in audit_brands)
+        counts={b["brand"]:int(b.get("retained_unique_count" if retained_basis else "unique_count") or 0) for b in audit_brands}
+    except (OSError,ValueError,TypeError,KeyError): counts={};retained_basis=False
     for brand in ROOTS:
         counts.setdefault(brand,len({x["id"] for x in prior if x.get("brand")==brand}))
     columbia_count=counts.get("COLUMBIA",0)
     plans={b:coverage_plan(b,counts[b],len(frontier.get(b,{}).get("pending",[])),columbia_count) for b in ROOTS}
+    for plan in plans.values(): plan["sample_basis"]="retained_30d_observations" if retained_basis else "previous_snapshot_observations"
     order=sorted(ROOTS,key=lambda b:(not plans[b]["focus_brand"],not plans[b]["below_columbia"],not plans[b]["undercovered"],counts[b],b not in PRIORITY_BRANDS,b))
     origin_locks={}
     def group(brand): return ALTERNATE.get(brand) or host(ROOTS[brand])
