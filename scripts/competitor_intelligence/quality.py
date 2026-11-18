@@ -37,7 +37,7 @@ def paired(page):
                         try: v=float(str(spec.get("price","")).replace(",",""))
                         except (ValueError,TypeError): continue
                         if math.isfinite(v) and v>price: regular.add(v)
-                    if len(regular)==1 and not offer.get("validForMemberTier"):
+                    if len(regular)==1 and not offer.get("validForMemberTier") and not offer.get("eligibleQuantity"):
                         reg=next(iter(regular))
                         record.update(regular_price=reg,sale_price=price,discount_pct=round((1-price/reg)*100,2),status="structured_candidate")
                     records.append(record)
@@ -48,6 +48,8 @@ for b in data["brands"]:
     promo=[x for x in pages if x.get("evidence") and re.search(r"event|promotion|special|exh|기획전|이벤트|페스타|black friday",x.get("url","")+" "+x.get("title",""),re.I)]
     priced=[x for x in pages if x.get("price_mentions")]
     records=[r for x in pages for r in paired(x)]
+    # Deduplicate exact same-page offer evidence; never merge different prices or pages.
+    records=list({(r["url"],r["name"],r["price"],r.get("regular_price"),r.get("sale_price")):r for r in records}.values())
     dated=[x for x in promo if x.get("date_mentions")]
     cards=[r for x in pages for r in x.get("product_cards",[]) if r.get("status")=="candidate_same_card"]
     unique_cards={}
@@ -61,7 +63,7 @@ for b in data["brands"]:
     structured_pairs=[r for r in records if r.get("regular_price") is not None and r.get("sale_price") is not None]
     strict_candidate=bool(dated and (cards or structured_pairs))
     usable=bool(promo and (priced or cards or structured_pairs))
-    rows.append({"brand":b["brand"],"pages":len(pages),"promotion_pages":len(promo),"price_pages":len(priced),"candidate_usable":usable,"strict_candidate":strict_candidate,"paired_discount_cards":cards,"dated_promotion_pages":len(dated),"structured_product_prices":records,"errors":b.get("errors",[])})
+    rows.append({"brand":b["brand"],"pages":len(pages),"promotion_pages":len(promo),"price_pages":len(priced),"candidate_usable":usable,"strict_candidate":strict_candidate,"paired_discount_cards":cards,"dated_promotion_pages":len(dated),"structured_product_prices":records,"structured_price_pair_count":len(structured_pairs),"discount_candidate_count":len(cards)+len(structured_pairs),"verified_sample_count":None,"verified_correct_count":None,"verified_accuracy_pct":None,"errors":b.get("errors",[])})
 owned=next((r for r in rows if r["brand"]=="COLUMBIA"),None)
 EXPECTED={"TNF","K2","DISCOVERY","BLACKYAK","NEPA","KOLON SPORT","EIDER","NATIONAL GEOGRAPHIC","SNOW PEAK","MILLET","SALOMON"}
 rows=[r for r in rows if r["brand"] in EXPECTED]
