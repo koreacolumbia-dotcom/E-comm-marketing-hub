@@ -82,4 +82,27 @@ async def extract_cards(page,profile):
       }
       return [...candidates].map(describe).filter(Boolean);
     }""")
-    return normalize_cards(rows)
+    # On a product detail page, the current item's price block may have no self-link.
+    # Require a product-detail route, a title and semantic price roles in the SAME small block.
+    detail=await page.evaluate("""()=>{
+      if(!/\\/product-detail\\/|\\/product\\/view|\\/product\\/[A-Za-z0-9-]+(?:$|\\?)|\\/goods\\/detail\\/|\\/goods\\/[A-Z0-9]+(?:$|\\?)|goods_view|\\/shop\\/view/i.test(location.href))return [];
+      const reg='del,s,strike,[class*="original_price"],[class*="originalPrice"],[class*="regularPrice"],[class*="regular_price"],[class*="consumer_price"],[class*="normal_price"]';
+      const sale='[class*="sale_price"],[class*="salePrice"],[class*="sellingPrice"],[class*="selling_price"],[class*="discountPrice"],[class*="discount_price"],[class*="finalPrice"]';
+      const candidates=[...document.querySelectorAll('h1,h2,h3,[class*="productName"],[class*="product_name"],[class*="goods_name"],[class*="goodsName"]')].filter(e=>e.getBoundingClientRect().width>0).slice(0,25);
+      const out=[];
+      for(const h of candidates){
+        const name=(h.innerText||'').trim();
+        if(name.length<3||name.length>120)continue;
+        let e=h.parentElement;
+        for(let i=0;i<5&&e;i++,e=e.parentElement){
+          const text=(e.innerText||'').trim();
+          if(text.length>600)break;
+          const a=e.querySelector(reg),b=e.querySelector(sale);
+          if(a&&b&&a!==b&&a.innerText&&b.innerText){
+            out.push({name,text,url:location.href,image:'',regular_text:a.innerText,sale_text:b.innerText});break;
+          }
+        }
+      }
+      return out;
+    }""")
+    return normalize_cards(rows+detail)
