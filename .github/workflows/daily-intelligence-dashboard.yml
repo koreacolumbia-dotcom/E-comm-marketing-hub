@@ -32,6 +32,8 @@ jobs:
           python -m unittest discover -s scripts/personal_intelligence -p 'test_advanced_intelligence.py'
           test -s scripts/personal_intelligence/test_product_signal_hub.py
           python -m unittest discover -s scripts/personal_intelligence -p 'test_product_signal_hub.py' -v
+          test -s scripts/personal_intelligence/test_product_timeline.py
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_product_timeline.py' -v
           python scripts/personal_intelligence/build_dashboard.py --out reports/daily_intelligence/latest.json
       - name: Validate navigation and aggregate output
         run: |
@@ -44,6 +46,10 @@ jobs:
           assert focus['date']==x['report_date'] and len(focus['dates'])==14
           assert all(not r['causal'] for r in focus['cards'])
           assert len(focus['temperature'])==14
+          tl=focus['timeline']
+          assert tl['dates']==focus['dates'] and len(tl['weather'])==14
+          assert all(len(r[k])==14 for r in tl['products'] for k in ('values','baseline','delta'))
+          assert all(set(e['dates'])<=set(tl['dates']) for b in tl['brands'] for e in b['events'])
           assert 'id="product-focus"' in Path('reports/daily_intelligence/index.html').read_text()
           assert sum(s['status']!='validation_required' for s in x['sections'])>=10
           assert x['sections'][10]['multi_touch_status']=='private_local_only'
@@ -69,6 +75,7 @@ jobs:
           Path('/tmp/intelligence.js').write_text(re.findall(r'<script>(.*?)</script>',src,re.S)[0])
           PY
           node --check /tmp/intelligence.js
+          node --check reports/daily_intelligence/timeline.js
           node --check assets/dashboard-redesign.js
           grep -Fq '일일 통합 분석' reports/daily_intelligence/index.html
           grep -Fq 'ko(names[n-1])' reports/daily_intelligence/index.html
