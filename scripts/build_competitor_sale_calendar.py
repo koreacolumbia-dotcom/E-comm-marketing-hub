@@ -47,11 +47,11 @@ HOSTS = {
     "snowpeak":("snowpeakstore.co.kr",),
     "discovery":("discovery-expedition.com","discovery-expedition.co.kr"),
     "kolonsport":("kolonsport.com","kolonsport.co.kr","kolonmall.com"),
-    "k2":("k2.co.kr",), "salomon":("salomon.co.kr",),
+    "k2":("k2.co.kr","k-village.co.kr"), "salomon":("salomon.co.kr",),
     "nepa":("nepa.co.kr","nplus.co.kr"), "millet":("millet.co.kr",),
     "arcteryx":("arcteryx.co.kr",),
     "patagonia":("patagonia.co.kr",),
-    "newbalance":("nbkorea.com",), "eider":("eider.co.kr",),"national_geographic":("naturestore.co.kr",)
+    "newbalance":("nbkorea.com",), "eider":("eider.co.kr","k-village.co.kr"),"national_geographic":("naturestore.co.kr","nstationmall.com")
 }
 OBS_RE = re.compile(r"^hero_main_banners_(\d{8})_\d{6}\.csv$")
 DATED_PERIOD = re.compile(
@@ -88,13 +88,20 @@ def safe_url(value: str, brand: str | None = None, registry: bool = False) -> st
         if registry:
             # Registry is curated from official retailers (SSF SHOP etc).
             allowed = ("ssfshop.com","kream.co.kr","snowpeakstore.co.kr",
-                       "byn.kr","thenorthfacekorea.co.kr","nplus.co.kr","kolonmall.com")
+                       "byn.kr","thenorthfacekorea.co.kr","nplus.co.kr","kolonmall.com",
+                       "k-village.co.kr","nstationmall.com","discovery-expedition.com","11st.co.kr")
         else:
             allowed = HOSTS.get(brand or "",())
         if registry and host in ("nplus.co.kr","www.nplus.co.kr") and brand != "nepa":
             return None
         if registry and (host == "kolonmall.com" or host.endswith(".kolonmall.com")) and brand != "kolonsport":
             return None
+        if registry:
+            scoped = {"k-village.co.kr": {"k2","eider"}, "nstationmall.com": {"national_geographic"},
+                      "discovery-expedition.com": {"discovery"}, "11st.co.kr": {"k2","eider"}}
+            for domain, brands in scoped.items():
+                if (host == domain or host.endswith("."+domain)) and brand not in brands:
+                    return None
         if not any(host == d or host.endswith("."+d) for d in allowed):
             return None
         return parts.geturl()
@@ -213,7 +220,7 @@ def read_registry(path: Path, as_of: dt.date) -> list[dict]:
         if not link:
             continue
         title=clean(item.get("title"),140)
-        if not title or not SALE_PATTERN.search(title):
+        if not title or not (SALE_PATTERN.search(title) or re.search(r"쿠폰팩|BLACK\s*WEEK|래플|얼리버드",title,re.I)):
             continue
         ident=clean(item.get("id"),90)
         if not re.fullmatch(r"[a-z0-9_-]{5,90}",ident):
