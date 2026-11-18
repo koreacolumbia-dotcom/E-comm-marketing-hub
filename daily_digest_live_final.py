@@ -2621,10 +2621,28 @@ def get_channel_snapshot_3way(
     }])
 
     out = pd.concat([out, total], ignore_index=True)
+    out["new_buyers"] = None
+    out["existing_buyers"] = None
+    try:
+        from daily_digest_session_source import load_buyer_frame
+        buyers = load_buyer_frame(BQ_EVENTS_TABLE, BQ_LOCATION, w.cur_start, w.cur_end)
+        if buyers.empty and float(out.loc[out.bucket == "Total", "transactions"].iloc[0]) > 0:
+            raise RuntimeError("No CRM orders matched GA purchases")
+        buyers["bucket"] = buyers.apply(lambda r: classify_looker_channel(str(r.sessionSourceMedium), str(r.sessionCampaignName), str(r.sessionDefaultChannelGroup)), axis=1)
+        for flag, col in [(False, "new_buyers"), (True, "existing_buyers")]:
+            segment = buyers[buyers["existing"] == flag]
+            counts = segment.groupby("bucket")["member_id"].nunique()
+            out[col] = out.bucket.map(counts).fillna(0).astype(int)
+            out.loc[out.bucket == "Total", col] = segment.member_id.nunique()
+        print("[BUYERS] CRM matched unique buyers:", buyers.member_id.nunique(), flush=True)
+    except Exception as exc:
+        print("[WARN] CRM buyer metrics unavailable:", type(exc).__name__, str(exc)[:300], flush=True)
+        if os.getenv("REQUIRE_CRM_BUYERS") == "1":
+            raise
     return out[[
         "bucket", "sessions", "transactions", "purchaseRevenue",
         "session_dod", "session_yoy", "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy",
-        "rev_dod", "rev_yoy"
+        "rev_dod", "rev_yoy", "new_buyers", "existing_buyers"
     ]]
 
 # =========================
