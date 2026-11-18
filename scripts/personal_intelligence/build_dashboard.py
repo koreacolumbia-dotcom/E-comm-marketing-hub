@@ -44,6 +44,12 @@ def build(root=ROOT,day=None):
     feed=read(rep/"competitor_intelligence/latest-report-feed.json")
     calendar=read(rep/"competitor_sale_calendar/latest.json")
     content=read(rep/"competitor_content/latest.json")
+    end=date.fromisoformat(d["end_date"])
+    observed=fetch_observed_weather(end-timedelta(days=13),end)
+    prior_end=end-timedelta(days=364)
+    prior_observed=fetch_observed_weather(prior_end-timedelta(days=13),prior_end)
+    cached=d.get("weather_observed") or {}
+    d["weather_observed"]={**(cached if isinstance(cached,dict) else {}),**prior_observed,**observed}
     results=[]
     def add(n,name,fn):
         try:
@@ -70,7 +76,7 @@ def build(root=ROOT,day=None):
         days=(m.get("forecast") or {}).get("days") or []
         return {"forecast":[pick(x,"date min_temp max_temp pop precipitation_probability") for x in days if isinstance(x,dict)][:7],
           "dates":m["dates"],"revenue":m["overall"]["revenue"],"sessions":m["overall"]["sessions"],
-          "temperature":m["temperature_current"],"missing":m["missing"],"note":m["interpretation"]}
+          "temperature":m["temperature_current"],"temperature_prior":m["temperature_prior"],"prior_dates":m["prior_dates"],"missing":m["missing"],"note":m["interpretation"]}
     def product():
         m=product_intelligence(d)
         return {"dates":m["dates"],"prior_dates":m["prior_dates"],
@@ -140,9 +146,10 @@ def build(root=ROOT,day=None):
     (10,"CUSTOMER INTELLIGENCE",customers),(11,"MARKETING ATTRIBUTION",attribution),(12,"BUDGET OPTIMIZER",budget),(13,"SOCIAL LISTENING",social),(14,"INVENTORY INTELLIGENCE",inventory),(15,"INTEGRATED CALENDAR",calendar_section),(16,"BUSINESS IMPACT MATRIX",impact_section),(17,"PREDICTIVE INTELLIGENCE",prediction_section),(18,"EXECUTIVE AI STRATEGY",strategy_section)]: add(n,name,fn)
     end=date.fromisoformat(d["end_date"])
     recent=[read(rep/"daily_digest/data/daily"/((end-timedelta(days=i)).isoformat()+".json")) for i in range(1,14)]
-    observed=fetch_observed_weather(end-timedelta(days=13),end)
     focus=build_signals(d,recent,calendar,competitive_discount_matrix(feed),observed)
     focus['timeline']=build_timeline(d,recent,calendar,observed,focus)
+    from product_signal_hub import valid_temp
+    focus['timeline']['weather_prior']=[valid_temp(prior_observed.get((date.fromisoformat(t)-timedelta(days=364)).isoformat())) for t in focus['dates']]
     return {"product_focus":focus,"schema":1,"report_date":d["end_date"],"target_date":target,"source_scope":"existing public aggregate caches only; private journey files not included","sections":results}
 def main():
     p=argparse.ArgumentParser();p.add_argument("--out",required=True);a=p.parse_args()
