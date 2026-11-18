@@ -80,9 +80,18 @@ async def scan(browser,session,name,root,gate):
             p=urlparse(u);s=p.path+'?'+p.query
             listing=bool(re.search(r'category|product/list|goods_list|big_section|/list/|collection|search|/best|/new',s,re.I))
             product=bool(PRODUCT.search(u)) and not listing
-            if u in market_seeds: return (-1,0)
-            if not result['pages']: return (0 if u in seeds or u==root else 1,0)
-            return (0 if public_topic(u) else 1 if listing else 2 if product else 3 if u in seeds or u==root else 4, 0 if u in seeds else 1)
+            # Balance product and event evidence before auxiliary membership/FAQ discovery.
+            event=bool(re.search(r'promo|event|exhibition|special|_exh',s,re.I))
+            if not result['pages']: return (0 if u==root else 1 if event or product or listing else 2,0)
+            has_price=any(p.get('product_cards') or p.get('structured_data') for p in result['pages'])
+            has_event=any(p.get('date_mentions') and EVENT.search(p.get('url','')+' '+p.get('title','')) for p in result['pages'])
+            if (product or listing) and not has_price: rank=0
+            elif event and not has_event: rank=1
+            elif product or listing or event: rank=2
+            elif public_topic(u): rank=3
+            else: rank=4
+            return (rank,0 if u in seeds else 1)
+        queue=sorted(queue,key=priority)
         while queue and len(seen)<PAGE_LIMIT and asyncio.get_running_loop().time()<deadline:
             u=queue.pop(0)
             if u in seen or origin(u) in blocked_origins or gate.key(u) in gate.stopped or not same(u) or not brand_route(u): continue
