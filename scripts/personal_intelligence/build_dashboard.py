@@ -14,6 +14,8 @@ from run_budget import load_budget
 from social_listening import build_social
 from inventory_intelligence import build_inventory
 from advanced_intelligence import integrated_calendar,impact_matrix,predict,strategy
+from product_signal_hub import build_signals
+from observed_weather import fetch as fetch_observed_weather
 
 ROOT=Path(__file__).resolve().parents[2]
 def read(p):
@@ -135,7 +137,11 @@ def build(root=ROOT,day=None):
     (4,"WEATHER INTELLIGENCE",weather),(5,"PRODUCT INTELLIGENCE",product),(6,"PRODUCT EARLY WARNING",early),
     (7,"COMPETITIVE INTELLIGENCE",comp),(8,"COMPETITIVE CONTENT",editorial),(9,"COMPETITIVE DISCOUNT MATRIX",matrix),
     (10,"CUSTOMER INTELLIGENCE",customers),(11,"MARKETING ATTRIBUTION",attribution),(12,"BUDGET OPTIMIZER",budget),(13,"SOCIAL LISTENING",social),(14,"INVENTORY INTELLIGENCE",inventory),(15,"INTEGRATED CALENDAR",calendar_section),(16,"BUSINESS IMPACT MATRIX",impact_section),(17,"PREDICTIVE INTELLIGENCE",prediction_section),(18,"EXECUTIVE AI STRATEGY",strategy_section)]: add(n,name,fn)
-    return {"schema":1,"report_date":d["end_date"],"target_date":target,"source_scope":"existing public aggregate caches only; private journey files not included","sections":results}
+    end=date.fromisoformat(d["end_date"])
+    recent=[read(rep/"daily_digest/data/daily"/((end-timedelta(days=i)).isoformat()+".json")) for i in range(1,14)]
+    observed=fetch_observed_weather(end-timedelta(days=13),end)
+    focus=build_signals(d,recent,calendar,competitive_discount_matrix(feed),observed)
+    return {"product_focus":focus,"schema":1,"report_date":d["end_date"],"target_date":target,"source_scope":"existing public aggregate caches only; private journey files not included","sections":results}
 def main():
     p=argparse.ArgumentParser();p.add_argument("--out",required=True);a=p.parse_args()
     target=Path(a.out);target.parent.mkdir(parents=True,exist_ok=True)
