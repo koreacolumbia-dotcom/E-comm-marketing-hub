@@ -362,8 +362,8 @@ pack.segments.forEach(function(seg){var e=seg.event,dest=eventDestination(e),bar
 function benefitTypes(e){
  var t=[e.title||'',e.benefit||''].concat((e.banner_evidence||[]).map(function(x){return (x.title||'')+' '+(x.benefit||'')})).join(' '),out=[];
  function push(type,m){var n=Number(m[2]);if(!Number.isFinite(n)||n<=0||n>100)return;out.push({type:type,value:n,qualifier:(m[1]||'').replace(/\s+/g,'')})}
- var m,re=/(최대\s*|추가\s*|단독\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:추가\s*|단독\s*)?(?:할인|OFF|세일)/gi;
- while((m=re.exec(t))!==null)push('할인',m);
+ var m,re=/(최대\s*|추가\s*|단독\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(추가\s*|단독\s*)?(?:할인|OFF|세일)/gi;
+ while((m=re.exec(t))!==null){if(!m[1]&&m[3])m[1]=m[3];push('할인',m)}
  re=/(최대\s*|추가\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:장바구니\s*)?쿠폰/gi;while((m=re.exec(t))!==null)push('쿠폰',m);
  re=/(최대\s*|추가\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:마일리지\s*)?페이백/gi;while((m=re.exec(t))!==null)push('페이백',m);
  re=/(최대\s*|추가\s*)?(\d{1,3})\s*만\s*원\s*(?:즉시\s*)?할인/g;while((m=re.exec(t))!==null)out.push({type:'만원 할인',value:Number(m[2]),qualifier:(m[1]||'').trim()});
