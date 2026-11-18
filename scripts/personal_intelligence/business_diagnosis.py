@@ -52,6 +52,11 @@ def product_cross_analysis(report):
     prices=report.get("price_history") or {}
     result={"status":"partial","cards":[],"candidates":[],"missing":[]}
     if not isinstance(weather,dict): weather={}
+    if isinstance(prices,list):
+        grouped={}
+        for x in prices:
+            if isinstance(x,dict) and x.get("sku"): grouped.setdefault(x["sku"],[]).append(x)
+        prices=grouped
     if not isinstance(prices,dict): prices={}
     if not weather: result["missing"].append("verified observed daily mean temperature")
     if not prices: result["missing"].append("verified dated official SKU prices")
@@ -73,7 +78,7 @@ def product_cross_analysis(report):
         metrics={d:{"sales_units":q,"pdp_views":v} for d,q,v in zip(dates,card["series"]["qty"]["current"],card["series"]["pdp"]["current"])}
         for sku in sorted(sku_ids):
             obs=[x for x in prices.get(sku,[]) if x.get("verified") is True and x.get("source_url")]
-            p[sku]={x["date"]:{k:x.get(k) for k in ("normal_price","sale_price","coupon_price","source_url")} for x in obs}
+            p[sku]={x["date"]:{"normal_price":x.get("normal_price",x.get("regular_price")),"sale_price":x.get("sale_price"),"coupon_price":x.get("coupon_price"),"source_url":x.get("source_url")} for x in obs}
             # Style metrics are not SKU metrics: only single-SKU styles get a price-impact window.
             if len(sku_ids)==1: impacts[sku]=price_impacts(obs,metrics)
         card.update(dates=dates,prior_dates=prior,temperature_current=[temperature(d) for d in dates],
