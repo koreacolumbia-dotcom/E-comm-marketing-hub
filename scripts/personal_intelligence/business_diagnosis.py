@@ -41,6 +41,52 @@ def _observations(report):
         positive_pdp_signals=sorted([x for x in pdp if x["delta"]>0],key=lambda x:-x["delta"])[:3],
         targeted_actions=actions)
 
+
+def product_cross_analysis(report):
+    """Use complete style/day extracts only for dated comparisons; top-N is a candidate feed."""
+    from style_anomaly import rank_styles
+    from price_impact import price_impacts
+    from statistics import median
+    rows=report.get("style_daily_rows") or []
+    weather=report.get("weather_observed") or {}
+    prices=report.get("price_history") or {}
+    result={"status":"partial","cards":[],"candidates":[],"missing":[]}
+    if not isinstance(weather,dict): weather={}
+    if not isinstance(prices,dict): prices={}
+    if not weather: result["missing"].append("verified observed daily mean temperature")
+    if not prices: result["missing"].append("verified dated official SKU prices")
+    if not rows or report.get("style_daily_complete") is not True:
+        result["missing"].append("complete style/day sales and PDP history")
+        for x in sorted(report.get("rising") or [],key=lambda x:abs(x.get("delta") or 0),reverse=True)[:6]:
+            result["candidates"].append({k:x.get(k) for k in ("itemId","itemName","qty","views","delta","delta_label")})
+        return result
+    ranked=rank_styles(rows,report["end_date"])
+    def temperature(d):
+        x=weather.get(d)
+        if not isinstance(x,dict) or x.get("verified") is not True or x.get("station") not in (108,"108") or x.get("kind")!="observed": return None
+        v=x.get("mean_temp")
+        return v if isinstance(v,(int,float)) and isfinite(v) else None
+    for card in ranked["cards"]:
+        name=card["style_key"]; dates=ranked["dates"]; prior=ranked["prior_dates"]
+        sku_ids={x["item_id"] for x in rows if " ".join(x["style_name"].split()).casefold()==name}
+        p={}; impacts={}
+        metrics={d:{"sales_units":q,"pdp_views":v} for d,q,v in zip(dates,card["series"]["qty"]["current"],card["series"]["pdp"]["current"])}
+        for sku in sorted(sku_ids):
+            obs=[x for x in prices.get(sku,[]) if x.get("verified") is True and x.get("source_url")]
+            p[sku]={x["date"]:{k:x.get(k) for k in ("normal_price","sale_price","coupon_price","source_url")} for x in obs}
+            # Style metrics are not SKU metrics: only single-SKU styles get a price-impact window.
+            if len(sku_ids)==1: impacts[sku]=price_impacts(obs,metrics)
+        card.update(dates=dates,prior_dates=prior,temperature_current=[temperature(d) for d in dates],
+            temperature_prior=[temperature(d) for d in prior],prices_by_sku=p,price_impacts=impacts)
+        for metric in ("qty","pdp"):
+            a=card["series"][metric]["current"]; b=a[-8:-1]
+            card[metric+"_delta_vs_median"]=a[-1]-median(b) if a[-1] is not None and all(v is not None for v in b) else None
+        card["interpretation"]="Aligned observations only; check advertising, CRM and price/weather overlap before attributing causes."
+        result["cards"].append(card)
+    if not result["missing"] and all(all(v is not None for v in c["temperature_current"]+c["temperature_prior"]) and all(all(d in p for d in c["dates"]) for p in c["prices_by_sku"].values()) for c in result["cards"]):
+        result["status"]="available"
+    return result
+
 def build_diagnosis(report, model=None):
     """Returns ranked observed revenue contributions, hypotheses and next checks.
     Optional source domains remain explicitly missing until verified."""
@@ -67,7 +113,7 @@ def build_diagnosis(report, model=None):
                 "evidence_type":"exact multiplicative Shapley decomposition",
                 "causal":False,
                 "hypothesis":"Change may reflect traffic mix, merchandising or measurement effects",
-                "validation":"Compare source/medium, campaigns, PDP funnel, inventory and pricing against matched prior dates",
+                "validation":"Compare source/medium, campaigns, PDP funnel, weather and pricing against matched prior dates",
                 "priority":"P1" if value<0 and value==min(effects.values()) else ("P2" if value<0 else "P3")
             })
     sources={
@@ -75,7 +121,6 @@ def build_diagnosis(report, model=None):
         "pdp_funnel":"pdp_funnel",
         "crm":"crm",
         "price_discount":"price_history",
-        "inventory":"inventory",
         "weather_observed":"weather_observed",
         "competitor_verified":"competitor_verified",
     }
@@ -94,6 +139,7 @@ def build_diagnosis(report, model=None):
         "actions":[{"priority":x["priority"],"check":x["validation"],"dimension":x["dimension"]} for x in candidates],
         "missing_evidence":missing,
         **observations,
+        "product_cross_analysis":product_cross_analysis(report),
         "limitations":"Accounting decomposition, not incremental causal attribution; hypotheses require independent validation.",
     }
 
