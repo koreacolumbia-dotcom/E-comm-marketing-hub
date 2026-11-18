@@ -3,6 +3,7 @@ from math import isfinite
 from statistics import mean
 from engine import revenue_bridge
 from attribution import marketing_attribution
+from budget_optimizer import optimize
 from product_card import enrich_cards
 from business_diagnosis import build_diagnosis
 from style_anomaly import rank_styles
@@ -399,7 +400,8 @@ def build_model(d,competitor=None,events=None,product_evidence=None,competitor_c
     put("Customer Intelligence",customer,"partial" if customer["signups"] is not None or customer["observed_buyers"] is not None else "source_required")
     attribution=marketing_attribution(d)
     put("Marketing Attribution",attribution,"partial" if attribution["channels"] else "source_required")
-    if d.get("glink_paid_snapshot"): put("Budget Optimizer",{"reported_paid_snapshot":d["glink_paid_snapshot"],"marginal_roas":None},"partial")
+    budget=optimize(d,d.get("budget_daily_history"),d.get("budget_cost_evidence"))
+    put("Budget Optimizer",budget,"available" if budget["status"]=="available" else "partial" if budget["media"] else "source_required")
     put("Integrated Calendar",{"events":events or [],"pdp":pdp,"sample_product_sales":sales,"weather_forecast":weather,"historical_temperature":None,"category_sales":None},"partial")
     put("Business Impact Matrix",{"observed_dimensions":["traffic","conversion","aov","category PDP"],"causal_effects":None},"partial")
     put("Predictive Intelligence",{"forecast":None,"reason":"Backtest and prediction interval validation required"},"validation_required")
