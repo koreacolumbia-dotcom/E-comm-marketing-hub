@@ -42,8 +42,8 @@ SEEDS={"BLACKYAK":["https://www.byn.kr/story/blackyak/","https://www.byn.kr/stor
 "KOLON SPORT":["https://www.kolonmall.com/Brands/KOLONSPORT/Special","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259601","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259682","https://www.kolonmall.com/Brands/kolonsport/Special/254611"],
 "TNF":["https://www.thenorthfacekorea.co.kr/brand/brandStory","https://www.thenorthfacekorea.co.kr/brand/technology","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93338","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93329","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93337","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93314","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93313","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93341","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93339","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93332","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93168"],
 "DISCOVERY":["https://www.discovery-expedition.com/display/promotions/collection/1556","https://www.discovery-expedition.com/display/promotions/collection/705"],
-"K2":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/k2/is","https://www.k-village.co.kr/k2/campaign"],
-"EIDER":["https://www.k-village.co.kr/eider"],
+"K2":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/k2/is","https://www.k-village.co.kr/k2/campaign","https://www.k-village.co.kr/k2/film","https://www.k-village.co.kr/k2/lookbook"],
+"EIDER":["https://www.k-village.co.kr/eider","https://www.k-village.co.kr/eider/film","https://www.k-village.co.kr/eider/lookbook","https://www.k-village.co.kr/eider/is"],
 "NATIONAL GEOGRAPHIC":["https://www.nstationmall.com/natgeo","https://www.nstationmall.com/event/planning/1155","https://www.nstationmall.com/event/planning/1157","https://nstationmall.com/event/planning/1124"],
 "HOKA":["https://brand.naver.com/hoka"],
 "PATAGONIA":["https://www.patagonia.co.kr/stories/main","https://www.patagonia.co.kr/stories/all_films","https://www.patagonia.co.kr/stories/articleDetail/276","https://www.patagonia.co.kr/stories/articleDetail/255","https://www.patagonia.co.kr/stories/articleDetail/151","https://www.patagonia.co.kr/stories/filmDetail/275","https://www.patagonia.co.kr/stories/filmDetail/265","https://www.patagonia.co.kr/stories/filmDetail/264","https://www.patagonia.co.kr/stories/all","https://www.patagonia.co.kr/quality/main","https://www.patagonia.co.kr/stories/filmDetail/260","https://www.patagonia.co.kr/stories/filmDetail/272"],
@@ -227,9 +227,28 @@ def brand_listing(brand,u):
     p=urlsplit(u); path=p.path.lower().rstrip("/"); q=dict(parse_qsl(p.query))
     if brand=="BLACKYAK":
         return (path=="/story/blackyak" and q.get("gb","list")!="detail") or (path=="/_container/exh_list.php" and q.get("hta_brand")=="blackyak") or (path=="/blackyak/_exh" and not q.get("no"))
+    if brand in ("K2","EIDER"): return path in ("/"+brand.lower()+"/film","/"+brand.lower()+"/lookbook","/"+brand.lower()+"/campaign")
+    if brand=="MILLET": return path=="/front/promo/pstories"
     if brand=="TNF": return path in ("/lookbook","/event","/events")
     if brand=="PATAGONIA": return path in ("/stories/main","/stories/all","/stories/all_films","/stories/filmdetail","/stories/articledetail") or bool(re.fullmatch(r"/stories/(?:category|sports)(?:/[^/]+)?",path))
     return False
+
+def film_archive_entries(brand,source,raw,checked):
+    if brand not in ("K2","EIDER") or urlsplit(source).path.lower().rstrip("/")!="/"+brand.lower()+"/film": return []
+    lines=[" ".join(v.split()) for v in raw.splitlines() if v.strip()]
+    try: begin=next(i for i,v in enumerate(lines) if v.upper()=="FILM")
+    except StopIteration: return []
+    out={}
+    for i in range(begin+2,len(lines)):
+        season=re.fullmatch(r"(20\d{2})\s*(SS|FW)",lines[i],re.I)
+        if re.match(r"^(?:K\.VILLAGE|고객센터|COPYRIGHT)",lines[i],re.I): break
+        if not season: continue
+        title=lines[i-1]
+        if not valid_title(title) or re.fullmatch(r"FILM|LOOKBOOK|20\d{2}\s*(SS|FW)",title,re.I) or len(title)>100: continue
+        season=season[1]+" "+season[2].upper()
+        key=(title.casefold(),season)
+        out.setdefault(key,{"brand":brand,"kind":"list_entry","title":title+" · "+season,"url":source,"season":season,"content_type":"FILM","source":"rendered_official_archive","listing_status":"제목·시즌 직접 관측","last_seen_at":checked,"published_at":None,"live_verified":False,"summary":"공식 목록에서 직접 관측; 개별 영상 및 발행일 미확인"})
+    return list(out.values())
 
 def editorial_route(brand,u):
     p=urlsplit(u); path=p.path.lower(); q=dict(parse_qsl(p.query))
@@ -338,6 +357,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     row["discovered_urls"]=0;row["pages_attempted"]=0;row["pending_urls"]=0;row["budget_limit"]=page_limit
     row["coverage_plan"]=plan
     row["homepage_observed"]=False
+    row["archive_entries"]=[]
     row["official_social_links"]=[]
     row["scroll_steps"]=0;row["load_more_clicks"]=0;row["scroll_limited_pages"]=0
     row["pagination_links"]=0;row["frontier_start"]=len(backlog);row["frontier_truncated"]=0
@@ -398,6 +418,9 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
                     except Exception: pass
                 is_index=any(entry.get("brand")==brand and entry.get("kind")=="list" and canonical(entry.get("url",""))==source for entry in discovered) if 'discovered' in locals() else False
                 listing=is_index or brand_listing(brand,source) or bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$|/stories/(?:main|all|filmDetail)$|/campaign$",path,re.I))
+                if brand in ("K2","EIDER") and path=="/"+brand.lower()+"/film":
+                    archive_text=await page.locator("body").inner_text(timeout=3000)
+                    row["archive_entries"].extend(film_archive_entries(brand,source,archive_text,checked))
                 blocks=data["blocks"] if home else ([] if listing else [data["article"]])
                 for b in blocks:
                     evidence=(b.get("title") or "")+" "+(b.get("summary") or "")
@@ -536,6 +559,9 @@ def self_test():
     assert not editorial_route("PATAGONIA","https://www.patagonia.co.kr/stories/all_films")
     assert sitemap_entries(b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.org/story/1</loc></url></url>')==([],["https://example.org/story/1"])
     assert sitemap_entries(b'<!DOCTYPE urlset><urlset/>')==([],[])
+    films=film_archive_entries("K2","https://www.k-village.co.kr/k2/film","NAV\nFILM\nALPHA\n2025 FW\nALPHA\n2025 FW\nBETA\n2026SS\nK.VILLAGE\nGAMMA\n2025 SS",now)
+    assert len(films)==2 and films[1]["season"]=="2026 SS"
+    assert brand_listing("EIDER","https://www.k-village.co.kr/eider/lookbook")
     print("content self-tests passed")
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
