@@ -24,10 +24,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Generate 18-section aggregate snapshot (no BigQuery queries)
+      - name: Generate product-first and 18-section aggregate snapshot (no BigQuery queries)
+        env:
+          DAILY_DIGEST_KMA_SERVICE_KEY: ${{ secrets.DAILY_DIGEST_KMA_SERVICE_KEY }}
         run: |
           python -m unittest discover -s scripts/personal_intelligence -p 'test_inventory_intelligence.py'
           python -m unittest discover -s scripts/personal_intelligence -p 'test_advanced_intelligence.py'
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_product_signal_hub.py'
           python scripts/personal_intelligence/build_dashboard.py --out reports/daily_intelligence/latest.json
       - name: Validate navigation and aggregate output
         run: |
@@ -36,6 +39,11 @@ jobs:
           import json
           x=json.loads(Path('reports/daily_intelligence/latest.json').read_text())
           assert [s['number'] for s in x['sections']]==list(range(1,19))
+          focus=x['product_focus']
+          assert focus['date']==x['report_date'] and len(focus['dates'])==14
+          assert all(not r['causal'] for r in focus['cards'])
+          assert len(focus['temperature'])==14
+          assert 'id="product-focus"' in Path('reports/daily_intelligence/index.html').read_text()
           assert sum(s['status']!='validation_required' for s in x['sections'])>=10
           assert x['sections'][10]['multi_touch_status']=='private_local_only'
           inv=x['sections'][13]
