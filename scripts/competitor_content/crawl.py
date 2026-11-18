@@ -235,6 +235,7 @@ async def scan(browser,session,brand,checked,old,frontier=None):
     seen=set();ids=set()
     row["discovered_urls"]=0;row["pages_attempted"]=0;row["pending_urls"]=0;row["budget_limit"]=page_limit
     row["homepage_observed"]=False
+    row["official_social_links"]=[]
     row["scroll_steps"]=0;row["load_more_clicks"]=0;row["scroll_limited_pages"]=0
     row["pagination_links"]=0;row["frontier_start"]=len(backlog);row["frontier_truncated"]=0
     deferred=[]
@@ -272,7 +273,19 @@ async def scan(browser,session,brand,checked,old,frontier=None):
                 row["pages_checked"]+=1
                 path=urlsplit(source).path.lower().rstrip("/")
                 home=u==canonical(root) or (host(source)==ALTERNATE.get(brand) and path in ("/k2","/eider","/natgeo"))
-                if home: row["homepage_observed"]=True
+                if home:
+                    row["homepage_observed"]=True
+                    # Only official-site visible footer/social links, not model tags in copy.
+                    try:
+                        social=await page.evaluate("""()=>Array.from(document.querySelectorAll('footer a[href],[class*=footer] a[href],a[aria-label*=Instagram],a[title*=Instagram]')).map(a=>a.href)""")
+                        for href in social:
+                            u2=urlsplit(href)
+                            h2=(u2.hostname or "").lower()
+                            handle=u2.path.strip("/")
+                            if h2 not in ("instagram.com","www.instagram.com") or not re.fullmatch(r"[A-Za-z0-9_.]{1,30}",handle) or handle.lower() in ("p","reel","explore","accounts","stories","about"): continue
+                            if not any(a["handle"].lower()==handle.lower() for a in row["official_social_links"]):
+                                row["official_social_links"].append({"handle":handle,"url":"https://www.instagram.com/"+handle+"/","source":source,"verification":"official_site_footer_candidate"})
+                    except Exception: pass
                 is_index=any(entry.get("brand")==brand and entry.get("kind")=="list" and canonical(entry.get("url",""))==source for entry in discovered) if 'discovered' in locals() else False
                 listing=is_index or bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$|/stories/(?:main|all|filmDetail)$|/campaign$",path,re.I))
                 blocks=data["blocks"] if home else ([] if listing else [data["article"]])
@@ -286,26 +299,30 @@ async def scan(browser,session,brand,checked,old,frontier=None):
                     if x and x["id"] not in ids:
                         row["items"].append(x);ids.add(x["id"])
                         if home and x.get("url") and x["url"]!=source and same(x["url"]) and x["url"] not in seen: queue.append(x["url"])
-                        if x["images"] and sum(bool(i.get("image_evidence_file")) for i in row["items"])<2:
-                            # Archive only an actually rendered, public image as a bounded screenshot.
+                        if x["images"] and sum(bool(i.get("visual_palette")) for i in row["items"])<30:
+                            # Sample pixels from an already rendered image, no additional image fetch.
+                            # Keep two evidence screenshots per brand; store derived palette only for the rest.
+                            handle=None
                             try:
+                                from io import BytesIO
+                                from PIL import Image
                                 src=x["images"][0]["url"]
                                 handle=await page.evaluate_handle("(url)=>Array.from(document.images).find(i=>(i.currentSrc||i.src)===url)||null",src)
                                 el=handle.as_element()
                                 if el and await el.is_visible():
-                                    target=Path("content-evidence")/(x["id"]+"-"+x["fingerprint"][:10]+".png")
-                                    target.parent.mkdir(exist_ok=True)
-                                    await el.screenshot(path=str(target),timeout=3500,animations="disabled")
-                                    x["image_evidence_file"]=target.name
-                                    try:
-                                        from PIL import Image
-                                        with Image.open(target) as im:
-                                            sample=im.convert("RGB");sample.thumbnail((64,64))
-                                            colors=sample.quantize(colors=5).convert("RGB").getcolors(4096) or []
-                                            x["visual_palette"]=["#%02x%02x%02x"%rgb for _,rgb in sorted(colors,reverse=True)[:5]]
-                                    except Exception: pass
-                                await handle.dispose()
+                                    image_bytes=await el.screenshot(timeout=2500,animations="disabled")
+                                    with Image.open(BytesIO(image_bytes)) as im:
+                                        sample=im.convert("RGB");sample.thumbnail((64,64))
+                                        colors=sample.quantize(colors=5).convert("RGB").getcolors(4096) or []
+                                        x["visual_palette"]=["#%02x%02x%02x"%rgb for _,rgb in sorted(colors,reverse=True)[:5]]
+                                        x["visual_palette_source"]="rendered_image_pixels"
+                                    if sum(bool(i.get("image_evidence_file")) for i in row["items"])<2:
+                                        target=Path("content-evidence")/(x["id"]+"-"+x["fingerprint"][:10]+".png")
+                                        target.parent.mkdir(exist_ok=True)
+                                        target.write_bytes(image_bytes);x["image_evidence_file"]=target.name
                             except Exception: pass
+                            finally:
+                                if handle: await handle.dispose()
                 found=[]
                 for link in [*scroll_links,*data["links"]]:
                     v=canonical(link["url"])
