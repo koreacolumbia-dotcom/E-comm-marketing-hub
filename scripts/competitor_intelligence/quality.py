@@ -58,8 +58,9 @@ for b in data["brands"]:
                 unique_cards[(card["url"],card["name"],regular,sale)]=card
         except (KeyError,ValueError,TypeError): continue
     cards=list(unique_cards.values())
-    strict_candidate=bool(dated and cards)
-    usable=bool(promo and (priced or cards))
+    structured_pairs=[r for r in records if r.get("regular_price") is not None and r.get("sale_price") is not None]
+    strict_candidate=bool(dated and (cards or structured_pairs))
+    usable=bool(promo and (priced or cards or structured_pairs))
     rows.append({"brand":b["brand"],"pages":len(pages),"promotion_pages":len(promo),"price_pages":len(priced),"candidate_usable":usable,"strict_candidate":strict_candidate,"paired_discount_cards":cards,"dated_promotion_pages":len(dated),"structured_product_prices":records,"errors":b.get("errors",[])})
 owned=next((r for r in rows if r["brand"]=="COLUMBIA"),None)
 EXPECTED={"TNF","K2","DISCOVERY","BLACKYAK","NEPA","KOLON SPORT","EIDER","NATIONAL GEOGRAPHIC","SNOW PEAK","MILLET","SALOMON"}
@@ -73,8 +74,8 @@ structured=sum(bool(r["dated_promotion_pages"] and any(
     x.get("regular_price") is not None and x.get("sale_price") is not None
     for x in r["structured_product_prices"])) for r in rows)
 strict=sum(r["strict_candidate"] for r in rows)
-pair_brands=sum(bool(r["paired_discount_cards"]) for r in rows)
-quality={"discount_pair_brands":pair_brands,"discount_pair_coverage_pct":pct(pair_brands),"discount_pair_target_met":complete and pair_brands==TARGET,"discount_pair_missing_brands":[r["brand"] for r in rows if not r["paired_discount_cards"]],"owned_discount_pair_available":bool(owned and owned.get("paired_discount_cards")),"accessible_brands":sum(r["pages"]>0 for r in rows),"accessible_pct":pct(sum(r["pages"]>0 for r in rows)),"collected_pages":sum(r["pages"] for r in rows),"strict_candidate_brands":strict,"strict_candidate_pct":pct(strict),"target_met_strict_candidate":strict>=TARGET,"measurement_available":f.exists() and complete,"structured_evidence_brands":structured,"structured_evidence_pct":pct(structured),"verified_accuracy_pct":None,"verified_success_brands":None,"verified_success_pct":None,"verified_sample_count":None,"target_met_verified":None,"checked_at_kst":data.get("checked_at_kst"),"target":TARGET,"denominator":TARGET,"candidate_usable":n,"candidate_coverage_pct":pct(n),"target_met_candidate_only":n>=TARGET,"brands":rows,"owned":owned,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
+pair_brands=sum(bool(r["paired_discount_cards"] or any(x.get("regular_price") is not None and x.get("sale_price") is not None for x in r["structured_product_prices"])) for r in rows)
+quality={"discount_pair_brands":pair_brands,"discount_pair_coverage_pct":pct(pair_brands),"discount_pair_target_met":complete and pair_brands==TARGET,"discount_pair_missing_brands":[r["brand"] for r in rows if not (r["paired_discount_cards"] or any(x.get("regular_price") is not None and x.get("sale_price") is not None for x in r["structured_product_prices"]))],"owned_discount_pair_available":bool(owned and owned.get("paired_discount_cards")),"accessible_brands":sum(r["pages"]>0 for r in rows),"accessible_pct":pct(sum(r["pages"]>0 for r in rows)),"collected_pages":sum(r["pages"] for r in rows),"strict_candidate_brands":strict,"strict_candidate_pct":pct(strict),"target_met_strict_candidate":strict>=TARGET,"measurement_available":f.exists() and complete,"structured_evidence_brands":structured,"structured_evidence_pct":pct(structured),"verified_accuracy_pct":None,"verified_success_brands":None,"verified_success_pct":None,"verified_sample_count":None,"target_met_verified":None,"checked_at_kst":data.get("checked_at_kst"),"target":TARGET,"denominator":TARGET,"candidate_usable":n,"candidate_coverage_pct":pct(n),"target_met_candidate_only":n>=TARGET,"brands":rows,"owned":owned,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
 # An incomplete snapshot cannot establish a coverage percentage.
 if not quality["measurement_available"]:
     for key in ("discount_pair_brands","discount_pair_coverage_pct","discount_pair_target_met",
