@@ -30,7 +30,7 @@ UA="CSKMarketResearchBot"
 OUT=Path("reports/competitor_content")
 KEY=re.compile(r"story|stories|journal|magazine|editorial|lookbook|campaign|explore|discover|collection|special|exhibition|technology|heritage|ambassador|athlete|community|/plan/|/lp(?:/|$)|/pages/|스토리|매거진|룩북|화보|캠페인|컬렉션|기술력|헤리티지|앰배서더|크리에이터|커뮤니티|기획전",re.I)
 DENY=re.compile(r"(?:^|[/_.?&=])(?:login|logout|register|account|auth|cart|checkout|order|my|mypage|member|customer|support|faq|privacy|terms|admin|search|review|location|stores?|notice|raffle)(?:[/_.?&=]|$)",re.I)
-PDP=re.compile(r"/(?:products?/(?:view|detail|[^/]+)$|goods/view|goods_view)|[?&](?:goodsNo|productNo)=",re.I)
+PDP=re.compile(r"/(?:products?/(?:view|detail)(?:/|$)|products/[^/]+/?$|goods/view|goods_view)|[?&](?:goodsNo|productNo)=",re.I)
 SALE=re.compile(r"black\s*friday|블랙프라이데이|쿠폰|할인|특가|세일|%\s*off|payback|페이백",re.I)
 CTA=re.compile(r"더\s*보기|자세히|바로\s*가기|제품\s*보기|컬렉션\s*보기|shop\s*now|learn\s*more|read\s*more|explore",re.I)
 TYPES={"LOOKBOOK":r"lookbook|룩북|화보|스타일링","PRODUCT_STORY":r"technology|고어텍스|방수|보온|기술력|테크니컬|innovation|insulation|단열|기능성","AMBASSADOR":r"ambassador|athlete|앰배서더|애슬릿|크리에이터","COMMUNITY":r"community|클럽|커뮤니티|워크숍|클리닉","BRAND_STORY":r"heritage|history|스토리|헤리티지|환경|지속가능|history|innovation","CAMPAIGN":r"campaign|캠페인|collection|컬렉션|capsule|캡슐"}
@@ -61,14 +61,15 @@ def item(brand, source, block, checked, old, placement):
     title=" ".join((block.get("title") or "").split())[:160]
     body=" ".join((block.get("summary") or "").split())[:500]
     if len(title)<4 or SALE.search(title) or re.fullmatch(r"(?:home|main|shop|공식몰|공식 온라인스토어|메인|더보기|new arrivals|best sellers)",title,re.I): return None
-    urls=[canonical(u) for u in block.get("links",[]) if scoped(brand,u)]
+    # Preserve official product CTA destinations as evidence without crawling PDPs.
+    urls=[canonical(u) for u in block.get("links",[]) if urlsplit(u).scheme=="https" and host(u)==host(ROOTS[brand]) and not DENY.search(urlsplit(u).path+"?"+urlsplit(u).query)]
     dest=urls[0] if urls else canonical(source)
     identity=hashlib.sha256((brand+"|"+(canonical(source)+"|"+title.casefold() if placement=="main_visual" else canonical(source))).encode()).hexdigest()[:24]
     txt=title+" "+body
     ty=tags(TYPES,txt)
     fp=hashlib.sha256(json.dumps([title,body,block.get("image"),urls],ensure_ascii=False,sort_keys=True).encode()).hexdigest()
     prior=old.get(identity,{})
-    return dict(id=identity,brand=brand,title=title,url=dest,source_url=source,placement=placement,type=ty[0] if ty else ("MAIN_VISUAL" if placement=="main_visual" else "EDITORIAL_CANDIDATE"),type_tags=ty,tpo=tags(TPO,txt),selling_points=tags(USP,txt),classification_status="text_inferred",summary=body,thumbnail=block.get("image") if str(block.get("image","")).startswith("https://") else None,cta=[x[:80] for x in block.get("cta",[]) if CTA.search(x)][:5],influencer=None,products=None,published_at=published(block.get("dates")) if placement!="main_visual" else None,first_seen_at=prior.get("first_seen_at") or checked,last_seen_at=checked,collected_at=checked,fingerprint=fp,change="newly_observed" if not prior else "unchanged" if prior.get("fingerprint")==fp else "changed",status="candidate")
+    return dict(id=identity,brand=brand,title=title,url=dest,source_url=source,placement=placement,type=ty[0] if ty else ("MAIN_VISUAL" if placement=="main_visual" else "EDITORIAL_CANDIDATE"),type_tags=ty,tpo=tags(TPO,txt),selling_points=tags(USP,txt),classification_status="text_inferred",summary=body,thumbnail=block.get("image") if str(block.get("image","")).startswith("https://") else None,cta=[x[:80] for x in block.get("cta",[]) if CTA.search(x)][:5],cta_urls=list(dict.fromkeys(urls))[:8],influencer=None,products=None,published_at=published(block.get("dates")) if placement!="main_visual" else None,first_seen_at=prior.get("first_seen_at") or checked,last_seen_at=checked,collected_at=checked,fingerprint=fp,change="newly_observed" if not prior else "unchanged" if prior.get("fingerprint")==fp else "changed",status="candidate")
 EXTRACT=r"""() => {
 const clean=s=>(s||'').replace(/\s+/g,' ').trim();
 const visible=e=>{const r=e.getBoundingClientRect();return r.width>10&&r.height>10&&getComputedStyle(e).visibility!=='hidden'};
@@ -123,6 +124,7 @@ async def scan(browser,session,brand,checked,old):
                 for b in blocks:
                     evidence=(b.get("title") or "")+" "+(b.get("summary") or "")
                     if home and not b.get("image") and not KEY.search(evidence): continue
+                    if home and re.search(r"\d[\d,]*\s*원|₩\s*\d",evidence) and not KEY.search(b.get("title","")): continue
                     if not home and not (KEY.search(source+" "+evidence) or tags(TYPES,evidence)): continue
                     x=item(brand,source,b,checked,old,"main_visual" if home else "editorial_page")
                     if x and x["id"] not in ids: row["items"].append(x);ids.add(x["id"])
@@ -153,8 +155,10 @@ def self_test():
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
     assert not scoped("BLACKYAK","https://www.byn.kr/other")
     assert not scoped("SALOMON","https://salomon.co.kr/account/login")
+    assert not scoped("ARC'TERYX","https://arcteryx.co.kr/products/view/685326")
+    assert not scoped("SALOMON","https://salomon.co.kr/products/shoe")
     assert not scoped("SALOMON","https://example.com/pages/story")
-    assert published(["2026-11-01T12:00:00+09:00"])=="2026-11-01"
+    assert published(["2020-11-01T12:00:00+09:00"])=="2020-11-01"
     now="2026-11-18T21:00:00+09:00"
     b={"title":"Winter insulation","summary":"보온 기술","dates":["2026-11-01"],"links":[]}
     a=item("SALOMON",ROOTS["SALOMON"],b,now,{},"main_visual")
