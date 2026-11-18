@@ -8,6 +8,7 @@ from playwright.async_api import async_playwright
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/"competitor_intelligence"))
 from reliability import PolicyCache
 from evidence import editorial_title, valid_title, product_evidence, person_evidence, image_candidates, PRODUCT_PATH
+from publication import publication
 
 ROOTS={
 "KOLON SPORT":"https://www.kolonmall.com/Brands/KOLONSPORT",
@@ -30,15 +31,19 @@ SEEDS={"ARC'TERYX":["https://arcteryx.co.kr/explore/whoweare","https://arcteryx.
 "KOLON SPORT":["https://www.kolonmall.com/Brands/KOLONSPORT/Special","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259601","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259682"],
 "TNF":["https://www.thenorthfacekorea.co.kr/brand/brandStory"],
 "DISCOVERY":["https://www.discovery-expedition.com/display/promotions/collection/1556","https://www.discovery-expedition.com/display/promotions/collection/705"],
-"K2":["https://www.k-village.co.kr/k2"],
+"K2":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/k2/is","https://www.k-village.co.kr/k2/campaign"],
 "EIDER":["https://www.k-village.co.kr/eider"],
-"NATIONAL GEOGRAPHIC":["https://www.nstationmall.com/natgeo"]}
-ALTERNATE={"K2":"k-village.co.kr","EIDER":"k-village.co.kr","NATIONAL GEOGRAPHIC":"nstationmall.com"}
+"NATIONAL GEOGRAPHIC":["https://www.nstationmall.com/natgeo","https://www.nstationmall.com/event/planning/1155","https://www.nstationmall.com/event/planning/1157","https://nstationmall.com/event/planning/1124"],
+"PATAGONIA":["https://www.patagonia.co.kr/stories/main","https://www.patagonia.co.kr/stories/all","https://www.patagonia.co.kr/quality/main","https://www.patagonia.co.kr/stories/filmDetail/260","https://www.patagonia.co.kr/stories/filmDetail/272"],
+"SNOW PEAK":["https://www.snowpeak.co.kr/event-page/2026/lookBook2/apparel.html","https://www.snowpeak.co.kr/event-page/2026/lookBook/apparel.html"],
+"MILLET":["https://www.millet.co.kr/front/main","https://www.millet.co.kr/front/etc/brand_story","https://www.millet.co.kr/front/promo/pstories/196","https://www.millet.co.kr/front/promo/pstories/154","https://www.millet.co.kr/front/promo/pstories/161"]}
+ALTERNATE={"K2":"k-village.co.kr","EIDER":"k-village.co.kr","NATIONAL GEOGRAPHIC":"nstationmall.com","SNOW PEAK":"snowpeak.co.kr"}
+NATGEO_CURATED_PATHS={"/event/planning/1155","/event/planning/1157","/event/planning/1124"}
 PAGE_LIMIT=int(os.getenv("CONTENT_PAGE_LIMIT","18"))
 BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","240"))
 UA="CSKMarketResearchBot"
 OUT=Path("reports/competitor_content")
-KEY=re.compile(r"story|stories|journal|magazine|editorial|lookbook|campaign|explore|discover|collection|special|exhibition|technology|heritage|ambassador|athlete|community|/plan/|/lp(?:/|$)|/pages/|스토리|매거진|룩북|화보|캠페인|컬렉션|기술력|헤리티지|앰배서더|크리에이터|커뮤니티|기획전",re.I)
+KEY=re.compile(r"story|stories|pstories|journal|magazine|editorial|lookbook|campaign|explore|discover|collection|special|exhibition|technology|heritage|ambassador|athlete|community|/plan/|/lp(?:/|$)|/pages/|스토리|매거진|룩북|화보|캠페인|컬렉션|기술력|헤리티지|앰배서더|크리에이터|커뮤니티|기획전",re.I)
 DENY=re.compile(r"(?:^|[/_.?&=])(?:login|logout|register|account|auth|cart|checkout|order|my|mypage|member|customer|support|faq|privacy|terms|admin|search|review|location|stores?|notice|raffle)(?:[/_.?&=]|$)",re.I)
 PDP=re.compile(r"/(?:products?/(?:view|detail)(?:/|$)|products/[^/]+/?$|goods/view|goods_view)|[?&](?:goodsNo|productNo)=",re.I)
 SALE=re.compile(r"black\s*friday|블랙프라이데이|쿠폰|할인|특가|세일|%\s*off|payback|페이백",re.I)
@@ -60,6 +65,8 @@ def scoped(brand,u):
     p=urlsplit(u); path=p.path.lower()
     if not allowed_link(brand,u): return False
     if host(u)==ALTERNATE.get(brand):
+        if brand=="SNOW PEAK": return path.startswith("/event-page/") and "/lookbook" in path and path.endswith("/apparel.html")
+        if brand=="NATIONAL GEOGRAPHIC" and path.rstrip("/") in NATGEO_CURATED_PATHS: return True
         prefix={"K2":"/k2","EIDER":"/eider","NATIONAL GEOGRAPHIC":"/natgeo"}[brand]
         return path.rstrip("/")==prefix or path.startswith(prefix+"/") and not PDP.search(u)
     if PRODUCT_PATH.search(u): return False
@@ -92,7 +99,9 @@ def item(brand, source, block, checked, old, placement):
     ty=tags(TYPES,txt)
     fp=hashlib.sha256(json.dumps([title,body,block.get("image"),urls,products,people,assets],ensure_ascii=False,sort_keys=True).encode()).hexdigest()
     prior=old.get(identity,{})
-    return dict(id=identity,brand=brand,title=title,url=dest,source_url=source,placement=placement,type=ty[0] if ty else ("MAIN_VISUAL" if placement=="main_visual" else "EDITORIAL_CANDIDATE"),type_tags=ty,tpo=tags(TPO,txt),selling_points=tags(USP,txt),classification_status="text_inferred",summary=body,thumbnail=assets[0]["url"] if assets else None,images=assets,image_status="rendered_candidates" if assets else "unverified",cta=[x[:80] for x in block.get("cta",[]) if CTA.search(x)][:5],cta_urls=list(dict.fromkeys(urls))[:8],influencer=people or None,products=products or None,published_at=published(block.get("dates")) if placement!="main_visual" else None,first_seen_at=prior.get("first_seen_at") or checked,last_seen_at=checked,collected_at=checked,fingerprint=fp,change="newly_observed" if not prior else "unchanged" if prior.get("fingerprint")==fp else "changed",status="candidate")
+    date_info=publication(block,checked) if placement!="main_visual" else {"date":None,"status":"unknown","evidence":[]}
+    scope="official_brand_editorial" if brand=="SNOW PEAK" and host(source)=="snowpeak.co.kr" else "official_mall"
+    return dict(source_scope=scope,publication_status=date_info["status"],publication_evidence=date_info["evidence"],id=identity,brand=brand,title=title,url=dest,source_url=source,placement=placement,type=ty[0] if ty else ("MAIN_VISUAL" if placement=="main_visual" else "EDITORIAL_CANDIDATE"),type_tags=ty,tpo=tags(TPO,txt),selling_points=tags(USP,txt),classification_status="text_inferred",summary=body,thumbnail=assets[0]["url"] if assets else None,images=assets,image_status="rendered_candidates" if assets else "unverified",cta=[x[:80] for x in block.get("cta",[]) if CTA.search(x)][:5],cta_urls=list(dict.fromkeys(urls))[:8],influencer=people or None,products=products or None,published_at=date_info["date"],first_seen_at=prior.get("first_seen_at") or checked,last_seen_at=checked,collected_at=checked,fingerprint=fp,change="newly_observed" if not prior else "unchanged" if prior.get("fingerprint")==fp else "changed",status="candidate")
 EXTRACT=r"""() => {
 const clean=s=>(s||'').replace(/\s+/g,' ').trim();
 const visible=e=>{const r=e.getBoundingClientRect();return r.width>10&&r.height>10&&getComputedStyle(e).visibility!=='hidden'};
@@ -101,14 +110,21 @@ const images=e=>imageDetails(e).map(x=>x.url);
 const linkDetails=e=>Array.from(e.querySelectorAll('a[href]')).filter(visible).map(a=>({url:a.href,label:clean(a.innerText||a.getAttribute('aria-label')||a.title||a.querySelector('img')?.alt),product_name:clean(a.querySelector('[class*="productName"],[class*="product_name"],[class*="goods_name"],[class*="item_name"],[class*="prd_name"]')?.innerText||'')})).slice(0,120);
 const main=document.querySelector('main,[role=main]')||document.body;
 const links=Array.from(document.querySelectorAll('a[href]')).filter(visible).map(a=>({url:a.href,label:clean(a.innerText||a.title||a.querySelector('img')?.alt)})).slice(0,500);
-const dates=Array.from(document.querySelectorAll('meta[property="article:published_time"],meta[itemprop="datePublished"],time[itemprop="datePublished"]')).map(e=>e.content||e.dateTime).filter(Boolean);
-for(const el of document.querySelectorAll('script[type="application/ld+json"]')){try{const walk=x=>{if(Array.isArray(x))x.forEach(walk);else if(x&&typeof x==='object'){if(/Article|BlogPosting|NewsArticle/i.test(String(x['@type']))&&x.datePublished)dates.push(x.datePublished);if(x['@graph'])walk(x['@graph']);}};walk(JSON.parse(el.textContent));}catch(e){}}
+const dateEvidence=[];
+const dateAdd=(raw,method)=>{if(raw)dateEvidence.push({raw:clean(raw),method});};
+for(const e of document.querySelectorAll('meta[property="article:published_time"]'))dateAdd(e.content,'article_meta');
+const articleRoot=main.querySelector('article,[itemtype*="Article"]');
+for(const e of (articleRoot||main).querySelectorAll('meta[itemprop="datePublished"],time[itemprop="datePublished"]'))dateAdd(e.content||e.dateTime||e.innerText,'datePublished_itemprop');
+for(const el of document.querySelectorAll('script[type="application/ld+json"]')){try{const walk=x=>{if(Array.isArray(x))x.forEach(walk);else if(x&&typeof x==='object'){if(/Article|BlogPosting|NewsArticle/i.test(String(x['@type']))&&x.datePublished){const raw=x.url||x.mainEntityOfPage?.['@id']||x.mainEntityOfPage?.url;let same=false;try{same=typeof raw==='string'&&new URL(raw,location.href).pathname===location.pathname;}catch{}if(same||(!raw&&articleRoot))dateAdd(x.datePublished,'article_jsonld');}if(x['@graph'])walk(x['@graph']);}};walk(JSON.parse(el.textContent));}catch(e){}}
+const label=/^(?:게시일|등록일|발행일|작성일|공개일|published(?:\s+on)?|posted(?:\s+on)?)\s*[:：]?\s*(?:20\d{2}|\d{2})/i;
+for(const line of (articleRoot||main).innerText.split(/\n/).slice(0,80)){if(label.test(clean(line)))dateAdd(line,'explicit_publication_label');}
+if(articleRoot){for(const e of articleRoot.querySelectorAll('header time, [class*="article-date"] time, [class*="published"] time')){if(!/modified|updated/i.test(e.className||''))dateAdd(e.dateTime||e.innerText,'article_header_time');}}
 const heads=Array.from(main.querySelectorAll('h1,h2,h3')).filter(visible).slice(0,35);
 const block=h=>{let e=h.parentElement;for(let i=0;i<3&&e.parentElement&&e!==main;i++){if(images(e).length&&e.querySelector('a[href]'))break;if(e.parentElement===main||e.parentElement===document.body)break;e=e.parentElement;}return {title:clean(h.innerText),summary:clean(e.innerText).slice(0,500),image:images(e)[0]||null,image_details:imageDetails(e),body_evidence:clean(e.innerText).slice(0,2500),link_details:linkDetails(e),links:Array.from(e.querySelectorAll('a[href]')).map(a=>a.href).slice(0,8),cta:Array.from(e.querySelectorAll('a,button')).map(a=>clean(a.innerText)).filter(Boolean).slice(0,8)}};
 const blocks=heads.map(block);
 for(const a of main.querySelectorAll('a[href] img')){if(!visible(a)||a.getBoundingClientRect().width<400||a.getBoundingClientRect().height<120||!clean(a.alt))continue; const p=a.closest('a');blocks.push({title:clean(a.alt),summary:clean(p.innerText),image:a.currentSrc||a.src,image_details:[{url:a.currentSrc||a.src,alt:a.alt,width:a.naturalWidth,height:a.naturalHeight,method:'rendered_image'}],link_details:linkDetails(p),links:[p.href],cta:[]});if(blocks.length>=50)break;}
 const og=k=>document.querySelector('meta[property="'+k+'"]')?.content;
-return {title:clean(heads[0]?.innerText||og('og:title')||document.title),body:clean(main.innerText).slice(0,10000),blocks,links,article:{title:clean(heads[0]?.innerText||og('og:title')||document.title),summary:clean(og('og:description')||main.innerText).slice(0,500),description:clean(og('og:description')),og_title:clean(og('og:title')),body_evidence:clean(main.innerText).slice(0,2500),image:og('og:image')||images(main)[0]||null,image_details:imageDetails(main),link_details:linkDetails(main),links:links.map(x=>x.url).slice(0,30),cta:links.filter(x=>x.label).map(x=>x.label).slice(0,30),dates:[...new Set(dates)]}};
+return {title:clean(heads[0]?.innerText||og('og:title')||document.title),body:clean(main.innerText).slice(0,10000),blocks,links,article:{title:clean(heads[0]?.innerText||og('og:title')||document.title),summary:clean(og('og:description')||main.innerText).slice(0,500),description:clean(og('og:description')),og_title:clean(og('og:title')),body_evidence:clean(main.innerText).slice(0,2500),image:og('og:image')||images(main)[0]||null,image_details:imageDetails(main),link_details:linkDetails(main),links:links.map(x=>x.url).slice(0,30),cta:links.filter(x=>x.label).map(x=>x.label).slice(0,30),date_evidence:dateEvidence}};
 }"""
 async def scan(browser,session,brand,checked,old):
     root=ROOTS[brand]; row={"brand":brand,"root":root,"pages_checked":0,"items":[],"errors":[]}
@@ -147,10 +163,12 @@ async def scan(browser,session,brand,checked,old):
                 data=await page.evaluate(EXTRACT)
                 if len(data["body"])<100 or re.search(r"access denied|captcha|접근이 제한",data["body"][:600],re.I): raise RuntimeError("blocked or empty document")
                 source=canonical(page.url)
+                if brand=="NATIONAL GEOGRAPHIC" and urlsplit(source).path.rstrip("/") in NATGEO_CURATED_PATHS and not re.search(r"national\s*geographic|내셔널지오그래픽",data["body"]+" "+data["title"],re.I):
+                    raise RuntimeError("shared storefront brand attribution missing")
                 row["pages_checked"]+=1
                 path=urlsplit(source).path.lower().rstrip("/")
                 home=u==canonical(root) or (host(source)==ALTERNATE.get(brand) and path in ("/k2","/eider","/natgeo"))
-                listing=bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$",path))
+                listing=bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$|/stories/(?:main|all|filmDetail)$|/campaign$",path,re.I))
                 blocks=data["blocks"] if home else ([] if listing else [data["article"]])
                 for b in blocks:
                     evidence=(b.get("title") or "")+" "+(b.get("summary") or "")
@@ -199,7 +217,7 @@ def aggregate(rows,prior,checked):
         hist=[x for x in history if x["brand"]==b["brand"]]
         known=[x for x in hist if x.get("published_at")]
         summary.append({k:v for k,v in b.items() if k!="items"}|{"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
-    return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
+    return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
     assert not scoped("BLACKYAK","https://www.byn.kr/other")
@@ -218,6 +236,10 @@ def self_test():
     assert z["brands"][0]["published_30d"] is None
     assert scoped("K2","https://www.k-village.co.kr/k2")
     assert not scoped("K2","https://www.k-village.co.kr/eider")
+    assert scoped("SNOW PEAK","https://www.snowpeak.co.kr/event-page/2026/lookBook2/apparel.html")
+    assert not scoped("SNOW PEAK","https://www.snowpeak.co.kr/")
+    assert scoped("NATIONAL GEOGRAPHIC","https://www.nstationmall.com/event/planning/1157")
+    assert not scoped("NATIONAL GEOGRAPHIC","https://www.nstationmall.com/event/planning/9999")
     print("content self-tests passed")
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
