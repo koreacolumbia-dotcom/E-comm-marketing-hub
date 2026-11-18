@@ -35,8 +35,8 @@ ROOTS={
 "SNOWLINE":"https://www.snowlinemall.com/"}
 SEEDS={"ARC'TERYX":["https://arcteryx.co.kr/explore/whoweare","https://arcteryx.co.kr/lp"],
 "SALOMON":["https://salomon.co.kr/pages/77years-of-salomon","https://salomon.co.kr/blogs/salomon-blog"],
-"KOLON SPORT":["https://www.kolonmall.com/Brands/KOLONSPORT/Special","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259601","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259682"],
-"TNF":["https://www.thenorthfacekorea.co.kr/brand/brandStory","https://www.thenorthfacekorea.co.kr/brand/technology","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93338","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93329","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93337","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93314"],
+"KOLON SPORT":["https://www.kolonmall.com/Brands/KOLONSPORT/Special","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259601","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259682","https://www.kolonmall.com/Brands/kolonsport/Special/254611"],
+"TNF":["https://www.thenorthfacekorea.co.kr/brand/brandStory","https://www.thenorthfacekorea.co.kr/brand/technology","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93338","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93329","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93337","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93314","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93313","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93341","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93339","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93332","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93168"],
 "DISCOVERY":["https://www.discovery-expedition.com/display/promotions/collection/1556","https://www.discovery-expedition.com/display/promotions/collection/705"],
 "K2":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/k2/is","https://www.k-village.co.kr/k2/campaign"],
 "EIDER":["https://www.k-village.co.kr/eider"],
@@ -46,9 +46,10 @@ SEEDS={"ARC'TERYX":["https://arcteryx.co.kr/explore/whoweare","https://arcteryx.
 "MILLET":["https://www.millet.co.kr/front/main","https://www.millet.co.kr/front/etc/brand_story","https://www.millet.co.kr/front/promo/pstories/196","https://www.millet.co.kr/front/promo/pstories/154","https://www.millet.co.kr/front/promo/pstories/161"]}
 ALTERNATE={"K2":"k-village.co.kr","EIDER":"k-village.co.kr","NATIONAL GEOGRAPHIC":"nstationmall.com","SNOW PEAK":"snowpeak.co.kr"}
 NATGEO_CURATED_PATHS={"/event/planning/1155","/event/planning/1157","/event/planning/1124"}
-PAGE_LIMIT=int(os.getenv("CONTENT_PAGE_LIMIT","24"))
-PRIORITY_PAGE_LIMIT=32
-BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","270"))
+PAGE_LIMIT=int(os.getenv("CONTENT_PAGE_LIMIT","48"))
+PRIORITY_PAGE_LIMIT=int(os.getenv("CONTENT_PRIORITY_PAGE_LIMIT","64"))
+BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","420"))
+PRIORITY_BRANDS={"TNF","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
 UA="CSKMarketResearchBot"
 OUT=Path("reports/competitor_content")
 KEY=re.compile(r"story|stories|pstories|journal|magazine|editorial|lookbook|campaign|explore|discover|collection|special|exhibition|technology|heritage|ambassador|athlete|community|responsibility|/event/view/|/event/planning/|/plan/|/lp(?:/|$)|/pages/|스토리|매거진|룩북|화보|캠페인|컬렉션|기술력|헤리티지|앰배서더|크리에이터|커뮤니티|기획전",re.I)
@@ -73,6 +74,8 @@ def scoped(brand,u):
     p=urlsplit(u); path=p.path.lower()
     if re.search(r"/product/(?:detail|list|search)\.html|/product/[a-z0-9][^/]+/\d+/?$|/product/[A-Z0-9]{5,}/?$",p.path,re.I): return False
     if not allowed_link(brand,u): return False
+    if re.search(r"/(?:sign-in|sign-up|image_zoom[^/]*|personal-information-collection-statement[^/]*|service/company)(?:/|\.html|$)",path,re.I): return False
+    if re.search(r"(?:^|&)(?:product_no|goodsNo|productNo|styleCode)=",p.query,re.I): return False
     if host(u)==ALTERNATE.get(brand):
         if brand=="SNOW PEAK": return path.startswith("/event-page/") and "/lookbook" in path and path.endswith("/apparel.html")
         if brand=="NATIONAL GEOGRAPHIC" and path.rstrip("/") in NATGEO_CURATED_PATHS: return True
@@ -141,7 +144,7 @@ const og=k=>document.querySelector('meta[property="'+k+'"]')?.content;
 return {title:clean(heads[0]?.innerText||og('og:title')||document.title),body:clean(main.innerText).slice(0,10000),blocks,links,article:{title:rootTitle(),summary:clean(og('og:description')||editorialRoot.innerText).slice(0,500),description:clean(og('og:description')),og_title:clean(og('og:title')),body_evidence:clean(editorialRoot.innerText).slice(0,2500),image:og('og:image')||images(editorialRoot)[0]||null,image_details:imageDetails(editorialRoot),link_details:linkDetails(editorialRoot),links:linkDetails(editorialRoot).map(x=>x.url).slice(0,30),cta:linkDetails(editorialRoot).filter(x=>x.label).map(x=>x.label).slice(0,30),date_evidence:dateEvidence,page_metrics:audit(editorialRoot),evidence_scope:articleRoot?'editorial_root':'page_main'}};
 }"""
 async def scan(browser,session,brand,checked,old):
-    root=ROOTS[brand]; page_limit=PRIORITY_PAGE_LIMIT if brand=='TNF' else PAGE_LIMIT; row={"brand":brand,"root":root,"pages_checked":0,"items":[],"errors":[]}
+    root=ROOTS[brand]; page_limit=PRIORITY_PAGE_LIMIT if brand in PRIORITY_BRANDS else PAGE_LIMIT; row={"brand":brand,"root":root,"pages_checked":0,"items":[],"errors":[]}
     same=lambda u: scoped(brand,u)
     # robots retrieval is origin-level; allow only the official host.
     policy=PolicyCache(session,UA,lambda u:urlsplit(u).scheme=="https" and official_host(brand,u))
@@ -155,13 +158,22 @@ async def scan(browser,session,brand,checked,old):
         else: await r.continue_()
     await context.route("**/*",route)
     page=await context.new_page()
-    queue=[root]+SEEDS.get(brand,[]);seen=set();ids=set()
+    queue=[root]+SEEDS.get(brand,[])
+    previous=sorted((x for x in old.values() if x.get("brand")==brand),key=lambda x:x.get("last_seen_at",""),reverse=True)
+    for x in previous:
+        v=x.get("url") if x.get("placement")=="main_visual" else x.get("source_url")
+        if isinstance(v,str) and same(v) and KEY.search(v) and v not in queue: queue.append(v)
+        if len(queue)>=page_limit: break
+    seen=set();ids=set()
+    row["discovered_urls"]=0;row["pages_attempted"]=0;row["pending_urls"]=0;row["budget_limit"]=page_limit
+    row["homepage_observed"]=False
     deadline=asyncio.get_running_loop().time()+BRAND_SECONDS
     try:
         while queue and len(seen)<page_limit and asyncio.get_running_loop().time()<deadline:
             u=canonical(queue.pop(0))
             if u in seen or not same(u) or origin(u) in blocked: continue
             seen.add(u)
+            row["pages_attempted"]+=1
             if not await policy.permitted(u):
                 reason=policy.reason(u)
                 row["errors"].append({"url":u,"error":reason})
@@ -173,9 +185,10 @@ async def scan(browser,session,brand,checked,old):
                     blocked.update([origin(u),origin(page.url)]);raise RuntimeError("HTTP "+str(resp.status)+"; origin stopped")
                 if not resp or resp.status>=400 or not same(page.url): raise RuntimeError("navigation failed or out of scope")
                 await page.wait_for_timeout(1200)
-                for _ in range(2):
-                    await page.evaluate("window.scrollBy(0, Math.max(window.innerHeight, 650))")
-                    await page.wait_for_timeout(400)
+                for _ in range(8 if brand in PRIORITY_BRANDS else 5):
+                    end=await page.evaluate("()=>{const prior=window.scrollY;window.scrollBy(0,Math.max(window.innerHeight,650));return window.scrollY===prior}")
+                    await page.wait_for_timeout(450)
+                    if end: break
                 await page.evaluate("window.scrollTo(0,0)")
                 data=await page.evaluate(EXTRACT)
                 if len(data["body"])<100 or re.search(r"access denied|captcha|접근이 제한",data["body"][:600],re.I): raise RuntimeError("blocked or empty document")
@@ -185,6 +198,7 @@ async def scan(browser,session,brand,checked,old):
                 row["pages_checked"]+=1
                 path=urlsplit(source).path.lower().rstrip("/")
                 home=u==canonical(root) or (host(source)==ALTERNATE.get(brand) and path in ("/k2","/eider","/natgeo"))
+                if home: row["homepage_observed"]=True
                 listing=bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$|/stories/(?:main|all|filmDetail)$|/campaign$",path,re.I))
                 blocks=data["blocks"] if home else ([] if listing else [data["article"]])
                 for b in blocks:
@@ -223,11 +237,14 @@ async def scan(browser,session,brand,checked,old):
                 queue=list(dict.fromkeys(queue))
                 # Explicit editorial routes outrank generic category and promotion hubs.
                 queue.sort(key=lambda v: 0 if re.search(r"/(?:blogs/[^/]+/|special/\d+|story|stories|journal|magazine|lookbook|campaign|explore|collection/\d+)",urlsplit(v).path,re.I) else 1)
-                queue=queue[:100]
+                row["discovered_urls"]=max(row["discovered_urls"],len(seen)+len(queue))
+                queue=queue[:240]
             except Exception as e: row["errors"].append({"url":u,"error":str(e)[:300]})
             await asyncio.sleep(2)
     finally:
         await context.close()
+    row["pending_urls"]=len(queue)
+    row["budget_exhausted"]=bool(queue and (len(seen)>=page_limit or asyncio.get_running_loop().time()>=deadline))
     row["status"]="candidate" if row["items"] else "no_candidate" if row["pages_checked"] else "not_collected"
     return row
 def aggregate(rows,prior,checked,prior_brands=None):
