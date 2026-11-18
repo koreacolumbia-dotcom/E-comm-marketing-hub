@@ -3,11 +3,11 @@ from calendar import monthrange
 from datetime import date
 from html import escape
 
-ROWS=("공식몰 프로모션","LMS","KAKAO","EDM","노스페이스","K2","디스커버리","블랙야크","네파","코오롱스포츠","아이더","내셔널지오그래픽","스노우피크","밀레")
+ROWS=("공식몰 프로모션","LMS","KAKAO","EDM","상품 출시","Paid Media","Meta Creative","노스페이스","K2","디스커버리","블랙야크","네파","코오롱스포츠","아이더","내셔널지오그래픽","스노우피크","밀레")
 def calendar_svg(year,month,events,today=None):
     days=monthrange(year,month)[1]
     first,last=date(year,month,1),date(year,month,days)
-    left,width=150,1000
+    left,width=170,1200
     step=(width-left-12)/days
     esc=lambda s:escape(str(s),quote=True)
     grouped={r:[] for r in ROWS}
@@ -50,7 +50,7 @@ def calendar_svg(year,month,events,today=None):
             for a,b,e in t:
                 x=left+(a.day-1)*step;w=(b.day-a.day+1)*step-2
                 planned=e.get("status") in ("planned","예정")
-                color="#28557e" if row in ROWS[:4] else "#6587a5"
+                color="#28557e" if row in ROWS[:7] else "#6587a5"
                 title=esc(e["title"]);clip=f"e{len(out)}"
                 opacity=.2 if planned else 1
                 dash="4 3" if planned else "none"
@@ -65,3 +65,20 @@ def calendar_svg(year,month,events,today=None):
     for e in unknown:
         add(f'<text x="8" y="{y}" font-size="12" fill="#697887">{esc(e["row"])} · {esc(e["title"])} — 기간/검증 미확인</text>');y+=23
     return "".join(out)+"</svg>"
+
+def calendar_model(end_date, events=None, competitor=None):
+    """Explicit event dates only. Page-wide mentions never establish a promotion period."""
+    day=date.fromisoformat(end_date)
+    entries=list(events or [])
+    if day.year==2026 and day.month==11 and not any(e.get("row")=="공식몰 프로모션" and e.get("title")=="컬럼비아 윈터 페스티벌" for e in entries):
+        entries.append(dict(row="공식몰 프로모션",title="컬럼비아 윈터 페스티벌",start="2026-11-20",end="2026-11-29",status="planned",source="user supplied schedule"))
+    aliases=dict(zip(("TNF","K2","DISCOVERY","BLACKYAK","NEPA","KOLON SPORT","EIDER","NATIONAL GEOGRAPHIC","SNOW PEAK","MILLET"),ROWS[7:]))
+    coverage=[]
+    for brand in (competitor or {}).get("brands",[]):
+        row=aliases.get(brand.get("brand"))
+        if not row: continue
+        coverage.append(dict(row=row,status=brand.get("status"),pages_checked=brand.get("pages_checked"),errors=brand.get("errors",[])))
+        for e in brand.get("verified_events",[]):
+            if e.get("verified") is True and e.get("source_url") and e.get("title") and e.get("start") and e.get("end"):
+                entries.append(dict(row=row,title=e["title"],start=e["start"],end=e["end"],status="verified",source=e["source_url"]))
+    return dict(events=entries,coverage=coverage,svg=calendar_svg(day.year,day.month,entries,day),unknown_is_no_event=False)
