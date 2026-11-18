@@ -33,6 +33,22 @@ export function classifyPurpose(x){
 }
 
 // Offline content strategy analysis; no network.
+export function visualPairs(items,limit=500){
+ const groups=new Map(),out=[];
+ for(const x of items||[]){const sig=x.visual_signature;if(!sig||!/^[a-f0-9]{16}$/i.test(sig.dhash||'')||!Number.isFinite(sig.aspect)||sig.aspect<=0)continue;
+  if(!groups.has(x.brand))groups.set(x.brand,[]);groups.get(x.brand).push(x)}
+ const distance=(a,b)=>{let n=0;for(let i=0;i<16;i++){let k=parseInt(a[i],16)^parseInt(b[i],16);while(k){n++;k&=k-1}}return n};
+ for(const [brand,xs] of groups){const sample=xs.slice(0,200);for(let i=0;i<sample.length;i++)for(let j=i+1;j<sample.length;j++){const a=sample[i],b=sample[j],as=a.visual_signature,bs=b.visual_signature;
+  if(out.length>=limit)return out;
+  const exact=!!as.pixel_sha256&&as.pixel_sha256===bs.pixel_sha256;
+  if(!exact&&Math.abs(Math.log(as.aspect/bs.aspect))>.08)continue;
+  // Low-entropy fingerprints (solid colors/common layouts) are not useful near-match leads.
+  if(!exact&&([as.dhash,bs.dhash].some(h=>/^(?:0{16}|f{16})$/i.test(h))))continue;
+  const d=distance(as.dhash,bs.dhash);if(!exact&&d>5)continue;
+  out.push({brand,a_id:a.id,b_id:b.id,a_title:a.title,b_title:b.title,a_url:a.source_url,b_url:b.source_url,distance:d,kind:exact?"same_rendered_image":"near_visual_candidate"});
+ }}
+ return out
+}
 export function analyze(feed){
  const norm=s=>String(s??"").normalize("NFKC").replace(/\s+/g," ").trim().toLowerCase();
  const canon=s=>{const m=String(s??"").match(/^https:\/\/([^/?#]+)([^?#]*)(?:\?([^#]*))?/i);if(!m)return "";const p=(m[2]||"/").replace(/\/$/,"");const q=(m[3]||"").split("&").filter(x=>x&&!/^(utm_[^=]*|gclid|fbclid|ref|tracking|sort|inStock)=/i.test(x)).sort().join("&");return "https://"+m[1].toLowerCase()+p+(q?"?"+q:"")};
@@ -76,9 +92,10 @@ export function analyze(feed){
  const describe=x=>({...x,strategy_signals:rules.filter(r=>match(x,r)).map(r=>r[0]),purpose:classifyPurpose(x)});
  const items=c.items.map(describe);
  const historyItems=h.items.map(describe);
- const brands=(feed.brands||[]).map(b=>{const xs=items.filter(x=>x.brand===b.brand),n=xs.length,retained=historyItems.filter(x=>x.brand===b.brand).length;const signals=Object.fromEntries(rules.map(r=>[r[0],n?xs.filter(x=>x.strategy_signals.includes(r[0])).length:null]));return {brand:b.brand,pages_checked:b.pages_checked,raw_count:b.candidate_count,unique_count:n,retained_unique_count:retained,retained_scope:"recent_30d_observations",pending_urls:b.pending_urls??null,sitemap_urls:b.sitemap_urls??null,coverage_plan:b.coverage_plan??null,collection_status:b.status,signals,dominant_signals:rules.filter(r=>signals[r[0]]>0).sort((a,b)=>signals[b[0]]-signals[a[0]]).slice(0,2).map(r=>r[1]),sample_status:n<3?"thin_sample":"observed_sample",examples:xs.slice(0,2).map(x=>ref(x,"observed"))}});
+ const visualReview=visualPairs(historyItems);
+ const brands=(feed.brands||[]).map(b=>{const xs=items.filter(x=>x.brand===b.brand),n=xs.length,retained=historyItems.filter(x=>x.brand===b.brand).length;const signals=Object.fromEntries(rules.map(r=>[r[0],n?xs.filter(x=>x.strategy_signals.includes(r[0])).length:null]));return {brand:b.brand,pages_checked:b.pages_checked,raw_count:b.candidate_count,unique_count:n,retained_unique_count:retained,retained_scope:"recent_30d_observations",pending_urls:b.pending_urls??null,sitemap_urls:b.sitemap_urls??null,url_coverage:b.url_coverage??null,archive_entries_retained:b.archive_entries_retained??null,recent_skip_count:b.recent_skip_count??null,coverage_plan:b.coverage_plan??null,collection_status:b.status,signals,dominant_signals:rules.filter(r=>signals[r[0]]>0).sort((a,b)=>signals[b[0]]-signals[a[0]]).slice(0,2).map(r=>r[1]),sample_status:n<3?"thin_sample":"observed_sample",examples:xs.slice(0,2).map(x=>ref(x,"observed"))}});
  const market=items.filter(x=>x.brand!=="COLUMBIA"),owned=items.filter(x=>x.brand==="COLUMBIA"),insights=[];
  for(const r of rules){const ms=market.filter(x=>x.strategy_signals.includes(r[0])),os=owned.filter(x=>x.strategy_signals.includes(r[0])),bs=[...new Set(ms.map(x=>x.brand))];if(!ms.length)continue;const gap=market.length&&owned.length?Math.round((ms.length/market.length-os.length/owned.length)*1000)/10:null;insights.push({signal:r[0],label:r[1],action:r[3],kpi:r[4],competitor_count:ms.length,competitor_total:market.length,competitor_brands:bs.length,owned_count:os.length,owned_total:owned.length,gap_pp:gap,priority:bs.length>=2&&owned.length>=3&&gap>0?"review":"reference",references:bs.slice(0,3).map(b=>{const x=ms.find(y=>y.brand===b);return ref(x,[x.title,x.summary].join(" ").match(r[2])?.[0]||"분류 태그 또는 연결 근거")})})}
  insights.sort((a,b)=>(b.priority==="review")-(a.priority==="review")||b.competitor_brands-a.competitor_brands||b.competitor_count-a.competitor_count);
- return {source_checked_at:feed.checked_at_kst,schema_version:1,notes:"Observed content candidates, not publication or performance. Multi-label inferred signals. 27SS ideas are hypotheses; uncollected is not zero.",quality:{raw_count:(feed.items||[]).length,unique_count:items.length,retained_unique_count:historyItems.length,rejected_count:c.rejected.length,merged_count:c.merged.length,market_count:market.length,owned_count:owned.length},signals:rules.map(r=>({id:r[0],label:r[1]})),purpose_confidence:Object.fromEntries(["evidence_based","inferred","insufficient"].map(k=>[k,items.filter(x=>x.purpose.confidence===k).length])),purpose_counts:Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.purpose.code===code).length])),purpose_by_brand:Object.fromEntries(brands.map(b=>[b.brand,Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.brand===b.brand&&x.purpose.code===code).length]))])),brands,insights,items,history:historyItems,dedup_audit:{rejected:c.rejected,merged:c.merged}}
+ return {source_checked_at:feed.checked_at_kst,schema_version:1,notes:"Observed content candidates, not publication or performance. Multi-label inferred signals. 27SS ideas are hypotheses; uncollected is not zero.",quality:{raw_count:(feed.items||[]).length,unique_count:items.length,retained_unique_count:historyItems.length,visual_signature_count:historyItems.filter(x=>x.visual_signature).length,visual_review_pairs:visualReview.length,rejected_count:c.rejected.length,merged_count:c.merged.length,market_count:market.length,owned_count:owned.length},signals:rules.map(r=>({id:r[0],label:r[1]})),purpose_confidence:Object.fromEntries(["evidence_based","inferred","insufficient"].map(k=>[k,items.filter(x=>x.purpose.confidence===k).length])),purpose_counts:Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.purpose.code===code).length])),purpose_by_brand:Object.fromEntries(brands.map(b=>[b.brand,Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.brand===b.brand&&x.purpose.code===code).length]))])),brands,insights,items,history:historyItems,visual_review:visualReview,dedup_audit:{rejected:c.rejected,merged:c.merged}}
 }
