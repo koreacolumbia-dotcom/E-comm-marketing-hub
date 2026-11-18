@@ -46,13 +46,17 @@ SEEDS={"ARC'TERYX":["https://arcteryx.co.kr/explore/whoweare","https://arcteryx.
 "MILLET":["https://www.millet.co.kr/front/main","https://www.millet.co.kr/front/etc/brand_story","https://www.millet.co.kr/front/promo/pstories/196","https://www.millet.co.kr/front/promo/pstories/154","https://www.millet.co.kr/front/promo/pstories/161"]}
 ALTERNATE={"K2":"k-village.co.kr","EIDER":"k-village.co.kr","NATIONAL GEOGRAPHIC":"nstationmall.com","SNOW PEAK":"snowpeak.co.kr"}
 NATGEO_CURATED_PATHS={"/event/planning/1155","/event/planning/1157","/event/planning/1124"}
-PAGE_LIMIT=int(os.getenv("CONTENT_PAGE_LIMIT","48"))
-PRIORITY_PAGE_LIMIT=int(os.getenv("CONTENT_PRIORITY_PAGE_LIMIT","64"))
-BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","420"))
+PAGE_LIMIT=int(os.getenv("CONTENT_PAGE_LIMIT","120"))
+PRIORITY_PAGE_LIMIT=int(os.getenv("CONTENT_PRIORITY_PAGE_LIMIT","180"))
+BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","1200"))
+SCROLL_LIMIT=int(os.getenv("CONTENT_SCROLL_LIMIT","80"))
+SCROLL_STABLE_LIMIT=4
+FRONTIER_LIMIT=5000
 PRIORITY_BRANDS={"TNF","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
 UA="CSKMarketResearchBot"
 OUT=Path("reports/competitor_content")
 DISCOVERY_FILE=OUT/"public-discovery.json"
+FRONTIER_FILE=OUT/"crawl-frontier.json"
 KEY=re.compile(r"story|stories|pstories|journal|magazine|editorial|lookbook|campaign|explore|discover|collection|special|exhibition|technology|heritage|ambassador|athlete|community|responsibility|/event/view/|/event/planning/|/plan/|/lp(?:/|$)|/pages/|스토리|매거진|룩북|화보|캠페인|컬렉션|기술력|헤리티지|앰배서더|크리에이터|커뮤니티|기획전",re.I)
 DENY=re.compile(r"(?:^|[/_.?&=])(?:login|logout|register|account|auth|cart|checkout|order|my|mypage|member|customer|support|faq|privacy|terms|admin|search|review|location|stores?|notice|raffle)(?:[/_.?&=]|$)",re.I)
 PDP=re.compile(r"/(?:products?/(?:view|detail)(?:/|$)|products/[^/]+/?$|goods/view|goods_view)|[?&](?:goodsNo|productNo)=",re.I)
@@ -144,7 +148,58 @@ for(const a of main.querySelectorAll('a[href] img')){if(!visible(a)||a.getBoundi
 const og=k=>document.querySelector('meta[property="'+k+'"]')?.content;
 return {title:clean(heads[0]?.innerText||og('og:title')||document.title),body:clean(main.innerText).slice(0,10000),blocks,links,article:{title:rootTitle(),summary:clean(og('og:description')||editorialRoot.innerText).slice(0,500),description:clean(og('og:description')),og_title:clean(og('og:title')),body_evidence:clean(editorialRoot.innerText).slice(0,2500),image:og('og:image')||images(editorialRoot)[0]||null,image_details:imageDetails(editorialRoot),link_details:linkDetails(editorialRoot),links:linkDetails(editorialRoot).map(x=>x.url).slice(0,30),cta:linkDetails(editorialRoot).filter(x=>x.label).map(x=>x.label).slice(0,30),date_evidence:dateEvidence,page_metrics:audit(editorialRoot),evidence_scope:articleRoot?'editorial_root':'page_main'}};
 }"""
-async def scan(browser,session,brand,checked,old):
+def unique_urls(urls,accept):
+    out={}
+    for u in urls:
+        if not isinstance(u,str): continue
+        try:
+            v=canonical(u)
+            if accept(v): out.setdefault(v,None)
+        except (ValueError,TypeError): continue
+    return list(out)
+
+SCROLL_STATE=r"""() => {
+ const root=document.scrollingElement||document.documentElement;
+ const links=Array.from(document.querySelectorAll('a[href]')).filter(a=>{const r=a.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(a).visibility!=='hidden'}).map(a=>({url:a.href,label:(a.innerText||a.getAttribute('aria-label')||a.title||a.querySelector('img')?.alt||'').replace(/\s+/g,' ').trim().slice(0,180),pagination:a.rel==='next'||!!a.closest('[class*="pagination" i],[class*="paging" i],[aria-label*="pagination" i]')}));
+ const imgs=Array.from(document.images).filter(i=>i.complete&&i.naturalWidth>=400).length;
+ return {height:root.scrollHeight,top:root.scrollTop,bottom:root.scrollTop+root.clientHeight>=root.scrollHeight-12,imgs,links};
+}"""
+async def explore_scroll(page, deadline, listing=False):
+    # Record links during scrolling, including links later removed by lazy/virtualized DOM.
+    observed={};stable=0;prev=None;steps=0;more_clicks=0;stop="scroll_budget"
+    until=min(deadline,asyncio.get_running_loop().time()+(100 if listing else 45))
+    while steps<SCROLL_LIMIT and asyncio.get_running_loop().time()<until:
+        state=await page.evaluate(SCROLL_STATE)
+        new=0
+        for link in state["links"]:
+            u=link["url"]
+            if u not in observed: observed[u]=link;new+=1
+            elif link.get("pagination"): observed[u]["pagination"]=True
+        signature=(state["height"],state["imgs"],len(observed))
+        stable=stable+1 if state["bottom"] and signature==prev and new==0 else 0
+        prev=signature
+        if stable>=SCROLL_STABLE_LIMIT:
+            # Only a normal, visible public list expansion control. No forced/private actions.
+            if listing and more_clicks<12:
+                btn=page.get_by_role("button",name=re.compile(r"^(?:콘텐츠\s*더\s*보기|기획전\s*더\s*보기|더\s*보기|load more|show more|view more)$",re.I)).first
+                try:
+                    if await btn.count() and await btn.is_visible() and await btn.is_enabled():
+                        await btn.click(timeout=2000);more_clicks+=1;stable=0
+                        await page.wait_for_timeout(900);continue
+                except Exception: pass
+            stop="stable_bottom";break
+        await page.evaluate("()=>window.scrollBy(0,Math.max(Math.floor(window.innerHeight*.85),450))")
+        steps+=1
+        await page.wait_for_timeout(700)
+    else:
+        if asyncio.get_running_loop().time()>=until: stop="time_budget"
+    await page.evaluate("()=>window.scrollTo(0,0)")
+    return list(observed.values()),{"steps":steps,"more_clicks":more_clicks,"stop":stop,"links":len(observed)}
+def content_link(url,label,listing=False,pagination=False):
+    if listing and pagination: return True
+    return bool(KEY.search(url+" "+label) or (listing and re.search(r"event|promo|project|_exh|planning|/article/|campaignCode|/filmDetail/|story|journal|/special/",url,re.I)))
+
+async def scan(browser,session,brand,checked,old,frontier=None):
     root=ROOTS[brand]; page_limit=PRIORITY_PAGE_LIMIT if brand in PRIORITY_BRANDS else PAGE_LIMIT; row={"brand":brand,"root":root,"pages_checked":0,"items":[],"errors":[]}
     same=lambda u: scoped(brand,u)
     # robots retrieval is origin-level; allow only the official host.
@@ -168,25 +223,35 @@ async def scan(browser,session,brand,checked,old):
             # Only ordinary public official destinations. Respect robots on all new origins.
             if isinstance(url,str) and scoped(brand,url) and url not in queue: queue.append(url)
     except (OSError,ValueError,TypeError): pass
+    # Reserve most of the next run for unfinished discovery, rather than repeating the same first pages.
+    seeds=unique_urls(queue,same)
+    backlog=unique_urls((frontier or {}).get("pending",[]),same)
+    queue=unique_urls(seeds[:4]+backlog+seeds[4:],same)
     previous=sorted((x for x in old.values() if x.get("brand")==brand),key=lambda x:x.get("last_seen_at",""),reverse=True)
     for x in previous:
         v=x.get("url") if x.get("placement")=="main_visual" else x.get("source_url")
         if isinstance(v,str) and same(v) and KEY.search(v) and v not in queue: queue.append(v)
-        if len(queue)>=page_limit: break
+        if len(queue)>=FRONTIER_LIMIT: break
     seen=set();ids=set()
     row["discovered_urls"]=0;row["pages_attempted"]=0;row["pending_urls"]=0;row["budget_limit"]=page_limit
     row["homepage_observed"]=False
+    row["scroll_steps"]=0;row["load_more_clicks"]=0;row["scroll_limited_pages"]=0
+    row["pagination_links"]=0;row["frontier_start"]=len(backlog);row["frontier_truncated"]=0
+    deferred=[]
     deadline=asyncio.get_running_loop().time()+BRAND_SECONDS
     try:
         while queue and len(seen)<page_limit and asyncio.get_running_loop().time()<deadline:
             u=canonical(queue.pop(0))
-            if u in seen or not same(u) or origin(u) in blocked: continue
+            if u in seen or not same(u): continue
+            if origin(u) in blocked:
+                deferred.append(u);continue
             seen.add(u)
             row["pages_attempted"]+=1
             if not await policy.permitted(u):
                 reason=policy.reason(u)
                 row["errors"].append({"url":u,"error":reason})
-                if re.search(r"HTTP (?:403|429)|CertificateError",str(reason)): blocked.add(origin(u))
+                if re.search(r"HTTP (?:403|429)|CertificateError",str(reason)):
+                    blocked.add(origin(u));deferred.append(u)
                 continue
             try:
                 resp=await page.goto(u,wait_until="domcontentloaded",timeout=18000)
@@ -194,11 +259,11 @@ async def scan(browser,session,brand,checked,old):
                     blocked.update([origin(u),origin(page.url)]);raise RuntimeError("HTTP "+str(resp.status)+"; origin stopped")
                 if not resp or resp.status>=400 or not same(page.url): raise RuntimeError("navigation failed or out of scope")
                 await page.wait_for_timeout(1200)
-                for _ in range(8 if brand in PRIORITY_BRANDS else 5):
-                    end=await page.evaluate("()=>{const prior=window.scrollY;window.scrollBy(0,Math.max(window.innerHeight,650));return window.scrollY===prior}")
-                    await page.wait_for_timeout(450)
-                    if end: break
-                await page.evaluate("window.scrollTo(0,0)")
+                path_hint=urlsplit(page.url).path.lower()
+                list_hint=u==canonical(root) or bool(re.search(r"list|archive|/special/?$|/campaign/?$|/stories/(?:main|all)|/blogs/[^/]+/?$|/events/?$|/promotion/?$",path_hint)) or any(e.get("kind")=="list" and e.get("brand")==brand and canonical(e.get("url",""))==u for e in locals().get("discovered",[]))
+                scroll_links,scroll=await explore_scroll(page,deadline,list_hint)
+                row["scroll_steps"]+=scroll["steps"];row["load_more_clicks"]+=scroll["more_clicks"]
+                row["scroll_limited_pages"]+=int(scroll["stop"]!="stable_bottom")
                 data=await page.evaluate(EXTRACT)
                 if len(data["body"])<100 or re.search(r"access denied|captcha|접근이 제한",data["body"][:600],re.I): raise RuntimeError("blocked or empty document")
                 source=canonical(page.url)
@@ -241,20 +306,32 @@ async def scan(browser,session,brand,checked,old):
                                     except Exception: pass
                                 await handle.dispose()
                             except Exception: pass
-                for link in data["links"]:
+                found=[]
+                for link in [*scroll_links,*data["links"]]:
                     v=canonical(link["url"])
-                    if same(v) and v not in seen and (KEY.search(v+" "+link["label"]) or (listing and re.search(r"event|promo|project|_exh|planning|/article/|campaignCode|/filmDetail/|story|journal|/special/",v,re.I))) and not SALE.search(link["label"]): queue.append(v)
+                    if not same(v) or v in seen or SALE.search(link["label"]): continue
+                    if content_link(v,link["label"],listing or list_hint,link.get("pagination",False)):
+                        if link.get("pagination"): row["pagination_links"]+=1
+                        found.append(v)
+                queue.extend(found)
                 queue=list(dict.fromkeys(queue))
                 # Explicit editorial routes outrank generic category and promotion hubs.
                 queue.sort(key=lambda v: 0 if re.search(r"/(?:blogs/[^/]+/|special/\d+|story|stories|journal|magazine|lookbook|campaign|explore|collection/\d+)",urlsplit(v).path,re.I) else 1)
                 row["discovered_urls"]=max(row["discovered_urls"],len(seen)+len(queue))
-                queue=queue[:240]
-            except Exception as e: row["errors"].append({"url":u,"error":str(e)[:300]})
-            await asyncio.sleep(2)
+                if len(queue)>FRONTIER_LIMIT:
+                    row["frontier_truncated"]+=len(queue)-FRONTIER_LIMIT
+                    queue=queue[:FRONTIER_LIMIT]
+            except Exception as e:
+                row["errors"].append({"url":u,"error":str(e)[:300]})
+                if origin(u) in blocked or "Timeout" in str(e): deferred.append(u)
+            await asyncio.sleep(policy.delay(u))
     finally:
         await context.close()
-    row["pending_urls"]=len(queue)
+    pending=unique_urls([*queue,*deferred],same)
+    row["pending_urls"]=len(pending)
+    row["_pending"]=pending[:FRONTIER_LIMIT]
     row["budget_exhausted"]=bool(queue and (len(seen)>=page_limit or asyncio.get_running_loop().time()>=deadline))
+    row["discovery_complete"]=not pending and not row["errors"] and not row["scroll_limited_pages"] and not row["frontier_truncated"]
     row["status"]="candidate" if row["items"] else "no_candidate" if row["pages_checked"] else "not_collected"
     return row
 def aggregate(rows,prior,checked,prior_brands=None):
@@ -269,7 +346,7 @@ def aggregate(rows,prior,checked,prior_brands=None):
     for b in rows:
         hist=[x for x in history if x["brand"]==b["brand"]]
         known=[x for x in hist if x.get("published_at")]
-        summary.append({k:v for k,v in b.items() if k!="items"}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
+        summary.append({k:v for k,v in b.items() if k not in ("items","_pending")}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
     return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
@@ -296,6 +373,9 @@ def self_test():
     assert scoped("TNF","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320")
     assert not scoped("TNF","https://www.thenorthfacekorea.co.kr/product/NN2PQ58B")
     assert not scoped("MAMMUT","https://www.mammut.kr/product/detail.html?product_no=12")
+    assert content_link("https://example.org/events?page=2","2",True,True)
+    assert not content_link("https://example.org/about","2",False,False)
+    assert unique_urls(["https://salomon.co.kr/pages/x?utm_source=a","https://salomon.co.kr/pages/x"],lambda u:scoped("SALOMON",u))==["https://salomon.co.kr/pages/x"]
     print("content self-tests passed")
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
@@ -304,16 +384,27 @@ async def main():
     previous=json.loads(dest.read_text()) if dest.exists() else {}
     prior=previous.get("history",[])
     old={x["id"]:x for x in prior}
+    try: frontier=json.loads(FRONTIER_FILE.read_text()).get("brands",{})
+    except (OSError,ValueError): frontier={}
+    origin_locks={}
+    def group(brand): return ALTERNATE.get(brand) or host(ROOTS[brand])
     async with aiohttp.ClientSession(headers={"User-Agent":UA},timeout=aiohttp.ClientTimeout(total=15)) as session:
         async with async_playwright() as p:
             browser=await p.chromium.launch(headless=True,**({"executable_path":os.environ["CRAWLER_CHROME"]} if os.environ.get("CRAWLER_CHROME") else {}))
-            sem=asyncio.Semaphore(3)
+            sem=asyncio.Semaphore(4)
             async def task(brand):
                 async with sem:
-                    try: return await asyncio.wait_for(scan(browser,session,brand,checked,old),timeout=BRAND_SECONDS+30)
+                    try:
+                        async with origin_locks.setdefault(group(brand),asyncio.Lock()):
+                            return await asyncio.wait_for(scan(browser,session,brand,checked,old,frontier.get(brand)),timeout=BRAND_SECONDS+60)
                     except Exception as e: return {"brand":brand,"root":ROOTS[brand],"pages_checked":0,"items":[],"status":"not_collected","errors":[{"error":str(e) or type(e).__name__}]}
             rows=await asyncio.gather(*(task(b) for b in ROOTS))
             await browser.close()
+    for b in rows:
+        if "_pending" in b: frontier[b["brand"]]={"pending":b["_pending"],"checked_at_kst":checked}
+    temp=FRONTIER_FILE.with_suffix(".tmp")
+    temp.write_text(json.dumps({"schema_version":1,"brands":frontier},ensure_ascii=False,separators=(",",":")))
+    temp.replace(FRONTIER_FILE)
     payload=aggregate(rows,prior,checked,previous.get('brands',[]))
     if not payload["coverage"]["accessible"]:
         (OUT/"failed-run.json").write_text(json.dumps(payload,ensure_ascii=False,indent=2))
