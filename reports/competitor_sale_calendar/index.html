@@ -184,9 +184,9 @@ var firstStamp=shiftDay(iso(year,month,1),-first);
 var groups=eventGroups(data.events.filter(filtered));
 function selectDay(stamp){selected=stamp;year=Number(stamp.slice(0,4));month=Number(stamp.slice(5,7));render()}
 for(var w=0;w<count;w+=7){
-  var days=Array.from({length:7},function(_,index){return shiftDay(firstStamp,w+index)});
+  let days=Array.from({length:7},function(_,index){return shiftDay(firstStamp,w+index)});
   var packed=weekSegments(groups,days,shiftDay(days[0],-1),shiftDay(days[6],1));
-  var row=document.createElement('div');row.className='calendar-week';row.style.setProperty('--lanes',String(packed.laneCount));
+  var row=document.createElement('div');row.className='calendar-week';row.style.setProperty('--lanes',String(Math.max(1,packed.laneCount)));
   days.forEach(function(stamp,index){
     var b=document.createElement('button'),m=Number(stamp.slice(5,7)),actual=Number(stamp.slice(8,10));
     b.type='button';b.className='day'+(m!==month?' dim':'')+(stamp===selected?' sel':'')+(stamp===data.as_of?' today':'');
