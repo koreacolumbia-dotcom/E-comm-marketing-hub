@@ -39,19 +39,19 @@ BRANDS = {
     "nepa":"NEPA","millet":"MILLET","arcteryx":"Arc'teryx",
     "patagonia":"Patagonia","newbalance":"New Balance",
     "blackyak_kids":"Black Yak Kids","montbell":"Montbell",
-    "eider":"Eider"
+    "eider":"Eider", "national_geographic":"National Geographic"
 }
 HOSTS = {
     "tnf": ("thenorthfacekorea.co.kr",),
     "blackyak":("byn.kr",),
     "snowpeak":("snowpeakstore.co.kr",),
     "discovery":("discovery-expedition.com","discovery-expedition.co.kr"),
-    "kolonsport":("kolonsport.com","kolonsport.co.kr"),
+    "kolonsport":("kolonsport.com","kolonsport.co.kr","kolonmall.com"),
     "k2":("k2.co.kr",), "salomon":("salomon.co.kr",),
-    "nepa":("nepa.co.kr",), "millet":("millet.co.kr",),
+    "nepa":("nepa.co.kr","nplus.co.kr"), "millet":("millet.co.kr",),
     "arcteryx":("arcteryx.co.kr",),
     "patagonia":("patagonia.co.kr",),
-    "newbalance":("nbkorea.com",), "eider":("eider.co.kr",)
+    "newbalance":("nbkorea.com",), "eider":("eider.co.kr",),"national_geographic":("naturestore.co.kr",)
 }
 OBS_RE = re.compile(r"^hero_main_banners_(\d{8})_\d{6}\.csv$")
 DATED_PERIOD = re.compile(
@@ -88,9 +88,13 @@ def safe_url(value: str, brand: str | None = None, registry: bool = False) -> st
         if registry:
             # Registry is curated from official retailers (SSF SHOP etc).
             allowed = ("ssfshop.com","kream.co.kr","snowpeakstore.co.kr",
-                       "byn.kr","thenorthfacekorea.co.kr")
+                       "byn.kr","thenorthfacekorea.co.kr","nplus.co.kr","kolonmall.com")
         else:
             allowed = HOSTS.get(brand or "",())
+        if registry and host in ("nplus.co.kr","www.nplus.co.kr") and brand != "nepa":
+            return None
+        if registry and (host == "kolonmall.com" or host.endswith(".kolonmall.com")) and brand != "kolonsport":
+            return None
         if not any(host == d or host.endswith("."+d) for d in allowed):
             return None
         return parts.geturl()
@@ -205,7 +209,7 @@ def read_registry(path: Path, as_of: dt.date) -> list[dict]:
             (end is not None and (end<start or (end-start).days>160)) or
             item.get("verification") not in ("official_event_page","official_retailer_page")):
             continue
-        link=safe_url(item.get("source_url"),registry=True)
+        link=safe_url(item.get("source_url"),brand,registry=True)
         if not link:
             continue
         title=clean(item.get("title"),140)
