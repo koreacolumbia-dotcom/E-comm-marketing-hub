@@ -6,7 +6,7 @@ PROFILES={
 "DISCOVERY":{"seeds":["https://www.discovery-expedition.com/display/promotions?type=EVENT&gf=F","https://www.discovery-expedition.com/display/promotions/event/1716","https://www.discovery-expedition.com/display/promotions/collection/705"],"cards":["article","li"]},
 "BLACKYAK":{"seeds":[],"cards":["li","article"]},
 "NEPA":{"seeds":[],"cards":["li","article"]},
-"KOLON SPORT":{"seeds":[],"cards":["article","li"]},
+"KOLON SPORT":{"seeds":["https://www.kolonmall.com/Brands/kolonsport/List/4895","https://www.kolonmall.com/Brands/KOLONSPORT/List/133010020000","https://www.kolonmall.com/Brands/KOLONSPORT/List/4898"],"cards":["article","li"]},
 "EIDER":{"seeds":["https://www.k-village.co.kr/eider","https://www.k-village.co.kr/eventDetail?eventNo=1096","https://www.eider.co.kr/search?k=%EB%8B%A4%EC%9A%B4"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["article","li"]},
 "NATIONAL GEOGRAPHIC":{"seeds":["https://www.nstationmall.com/event/planning/1165","https://www.nstationmall.com/event/planning/1171","https://www.nstationmall.com/event/planning"],"hosts":["www.nstationmall.com","nstationmall.com"],"cards":["article","li"]},
 "SNOW PEAK":{"seeds":["https://www.snowpeakstore.co.kr/board/list.php?bdId=newevent","https://m.snowpeakstore.co.kr/goods/event_sale.php?sno=697"],"cards":["li",".item_cont"]},
@@ -24,7 +24,8 @@ def normalize_cards(rows):
         url=r.get("url","")
         if len(name)<3 or name not in text or not url.startswith("https://"): continue
         if re.search(r'쿠폰\s*적용가|최대\s*혜택가|카드\s*할인가|적립금|적립\s*예정',text): continue
-        rates=re.findall(r'(?<!\d)(\d{1,2})\s*%',text)
+        rate_text=re.sub(r'(?<!\d)\d{1,2}\s*%\s*(?:페이백|마일리지|포인트|적립)', '', text)
+        rates=re.findall(r'(?<!\d)(\d{1,2})\s*%',rate_text)
         regular=single(r.get("regular_text"))
         sale=single(r.get("sale_text"))
         method="dom_price_roles"
