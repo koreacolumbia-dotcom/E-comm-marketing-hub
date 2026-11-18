@@ -48,12 +48,12 @@ for b in data["brands"]:
 n=sum(r["candidate_usable"] for r in rows)
 structured=sum(bool(r["dated_promotion_pages"] and (r["structured_product_prices"] or r["paired_discount_cards"])) for r in rows)
 strict=sum(r["strict_candidate"] for r in rows)
-quality={"accessible_brands":sum(r["pages"]>0 for r in rows),"accessible_pct":sum(r["pages"]>0 for r in rows)*10,"collected_pages":sum(r["pages"] for r in rows),"strict_candidate_brands":strict,"strict_candidate_pct":strict*10,"target_met_strict_candidate":strict>=9,"measurement_available":f.exists() and len(rows)==10,"structured_evidence_brands":structured,"structured_evidence_pct":structured*10,"verified_accuracy_pct":None,"checked_at_kst":data.get("checked_at_kst"),"target":9,"denominator":10,"candidate_usable":n,"candidate_coverage_pct":n*10,"target_met_candidate_only":n>=9,"brands":rows,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
+quality={"accessible_brands":sum(r["pages"]>0 for r in rows),"accessible_pct":sum(r["pages"]>0 for r in rows)*10,"collected_pages":sum(r["pages"] for r in rows),"strict_candidate_brands":strict,"strict_candidate_pct":strict*10,"target_met_strict_candidate":strict>=10,"measurement_available":f.exists() and len(rows)==10,"structured_evidence_brands":structured,"structured_evidence_pct":structured*10,"verified_accuracy_pct":None,"verified_success_brands":None,"verified_success_pct":None,"verified_sample_count":None,"target_met_verified":None,"checked_at_kst":data.get("checked_at_kst"),"target":10,"denominator":10,"candidate_usable":n,"candidate_coverage_pct":n*10,"target_met_candidate_only":n>=10,"brands":rows,"note":"Candidate coverage only; human verification of dates and paired prices still required."}
 p.mkdir(exist_ok=True)
 (p/"quality.json").write_text(json.dumps(quality,ensure_ascii=False,indent=2))
-summary=["# Competitor collection quality",f"Candidate evidence: {n}/10 (target 9/10)","| Brand | Pages | Promo | Price |","|---|---:|---:|---:|"]
+summary=["# Competitor collection quality",f"Candidate evidence: {n}/10 (target 10/10)","| Brand | Pages | Promo | Price |","|---|---:|---:|---:|"]
 summary += [f"| {r['brand']} | {r['pages']} | {r['promotion_pages']} | {r['price_pages']} |" for r in rows]
 if os.getenv("GITHUB_STEP_SUMMARY"):
     with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as out: out.write("\n".join(summary)+"\n")
 print(json.dumps(quality,ensure_ascii=False))
-if len(rows)!=10 or strict<9: raise SystemExit(1)
+if len(rows)!=10 or strict<10: raise SystemExit(1)
