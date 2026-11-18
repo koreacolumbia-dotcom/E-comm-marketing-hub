@@ -7,8 +7,9 @@ export function dateKey(value){
 export function calendarData(items,mode,month,brand,tpo){
  const key=mode==="published"?"published_at":mode==="changed"?"changed_at":"first_seen_at";
  const rows=(items||[]).filter(x=>(!brand||x.brand===brand)&&(!tpo||(x.tpo||[]).includes(tpo)));
- const mapped=new Map(),unknown=rows.filter(x=>!dateKey(x[key])).length;
- for(const x of rows){const d=dateKey(x[key]);if(!d||!d.startsWith(month+"-"))continue;if(mode==="published"&&x.publication_status&&x.publication_status!=="confirmed")continue;const a=mapped.get(d)||[];a.push(x);mapped.set(d,a)}
+ const valid=x=>!!dateKey(x[key])&&(mode!=="published"||x.publication_status==="explicit"||x.publication_status==="confirmed");
+ const mapped=new Map(),unknown=rows.filter(x=>!valid(x)).length;
+ for(const x of rows){const d=dateKey(x[key]);if(!valid(x)||!d.startsWith(month+"-"))continue;const a=mapped.get(d)||[];a.push(x);mapped.set(d,a)}
  return {days:Object.fromEntries(mapped),count:[...mapped.values()].reduce((a,b)=>a+b.length,0),unknown,scope:rows.length}
 }
 export function monthCells(month){

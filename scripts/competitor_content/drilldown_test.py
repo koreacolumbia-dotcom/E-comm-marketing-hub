@@ -18,14 +18,25 @@ async def run():
             u=r.request.url
             if u==ROOT or u==ROOT+"index.html":
                 await r.fulfill(content_type="text/html",body=(BASE/"index.html").read_text())
-            elif u==ROOT+"strategy.mjs":
-                await r.fulfill(content_type="text/javascript",body=(BASE/"strategy.mjs").read_text())
+            elif u in (ROOT+"strategy.mjs",ROOT+"calendar.mjs"):
+                await r.fulfill(content_type="text/javascript",body=(BASE/u.rsplit("/",1)[-1]).read_text())
             elif u==ROOT+"latest.json":
                 await r.fulfill(content_type="application/json",body=json.dumps(feed))
             else: await r.fulfill(status=404,body="")
         await page.route("**/*",route)
         await page.goto(ROOT)
         await page.locator("#tpo .barrow").first.wait_for()
+        await page.locator("#calGrid .has-events").first.wait_for()
+        await page.locator("#calGrid .has-events").first.click()
+        assert await page.locator("#drillCards .tile").count()==3
+        await page.locator("#drillClose").click()
+        await page.locator("#calMode button[data-mode=published]").click()
+        assert await page.locator("#calGrid .has-events").count()==0
+        await page.locator("#calMode button[data-mode=observed]").click()
+        await page.locator("#calBrand").select_option("TNF")
+        await page.locator("#calGrid .has-events").first.click()
+        assert await page.locator("#drillCards .tile").count()==1
+        await page.locator("#drillClose").click()
         await page.locator("#tpo .barrow").filter(has_text="하이킹").click()
         assert await page.locator("#drillCards .tile").count()==2
         assert "2건" in (await page.locator("#drillTitle").inner_text())

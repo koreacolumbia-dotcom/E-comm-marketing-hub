@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {calendarData,monthCells,moveMonth,dateKey} from '../../reports/competitor_content/calendar.mjs';
-const rows=[{id:"1",brand:"TNF",first_seen_at:"2026-11-18T22:00:00+09:00",published_at:null,tpo:["하이킹"]},{id:"2",brand:"COLUMBIA",first_seen_at:"2026-11-18",published_at:"2026-10-01",publication_status:"confirmed",tpo:["러닝"]},{id:"3",brand:"TNF",first_seen_at:"2026-11-19",published_at:"2026-11-19",publication_status:"conflicting",tpo:["하이킹"]}];
+const rows=[{id:"1",brand:"TNF",first_seen_at:"2026-11-18T22:00:00+09:00",published_at:null,tpo:["하이킹"]},{id:"2",brand:"COLUMBIA",first_seen_at:"2026-11-18",published_at:"2026-10-01",publication_status:"explicit",tpo:["러닝"]},{id:"3",brand:"TNF",first_seen_at:"2026-11-19",published_at:"2026-11-19",publication_status:"conflicting",tpo:["하이킹"]}];
 assert.equal(calendarData(rows,"observed","2026-11","","").count,3);
 assert.equal(calendarData(rows,"observed","2026-11","TNF","하이킹").count,2);
 assert.equal(calendarData(rows,"published","2026-11","","").count,0);
