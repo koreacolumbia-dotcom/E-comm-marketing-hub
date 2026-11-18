@@ -4,6 +4,7 @@ from statistics import mean
 from engine import revenue_bridge
 from attribution import marketing_attribution
 from budget_optimizer import optimize
+from social_listening import build_social
 from product_card import enrich_cards
 from business_diagnosis import build_diagnosis
 from style_anomaly import rank_styles
@@ -402,6 +403,8 @@ def build_model(d,competitor=None,events=None,product_evidence=None,competitor_c
     put("Marketing Attribution",attribution,"partial" if attribution["channels"] else "source_required")
     budget=optimize(d,d.get("budget_daily_history"),d.get("budget_cost_evidence"))
     put("Budget Optimizer",budget,"available" if budget["status"]=="available" else "partial" if budget["media"] else "source_required")
+    social=build_social(d["end_date"]) if d.get("end_date") else None
+    if social: put("Social Listening",social,social["status"])
     put("Integrated Calendar",{"events":events or [],"pdp":pdp,"sample_product_sales":sales,"weather_forecast":weather,"historical_temperature":None,"category_sales":None},"partial")
     put("Business Impact Matrix",{"observed_dimensions":["traffic","conversion","aov","category PDP"],"causal_effects":None},"partial")
     put("Predictive Intelligence",{"forecast":None,"reason":"Backtest and prediction interval validation required"},"validation_required")
