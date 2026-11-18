@@ -102,6 +102,34 @@ def root_cause(d, current, prior):
         "channel_note":"Prior estimated from reported revenue_yoy. Zero or unavailable bases remain unknown; residual is not assigned to a channel.",
         "causal":False,"separate_decompositions":True}
 
+
+def product_intelligence(d):
+    pdp=d.get("pdp_series") or {}
+    dates=pdp.get("x") or []; prior_dates=pdp.get("yoy_x") or []
+    rows=[]
+    for r in pdp.get("rows",[]):
+        a,b=r.get("ys") or [],r.get("ys_yoy") or []
+        valid=lambda seq,n: len(seq)==n and n>0 and all(isinstance(v,(int,float)) and isfinite(v) and v>=0 for v in seq)
+        current_ok=valid(a,len(dates)) and r.get("views_d1")==a[-1]
+        prior_ok=r.get("has_yoy") and valid(b,len(prior_dates)) and len(a)==len(b)
+        quality="check_zero_series" if current_ok and not any(a) and prior_ok and any(b) else ("reported" if current_ok else "invalid")
+        comparable=current_ok and prior_ok and quality!="check_zero_series"
+        rows.append({"name":r.get("itemCategory"),"current":a if current_ok else None,"prior":b if prior_ok else None,
+            "daily_views":a[-1] if current_ok else None,"weekly_views":sum(a) if current_ok else None,
+            "day_yoy_pct":change(a[-1],b[-1]) if comparable else None,
+            "week_yoy_pct":change(sum(a),sum(b)) if comparable else None,
+            "week_delta":sum(a)-sum(b) if comparable else None,
+            "quality":quality,"sources_current":r.get("top_sources") if r.get("source_status")=="ok" else None,
+            "sources_prior":r.get("top_sources_yoy") if r.get("source_status_yoy")=="ok" else None,
+            "source_status":r.get("source_status"),"source_status_prior":r.get("source_status_yoy"),
+            "sales_units":None,"sales_status":"category sales source required"})
+    ranked=[x for x in rows if x["week_delta"] is not None]
+    return {"dates":dates,"prior_dates":prior_dates,"categories":rows,
+        "growth":sorted([x for x in ranked if x["week_delta"]>0],key=lambda x:-x["week_delta"])[:3],
+        "declines":sorted([x for x in ranked if x["week_delta"]<0],key=lambda x:x["week_delta"])[:3],
+        "sample_best_sellers":d.get("best_sellers") or [],"best_seller_scope":"reported top SKU sample, not full style totals",
+        "missing":["category sales totals","reconciled category sources where unavailable"]}
+
 def build_model(d,competitor=None,events=None,product_evidence=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
@@ -121,7 +149,7 @@ def build_model(d,competitor=None,events=None,product_evidence=None):
         if not a: continue
         previous=a[:-1]
         categories.append({**r,"day_yoy_pct":change(a[-1],b[-1]) if b and r.get("has_yoy") else None,"vs_prior_days_pct":change(a[-1],mean(previous)) if previous else None})
-    if categories: put("Product Intelligence",{"dates":pdp.get("x"),"prior_dates":pdp.get("yoy_x"),"categories":categories})
+    if categories: put("Product Intelligence",product_intelligence(d),"partial")
     valid=[r for r in categories if r["day_yoy_pct"] is not None]
     sales=d.get("best_sellers_series",{})
     candidates=[]
