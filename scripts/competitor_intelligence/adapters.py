@@ -13,17 +13,69 @@ PROFILES={
 "MILLET":{"seeds":[],"cards":["article","li"]}}
 def normalize_cards(rows):
     out={}
+    def amounts(text):
+        return [int(x.replace(",","")) for x in re.findall(r'(?<![\d,])([1-9]\d{0,2}(?:,\d{3})+|[1-9]\d{3,})(?![\d,])\s*(?:원)?',str(text or ""))]
+    def single(text):
+        vals=set(amounts(text))
+        return next(iter(vals)) if len(vals)==1 else None
     for r in rows:
-        prices=re.findall(r'(?<!\d)([1-9][0-9,]{3,})\s*원',r["text"])
-        if len(prices)!=2: continue
-        a,b=sorted([int(x.replace(",","")) for x in prices],reverse=True)
-        rates=re.findall(r'(?<!\d)(\d{1,2})\s*%',r["text"])
-        if not (a>b>0 and len(rates)==1 and abs((1-b/a)*100-int(rates[0]))<=1): continue
-        name=r["name"].strip()
-        if len(name)<3 or name not in r["text"]: continue
-        out[(r["url"],name,a,b)]={"name":name,"url":r["url"],"image":r.get("image",""),"regular_price":a,"sale_price":b,"discount_pct":int(rates[0]),"evidence":r["text"],"status":"candidate_same_card"}
-    return list(out.values())[:100]
+        text=r.get("text","")
+        name=r.get("name","").strip()
+        url=r.get("url","")
+        if len(name)<3 or name not in text or not url.startswith("https://"): continue
+        if re.search(r'쿠폰\s*적용가|최대\s*혜택가|카드\s*할인가|적립금|적립\s*예정',text): continue
+        rates=re.findall(r'(?<!\d)(\d{1,2})\s*%',text)
+        regular=single(r.get("regular_text"))
+        sale=single(r.get("sale_text"))
+        method="dom_price_roles"
+        if not (regular and sale):
+            regular=single(" ".join(re.findall(r'(?:정상가|소비자가|정가|기존가)\s*[:：]?\s*([\d,]+)\s*원?',text)))
+            sale=single(" ".join(re.findall(r'(?:판매가|할인가|세일가|현재가)\s*[:：]?\s*([\d,]+)\s*원?',text)))
+            method="explicit_price_labels"
+        if not (regular and sale):
+            # Without independent semantic price roles require two currency amounts
+            # and an advertised percentage that reconciles to the same card.
+            prices=re.findall(r'(?<!\d)([1-9][0-9,]{3,})\s*원',text)
+            if len(prices)!=2 or len(rates)!=1: continue
+            regular,sale=sorted([int(x.replace(",","")) for x in prices],reverse=True)
+            method="advertised_rate_check"
+        if not regular>sale>0: continue
+        calculated=(1-sale/regular)*100
+        if rates and (len(set(rates))!=1 or abs(calculated-int(rates[0]))>1): continue
+        # Reject ambiguous competing amounts even if price roles exist.
+        currency=set(int(v.replace(",","")) for v in re.findall(r'(?<!\d)([1-9][0-9,]{3,})\s*원',text))
+        if currency-{regular,sale}: continue
+        out[(url,name,regular,sale)]={"name":name,"url":url,"image":r.get("image",""),
+             "regular_price":regular,"sale_price":sale,"discount_pct":int(rates[0]) if rates else round(calculated,2),
+             "evidence":text,"status":"candidate_same_card","price_pair_method":method}
+    return list(out.values())[:250]
+
 async def extract_cards(page,profile):
-    selector=",".join(profile["cards"]+["[class*='product-item']","[class*='goods-item']","[class*='productItem']","[class*='goods_list_item']"])
-    rows=await page.locator(selector).evaluate_all("""els=>els.slice(0,1800).map(e=>({text:(e.innerText||'').trim(),url:e.querySelector('a[href]')?.href||'',image:e.querySelector('img')?.currentSrc||'',name:(e.querySelector('[class*="goods_name"],[class*="product_name"],[class*="item_name"],h3,h4')?.innerText||e.querySelector('img[alt]')?.alt||'').trim()})).filter(x=>x.text.length>5&&x.text.length<220&&x.url&&x.name)""")
+    selector=",".join(profile["cards"]+["[class*='product-item']","[class*='goods-item']","[class*='productItem']","[class*='goods_list_item']","[class*='productCard']","[class*='ProductCard']","[class*='prd_item']",".item_cont",".goods_info"])
+    rows=await page.locator(selector).evaluate_all("""els=>{
+      const reg='del,s,strike,[class*="original_price"],[class*="originalPrice"],[class*="regularPrice"],[class*="regular_price"],[class*="consumer_price"],[class*="normal_price"]';
+      const sale='[class*="sale_price"],[class*="salePrice"],[class*="sellingPrice"],[class*="selling_price"],[class*="discountPrice"],[class*="discount_price"],[class*="finalPrice"]';
+      const product=/\\/product\\/|\\/goods\\/|goodsNo=|productNo=|pno=|\\/prd\\/|\\/item\\//i;
+      const nameSel='[class*="goods_name"],[class*="product_name"],[class*="productName"],[class*="item_name"],[class*="itemName"],[class*="prd_name"],h3,h4';
+      const describe=e=>{
+        const text=(e.innerText||'').trim();
+        if(text.length<6||text.length>420)return null;
+        const links=[...e.querySelectorAll('a[href]')].filter(a=>product.test(a.href));
+        const self=e.closest('a[href]');
+        if(self&&product.test(self.href))links.unshift(self);
+        const urls=[...new Set(links.map(a=>a.href.split('#')[0]))];
+        if(urls.length!==1)return null;
+        const img=e.querySelector('img[alt]');
+        const name=(e.querySelector(nameSel)?.innerText||img?.alt||'').trim();
+        if(!name||!text.includes(name))return null;
+        const read=sel=>[...new Set([...e.querySelectorAll(sel)].map(x=>(x.innerText||'').trim()).filter(Boolean))].join(' ');
+        return {text,url:urls[0],image:img?.currentSrc||'',name,regular_text:read(reg),sale_text:read(sale)};
+      };
+      const candidates=new Set(els.slice(0,3500));
+      // Inspect small ancestors of product anchors, not the entire list/container.
+      for(const a of [...document.querySelectorAll('a[href]')].filter(a=>product.test(a.href)).slice(0,600)){
+        let p=a;for(let i=0;i<4&&p;i++,p=p.parentElement)candidates.add(p);
+      }
+      return [...candidates].map(describe).filter(Boolean);
+    }""")
     return normalize_cards(rows)
