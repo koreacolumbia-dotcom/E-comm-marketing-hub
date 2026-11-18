@@ -885,7 +885,19 @@
         const summaryEl = panel.querySelector('[data-selected-summary]');
         titleEl.textContent = `${label || metric} · ${rangeKey}`;
         if (!series.length) { svg.innerHTML=''; summaryEl.textContent='표시할 데이터가 없습니다.'; return; }
-        const vals = series.map(x => x.value);
+        // Calendar-date YoY overlay: match the full history, not just the selected range.
+        const dailyByDate = section === 'daily' ? new Map((trendData.daily || []).map(row => [row.date, row])) : null;
+        const lySeries = dailyByDate ? series.map(row => {
+          const lyDate = String(Number(row.date.slice(0, 4)) - 1) + row.date.slice(4);
+          const raw = dailyByDate.get(lyDate)?.[metric];
+          return { date: lyDate, value: raw == null || raw === '' || !Number.isFinite(Number(raw)) ? null : Number(raw) };
+        }) : [];
+        const lyCount = lySeries.filter(row => row.value !== null).length;
+        const legend = panel.querySelector('.trend-legend');
+        if (dailyByDate && legend) {
+          legend.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px"><span style="width:22px;border-top:3px solid #0f172a"></span>선택 기간 (TY)</span><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:22px;border-top:3px dashed #64748b"></span>전년 동기간 (LY)</span><span style="display:block;margin-top:4px">카드를 누르면 KPI 그래프로 전환됩니다.</span>';
+        }
+        const vals = series.map(x => x.value).concat(lySeries.filter(x => x.value !== null).map(x => x.value));
         const min = Math.min(...vals);
         const max = Math.max(...vals);
         const range = (max - min) || (max === 0 ? 1 : Math.abs(max) * 0.15) || 1;
@@ -904,6 +916,15 @@
           const y = padT + innerH - (((p.value - min) / range) * innerH);
           return [x, y];
         });
+        const lyPts = lySeries.map((row, i) => row.value === null ? null : [pts[i][0], padT + innerH - (((row.value - min) / range) * innerH)]);
+        const lyPath = lyPts.map((pt, i) => !pt ? '' : (i === 0 || !lyPts[i-1] ? 'M ' : 'L ') + pt.join(' ')).join(' ');
+        const lyLine = lyCount ? `<path class="trend-ly-line" d="${lyPath}" fill="none" stroke="#64748b" stroke-width="2.8" stroke-dasharray="8 6" stroke-linecap="round" stroke-linejoin="round"></path>` : '';
+        const lyAttrs = (i) => dailyByDate ? ` data-ly-date="${lySeries[i].date}" data-ly-value="${lySeries[i].value === null ? '데이터 없음' : formatMetric(metric, lySeries[i].value)}"` : '';
+        const lyHits = lyPts.map((pt, i) => {
+          if (!pt) return '';
+          const isolated = !lyPts[i-1] && !lyPts[i+1] ? `<circle cx="${pt[0]}" cy="${pt[1]}" r="3" fill="#64748b"></circle>` : '';
+          return `${isolated}<circle class="point-hit" cx="${pt[0]}" cy="${pt[1]}" r="9" fill="transparent" data-date="${series[i].date}" data-value="${formatMetric(metric, series[i].value)}"${lyAttrs(i)}></circle>`;
+        }).join('');
         const line = pts.map(p => p.join(',')).join(' ');
         const area = `M ${padL} ${H-padB} L ${pts.map(p=>p.join(' ')).join(' L ')} L ${pts[pts.length-1][0]} ${H-padB} Z`;
         const grid = [0,1,2,3,4].map(i => { const y = padT + (innerH * i / 4); return `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="rgba(148,163,184,.26)" stroke-width="1" />`; }).join('');
@@ -918,7 +939,7 @@
           const stroke = series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : 'rgba(15,23,42,.76)';
           const pretty = formatMetric(metric, series[i].value);
           const tipDate = section === 'weekly' ? (series[i].tipLabel || series[i].rawLabel || '') : (series[i].date || series[i].label || '');
-          return `<g><circle class="trend-anim-fade" cx="${p[0]}" cy="${p[1]}" r="${i===pts.length-1?5.5:3.4}" fill="white" stroke="${stroke}" stroke-width="${i===pts.length-1?2:1.6}" style="animation-delay:${Math.min(i*0.012, .36)}s"></circle><circle class="point-hit" cx="${p[0]}" cy="${p[1]}" r="12" fill="transparent" data-date="${tipDate}" data-label="${series[i].label || series[i].rawLabel || ''}" data-value="${pretty}"><title>${tipDate} · ${pretty}</title></circle></g>`;
+          return `<g><circle class="trend-anim-fade" cx="${p[0]}" cy="${p[1]}" r="${i===pts.length-1?5.5:3.4}" fill="white" stroke="${stroke}" stroke-width="${i===pts.length-1?2:1.6}" style="animation-delay:${Math.min(i*0.012, .36)}s"></circle><circle class="point-hit" cx="${p[0]}" cy="${p[1]}" r="12" fill="transparent" data-date="${tipDate}" data-label="${series[i].label || series[i].rawLabel || ''}" data-value="${pretty}"${lyAttrs(i)}><title>${tipDate} · ${pretty}</title></circle></g>`;
         }).join('');
         const labels = pts.map((p, i) => {
           if (!series[i].label) return '';
@@ -927,7 +948,7 @@
           const w = section === 'weekly' ? 36 : 44;
           return `<g class="trend-anim-fade" style="animation-delay:${Math.min(i*0.006, .32)}s"><rect x="${p[0]-w/2}" y="${H-34}" width="${w}" height="18" rx="8" fill="${bg}"></rect><text x="${p[0]}" y="${H - 21}" text-anchor="middle" font-size="11" font-weight="800" fill="${fill}">${series[i].label}</text></g>`;
         }).join('');
-        svg.innerHTML = `<defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(59,130,246,.30)"/><stop offset="100%" stop-color="rgba(59,130,246,0.02)"/></linearGradient></defs>${weekendBands}${grid}<path class="trend-anim-fade" d="${area}" fill="url(#trendFill)"></path><polyline class="trend-anim-line" points="${line}" fill="none" stroke="rgba(15,23,42,.9)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"></polyline>${circles}${labels}`;
+        svg.innerHTML = `<defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(59,130,246,.30)"/><stop offset="100%" stop-color="rgba(59,130,246,0.02)"/></linearGradient></defs>${weekendBands}${grid}<path class="trend-anim-fade" d="${area}" fill="url(#trendFill)"></path>${lyLine}<polyline class="trend-anim-line" points="${line}" fill="none" stroke="rgba(15,23,42,.9)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"></polyline>${circles}${lyHits}${labels}`;
         const polyline = svg.querySelector('.trend-anim-line');
         if (polyline && polyline.getTotalLength) {
           const len = polyline.getTotalLength();
@@ -938,7 +959,7 @@
         const delta = prev == null || prev === 0 ? null : ((last - prev) / prev);
         const startTxt = section === 'weekly' ? (series[0]?.tipLabel || series[0]?.date || '') : (series[0]?.date || '');
         const endTxt = section === 'weekly' ? (series[series.length-1]?.tipLabel || series[series.length-1]?.date || '') : (series[series.length-1]?.date || '');
-        summaryEl.textContent = `${startTxt} ~ ${endTxt} · 최근값 ${formatMetric(metric, last)}${delta == null ? '' : ` · 직전 대비 ${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`} · ${series.length}포인트`;
+        summaryEl.textContent = `${startTxt} ~ ${endTxt} · 최근값 ${formatMetric(metric, last)}${delta == null ? '' : ` · 직전 대비 ${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`} · ${series.length}포인트${dailyByDate ? ` · LY ${lyCount}/${series.length}일${lyCount < series.length ? " (일부 전년 데이터 없음)" : ""}` : ""}`;
         const tip = panel.querySelector('[data-chart-tooltip]');
         const shell = panel.querySelector('.trend-svg-shell');
         const hideTip = () => { if (tip) tip.hidden = true; };
@@ -946,6 +967,9 @@
           if (!tip || !shell) return;
           const t = evt.currentTarget;
           tip.innerHTML = `<span class="t-date">${t.dataset.date || t.dataset.label || ''}</span><span class="t-value">${t.dataset.value || ''}</span>`;
+          if (dailyByDate && t.dataset.lyDate) {
+            tip.innerHTML += `<span class="t-date" style="margin-top:.5rem">LY · ${t.dataset.lyDate}</span><span class="t-value" style="color:#cbd5e1">${t.dataset.lyValue || '데이터 없음'}</span>`;
+          }
           const rect = shell.getBoundingClientRect();
           tip.style.left = `${evt.clientX - rect.left}px`;
           tip.style.top = `${evt.clientY - rect.top}px`;
