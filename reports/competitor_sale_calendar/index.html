@@ -198,6 +198,19 @@ header .overline:before{display:none}
 .event .meta{line-height:1.65}
 .tl-label{font-size:11px}
 @media(max-width:720px){.event-span .span-brand,.event-span .span-benefit{font-size:10px}.calendar-week .day .day-records{font-size:9px;right:5px}}
+
+/* Keep CRM and issue research in the existing analysis tab. */
+.market-overview{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px}
+.market-benefit-table{min-width:850px}.market-benefit-table td:first-child{font-weight:750}
+.market-issue{border-bottom:1px solid #e2e8f0;padding:12px 0}.market-issue:last-child{border:0}
+.market-issue strong{display:block;font-size:13px;line-height:1.45;margin:5px 0}.market-issue p{font-size:11px;line-height:1.6;color:#64748b;margin:3px 0}
+.market-issue a,.market-benefit-table a{font-size:11px}
+.market-candidate{font-size:11px;line-height:1.55;margin-top:6px;color:#475569}
+.market-candidate b{font-weight:700;color:#334155}
+.market-scope{font-size:10px;color:#64748b}
+.market-brand-owned td:first-child{color:#002d72}
+.market-issue-scroll{max-height:650px;overflow:auto;padding-right:4px}
+@media(max-width:1350px){.market-overview{grid-template-columns:minmax(0,1fr)}}
 </style></head><body>
 <main>
 <header><div><div class="overline">CSK E-COMM · PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
@@ -235,6 +248,10 @@ header .overline:before{display:none}
 </aside></div>
 <section class="panel intel-panel intel-view" id="view-timeline" hidden><div class="intel-head"><div><div class="section-label">Brand Timeline</div><h2>브랜드별 프로모션 타임라인</h2></div><span class="pill" id="timelineMonth"></span></div><p class="intel-sub">컬럼비아 행사일은 파란색 음영, 확인된 기간은 실선, 관측 배너는 점선. 막대 클릭 시 공식 근거 페이지로 이동합니다.</p><div class="timeline-scroll"><div id="brandTimeline" class="timeline"></div></div></section>
 <div class="intel-view" id="view-analysis" hidden>
+<div class="market-overview">
+<section class="panel intel-panel"><div class="intel-head"><div><div class="section-label">NEW MEMBER REWARDS</div><h2>신규회원 · 첫 구매 리워드 비교</h2></div><span class="market-scope" id="marketMemberMeta">자료 조회 중</span></div><p class="intel-sub">가입 즉시 혜택과 첫 구매 리워드를 구분합니다. 공통 플랫폼 혜택은 별도 표기. 상시 혜택은 월간 세일 집계와 합산하지 않습니다.</p><div class="intel-table-wrap" id="marketMemberTable"></div><p class="intel-note">공식 검색 자료 검토일은 실제 정책 시행일이 아닙니다. 자동 수집 문구는 확인 후보이며, 혜택 변경은 원문 검증 후 반영합니다.</p></section>
+<section class="panel intel-panel"><div class="intel-head"><div><div class="section-label">MARKET WATCH</div><h2>주요 이슈 · 캠페인 변화</h2></div><span class="market-scope" id="marketIssueMeta"></span></div><p class="intel-sub">업계 보도, 캠페인·신상품, 공지사항과 운영 이슈를 구분합니다.</p><div class="market-issue-scroll" id="marketIssues"></div></section>
+</div>
 <section class="panel intel-panel"><div class="intel-head"><div><div class="section-label">Promotion Overlap</div><h2>자사 행사와 경쟁사 중복 현황</h2></div><span class="pill" id="overlapMonth"></span></div><div id="overlapKpis" class="intel-kpis"></div><div class="overlap-scroll"><div id="overlapGraph" class="overlap-grid"></div></div><div class="intel-table-wrap" id="overlapTable"></div><p id="strategyInsight"></p><p class="intel-note">공식 기간 확인 행사만 기준으로 브랜드를 중복 제거하여 집계합니다. 회원 쿠폰팩 등 상시성 혜택도 총계에 포함하며 아래 해석에서는 분리합니다. 날짜가 없는 관측 배너는 미래 일정에 포함하지 않습니다. 한 행사가 여러 판매처에서 잡힐 수 있습니다.</p></section>
 <div class="intel-grid"><section class="panel intel-panel"><div class="section-label">Discount Comparison</div><h2>자사·경쟁사 할인 · 쿠폰 · 페이백 비교</h2><p class="intel-sub">할인율과 다른 유형의 혜택을 구분하며 합산하지 않습니다.</p><div class="intel-table-wrap" id="discountTable"></div></section>
 <section class="panel intel-panel"><div class="section-label">Today's Update</div><h2 id="updateTitle">기준일 변화 기록</h2><p class="intel-sub">첫 관측일은 실제 행사 개시일이 아닙니다.</p><div class="mini-list" id="updateList"></div></section></div>
@@ -345,7 +362,7 @@ $('coverageSummary').textContent='행사 기록 '+found+' / '+TARGET_BRANDS.leng
 $('coverageNote').textContent=(crawlQuality?'크롤러 접근 '+crawlQuality.accessible_brands+'/'+TARGET_BRANDS.length+' · 최근 점검 '+String(crawlQuality.checked_at_kst||'').slice(0,16).replace('T',' ')+' KST. ':'')+'행사 기록과 최신 크롤러 접근 성공은 별개입니다. 브랜드를 눌러 필터링할 수 있습니다.';
 }
 
-var ownedArchive=null;var activeView='calendar',archiveRaw=[],archiveCacheDay='',archiveLoadingDay='',perfRows=[],perfKey='',perfLoading='',perfToken=0,perfWeather=null;
+var marketBaseline=null,marketFeed=null,marketLoadState='loading';var ownedArchive=null;var activeView='calendar',archiveRaw=[],archiveCacheDay='',archiveLoadingDay='',perfRows=[],perfKey='',perfLoading='',perfToken=0,perfWeather=null;
 function monthDays(y,m){return Array.from({length:new Date(Date.UTC(y,m,0)).getUTCDate()},function(_,i){return iso(y,m,i+1)})}
 function official(e){return e.kind==='verified_period'}
 function ownedDay(day){return (data?data.events:OWNED_EVENTS).some(function(e){return e.brand==='columbia'&&(e.kind==='owned_planned'||e.kind==='verified_period')&&applies(e,day)})}
@@ -375,7 +392,28 @@ function benefitTypes(e){
 function benefitSummary(e){var labels=benefitTypes(e);return labels.length?labels.slice(0,2).join(' · '):(e.benefit||'')}
 function compactEventTitle(e){var title=eventTitle(e);return title.replace(/\s+/g,' ').trim()}
 function productFocus(e){var t=e.title+' '+(e.benefit||'');var hits=[['다운·패딩',/다운|패딩|down|padding|puffer/i],['아우터',/아우터|outer|재킷|자켓|jacket/i],['플리스',/플리스|fleece/i],['백팩',/백팩|backpack/i],['신발',/신발|슈즈|shoes|footwear|트레킹화/i],['키즈',/키즈|kids|아동/i]].filter(function(x){return x[1].test(t)}).map(function(x){return x[0]});return hits.length?hits:['카테고리 미명시']}
-function renderAnalysis(){var days=monthDays(year,month),all=monthly(),comp=all.filter(function(e){return e.brand!=='columbia'}),ownDates=days.filter(ownedDay),ov=ownDates.map(function(d){return {day:d,brands:officialBrands(d,comp)}}),max=Math.max(0,...ov.map(function(o){return o.brands.size})),distinct=new Set(ov.flatMap(function(o){return Array.from(o.brands)})),overlapDays=ov.filter(function(o){return o.brands.size>0}).length;
+
+function marketLink(url,label){return validLink(url)?'<a rel="noopener noreferrer" target="_blank" href="'+esc(url)+'">'+esc(label||'원문')+' ↗</a>':'—'}
+function marketBrand(key){var item=TARGET_BRANDS.find(function(b){return b[2]===key||b[0]===key});return key==='COLUMBIA'||key==='columbia'?['columbia','COLUMBIA']:item?[item[0],item[1]]:[key,key]}
+function marketFilter(brand,content){var key=$('brand').value,q=$('keyword').value.toLowerCase().trim();return (!key||key===brand||brand==='industry')&&(!q||String(content).toLowerCase().includes(q))}
+function marketState(r){return r.status==='crawler_banner'?'배너 관측 · 세부 미확인':r.status==='official_index_conflict'?'공식 색인 간 불일치':'공식 공개 자료 검토'}
+function renderMarket(){
+ if(!data)return;
+ var base=marketBaseline,feed=marketFeed,allSignals=feed&&Array.isArray(feed.signals)?feed.signals:[],asof=feed&&feed.checked_at_kst,baseRows=base&&Array.isArray(base.memberships)?base.memberships:[],rows=baseRows.filter(function(r){return marketFilter(r.brand,[r.brand_name,r.channel,r.signup,r.first_purchase,r.conditions].join(' '))});
+ $('marketMemberMeta').textContent=(base?'검토 '+pretty(base.reviewed_on):'공식 자료 미확보')+(asof?' · 자동 '+String(asof).slice(0,16).replace('T',' '):' · 자동 결과 미확인');
+ var tableRows=rows.map(function(r){var matches=allSignals.filter(function(x){return x.kind==='member'&&marketBrand(x.brand)[0]===r.brand}).slice(0,3),extra=matches.length?'<details class="market-candidate"><summary>자동 수집 후보 '+matches.length+'건</summary>'+matches.map(function(x){return '<div class="market-candidate"><b>'+esc(x.category)+'</b> '+esc(x.text)+' '+marketLink(x.source_url)+'</div>'}).join('')+'</details>':'',links=[r.source_url].concat(r.additional_sources||[]).filter(function(u){return validLink(u)});return '<tr'+(r.brand==='columbia'?' class="market-brand-owned"':'')+'><td>'+esc(r.brand_name)+'<br><small>'+esc(r.channel)+'</small></td><td>'+esc(r.signup)+'</td><td>'+esc(r.first_purchase)+'</td><td><small>'+esc(r.conditions)+'</small>'+extra+'</td><td><span class="market-scope">'+esc(marketState(r))+'</span><br>'+links.map(function(u,i){return marketLink(u,i?'근거 '+(i+1):'공식 근거')}).join('<br>')+'</td></tr>'});
+ $('marketMemberTable').innerHTML=rows.length?'<table class="intel-table market-benefit-table"><thead><tr><th>브랜드 / 채널</th><th>가입 혜택</th><th>첫 구매 / 일반 적립</th><th>조건 / 자동 근거</th><th>검토 상태</th></tr></thead><tbody>'+tableRows.join('')+'</tbody></table>':'<p class="empty">'+(marketLoadState==='loading'?'회원 혜택 자료 조회 중':'선택 조건의 검토 자료 없음')+'</p>';
+ var curated=(base&&Array.isArray(base.issues)?base.issues:[]).filter(function(r){return r.date&&Number(r.date.slice(0,4))===year&&Number(r.date.slice(5,7))===month&&marketFilter(r.brand,[r.brand_name,r.category,r.title,r.summary].join(' '))}).sort(function(a,b){return b.date.localeCompare(a.date)});
+ var latestMonth=asof&&Number(asof.slice(0,4))===year&&Number(asof.slice(5,7))===month;
+ var seen=new Set(),auto=latestMonth?allSignals.filter(function(r){var b=marketBrand(r.brand),key=b[0]+'|'+r.category+'|'+r.text;if(r.kind!=='issue'||seen.has(key)||!marketFilter(b[0],[b[1],r.category,r.text].join(' ')))return false;seen.add(key);return true}).sort(function(a,b){return Number(b.state==='newly_observed')-Number(a.state==='newly_observed')||Number(b.category==='운영 이슈')-Number(a.category==='운영 이슈')}).slice(0,18):[];
+ $('marketIssueMeta').textContent=year+'. '+String(month).padStart(2,'0')+' · '+curated.length+'건 검토'+(auto.length?' / 자동 후보 '+auto.length:'');
+ var articles=curated.map(function(r){return '<article class="market-issue"><span class="market-scope">'+esc(pretty(r.date)+' · '+r.category+' · '+r.brand_name)+'</span><strong>'+esc(r.title)+'</strong><p>'+esc(r.summary)+'</p>'+marketLink(r.source_url,'보도 원문')+'</article>'});
+ if(auto.length)articles.push('<p class="intel-note"><b>자동 관측 후보</b> · 게시일/실제 이슈 여부 미확인. 신규 포착은 최초 발생을 의미하지 않습니다.</p>');
+ articles=articles.concat(auto.map(function(r){return '<article class="market-issue"><span class="market-scope">'+esc((r.state==='newly_observed'?'신규 포착':'관측')+' · '+r.category+' · '+marketBrand(r.brand)[1])+'</span><strong>'+esc(r.text)+'</strong>'+marketLink(r.source_url,'공식 페이지')+'</article>'}));
+ $('marketIssues').innerHTML=articles.length?articles.join(''):'<p class="empty">'+(marketLoadState==='loading'?'주요 이슈 조회 중':'선택 월·조건의 확인 기록 없음')+'</p>';
+}
+
+function renderAnalysis(){renderMarket();var days=monthDays(year,month),all=monthly(),comp=all.filter(function(e){return e.brand!=='columbia'}),ownDates=days.filter(ownedDay),ov=ownDates.map(function(d){return {day:d,brands:officialBrands(d,comp)}}),max=Math.max(0,...ov.map(function(o){return o.brands.size})),distinct=new Set(ov.flatMap(function(o){return Array.from(o.brands)})),overlapDays=ov.filter(function(o){return o.brands.size>0}).length;
 $('overlapMonth').textContent=year+'. '+String(month).padStart(2,'0');$('overlapKpis').innerHTML=kpi('자사 행사 중복일',ownDates.length?overlapDays+' / '+ownDates.length+'일':'—','공식 일정 기준')+kpi('중복 경쟁사',ownDates.length?distinct.size+'개':'—','브랜드 중복 제거')+kpi('최대 동시 행사',ownDates.length?max+'개':'—','일별 경쟁사 브랜드 수');
 var sales=comp.filter(function(e){return !isMemberBenefit(e)}),saleOv=ownDates.map(function(d){return {day:d,n:officialBrands(d,sales).size}}),salePeak=Math.max(0,...saleOv.map(function(x){return x.n})),peakDays=salePeak?saleOv.filter(function(x){return x.n===salePeak}).map(function(x){return short(x.day)}):[],memberCount=new Set(comp.filter(function(e){return isMemberBenefit(e)&&official(e)&&ownDates.some(function(d){return applies(e,d)})}).map(function(e){return e.brand})).size;
 $('strategyInsight').innerHTML=ownDates.length?'<b>CHECK POINT</b> · '+(salePeak?'회원 상시성 혜택을 제외한 공식 프로모션 최대 '+salePeak+'개 브랜드 동시 진행 ('+esc(peakDays.join(', '))+'). 해당 날짜의 구매 CVR·매출 추이를 상대적으로 집중 점검하세요.':'회원 상시성 혜택을 제외한 공식 중복 일정 미확인.')+(memberCount?' 회원성 혜택 '+memberCount+'개 브랜드 별도 포함.':'')+' 행사가 성과 변동의 원인이라는 의미는 아닙니다.':'선택 월에 등록된 자사 기간 일정이 없습니다.';
@@ -454,6 +492,7 @@ $('updated').textContent='기준 '+pretty(data.as_of)+' · 최신 수집 '+prett
 var names=new Map(TARGET_BRANDS.map(function(x){return [x[0],x[1]]}));data.events.forEach(function(e){if(!names.has(e.brand))names.set(e.brand,e.brand_name)});
 names.forEach(function(name,key){var opt=document.createElement('option');opt.value=key;opt.textContent=name;$('brand').appendChild(opt)});
 render();
+Promise.allSettled([fetch('../competitor_intelligence/reviewed-market-baseline.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()}),fetch('../competitor_intelligence/latest-market-signals.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()})]).then(function(r){marketBaseline=r[0].status==='fulfilled'?r[0].value:null;marketFeed=r[1].status==='fulfilled'?r[1].value:null;marketLoadState='ready';if(activeView==='analysis')renderMarket()});
 fetch('../competitor_intelligence/latest-quality.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(function(q){crawlQuality=q;renderCoverage()}).catch(function(){renderCoverage()});
 }).catch(function(err){$('state').textContent='데이터 오류';$('dayList').innerHTML='<p class="empty">집계 데이터를 불러오지 못했습니다.</p>';console.error(err)});
 })();
