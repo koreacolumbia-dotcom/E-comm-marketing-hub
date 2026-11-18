@@ -1,0 +1,52 @@
+name: Competitor Content Intelligence
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '35 21 * * *'
+  push:
+    paths:
+      - 'scripts/competitor_content/**'
+      - '.github/workflows/competitor-content.yml'
+permissions:
+  contents: write
+concurrency:
+  group: competitor-content
+  cancel-in-progress: false
+jobs:
+  crawl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install playwright==1.51.0 aiohttp==3.11.18
+      - run: python -m py_compile scripts/competitor_content/crawl.py
+      - run: python scripts/competitor_content/crawl.py --self-test
+      - name: Prepare browser
+        run: |
+          if command -v google-chrome >/dev/null; then
+            echo "CRAWLER_CHROME=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            python -m playwright install chromium
+          fi
+      - name: Crawl official editorial pages
+        run: python scripts/competitor_content/crawl.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: competitor-content
+          path: reports/competitor_content/*.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Publish measured content feed
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/competitor_content/
+          git diff --cached --quiet && exit 0
+          git commit -m "Publish official content observations ${{ github.run_id }}"
+          git pull --rebase origin main
+          git push origin HEAD:main
