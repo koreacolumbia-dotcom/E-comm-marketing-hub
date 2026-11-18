@@ -1,40 +1,42 @@
 {
-  "accessible_brands": 9,
-  "accessible_pct": 90,
-  "collected_pages": 50,
-  "strict_candidate_brands": 2,
-  "strict_candidate_pct": 20,
+  "discount_pair_brands": 3,
+  "discount_pair_coverage_pct": 30,
+  "discount_pair_target_met": false,
+  "discount_pair_missing_brands": [
+    "TNF",
+    "DISCOVERY",
+    "NEPA",
+    "EIDER",
+    "NATIONAL GEOGRAPHIC",
+    "SNOW PEAK",
+    "MILLET",
+    "SALOMON"
+  ],
+  "owned_discount_pair_available": false,
+  "accessible_brands": 10,
+  "accessible_pct": 100,
+  "collected_pages": 112,
+  "strict_candidate_brands": 1,
+  "strict_candidate_pct": 10,
   "target_met_strict_candidate": false,
-  "measurement_available": true,
-  "structured_evidence_brands": 3,
-  "structured_evidence_pct": 30,
+  "measurement_available": false,
+  "structured_evidence_brands": 1,
+  "structured_evidence_pct": 10,
   "verified_accuracy_pct": null,
   "verified_success_brands": null,
   "verified_success_pct": null,
   "verified_sample_count": null,
   "target_met_verified": null,
-  "checked_at_kst": "2026-11-18T21:20:23.131578+09:00",
+  "checked_at_kst": "2026-11-18T21:30:51.043466+09:00",
   "target": 10,
   "denominator": 10,
-  "candidate_usable": 4,
-  "candidate_coverage_pct": 40,
+  "candidate_usable": 3,
+  "candidate_coverage_pct": 30,
   "target_met_candidate_only": false,
   "brands": [
     {
       "brand": "TNF",
-      "pages": 8,
-      "promotion_pages": 5,
-      "price_pages": 8,
-      "candidate_usable": true,
-      "strict_candidate": true,
-      "dated_promotion_pages": 5,
-      "errors": [],
-      "paired_discount_cards_count": 2,
-      "structured_product_prices_count": 1
-    },
-    {
-      "brand": "K2",
-      "pages": 1,
+      "pages": 2,
       "promotion_pages": 0,
       "price_pages": 0,
       "candidate_usable": false,
@@ -42,20 +44,41 @@
       "dated_promotion_pages": 0,
       "errors": [
         {
-          "url": "https://www.k-village.co.kr/eventDetail?eventNo=1096",
-          "error": "navigation failed HTTP 200"
+          "url": "https://www.thenorthfacekorea.co.kr/",
+          "error": "robots HTTP 403"
         },
         {
-          "url": "https://www.k2.co.kr/",
-          "error": "robots ClientConnectorCertificateError"
+          "url": "https://image.thenorthfacekorea.co.kr/login?successUrl=/cscenter",
+          "error": "HTTP 403; stop requests to origin for this run"
         }
       ],
       "paired_discount_cards_count": 0,
       "structured_product_prices_count": 0
     },
     {
+      "brand": "K2",
+      "pages": 5,
+      "promotion_pages": 0,
+      "price_pages": 1,
+      "candidate_usable": false,
+      "strict_candidate": false,
+      "dated_promotion_pages": 0,
+      "errors": [
+        {
+          "url": "https://www.k2.co.kr/",
+          "error": "robots ClientConnectorCertificateError"
+        },
+        {
+          "url": "https://www.k-village.co.kr/eventDetail?eventNo=1096",
+          "error": "navigation failed HTTP 200"
+        }
+      ],
+      "paired_discount_cards_count": 93,
+      "structured_product_prices_count": 0
+    },
+    {
       "brand": "DISCOVERY",
-      "pages": 2,
+      "pages": 3,
       "promotion_pages": 1,
       "price_pages": 0,
       "candidate_usable": false,
@@ -63,28 +86,12 @@
       "dated_promotion_pages": 1,
       "errors": [
         {
-          "url": "https://www.discovery-expedition.com/display/promotions/event/1716",
-          "error": "navigation failed HTTP 429"
+          "url": "https://www.discovery-expedition.com/register",
+          "error": "robots disallowed path"
         },
         {
-          "url": "https://www.discovery-expedition.com/display/promotions/collection/705",
-          "error": "navigation failed HTTP 429"
-        },
-        {
-          "url": "https://www.discovery-expedition.com/display/promotions/event/641",
-          "error": "navigation failed HTTP 429"
-        },
-        {
-          "url": "https://www.discovery-expedition.com/display/promotions/event/1411",
-          "error": "navigation failed HTTP 429"
-        },
-        {
-          "url": "https://www.discovery-expedition.com/display/promotions/collection/1488",
-          "error": "navigation failed HTTP 429"
-        },
-        {
-          "url": "https://www.discovery-expedition.com/display/promotions/collection/2058?gf=A",
-          "error": "navigation failed HTTP 429"
+          "url": "https://www.discovery-expedition.com/customer-center/notice/378",
+          "error": "HTTP 429; stop requests to origin for this run"
         }
       ],
       "paired_discount_cards_count": 0,
@@ -92,10 +99,22 @@
     },
     {
       "brand": "BLACKYAK",
-      "pages": 8,
-      "promotion_pages": 1,
+      "pages": 16,
+      "promotion_pages": 0,
       "price_pages": 0,
       "candidate_usable": false,
+      "strict_candidate": false,
+      "dated_promotion_pages": 0,
+      "errors": [],
+      "paired_discount_cards_count": 15,
+      "structured_product_prices_count": 0
+    },
+    {
+      "brand": "NEPA",
+      "pages": 16,
+      "promotion_pages": 1,
+      "price_pages": 2,
+      "candidate_usable": true,
       "strict_candidate": false,
       "dated_promotion_pages": 1,
       "errors": [],
@@ -103,54 +122,37 @@
       "structured_product_prices_count": 0
     },
     {
-      "brand": "NEPA",
-      "pages": 8,
-      "promotion_pages": 3,
-      "price_pages": 7,
-      "candidate_usable": true,
-      "strict_candidate": false,
-      "dated_promotion_pages": 2,
-      "errors": [],
-      "paired_discount_cards_count": 0,
-      "structured_product_prices_count": 1
-    },
-    {
       "brand": "KOLON SPORT",
-      "pages": 8,
-      "promotion_pages": 4,
-      "price_pages": 7,
+      "pages": 16,
+      "promotion_pages": 2,
+      "price_pages": 15,
       "candidate_usable": true,
       "strict_candidate": true,
-      "dated_promotion_pages": 4,
+      "dated_promotion_pages": 2,
       "errors": [],
-      "paired_discount_cards_count": 4,
-      "structured_product_prices_count": 3
+      "paired_discount_cards_count": 73,
+      "structured_product_prices_count": 0
     },
     {
       "brand": "EIDER",
-      "pages": 6,
-      "promotion_pages": 2,
+      "pages": 16,
+      "promotion_pages": 13,
       "price_pages": 0,
       "candidate_usable": false,
       "strict_candidate": false,
-      "dated_promotion_pages": 0,
-      "errors": [
-        {
-          "url": "https://www.k-village.co.kr/eventDetail?eventNo=1096",
-          "error": "navigation failed HTTP 200"
-        }
-      ],
+      "dated_promotion_pages": 13,
+      "errors": [],
       "paired_discount_cards_count": 0,
       "structured_product_prices_count": 0
     },
     {
       "brand": "NATIONAL GEOGRAPHIC",
-      "pages": 3,
-      "promotion_pages": 3,
-      "price_pages": 0,
-      "candidate_usable": false,
+      "pages": 8,
+      "promotion_pages": 4,
+      "price_pages": 1,
+      "candidate_usable": true,
       "strict_candidate": false,
-      "dated_promotion_pages": 3,
+      "dated_promotion_pages": 4,
       "errors": [
         {
           "url": "https://www.naturestore.co.kr/",
@@ -162,23 +164,23 @@
     },
     {
       "brand": "SNOW PEAK",
-      "pages": 6,
-      "promotion_pages": 1,
-      "price_pages": 4,
-      "candidate_usable": true,
+      "pages": 14,
+      "promotion_pages": 0,
+      "price_pages": 10,
+      "candidate_usable": false,
       "strict_candidate": false,
       "dated_promotion_pages": 0,
       "errors": [
         {
-          "url": "https://www.snowpeakstore.co.kr/board/list.php?bdId=newevent",
+          "url": "https://www.snowpeakstore.co.kr/",
           "error": "robots disallowed path"
         },
         {
-          "url": "https://www.snowpeakstore.co.kr/",
+          "url": "https://www.snowpeakstore.co.kr/member/join_agreement.php",
           "error": "robots disallowed path"
         }
       ],
-      "paired_discount_cards_count": 2,
+      "paired_discount_cards_count": 0,
       "structured_product_prices_count": 0
     },
     {
@@ -193,36 +195,55 @@
         {
           "url": "https://www.millet.co.kr/",
           "error": "robots disallowed path"
+        },
+        {
+          "url": "https://www.millet.co.kr/front/product/29587",
+          "error": "robots disallowed path"
+        },
+        {
+          "url": "https://www.millet.co.kr/front/promo/event/348",
+          "error": "robots disallowed path"
+        },
+        {
+          "url": "https://www.millet.co.kr/front/product/25561",
+          "error": "robots disallowed path"
+        },
+        {
+          "url": "https://www.millet.co.kr/front/product/18060",
+          "error": "robots disallowed path"
         }
       ],
+      "paired_discount_cards_count": 0,
+      "structured_product_prices_count": 0
+    },
+    {
+      "brand": "SALOMON",
+      "pages": 16,
+      "promotion_pages": 2,
+      "price_pages": 0,
+      "candidate_usable": false,
+      "strict_candidate": false,
+      "dated_promotion_pages": 0,
+      "errors": [],
       "paired_discount_cards_count": 0,
       "structured_product_prices_count": 0
     }
   ],
   "owned": {
     "brand": "COLUMBIA",
-    "pages": 0,
-    "promotion_pages": 0,
-    "price_pages": 0,
-    "candidate_usable": false,
+    "pages": 16,
+    "promotion_pages": 2,
+    "price_pages": 12,
+    "candidate_usable": true,
     "strict_candidate": false,
     "paired_discount_cards": [],
     "dated_promotion_pages": 0,
     "structured_product_prices": [],
-    "errors": [
-      {
-        "url": "https://www.columbiakorea.co.kr/main/main.asp",
-        "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.columbiakorea.co.kr/main/main.asp\", waiting until \"domcontentloaded\"\n"
-      },
-      {
-        "url": "https://www.columbiakorea.co.kr/event/261120/teaser.asp",
-        "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.columbiakorea.co.kr/event/261120/teaser.asp\", waiting until \"domcontentloaded\"\n"
-      }
-    ]
+    "errors": []
   },
   "note": "Candidate coverage only; human verification of dates and paired prices still required.",
-  "run_id": "44302717796",
-  "source_sha": "bfaac338017752dcdb6e6e79a2846662da750ba3",
+  "run_id": "44304427170",
+  "source_sha": "55f139d3ed48bd84ecb77972c4e4b3b22ae5faaf",
   "job_status": "failure",
-  "published_at": "2026-11-18T12:22:55.052239+00:00"
+  "published_at": "2026-11-18T12:36:21.625759+00:00"
 }
