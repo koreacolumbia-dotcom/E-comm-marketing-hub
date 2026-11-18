@@ -1,14 +1,14 @@
 import re
 PROFILES={
-"COLUMBIA":{"seeds":["https://www.columbiakorea.co.kr/main/main.asp","https://www.columbiakorea.co.kr/event/261120/teaser.asp"],"cards":["li","article","[class*=\'product\']"]},
+"COLUMBIA":{"seeds":["https://www.columbiakorea.co.kr/main/main.asp","https://www.columbiakorea.co.kr/event/261120/teaser.asp","https://www.columbiakorea.co.kr/product/view.asp?pno=19322","https://www.columbiakorea.co.kr/product/view.asp?pno=18774"],"cards":["li","article","[class*=\'product\']"]},
 "TNF":{"seeds":["https://image.thenorthfacekorea.co.kr/category/n/Winter-supplies"],"hosts":["image.thenorthfacekorea.co.kr"],"cards":["li","article"]},
-"K2":{"seeds":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/eventDetail?eventNo=1096"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["li","article"]},
+"K2":{"seeds":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/","https://www.k-village.co.kr/eventDetail?eventNo=1096"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["li","article"]},
 "DISCOVERY":{"seeds":["https://www.discovery-expedition.com/display/promotions?type=EVENT&gf=F","https://www.discovery-expedition.com/display/promotions/event/1716","https://www.discovery-expedition.com/display/promotions/collection/705"],"cards":["article","li"]},
-"BLACKYAK":{"seeds":[],"cards":["li","article"]},
+"BLACKYAK":{"seeds":["https://www.byn.kr/blackyak/shop/big_section.php?cno1=1612","https://www.byn.kr/blackyak/shop/big_section.php?cno1=1012"],"cards":["li","article"]},
 "NEPA":{"seeds":[],"cards":["li","article"]},
 "KOLON SPORT":{"seeds":["https://www.kolonmall.com/Brands/kolonsport/List/4895","https://www.kolonmall.com/Brands/KOLONSPORT/List/133010020000","https://www.kolonmall.com/Brands/KOLONSPORT/List/4898"],"cards":["article","li"]},
-"EIDER":{"seeds":["https://www.k-village.co.kr/eider","https://www.k-village.co.kr/eventDetail?eventNo=1096","https://www.eider.co.kr/search?k=%EB%8B%A4%EC%9A%B4"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["article","li"]},
-"NATIONAL GEOGRAPHIC":{"seeds":["https://www.nstationmall.com/event/planning/1165","https://www.nstationmall.com/event/planning/1171","https://www.nstationmall.com/event/planning"],"hosts":["www.nstationmall.com","nstationmall.com"],"cards":["article","li"]},
+"EIDER":{"seeds":["https://www.k-village.co.kr/eider","https://www.k-village.co.kr/","https://www.k-village.co.kr/eventDetail?eventNo=1096","https://www.eider.co.kr/search?k=%EB%8B%A4%EC%9A%B4"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["article","li"]},
+"NATIONAL GEOGRAPHIC":{"seeds":["https://www.nstationmall.com/event/planning/1165","https://www.nstationmall.com/event/planning/1171","https://www.nstationmall.com/natgeo","https://www.nstationmall.com/event/planning"],"hosts":["www.nstationmall.com","nstationmall.com"],"cards":["article","li"]},
 "SNOW PEAK":{"seeds":["https://www.snowpeakstore.co.kr/board/list.php?bdId=newevent","https://m.snowpeakstore.co.kr/goods/event_sale.php?sno=697"],"cards":["li",".item_cont"]},
 "MILLET":{"seeds":[],"cards":["article","li"]}}
 def normalize_cards(rows):
@@ -37,6 +37,8 @@ def normalize_cards(rows):
             # Without independent semantic price roles require two currency amounts
             # and an advertised percentage that reconciles to the same card.
             prices=re.findall(r'(?<!\d)([1-9][0-9,]{3,})\s*원',text)
+            if not prices:
+                prices=re.findall(r"(?<![\d,])([1-9]\d{0,2}(?:,\d{3})+)(?![\d,])",text)
             if len(prices)!=2 or len(rates)!=1: continue
             regular,sale=sorted([int(x.replace(",","")) for x in prices],reverse=True)
             method="advertised_rate_check"
