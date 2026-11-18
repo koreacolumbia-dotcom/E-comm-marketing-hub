@@ -129,7 +129,31 @@ def product_intelligence(d):
         "sku_sales_sample":sku_rows,"sku_sales_series":d.get("best_sellers_series"),
         "category_sales_status":"source_required","scope":"PDP category counts may overlap; SKU top-N is not full catalog coverage"}
 
-def build_model(d,competitor=None,events=None,product_evidence=None):
+
+def competitive_intelligence(feed, calendar=None, as_of=None):
+    """Reuse crawler and verified calendar feeds without treating missing as no promotions."""
+    from datetime import date
+    from urllib.parse import urlparse
+    feed=feed or {}
+    calendar=calendar or {}
+    day=as_of or calendar.get("as_of")
+    aliases={"TNF":"tnf","K2":"k2","DISCOVERY":"discovery","BLACKYAK":"blackyak","NEPA":"nepa","KOLON SPORT":"kolonsport","KOLONSPORT":"kolonsport","EIDER":"eider","NATIONAL GEOGRAPHIC":"national_geographic","SNOW PEAK":"snowpeak","MILLET":"millet"}
+    brands=[]
+    for b in feed.get("brands",[]):
+        key=aliases.get(str(b.get("brand","")).upper(),str(b.get("brand","")).lower().replace(" ",""))
+        events=[e for e in calendar.get("events",[]) if e.get("brand")==key]
+        active=[e for e in events if day and e.get("date_status") in ("official_period","first_party_landing_text") and e.get("start_date") and e.get("end_date") and e["start_date"]<=day<=e["end_date"]]
+        observed=[e for e in events if e.get("date_status")=="observed_only" and day in (e.get("observed_on") or [])]
+        brands.append({"brand":b.get("brand"),"status":b.get("status"),"pages_checked":b.get("pages_checked"),
+            "promotion_evidence_pages":b.get("promotion_evidence_pages"),"active_events":active,
+            "observed_banners":observed,"errors":b.get("errors",[]),
+            "promotion_absence_verified":False})
+    return {"checked_at":feed.get("checked_at_kst"),"as_of":day,"coverage":feed.get("coverage"),
+        "job_status":feed.get("job_status"),"verification_status":feed.get("verification_status"),
+        "brands":brands,"calendar_available":bool(calendar),"source_run":feed.get("run_id"),
+        "note":"Official periods and observed banners are distinct; retailer and official mall events retain their channel."}
+
+def build_model(d,competitor=None,events=None,product_evidence=None,competitor_calendar=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
         model[name]={"status":status,"data":data}
@@ -187,7 +211,7 @@ def build_model(d,competitor=None,events=None,product_evidence=None):
         "style_aggregation_available":style_alerts is not None,
         "sample_threshold":{"absolute_units":3,"relative_pct":30},
         "note":"Sample alerts are not full catalog rankings; missing is not zero."},"available" if style_alerts is not None else "partial")
-    if competitor: put("Competitive Intelligence",competitor,"partial")
+    if competitor: put("Competitive Intelligence",competitive_intelligence(competitor,competitor_calendar),"partial")
     # Never infer zero discounts or absence of promotions from missing evidence.
     put("Competitive Discount Matrix",{"brands":10,"verified_cells":[],"unknown_is_zero":False},"source_required")
     channels=d.get("channel_snapshot",[])
