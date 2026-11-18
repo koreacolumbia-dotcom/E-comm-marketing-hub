@@ -1,5 +1,6 @@
 import re
 PROFILES={
+"COLUMBIA":{"seeds":["https://www.columbiakorea.co.kr/main/main.asp","https://www.columbiakorea.co.kr/event/261120/teaser.asp"],"cards":["li","article","[class*=\'product\']"]},
 "TNF":{"seeds":["https://image.thenorthfacekorea.co.kr/category/n/Winter-supplies"],"hosts":["image.thenorthfacekorea.co.kr"],"cards":["li","article"]},
 "K2":{"seeds":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/eventDetail?eventNo=1096"],"hosts":["www.k-village.co.kr","k-village.co.kr"],"cards":["li","article"]},
 "DISCOVERY":{"seeds":["https://www.discovery-expedition.com/display/promotions?type=EVENT&gf=F","https://www.discovery-expedition.com/display/promotions/event/1716","https://www.discovery-expedition.com/display/promotions/collection/705"],"cards":["article","li"]},
