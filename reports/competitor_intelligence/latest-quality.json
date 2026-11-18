@@ -15,7 +15,7 @@
   "owned_discount_pair_available": true,
   "accessible_brands": 10,
   "accessible_pct": 90.91,
-  "collected_pages": 125,
+  "collected_pages": 112,
   "strict_candidate_brands": 1,
   "strict_candidate_pct": 9.09,
   "target_met_strict_candidate": false,
@@ -27,7 +27,7 @@
   "verified_success_pct": null,
   "verified_sample_count": null,
   "target_met_verified": null,
-  "checked_at_kst": "2026-11-19T02:45:59.471226+09:00",
+  "checked_at_kst": "2026-11-19T03:49:47.017522+09:00",
   "target": 11,
   "denominator": 11,
   "candidate_usable": 3,
@@ -36,13 +36,22 @@
   "brands": [
     {
       "brand": "TNF",
-      "pages": 16,
+      "pages": 2,
       "promotion_pages": 0,
-      "price_pages": 2,
+      "price_pages": 0,
       "candidate_usable": false,
       "strict_candidate": false,
       "dated_promotion_pages": 0,
-      "errors": [],
+      "errors": [
+        {
+          "url": "https://www.thenorthfacekorea.co.kr/",
+          "error": "robots HTTP 403"
+        },
+        {
+          "url": "https://image.thenorthfacekorea.co.kr/login?successUrl=/cscenter",
+          "error": "HTTP 403; stop requests to origin for this run"
+        }
+      ],
       "paired_discount_cards_count": 0,
       "structured_product_prices_count": 0
     },
@@ -69,7 +78,7 @@
     },
     {
       "brand": "DISCOVERY",
-      "pages": 2,
+      "pages": 3,
       "promotion_pages": 1,
       "price_pages": 0,
       "candidate_usable": false,
@@ -81,7 +90,7 @@
           "error": "robots disallowed path"
         },
         {
-          "url": "https://www.discovery-expedition.com/customer-center/notice",
+          "url": "https://www.discovery-expedition.com/customer-center/notice/378",
           "error": "HTTP 429; stop requests to origin for this run"
         }
       ],
@@ -222,9 +231,9 @@
   ],
   "owned": {
     "brand": "COLUMBIA",
-    "pages": 8,
+    "pages": 16,
     "promotion_pages": 2,
-    "price_pages": 3,
+    "price_pages": 15,
     "candidate_usable": true,
     "strict_candidate": false,
     "paired_discount_cards": [
@@ -242,24 +251,11 @@
     ],
     "dated_promotion_pages": 0,
     "structured_product_prices": [],
-    "errors": [
-      {
-        "url": "https://www.columbiakorea.co.kr/product/list.asp?cno=219&gdv=1,3",
-        "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.columbiakorea.co.kr/product/list.asp?cno=219&gdv=1,3\", waiting until \"domcontentloaded\"\n"
-      },
-      {
-        "url": "https://www.columbiakorea.co.kr/product/list.asp?cno=216&gdv=1,3",
-        "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.columbiakorea.co.kr/product/list.asp?cno=216&gdv=1,3\", waiting until \"domcontentloaded\"\n"
-      },
-      {
-        "url": "https://www.columbiakorea.co.kr/product/list.asp?cno=201&gdv=1,3",
-        "error": "Page.goto: Timeout 15000ms exceeded.\nCall log:\n  - navigating to \"https://www.columbiakorea.co.kr/product/list.asp?cno=201&gdv=1,3\", waiting until \"domcontentloaded\"\n"
-      }
-    ]
+    "errors": []
   },
   "note": "Candidate coverage only; human verification of dates and paired prices still required.",
-  "run_id": "44362061349",
-  "source_sha": "17d2ab365376afb96a4de142e0ca5cfbc3ec7f01",
+  "run_id": "44373680180",
+  "source_sha": "5c5bd827017f643d528ad6a3d2fd9431aec32f64",
   "job_status": "failure",
-  "published_at": "2026-11-18T17:51:14.716147+00:00"
+  "published_at": "2026-11-18T18:55:12.608809+00:00"
 }
