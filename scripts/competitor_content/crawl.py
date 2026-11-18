@@ -410,7 +410,7 @@ def take_next_url(queue,brand,scanned,prior_urls,ledger):
 def coverage_plan(brand,observed_count,pending_count=0,columbia_count=0):
     # Benchmark comparable deduplicated current-run observations, not indexed leads.
     # Missing comparator is not proof of parity; the absolute sample target remains active.
-    sample_target=max(TARGET_SAMPLE,columbia_count,100 if brand=="TNF" else 0)
+    sample_target=max(TARGET_SAMPLE,columbia_count,200 if brand=="TNF" else 100 if brand in {"BLACKYAK","PATAGONIA","DISCOVERY","K2","EIDER","MILLET","NEPA"} else 0)
     catchup=brand!="COLUMBIA" and observed_count<columbia_count
     focus=brand=="TNF" and observed_count<sample_target
     undercovered=observed_count<sample_target
@@ -728,7 +728,7 @@ def self_test():
     assert editorial_route("PATAGONIA","https://www.patagonia.co.kr/innovation-unusual/")
     assert editorial_route("BLACKYAK","https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
     assert not editorial_route("PATAGONIA","https://www.patagonia.co.kr/stories/all_films")
-    assert sitemap_entries(b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.org/story/1</loc></url></url>')==([],["https://example.org/story/1"])
+    assert sitemap_entries(b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.org/story/1</loc></url></urlset>')==([],["https://example.org/story/1"])
     assert sitemap_entries(b'<!DOCTYPE urlset><urlset/>')==([],[])
     films=film_archive_entries("K2","https://www.k-village.co.kr/k2/film","NAV\nFILM\nALPHA\n2025 FW\nALPHA\n2025 FW\nBETA\n2026SS\nK.VILLAGE\nGAMMA\n2025 SS",now)
     assert len(films)==2 and films[1]["season"]=="2026 SS"
@@ -743,7 +743,8 @@ def self_test():
     q=["https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/lookbook?page=3"]
     assert take_next_url(q,"TNF",5,set(),{}).endswith("page=3") and len(q)==1
     assert coverage_plan("TNF",17,0,13)["focus_brand"]
-    assert coverage_plan("TNF",17,0,13)["sample_target"]>=100
+    assert coverage_plan("TNF",17,0,13)["sample_target"]==200
+    assert all(coverage_plan(b,0)["sample_target"]==100 for b in ("BLACKYAK","PATAGONIA","DISCOVERY","K2","EIDER","MILLET","NEPA"))
     assert len(retain_archive_entries(styles,styles,"2026-11-01"))==1
     assert len(retain_archive_entries(styles,[],"2026-11-19"))==0
     assert recent_success({"state":"observed","at":now},"2026-11-19T02:00:00+09:00")
