@@ -26,7 +26,7 @@ ROOTS={
 "NATIONAL GEOGRAPHIC":"https://www.naturestore.co.kr/",
 "MILLET":"https://www.millet.co.kr/",
 "COLUMBIA":"https://www.columbiakorea.co.kr/main/main.asp",
-"MONTBELL":"https://shop.montbell.co.kr/",
+"MONTBELL":"https://www.montbell.co.kr/",
 "MAMMUT":"https://www.mammut.kr/",
 "FJALLRAVEN":"https://www.fjallraven.co.kr/app/",
 "BLACK DIAMOND":"https://www.blackdiamondequipment.co.kr/",
@@ -52,6 +52,7 @@ BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","420"))
 PRIORITY_BRANDS={"TNF","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
 UA="CSKMarketResearchBot"
 OUT=Path("reports/competitor_content")
+DISCOVERY_FILE=OUT/"public-discovery.json"
 KEY=re.compile(r"story|stories|pstories|journal|magazine|editorial|lookbook|campaign|explore|discover|collection|special|exhibition|technology|heritage|ambassador|athlete|community|responsibility|/event/view/|/event/planning/|/plan/|/lp(?:/|$)|/pages/|스토리|매거진|룩북|화보|캠페인|컬렉션|기술력|헤리티지|앰배서더|크리에이터|커뮤니티|기획전",re.I)
 DENY=re.compile(r"(?:^|[/_.?&=])(?:login|logout|register|account|auth|cart|checkout|order|my|mypage|member|customer|support|faq|privacy|terms|admin|search|review|location|stores?|notice|raffle)(?:[/_.?&=]|$)",re.I)
 PDP=re.compile(r"/(?:products?/(?:view|detail)(?:/|$)|products/[^/]+/?$|goods/view|goods_view)|[?&](?:goodsNo|productNo)=",re.I)
@@ -77,14 +78,14 @@ def scoped(brand,u):
     if re.search(r"/(?:sign-in|sign-up|image_zoom[^/]*|personal-information-collection-statement[^/]*|service/company)(?:/|\.html|$)",path,re.I): return False
     if re.search(r"(?:^|&)(?:product_no|goodsNo|productNo|styleCode)=",p.query,re.I): return False
     if host(u)==ALTERNATE.get(brand):
-        if brand=="SNOW PEAK": return path.startswith("/event-page/") and "/lookbook" in path and path.endswith("/apparel.html")
+        if brand=="SNOW PEAK": return (path.startswith("/event-page/") and ("/lookbook" in path or "/takibidai/" in path) and path.endswith(".html")) or path.rstrip("/") in ("/events","/events/detail")
         if brand=="NATIONAL GEOGRAPHIC" and path.rstrip("/") in NATGEO_CURATED_PATHS: return True
         prefix={"K2":"/k2","EIDER":"/eider","NATIONAL GEOGRAPHIC":"/natgeo"}[brand]
         return path.rstrip("/")==prefix or path.startswith(prefix+"/") and not PDP.search(u)
     if PRODUCT_PATH.search(u): return False
-    if brand=="COLUMBIA": return path.startswith(("/main/","/event/","/promotion/","/exhibition/","/about/"))
+    if brand=="COLUMBIA": return path.startswith(("/main/","/event/","/promotion/","/exhibition/","/about/","/technology/","/pc/technology/"))
     if brand=="KOLON SPORT": return path.startswith("/brands/kolonsport")
-    if brand=="BLACKYAK": return path.startswith("/blackyak")
+    if brand=="BLACKYAK": return path.startswith("/blackyak") or (path=="/_container/exh_list.php" and dict(parse_qsl(p.query)).get("hta_brand")=="blackyak")
     return not PDP.search(u)
 def tags(patterns, s): return [k for k,v in patterns.items() if re.search(v,s,re.I)]
 def published(raw):
@@ -159,6 +160,14 @@ async def scan(browser,session,brand,checked,old):
     await context.route("**/*",route)
     page=await context.new_page()
     queue=[root]+SEEDS.get(brand,[])
+    try:
+        discovered=json.loads(DISCOVERY_FILE.read_text()).get("entries",[])
+        for entry in discovered:
+            if entry.get("brand")!=brand or entry.get("kind") not in ("detail","list","candidate"): continue
+            url=entry.get("url","")
+            # Only ordinary public official destinations. Respect robots on all new origins.
+            if isinstance(url,str) and scoped(brand,url) and url not in queue: queue.append(url)
+    except (OSError,ValueError,TypeError): pass
     previous=sorted((x for x in old.values() if x.get("brand")==brand),key=lambda x:x.get("last_seen_at",""),reverse=True)
     for x in previous:
         v=x.get("url") if x.get("placement")=="main_visual" else x.get("source_url")
@@ -199,7 +208,8 @@ async def scan(browser,session,brand,checked,old):
                 path=urlsplit(source).path.lower().rstrip("/")
                 home=u==canonical(root) or (host(source)==ALTERNATE.get(brand) and path in ("/k2","/eider","/natgeo"))
                 if home: row["homepage_observed"]=True
-                listing=bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$|/stories/(?:main|all|filmDetail)$|/campaign$",path,re.I))
+                is_index=any(entry.get("brand")==brand and entry.get("kind")=="list" and canonical(entry.get("url",""))==source for entry in discovered) if 'discovered' in locals() else False
+                listing=is_index or bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$|/stories/(?:main|all|filmDetail)$|/campaign$",path,re.I))
                 blocks=data["blocks"] if home else ([] if listing else [data["article"]])
                 for b in blocks:
                     evidence=(b.get("title") or "")+" "+(b.get("summary") or "")
@@ -233,7 +243,7 @@ async def scan(browser,session,brand,checked,old):
                             except Exception: pass
                 for link in data["links"]:
                     v=canonical(link["url"])
-                    if same(v) and v not in seen and KEY.search(v+" "+link["label"]) and not SALE.search(link["label"]): queue.append(v)
+                    if same(v) and v not in seen and (KEY.search(v+" "+link["label"]) or (listing and re.search(r"event|promo|project|_exh|planning|/article/|campaignCode|/filmDetail/|story|journal|/special/",v,re.I))) and not SALE.search(link["label"]): queue.append(v)
                 queue=list(dict.fromkeys(queue))
                 # Explicit editorial routes outrank generic category and promotion hubs.
                 queue.sort(key=lambda v: 0 if re.search(r"/(?:blogs/[^/]+/|special/\d+|story|stories|journal|magazine|lookbook|campaign|explore|collection/\d+)",urlsplit(v).path,re.I) else 1)
