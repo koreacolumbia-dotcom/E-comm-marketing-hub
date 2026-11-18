@@ -153,6 +153,114 @@ def competitive_intelligence(feed, calendar=None, as_of=None):
         "brands":brands,"calendar_available":bool(calendar),"source_run":feed.get("run_id"),
         "note":"Official periods and observed banners are distinct; retailer and official mall events retain their channel."}
 
+def competitive_discount_matrix(feed):
+    """Same-card arithmetic checked samples; not a catalog-wide discount rate."""
+    import re
+    from statistics import median
+    from urllib.parse import urlparse
+
+    feed = feed or {}
+    brands = ("COLUMBIA", "TNF", "K2", "DISCOVERY", "BLACKYAK", "NEPA",
+              "KOLON SPORT", "EIDER", "NATIONAL GEOGRAPHIC", "SNOW PEAK", "MILLET")
+    sources = {str(b.get("brand", "")).upper(): b for b in feed.get("price_candidates", [])
+               if isinstance(b, dict)}
+    # Owned is collected separately; do not infer Columbia prices from competitor samples.
+    owned = feed.get("owned")
+    if isinstance(owned, dict) and "COLUMBIA" not in sources:
+        sources["COLUMBIA"] = {
+            "paired_discount_cards": [c for p in owned.get("evidence", [])
+                                      for c in p.get("product_cards", [])],
+            "structured_product_prices": [],
+        }
+    def category(name):
+        s = name.upper()
+        if re.search(r"BACKPACK|백팩|배낭|RUCKSACK", s): return "Backpack"
+        if re.search(r"HEAVY DOWN|헤비 다운|헤비다운|롱 다운|LONG DOWN", s): return "Heavy Down"
+        if re.search(r"LIGHT PACK DOWN|LIGHT DOWN|경량 다운|경량다운|초경량", s): return "Light Down"
+        if re.search(r"DOWN|다운", s): return "Down (unspecified)"
+        if re.search(r"FLEECE|플리스|후리스", s): return "Fleece"
+        if re.search(r"SHOES|BOOTS|슈즈|등산화|트레킹화", s): return "Footwear"
+        return "Other"
+    def valid_url(x):
+        return isinstance(x, str) and urlparse(x).scheme in ("https", "http") and bool(urlparse(x).netloc)
+    def style_name(brand, name):
+        # Only strip explicit known color suffixes for sources where the title includes color.
+        if brand == "SNOW PEAK":
+            name = re.sub(r"\s+(?:Light Beige|Ivory|Black|Dark Gray|Dark Grey|Khaki|Navy|Beige|Brown|White)$", "", name, flags=re.I)
+        return " ".join(name.split())
+    rows, styles, cells = [], [], []
+    for brand in brands:
+        source = sources.get(brand, {})
+        by_style, seen = {}, set()
+        rejected = 0
+        for c in source.get("paired_discount_cards", []):
+            if not isinstance(c, dict): rejected += 1; continue
+            try:
+                name = str(c["name"]).strip()
+                url = c["url"]
+                regular, sale, advertised = (float(c[k]) for k in ("regular_price", "sale_price", "discount_pct"))
+                if not all(isfinite(n) for n in (regular, sale, advertised)) or not (regular >= sale > 0):
+                    raise ValueError("invalid amounts")
+                rate = (1-sale/regular)*100
+                if not (0 <= advertised <= 100 and abs(rate-advertised) <= 1 and name and valid_url(url)
+                        and c.get("status") == "candidate_same_card" and c.get("evidence")):
+                    raise ValueError("unpaired evidence")
+                item_key = (url.split("#")[0].split("?")[0], name, regular, sale)
+                if item_key in seen: continue
+                seen.add(item_key)
+                label = style_name(brand, name)
+                # Keep variant price differences, rather than masking them with one arbitrary price.
+                key = label.casefold()
+                group = by_style.setdefault(key, {"brand":brand, "name":label, "category":category(label),
+                                                 "variants":[], "status":"arithmetic_checked_candidate"})
+                if re.search(r"회원전용|회원 전용|회원가|회원 한정", str(c.get("evidence",""))):
+                    condition = "member_only"
+                else:
+                    condition = "unspecified"
+                group["variants"].append({"name":name, "url":url, "regular_price":regular, "sale_price":sale,
+                                          "discount_pct":round(rate,2), "advertised_pct":advertised,
+                                          "condition":condition, "evidence":c.get("evidence")})
+            except (KeyError, TypeError, ValueError, OverflowError):
+                rejected += 1
+        groups = list(by_style.values())
+        for g in groups:
+            g["variant_count"] = len(g["variants"])
+            for k in ("regular_price", "sale_price", "discount_pct"):
+                values = [v[k] for v in g["variants"]]
+                g[k+"_min"], g[k+"_max"] = min(values), max(values)
+                g[k+"_median"] = round(median(values),2)
+            g["url"] = g["variants"][0]["url"]
+        prices = []
+        for p in source.get("structured_product_prices", []):
+            try:
+                price = float(p["price"])
+                if p.get("currency") == "KRW" and isfinite(price) and price > 0 and p.get("name") and valid_url(p.get("url")):
+                    prices.append({"name":p["name"], "category":category(p["name"]), "price":price, "url":p["url"],
+                                   "discount_pct":None, "status":"sale_price_only"})
+            except (KeyError, ValueError, TypeError, OverflowError):
+                continue
+        style_rates = [g["discount_pct_median"] for g in groups]
+        rows.append({"brand":brand, "paired_cards":len(seen), "style_count":len(groups), "price_only_count":len(prices),
+                     "sample_discount_median_pct":round(median(style_rates),2) if style_rates else None,
+                     "sample_discount_max_pct":max(g["discount_pct_max"] for g in groups) if groups else None,
+                     "price_only":prices, "rejected":rejected, "status":"candidate" if groups else "price_only" if prices else "source_required"})
+        styles.extend(groups)
+        for cat in sorted({g["category"] for g in groups}):
+            sample = [g for g in groups if g["category"] == cat]
+            cells.append({"brand":brand, "category":cat, "style_count":len(sample),
+                          "discount_median_pct":round(median(g["discount_pct_median"] for g in sample),2),
+                          "sale_price_min":min(g["sale_price_min"] for g in sample),
+                          "sale_price_max":max(g["sale_price_max"] for g in sample), "status":"candidate"})
+    competitors = [r for r in rows if r["brand"] != "COLUMBIA"]
+    return {"checked_at":feed.get("checked_at_kst"), "source_run":feed.get("run_id"),
+            "brands":len(competitors), "brand_rows":rows, "styles":styles, "candidate_cells":cells,
+            "verified_cells":[], "unknown_is_zero":False,
+            "competitor_brands_with_pairs":sum(r["style_count"]>0 for r in competitors),
+            "competitor_paired_cards":sum(r["paired_cards"] for r in competitors),
+            "competitor_style_count":sum(r["style_count"] for r in competitors),
+            "owned_baseline_available":bool(rows[0]["style_count"]),
+            "note":"Same-card candidate prices; arithmetic checked only, not independent verification. Style-weighted sample statistics, not catalog averages. Single price and promotional claims are not discount rates."}
+
 def build_model(d,competitor=None,events=None,product_evidence=None,competitor_calendar=None):
     model={name:{"status":"source_required","data":None} for name in SECTIONS}
     def put(name,data,status="available"):
@@ -213,7 +321,8 @@ def build_model(d,competitor=None,events=None,product_evidence=None,competitor_c
         "note":"Sample alerts are not full catalog rankings; missing is not zero."},"available" if style_alerts is not None else "partial")
     if competitor: put("Competitive Intelligence",competitive_intelligence(competitor,competitor_calendar),"partial")
     # Never infer zero discounts or absence of promotions from missing evidence.
-    put("Competitive Discount Matrix",{"brands":10,"verified_cells":[],"unknown_is_zero":False},"source_required")
+    discount_matrix=competitive_discount_matrix(competitor)
+    put("Competitive Discount Matrix",discount_matrix,"partial" if discount_matrix["styles"] else "source_required")
     channels=d.get("channel_snapshot",[])
     if channels: put("Marketing Attribution",{"reported_channel_rows":channels,"causal_incrementality":None},"partial")
     if d.get("glink_paid_snapshot"): put("Budget Optimizer",{"reported_paid_snapshot":d["glink_paid_snapshot"],"marginal_roas":None},"partial")
