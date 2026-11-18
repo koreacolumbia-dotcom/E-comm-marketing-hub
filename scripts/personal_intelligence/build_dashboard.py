@@ -1,4 +1,4 @@
-"""Single dashboard for 01–13. Only minimum aggregates from already-published inputs.
+"""Single dashboard for 01–14. Only minimum aggregates from already-published inputs.
 Private computed journeys and verified cost evidence never enter the public snapshot.
 """
 import argparse,json
@@ -12,6 +12,7 @@ from business_diagnosis import build_diagnosis
 from attribution import marketing_attribution
 from run_budget import load_budget
 from social_listening import build_social
+from inventory_intelligence import build_inventory
 
 ROOT=Path(__file__).resolve().parents[2]
 def read(p):
@@ -112,16 +113,19 @@ def build(root=ROOT,day=None):
         return {"observed":m["observed_community_mentions"],"sources":m["community_source_status"],"topics":m["community_topics"],"daily":m["community_daily"],
           "voc":pick(m["voc"],"reviews average_rating low_rating_count rating_distribution files_present_days topics product_voc"),
           "note":m["note"]}
+    def inventory():
+        warehouse=(read(rep/"marketing_intelligence_v2/latest.json").get("integrations") or {}).get("warehouse")
+        return build_inventory(d,warehouse=warehouse)
     for n,name,fn in [(1,"AI BUSINESS DIAGNOSIS",diagnosis),(2,"EXECUTIVE SUMMARY",summary),(3,"ROOT CAUSE ANALYSIS",cause),
     (4,"WEATHER INTELLIGENCE",weather),(5,"PRODUCT INTELLIGENCE",product),(6,"PRODUCT EARLY WARNING",early),
     (7,"COMPETITIVE INTELLIGENCE",comp),(8,"COMPETITIVE CONTENT",editorial),(9,"COMPETITIVE DISCOUNT MATRIX",matrix),
-    (10,"CUSTOMER INTELLIGENCE",customers),(11,"MARKETING ATTRIBUTION",attribution),(12,"BUDGET OPTIMIZER",budget),(13,"SOCIAL LISTENING",social)]: add(n,name,fn)
+    (10,"CUSTOMER INTELLIGENCE",customers),(11,"MARKETING ATTRIBUTION",attribution),(12,"BUDGET OPTIMIZER",budget),(13,"SOCIAL LISTENING",social),(14,"INVENTORY INTELLIGENCE",inventory)]: add(n,name,fn)
     return {"schema":1,"report_date":d["end_date"],"target_date":target,"source_scope":"existing public aggregate caches only; private journey files not included","sections":results}
 def main():
     p=argparse.ArgumentParser();p.add_argument("--out",required=True);a=p.parse_args()
     target=Path(a.out);target.parent.mkdir(parents=True,exist_ok=True)
-    m=build();assert [s["number"] for s in m["sections"]]==list(range(1,14))
+    m=build();assert [s["number"] for s in m["sections"]]==list(range(1,15))
     assert all(k not in json.dumps(m) for k in ('"path_json"','"user_pseudo_id"','"member_id"','"models"'))
     target.write_text(json.dumps(m,ensure_ascii=False,allow_nan=False,separators=(",",":")),encoding="utf-8")
-    print("[DASHBOARD] 13 sections generated; dates and section statuses only:",m["report_date"],[(s["number"],s["status"]) for s in m["sections"]])
+    print("[DASHBOARD] 14 sections generated; dates and section statuses only:",m["report_date"],[(s["number"],s["status"]) for s in m["sections"]])
 if __name__=="__main__":main()
