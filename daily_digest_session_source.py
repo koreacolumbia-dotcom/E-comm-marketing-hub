@@ -236,11 +236,10 @@ def load_session_frame(wildcard, location, start, end):
     return df
 
 def load_buyer_frame(wildcard, location, start, end):
-    """GA4 purchase lifetime identity, matching the established buyer definition."""
+    """GA4 observed buyer cohorts since 2024; not ERP lifetime member counts."""
     client = bigquery.Client(project=wildcard.split(".")[0], location=location or None)
     parts = select_partitions(client, wildcard, start, end)
     prefix = build_sql(parts, start.isoformat(), end.isoformat()).split("session_keys AS (", 1)[0]
-    # CRM join remains authoritative where available; do not invent a payment field.
     sql = prefix + f"""
 ga_orders AS (
  SELECT TRIM(transaction_id) AS order_no, session_key FROM keyed
@@ -248,24 +247,26 @@ ga_orders AS (
  AND clean(transaction_id) IS NOT NULL
  QUALIFY ROW_NUMBER() OVER(PARTITION BY TRIM(transaction_id) ORDER BY IF(session_key IS NULL,1,0),event_timestamp)=1
 ),
-crm AS (
- SELECT TRIM(CAST(OrderNo AS STRING)) AS order_no,
- TRIM(CAST(MemberID AS STRING)) AS member_id,
- SAFE_CAST(SUBSTR(CAST(OrderRegdate AS STRING),1,10) AS DATE) AS order_day
- FROM `columbia-ga4.crm_raw.tb_order_staging`
- WHERE SAFE_CAST(OrderStatusNo AS INT64) IN (4,5)
- AND clean(CAST(MemberID AS STRING)) IS NOT NULL
- QUALIFY ROW_NUMBER() OVER(PARTITION BY CAST(OrderNo AS STRING) ORDER BY OrderRegdate DESC)=1
+history_raw AS (
+ SELECT TRIM(COALESCE(NULLIF(ecommerce.transaction_id,''),(SELECT value.string_value FROM UNNEST(event_params) WHERE key='transaction_id' LIMIT 1))) AS order_no,
+ COALESCE(IF(NULLIF(TRIM(user_id),'') IS NOT NULL,CONCAT('uid:',TRIM(user_id)),NULL),IF(user_pseudo_id IS NOT NULL,CONCAT('pseudo:',user_pseudo_id),NULL)) AS member_id,
+ PARSE_DATE('%Y%m%d',event_date) AS order_day,event_timestamp
+ FROM `{wildcard}`
+ WHERE _TABLE_SUFFIX BETWEEN '20240101' AND '{end.strftime("%Y%m%d")}' AND event_name='purchase'
 ),
-firsts AS (SELECT member_id, MIN(order_day) AS first_day FROM crm GROUP BY 1)
-SELECT c.member_id, f.first_day < DATE('{start}') AS existing,
+history AS (
+ SELECT * FROM history_raw WHERE clean(order_no) IS NOT NULL AND member_id IS NOT NULL
+ QUALIFY ROW_NUMBER() OVER(PARTITION BY order_no ORDER BY event_timestamp, member_id)=1
+),
+firsts AS (SELECT member_id, MIN(order_day) AS first_day FROM history GROUP BY 1)
+SELECT h.member_id, f.first_day < DATE('{start}') AS existing,
  CONCAT(IFNULL(a.source,'(not set)'), ' / ', IFNULL(a.medium,'(not set)')) AS sessionSourceMedium,
  IFNULL(a.campaign,'(not set)') AS sessionCampaignName,
  IFNULL(a.default_group,'') AS sessionDefaultChannelGroup
-FROM ga_orders g JOIN crm c USING(order_no)
+FROM ga_orders g JOIN history h USING(order_no)
 JOIN firsts f USING(member_id)
 LEFT JOIN attribution a USING(session_key)
-WHERE f.first_day IS NOT NULL
 """
-    df = client.query(sql, location=location or None, job_config=bigquery.QueryJobConfig(maximum_bytes_billed=20*1024**3)).result().to_dataframe(create_bqstorage_client=False)
+    df = client.query(sql, location=location or None, job_config=bigquery.QueryJobConfig(maximum_bytes_billed=100*1024**3)).result().to_dataframe(create_bqstorage_client=False)
+    print("[BUYERS] GA4 historical proxy, not ERP lifetime",flush=True)
     return df
