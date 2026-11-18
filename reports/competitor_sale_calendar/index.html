@@ -1,10 +1,11 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>CSK 경쟁사 세일 캘린더</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" crossorigin="anonymous">
 <style>
 
 :root{--navy:#142b44;--light:#f5f7fa;--line:#e5e9ee;--muted:#667789;--ink:#192c40;--blue:#175e9e}
-*{box-sizing:border-box}body{margin:0;background:var(--light);font:14px/1.55 system-ui,-apple-system,"Noto Sans KR",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}body{margin:0;background:var(--light);font:14px/1.55 "Pretendard Variable",Pretendard,system-ui,-apple-system,"Noto Sans KR",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
 main{width:100%;max-width:1840px;margin:auto;padding:36px clamp(18px,2.5vw,48px) 60px}h1{font-size:clamp(26px,2.1vw,36px);letter-spacing:-.045em;margin:5px 0 5px;line-height:1.25}h2{font-size:17px;letter-spacing:-.035em;margin:0}p{margin:5px 0;color:var(--muted)}
 header,.filters,.nav,.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 header{padding:0 0 7px}header .overline{display:flex;align-items:center;gap:10px}.overline:before{content:"";width:24px;height:3px;background:var(--blue);border-radius:3px}
@@ -47,6 +48,30 @@ button{cursor:pointer}button:hover{border-color:#9db3c7}button:focus-visible,sel
 @media(max-width:720px){main{padding:20px 12px 42px}header{align-items:flex-start}header>div:last-child{text-align:left!important}.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:17px 0}.stat{padding:12px}.stat strong{font-size:24px}.sidebar{grid-template-columns:minmax(0,1fr)}.filters{width:100%;justify-content:stretch;gap:7px}.filters>*{flex:1;min-width:95px}.filters input{width:auto}.nav{justify-content:center;width:100%}.nav b{font-size:20px;min-width:104px}.panel,.calendar-panel{padding:12px}.calendar-scroll .week,.calendar-scroll .grid{min-width:755px}.day{min-height:122px;padding:6px}.scroll-hint{display:block;font-size:11px;margin:0 0 8px;color:var(--muted)}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
+
+/* Weekly grid: one visual span for each uninterrupted event run. */
+.grid{display:block;overflow:hidden;background:#fff;border:1px solid var(--line)}
+.calendar-week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:36px repeat(var(--lanes),32px) minmax(28px,1fr);min-height:132px;border-bottom:1px solid var(--line);isolation:isolate}
+.calendar-week:last-child{border-bottom:0}
+.calendar-week .day{grid-row:1/-1;z-index:0;min-height:0;min-width:0;display:flex;align-items:flex-start;justify-content:flex-start;border-right:1px solid var(--line);padding:5px 8px;align-self:stretch}
+.calendar-week .day:nth-child(7){border-right:0}
+.calendar-week .day.sel{z-index:0}
+.calendar-week .day:focus-visible{outline-offset:-3px}
+.calendar-week .day .num{pointer-events:none}
+.event-span{z-index:2;align-self:center;display:flex;align-items:center;gap:6px;min-width:0;height:28px;margin:0 3px;padding:3px 8px;border:1px solid transparent;border-left:3px solid var(--accent);border-radius:5px;background:var(--tint);color:var(--brandink);text-align:left;font-size:12px;line-height:1.3;overflow:hidden;cursor:pointer}
+.event-span.obs{border:1px dashed var(--accent);border-left:3px solid var(--accent);background:#fff}
+.event-span:hover{border-color:var(--accent);filter:saturate(1.2)}
+.event-span .span-brand{font-weight:800;flex:0 1 auto;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.event-span .span-title{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.event-span .span-benefit{font-weight:750;flex:0 1 auto;max-width:40%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.event-span.single{gap:4px;padding:3px 5px;font-size:11px}
+.event-span.single .span-benefit{display:none}
+.event-span.single .span-brand{max-width:46%}
+.event-span.carry-in{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0}
+.event-span.carry-out{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0}
+.span-arrow{font-size:12px;opacity:.7;flex:none}
+@media(max-width:720px){.calendar-week{min-height:126px;grid-template-rows:34px repeat(var(--lanes),32px) minmax(24px,1fr)}.calendar-week .day{padding:4px 6px}.event-span{font-size:11px}}
+
 </style></head><body>
 <main>
 <header><div><div class="overline">CSK · COMPETITOR PROMOTION MONITOR</div><h1>경쟁사 세일 캘린더</h1>
@@ -71,7 +96,7 @@ button{cursor:pointer}button:hover{border-color:#9db3c7}button:focus-visible,sel
  <p class="scroll-hint">좌우로 스크롤하여 월간 달력을 확인하세요.</p>
  <div class="calendar-scroll"><div class="week"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
  <div class="grid" id="calendar" aria-label="경쟁사 세일 월간 달력"></div></div>
- <div class="legend"><span><i></i> 공식 일정 확인</span><span><i class="obs"></i> 수집일에만 관측</span><span>색상은 브랜드별 구분</span></div>
+ <div class="legend"><span><i></i> 공식 일정 확인</span><span><i class="obs"></i> 수집일에만 관측</span><span>색상은 브랜드별 구분 · 이어지는 막대는 동일 행사</span></div>
 </section>
 <aside class="sidebar">
 <section class="panel"><div class="row"><h2 id="dateTitle">날짜별 행사</h2><span class="pill" id="dayCount">—</span></div><div id="dayList" aria-live="polite"></div></section>
@@ -97,6 +122,36 @@ return !q||(e.title+' '+e.brand_name+' '+(e.benefit||'')).toLowerCase().indexOf(
 function applies(e,day){if(e.kind==='verified_period')return e.start_date<=day&&day<=e.end_date;
 if(e.kind==='verified_start')return day===e.start_date;
 return (e.observed_on||[]).indexOf(day)!==-1}
+function eventKey(e){
+  function norm(v){return String(v||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'').trim()}
+  return JSON.stringify([norm(e.brand),norm(e.title),norm(e.benefit),e.kind]);
+}
+function eventGroups(events){
+  var map=new Map();
+  events.forEach(function(e){var key=eventKey(e);if(!map.has(key))map.set(key,{key:key,event:e,records:[]});map.get(key).records.push(e)});
+  return Array.from(map.values());
+}
+function groupApplies(group,day){return group.records.some(function(e){return applies(e,day)})}
+function weekSegments(groups,days,before,after){
+  var segments=[];
+  groups.forEach(function(g){
+    for(var i=0;i<7;){
+      if(!groupApplies(g,days[i])){i++;continue}
+      var start=i;
+      while(i<7&&groupApplies(g,days[i]))i++;
+      segments.push({key:g.key,event:g.event,start:start,end:i-1,carryIn:start===0&&groupApplies(g,before),carryOut:i===7&&groupApplies(g,after)});
+    }
+  });
+  segments.sort(function(a,b){return a.start-b.start||Number(b.carryIn)-Number(a.carryIn)||(b.end-b.start)-(a.end-a.start)||a.key.localeCompare(b.key)});
+  var lanes=[];
+  segments.forEach(function(seg){
+    var lane=lanes.findIndex(function(end){return end<seg.start});
+    if(lane===-1){lane=lanes.length;lanes.push(seg.end)}else lanes[lane]=seg.end;
+    seg.lane=lane;
+  });
+  return {segments:segments,laneCount:lanes.length};
+}
+function shiftDay(day,n){var d=new Date(day+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 function dayEvents(day){return data.events.filter(function(e){return filtered(e)&&applies(e,day)}).sort(function(a,b){return (a.kind==='observed_banner'?1:0)-(b.kind==='observed_banner'?1:0)})}
 function monthly(){var a=iso(year,month,1),b=iso(year,month,new Date(Date.UTC(year,month,0)).getUTCDate());
 return data.events.filter(function(e){if(!filtered(e))return false;
@@ -122,19 +177,35 @@ $('dayList').innerHTML=list.length?list.map(eventCard).join(''):'<p class="empty
 function render(){
 if(!data)return;
 $('monthTitle').textContent=year+'. '+String(month).padStart(2,'0');
-var first=new Date(Date.UTC(year,month-1,1)).getUTCDay(),total=new Date(Date.UTC(year,month,0)).getUTCDate(),oldTotal=new Date(Date.UTC(year,month-1,0)).getUTCDate();
+
+var first=new Date(Date.UTC(year,month-1,1)).getUTCDay(),total=new Date(Date.UTC(year,month,0)).getUTCDate();
 var count=Math.ceil((first+total)/7)*7,host=$('calendar');host.innerHTML='';
-for(var i=0;i<count;i++){
-var d=i-first+1,y=year,m=month,actual=d;
-if(d<1){m=month===1?12:month-1;y=month===1?year-1:year;actual=oldTotal+d}
-if(d>total){m=month===12?1:month+1;y=month===12?year+1:year;actual=d-total}
-var stamp=iso(y,m,actual),ev=dayEvents(stamp),b=document.createElement('button');
-b.type='button';b.className='day'+(m!==month?' dim':'')+(stamp===selected?' sel':'')+(stamp===data.as_of?' today':'');
-b.setAttribute('aria-label',stamp+' '+ev.length+'개');
-b.innerHTML='<span class="num">'+actual+'</span>'+ev.slice(0,3).map(function(x){return '<span title="'+esc(x.brand_name+' · '+x.title+(x.benefit?' · '+x.benefit:''))+'" data-brand="'+esc(x.brand)+'" class="chip'+(x.kind==='observed_banner'?' obs':'')+'"><span class="chip-top"><span class="chip-brand">'+esc(x.brand_name)+'</span>'+(x.benefit?'<span class="chip-benefit">'+esc(x.benefit)+'</span>':'')+'</span><span class="chip-title">'+esc(x.title)+'</span></span>'}).join('')+
-(ev.length>3?'<span class="small">+'+(ev.length-3)+'개</span>':'');
-(function(day,yy,mm){b.onclick=function(){selected=day;year=yy;month=mm;render()}})(stamp,y,m);
-host.appendChild(b);
+var firstStamp=shiftDay(iso(year,month,1),-first);
+var groups=eventGroups(data.events.filter(filtered));
+function selectDay(stamp){selected=stamp;year=Number(stamp.slice(0,4));month=Number(stamp.slice(5,7));render()}
+for(var w=0;w<count;w+=7){
+  var days=Array.from({length:7},function(_,index){return shiftDay(firstStamp,w+index)});
+  var packed=weekSegments(groups,days,shiftDay(days[0],-1),shiftDay(days[6],1));
+  var row=document.createElement('div');row.className='calendar-week';row.style.setProperty('--lanes',String(packed.laneCount));
+  days.forEach(function(stamp,index){
+    var b=document.createElement('button'),m=Number(stamp.slice(5,7)),actual=Number(stamp.slice(8,10));
+    b.type='button';b.className='day'+(m!==month?' dim':'')+(stamp===selected?' sel':'')+(stamp===data.as_of?' today':'');
+    b.style.gridColumn=String(index+1);b.setAttribute('aria-label',stamp+' '+dayEvents(stamp).length+'개');
+    if(stamp===selected)b.setAttribute('aria-pressed','true');else b.setAttribute('aria-pressed','false');
+    b.innerHTML='<span class="num">'+actual+'</span>';b.onclick=function(){selectDay(stamp)};row.appendChild(b);
+  });
+  packed.segments.forEach(function(seg){
+    var e=seg.event,bar=document.createElement('button'),n=seg.end-seg.start+1;
+    bar.type='button';bar.className='event-span'+(e.kind==='observed_banner'?' obs':'')+(n===1?' single':'')+(seg.carryIn?' carry-in':'')+(seg.carryOut?' carry-out':'');
+    bar.dataset.brand=e.brand;bar.style.gridColumn=(seg.start+1)+' / '+(seg.end+2);bar.style.gridRow=String(seg.lane+2);
+    var status=e.kind==='observed_banner'?'배너 관측':e.kind==='verified_start'?'시작일 확인':'공식 행사';
+    bar.title=e.brand_name+' · '+e.title+(e.benefit?' · '+e.benefit:'')+' | '+status+' '+pretty(days[seg.start])+' ~ '+pretty(days[seg.end]);
+    bar.setAttribute('aria-label',bar.title);
+    bar.innerHTML=(seg.carryIn?'<span class="span-arrow" aria-hidden="true">‹</span>':'')+'<span class="span-brand">'+esc(e.brand_name)+'</span><span class="span-title">'+esc(e.title)+'</span>'+(e.benefit&&n>1?'<span class="span-benefit">'+esc(e.benefit)+'</span>':'')+(seg.carryOut?'<span class="span-arrow" aria-hidden="true">›</span>':'');
+    bar.onclick=function(ev){var rect=bar.getBoundingClientRect(),offset=ev.detail===0?0:Math.max(0,Math.min(n-1,Math.floor((ev.clientX-rect.left)/Math.max(1,rect.width)*n)));selectDay(days[seg.start+offset])};
+    row.appendChild(bar);
+  });
+  host.appendChild(row);
 }
 var all=monthly(),ver=all.filter(function(e){return e.kind!=='observed_banner'}),obs=all.filter(function(e){return e.kind==='observed_banner'});
 $('dated').textContent=ver.length;$('observed').textContent=obs.length;$('brands').textContent=new Set(all.map(function(e){return e.brand})).size;
