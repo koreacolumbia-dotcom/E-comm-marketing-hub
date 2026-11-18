@@ -15,7 +15,7 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -37,6 +37,8 @@ jobs:
           else
             python -m playwright install chromium
           fi
+      - name: Test interactive drilldowns in Chromium
+        run: python scripts/competitor_content/drilldown_test.py
       - name: Crawl official editorial pages
         run: python scripts/competitor_content/crawl.py
       - name: Generate strategy audit from measured feed
