@@ -649,7 +649,7 @@ jobs:
           retention-days: 7
 
       - name: Send Daily or Weekly Digest email
-        if: ${{ success() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
+        if: ${{ success() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' && !(github.event_name == 'schedule' && github.event.schedule == '0 5 * * *') }}
         # Do not report a green workflow when the report mail actually fails.
         continue-on-error: false
         env:
