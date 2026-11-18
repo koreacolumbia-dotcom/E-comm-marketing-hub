@@ -1,0 +1,42 @@
+name: Competitor Content Brand Logos
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/brand_assets/brand_logos.py'
+      - '.github/workflows/competitor-content-logos.yml'
+  schedule:
+    - cron: '20 20 * * 1'
+permissions:
+  contents: write
+concurrency:
+  group: competitor-content-logos
+  cancel-in-progress: false
+jobs:
+  logos:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install playwright==1.51.0 aiohttp==3.11.18
+      - run: python -m py_compile scripts/brand_assets/brand_logos.py
+      - name: Prepare browser
+        run: |
+          if command -v google-chrome >/dev/null; then
+            echo "CRAWLER_CHROME=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            python -m playwright install chromium
+          fi
+      - run: python scripts/brand_assets/brand_logos.py
+      - name: Publish logo assets only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/competitor_content/logos/
+          git diff --cached --quiet && exit 0
+          git commit -m "Publish official brand logo observations"
+          git pull --rebase origin main
+          git push origin HEAD:main
