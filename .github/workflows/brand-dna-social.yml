@@ -1,0 +1,56 @@
+name: Brand DNA and Official Social Feed
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '50 22 * * *'
+  push:
+    paths:
+      - 'scripts/competitor_content/collect_social.py'
+      - 'reports/competitor_content/social-accounts.json'
+      - 'reports/competitor_content/brand-dna.mjs'
+      - '.github/workflows/brand-dna-social.yml'
+permissions:
+  contents: write
+concurrency:
+  group: brand-dna-social
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m py_compile scripts/competitor_content/collect_social.py
+      - name: Validate deterministic Brand DNA score and minimum sample rule
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {analyzeDNA,copyEvidence} from './reports/competitor_content/brand-dna.mjs';
+          const items=Array.from({length:5},(_,i)=>({id:String(i),brand:'TEST',title:'방수 기술 경량 설계',summary:'방수 기술 경량 설계',placement:'editorial_page',purpose:{code:'EDITORIAL'}}));
+          const a=analyzeDNA(items,[],['TEST'])[0];
+          assert.equal(a.web.copyScore,100);assert.equal(a.copyCross,null);assert.equal(a.web.colorScore,null);
+          assert.equal(analyzeDNA(items.slice(0,4),[],['TEST'])[0].web.copyScore,null);
+          assert.equal(copyEvidence({title:'main',summary:'로그인 회원가입 장바구니 쿠폰'}),null);
+          console.log('Brand DNA tests passed');
+          JS
+      - name: Collect authorized Instagram professional account media
+        env:
+          IG_GRAPH_ACCESS_TOKEN: ${{ secrets.IG_GRAPH_ACCESS_TOKEN }}
+          IG_GRAPH_USER_ID: ${{ secrets.IG_GRAPH_USER_ID }}
+          IG_GRAPH_VERSION: ${{ vars.IG_GRAPH_VERSION }}
+        run: python scripts/competitor_content/collect_social.py
+      - name: Publish only social observation derived data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/competitor_content/social-feed.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Update Brand DNA official socials evidence"
+          git pull --rebase origin main
+          git push origin HEAD:main
