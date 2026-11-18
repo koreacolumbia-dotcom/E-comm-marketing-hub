@@ -26,6 +26,13 @@ async def scan(browser,session,name,root):
     def same(u): return host(u)==allowed or (urlparse(u).hostname or '') in profile.get('hosts',[])
     def brand_route(u):
         p=urlparse(u)
+        if host(u) == "k-village.co.kr" and name in ("K2","EIDER"):
+            # Multi-brand storefront: only named brand routes and curated shared events.
+            prefix = "/k2" if name == "K2" else "/eider"
+            return p.path.lower().rstrip("/") == prefix or p.path.lower().startswith(prefix+"/") or u in seeds
+        if host(u) == "nstationmall.com" and name == "NATIONAL GEOGRAPHIC":
+            # Only verified National Geographic entrypoints; avoid unrelated group brands.
+            return u in seeds
         if name=='KOLON SPORT':
             return p.path.lower().startswith('/brands/kolonsport') or u in seeds
         if name=='BLACKYAK':
