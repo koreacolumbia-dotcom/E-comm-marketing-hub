@@ -18,7 +18,7 @@ async def run():
             u=r.request.url
             if u==ROOT or u==ROOT+"index.html":
                 await r.fulfill(content_type="text/html",body=(BASE/"index.html").read_text())
-            elif u in (ROOT+"strategy.mjs",ROOT+"calendar.mjs"):
+            elif u in (ROOT+"strategy.mjs",ROOT+"calendar.mjs",ROOT+"advanced.mjs"):
                 await r.fulfill(content_type="text/javascript",body=(BASE/u.rsplit("/",1)[-1]).read_text())
             elif u==ROOT+"latest.json":
                 await r.fulfill(content_type="application/json",body=json.dumps(feed))
@@ -26,6 +26,12 @@ async def run():
         await page.route("**/*",route)
         await page.goto(ROOT)
         await page.locator("#tpo .barrow").first.wait_for()
+        assert await page.locator("#advancedPanel").count()==1
+        assert await page.locator("#purposeGrid .purpose-card").count()==6
+        assert await page.locator("#monthlyTpo table").count()==1
+        assert await page.locator("#uxDeep .deep-row").count()>=5
+        await page.locator("#deepBrand").select_option("TNF")
+        await page.locator("#deepBrand").select_option("")
         await page.locator("#calGrid .has-events").first.wait_for()
         await page.locator("#calGrid .has-events").first.click()
         assert await page.locator("#drillCards .tile").count()==3
