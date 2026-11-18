@@ -15,6 +15,7 @@ from social_listening import build_social
 from inventory_intelligence import build_inventory
 from advanced_intelligence import integrated_calendar,impact_matrix,predict,strategy
 from product_signal_hub import build_signals
+from product_timeline import build_timeline
 from observed_weather import fetch as fetch_observed_weather
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -141,6 +142,7 @@ def build(root=ROOT,day=None):
     recent=[read(rep/"daily_digest/data/daily"/((end-timedelta(days=i)).isoformat()+".json")) for i in range(1,14)]
     observed=fetch_observed_weather(end-timedelta(days=13),end)
     focus=build_signals(d,recent,calendar,competitive_discount_matrix(feed),observed)
+    focus['timeline']=build_timeline(d,recent,calendar,observed,focus)
     return {"product_focus":focus,"schema":1,"report_date":d["end_date"],"target_date":target,"source_scope":"existing public aggregate caches only; private journey files not included","sections":results}
 def main():
     p=argparse.ArgumentParser();p.add_argument("--out",required=True);a=p.parse_args()
