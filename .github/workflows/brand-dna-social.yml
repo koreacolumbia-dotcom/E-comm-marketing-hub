@@ -26,6 +26,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: pip install pillow
       - run: python -m py_compile scripts/competitor_content/collect_social.py
       - name: Validate deterministic Brand DNA score and minimum sample rule
         run: |
