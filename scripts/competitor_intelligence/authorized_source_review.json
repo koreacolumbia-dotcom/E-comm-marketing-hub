@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "reviewed_on": "2026-11-18",
+  "scope": "Independent official retail channels; not direct-to-consumer price substitutes. Automated collection requires source terms/robots permission or licensed feed access. No access-control circumvention.",
+  "sources": [
+    {
+      "brand": "DISCOVERY",
+      "channel": "authorized_retail",
+      "authorization_evidence": "https://www.discovery-expedition.com/customer-center/store-exchange",
+      "channels": [
+        "NAVER official brand store",
+        "SSG official store",
+        "Gmarket/Auction official store",
+        "LotteON official brand shop",
+        "SSF SHOP",
+        "GS SHOP"
+      ],
+      "status": "permission_and_feed_review_required"
+    },
+    {
+      "brand": "MILLET",
+      "channel": "brand_operated_marketplace",
+      "entrypoint": "https://minishop.gmarket.co.kr/millet",
+      "authorization_evidence": "https://minishop.gmarket.co.kr/millet/List?Category=100000099",
+      "status": "permission_and_feed_review_required"
+    },
+    {
+      "brand": "MILLET",
+      "channel": "brand_operated_marketplace",
+      "entrypoint": "https://stores.auction.co.kr/millet0615",
+      "authorization_evidence": "https://stores.auction.co.kr/millet0615/List",
+      "status": "permission_and_feed_review_required"
+    },
+    {
+      "brand": "NATIONAL GEOGRAPHIC",
+      "channel": "official_group_mall",
+      "entrypoint": "https://www.nstationmall.com/event/planning/1030",
+      "authorization_evidence": "https://www.nstationmall.com/event/planning/1030",
+      "status": "existing_official_source_permission_checked_at_runtime"
+    },
+    {
+      "brand": "K2",
+      "channel": "official_group_mall",
+      "entrypoint": "https://www.k-village.co.kr/",
+      "status": "existing_official_source_permission_checked_at_runtime"
+    },
+    {
+      "brand": "EIDER",
+      "channel": "official_group_mall",
+      "entrypoint": "https://www.k-village.co.kr/",
+      "status": "existing_official_source_permission_checked_at_runtime"
+    }
+  ],
+  "report_rules": {
+    "channel_split": true,
+    "only_live_observations_in_current_coverage": true,
+    "retain_observed_at": true,
+    "retail_prices_not_owned_mall_prices": true
+  }
+}
