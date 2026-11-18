@@ -608,7 +608,12 @@ def aggregate(rows,prior,checked,prior_brands=None):
     prior_brands={b['brand']:b for b in (prior_brands or [])}
     current=[x for b in rows for x in b["items"]]
     archive={x["id"]:x for x in prior}
-    archive.update({x["id"]:x for x in current})
+    for x in current:
+        old=archive.get(x["id"],{})
+        if old.get("fingerprint")==x.get("fingerprint"):
+            for field in ("visual_signature","visual_palette","visual_palette_source"):
+                if not x.get(field) and old.get(field): x[field]=old[field]
+        archive[x["id"]]=x
     cutoff=(datetime.fromisoformat(checked)-timedelta(days=30)).date().isoformat()
     today=datetime.fromisoformat(checked).date().isoformat()
     history=[x for x in archive.values() if x.get("last_seen_at","")[:10]>=cutoff]
