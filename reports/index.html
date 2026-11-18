@@ -885,16 +885,50 @@
         const summaryEl = panel.querySelector('[data-selected-summary]');
         titleEl.textContent = `${label || metric} · ${rangeKey}`;
         if (!series.length) { svg.innerHTML=''; summaryEl.textContent='표시할 데이터가 없습니다.'; return; }
-        // Calendar-date YoY overlay: match the full history, not just the selected range.
-        const dailyByDate = section === 'daily' ? new Map((trendData.daily || []).map(row => [row.date, row])) : null;
-        const lySeries = dailyByDate ? series.map(row => {
-          const lyDate = String(Number(row.date.slice(0, 4)) - 1) + row.date.slice(4);
-          const raw = dailyByDate.get(lyDate)?.[metric];
-          return { date: lyDate, value: raw == null || raw === '' || !Number.isFinite(Number(raw)) ? null : Number(raw) };
+        // Daily uses calendar dates; weekly uses the same ISO week and observed weekdays.
+        const hasYoY = section === 'daily' || section === 'weekly';
+        const dailyByDate = hasYoY ? new Map((trendData.daily || []).map(row => [row.date, row])) : null;
+        const isoWeekKey = (row) => {
+          const thursday = shiftDate(row.week_start, 3);
+          return thursday ? thursday.getFullYear() + '-' + row.label : '';
+        };
+        const weeklyByKey = section === 'weekly' ? new Map((trendData.weekly || []).map(row => [isoWeekKey(row), row])) : null;
+        const asLocalISO = d => d ? String(d.getFullYear()).padStart(4,'0') + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') : '';
+        const actualWeekdays = row => Array.from({length:7}, (_, i) => i).filter(i => dailyByDate.has(asLocalISO(shiftDate(row.weekStart, i))));
+        const validNumber = raw => raw != null && raw !== '' && Number.isFinite(Number(raw));
+        const lySeries = hasYoY ? series.map(row => {
+          if (section === 'daily') {
+            const lyDate = String(Number(row.date.slice(0, 4)) - 1) + row.date.slice(4);
+            const raw = dailyByDate.get(lyDate)?.[metric];
+            return {date:lyDate, value:validNumber(raw) ? Number(raw) : null};
+          }
+          const thursday = shiftDate(row.weekStart, 3);
+          const weekLabel = row.rawLabel;
+          const weekdays = actualWeekdays(row);
+          const ly = thursday ? weeklyByKey.get((thursday.getFullYear()-1) + '-' + weekLabel) : null;
+          const missing = {date: '전년 ' + weekLabel, value:null, count:weekdays.length};
+          if (!ly || !weekdays.length) return missing;
+          const dates = weekdays.map(i => asLocalISO(shiftDate(ly.week_start, i)));
+          const label = weekLabel + ' · ' + dates[0] + ' ~ ' + dates[dates.length-1] + ' (' + weekdays.length + '/7일)';
+          const rows = dates.map(d => dailyByDate.get(d));
+          const keys = metric === 'cvr' ? ['orders','sessions'] : [metric];
+          if (!rows.every(x => x && keys.every(k => validNumber(x[k])))) return {...missing,date:label};
+          const sum = key => rows.reduce((n,x) => n + Number(x[key]), 0);
+          const value = metric === 'cvr' ? (sum('sessions') > 0 ? sum('orders') / sum('sessions') : 0) : sum(metric);
+          return {date:label, value, count:weekdays.length};
         }) : [];
+        const currentWeekLabel = i => {
+          const row = series[i];
+          if (section !== 'weekly') return row.date;
+          const days = actualWeekdays(row);
+          if (!days.length) return row.tipLabel;
+          const first = asLocalISO(shiftDate(row.weekStart, days[0]));
+          const last = asLocalISO(shiftDate(row.weekStart, days[days.length-1]));
+          return row.rawLabel + ' · ' + first + ' ~ ' + last + ' (' + days.length + '/7일)';
+        };
         const lyCount = lySeries.filter(row => row.value !== null).length;
         const legend = panel.querySelector('.trend-legend');
-        if (dailyByDate && legend) {
+        if (hasYoY && legend) {
           legend.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px"><span style="width:22px;border-top:3px solid #0f172a"></span>선택 기간 (TY)</span><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:22px;border-top:3px dashed #64748b"></span>전년 동기간 (LY)</span><span style="display:block;margin-top:4px">카드를 누르면 KPI 그래프로 전환됩니다.</span>';
         }
         const vals = series.map(x => x.value).concat(lySeries.filter(x => x.value !== null).map(x => x.value));
@@ -919,11 +953,11 @@
         const lyPts = lySeries.map((row, i) => row.value === null ? null : [pts[i][0], padT + innerH - (((row.value - min) / range) * innerH)]);
         const lyPath = lyPts.map((pt, i) => !pt ? '' : (i === 0 || !lyPts[i-1] ? 'M ' : 'L ') + pt.join(' ')).join(' ');
         const lyLine = lyCount ? `<path class="trend-ly-line" d="${lyPath}" fill="none" stroke="#64748b" stroke-width="2.8" stroke-dasharray="8 6" stroke-linecap="round" stroke-linejoin="round"></path>` : '';
-        const lyAttrs = (i) => dailyByDate ? ` data-ly-date="${lySeries[i].date}" data-ly-value="${lySeries[i].value === null ? '데이터 없음' : formatMetric(metric, lySeries[i].value)}"` : '';
+        const lyAttrs = (i) => hasYoY ? ` data-ly-date="${lySeries[i].date}" data-ly-value="${lySeries[i].value === null ? '데이터 없음' : formatMetric(metric, lySeries[i].value)}"` : '';
         const lyHits = lyPts.map((pt, i) => {
           if (!pt) return '';
           const isolated = !lyPts[i-1] && !lyPts[i+1] ? `<circle cx="${pt[0]}" cy="${pt[1]}" r="3" fill="#64748b"></circle>` : '';
-          return `${isolated}<circle class="point-hit" cx="${pt[0]}" cy="${pt[1]}" r="9" fill="transparent" data-date="${series[i].date}" data-value="${formatMetric(metric, series[i].value)}"${lyAttrs(i)}></circle>`;
+          return `${isolated}<circle class="point-hit" cx="${pt[0]}" cy="${pt[1]}" r="9" fill="transparent" data-date="${currentWeekLabel(i)}" data-value="${formatMetric(metric, series[i].value)}"${lyAttrs(i)}></circle>`;
         }).join('');
         const line = pts.map(p => p.join(',')).join(' ');
         const area = `M ${padL} ${H-padB} L ${pts.map(p=>p.join(' ')).join(' L ')} L ${pts[pts.length-1][0]} ${H-padB} Z`;
@@ -938,7 +972,7 @@
         const circles = pts.map((p,i) => {
           const stroke = series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : 'rgba(15,23,42,.76)';
           const pretty = formatMetric(metric, series[i].value);
-          const tipDate = section === 'weekly' ? (series[i].tipLabel || series[i].rawLabel || '') : (series[i].date || series[i].label || '');
+          const tipDate = section === 'weekly' ? currentWeekLabel(i) : (series[i].date || series[i].label || '');
           return `<g><circle class="trend-anim-fade" cx="${p[0]}" cy="${p[1]}" r="${i===pts.length-1?5.5:3.4}" fill="white" stroke="${stroke}" stroke-width="${i===pts.length-1?2:1.6}" style="animation-delay:${Math.min(i*0.012, .36)}s"></circle><circle class="point-hit" cx="${p[0]}" cy="${p[1]}" r="12" fill="transparent" data-date="${tipDate}" data-label="${series[i].label || series[i].rawLabel || ''}" data-value="${pretty}"${lyAttrs(i)}><title>${tipDate} · ${pretty}</title></circle></g>`;
         }).join('');
         const labels = pts.map((p, i) => {
@@ -956,10 +990,11 @@
         }
         const last = series[series.length-1]?.value ?? 0;
         const prev = series.length > 1 ? series[series.length-2]?.value ?? null : null;
-        const delta = prev == null || prev === 0 ? null : ((last - prev) / prev);
+        const partialWeek = section === 'weekly' && actualWeekdays(series[series.length-1]).length < 7;
+        const delta = partialWeek || prev == null || prev === 0 ? null : ((last - prev) / prev);
         const startTxt = section === 'weekly' ? (series[0]?.tipLabel || series[0]?.date || '') : (series[0]?.date || '');
-        const endTxt = section === 'weekly' ? (series[series.length-1]?.tipLabel || series[series.length-1]?.date || '') : (series[series.length-1]?.date || '');
-        summaryEl.textContent = `${startTxt} ~ ${endTxt} · 최근값 ${formatMetric(metric, last)}${delta == null ? '' : ` · 직전 대비 ${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`} · ${series.length}포인트${dailyByDate ? ` · LY ${lyCount}/${series.length}일${lyCount < series.length ? " (일부 전년 데이터 없음)" : ""}` : ""}`;
+        const endTxt = section === 'weekly' ? currentWeekLabel(series.length-1) : (series[series.length-1]?.date || '');
+        summaryEl.textContent = `${startTxt} ~ ${endTxt} · 최근값 ${formatMetric(metric, last)}${delta == null ? '' : ` · 직전 대비 ${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`} · ${series.length}포인트${hasYoY ? ` · LY ${lyCount}/${series.length}${section === "weekly" ? "주" : "일"}${lyCount < series.length ? " (일부 전년 데이터 없음)" : ""}` : ""}${partialWeek ? " · 최근 주 부분 집계 (동일 요일 비교)" : ""}`;
         const tip = panel.querySelector('[data-chart-tooltip]');
         const shell = panel.querySelector('.trend-svg-shell');
         const hideTip = () => { if (tip) tip.hidden = true; };
@@ -967,7 +1002,7 @@
           if (!tip || !shell) return;
           const t = evt.currentTarget;
           tip.innerHTML = `<span class="t-date">${t.dataset.date || t.dataset.label || ''}</span><span class="t-value">${t.dataset.value || ''}</span>`;
-          if (dailyByDate && t.dataset.lyDate) {
+          if (hasYoY && t.dataset.lyDate) {
             tip.innerHTML += `<span class="t-date" style="margin-top:.5rem">LY · ${t.dataset.lyDate}</span><span class="t-value" style="color:#cbd5e1">${t.dataset.lyValue || '데이터 없음'}</span>`;
           }
           const rect = shell.getBoundingClientRect();
