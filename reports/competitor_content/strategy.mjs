@@ -1,3 +1,37 @@
+// Exclusive primary intent; editorial format is a separate, multi-label dimension.
+// URL names (event/collection/special) alone are not evidence of a sale.
+export const PURPOSES=[["COMMERCIAL","상품 기획전"],["PROMOTION","할인·혜택 프로모션"],["EDITORIAL","브랜드 콘텐츠"],["HYBRID","콘텐츠형 기획전"],["COMMUNITY","커뮤니티·체험"],["UNCLASSIFIED","판단 보류"]];
+export function classifyPurpose(x){
+ const title=String(x.title||""),summary=String(x.summary||""),cta=Array.isArray(x.cta)?x.cta.join(" / "):"",placement=x.placement||"",article=placement==="editorial_page";
+ const body=article?summary:""; // Main visual summaries may include adjacent banners and global menus.
+ const reasons=[];
+ const add=(name,re,str)=>{const m=String(str||"").match(re);if(m){reasons.push(name+": "+m[0].slice(0,90));return true}return false};
+ const promo=add("혜택 문구",/블랙\s*프라이데이|black\s*friday|쿠폰|할인|특가|세일|페이백|적립금|구매\s*혜택|구매\s*금액대별|(?:최대\s*)?\d+\s*%\s*(?:off|할인|우대)|\d+\s*%\s*OFF|\bclearance\b/i,title+" "+cta)||add("혜택 설명",/구매\s*(?:시|금액대별).{0,28}(?:할인|증정|쿠폰|사은품|우대)|(?:쿠폰|할인)\s*(?:증정|혜택|적용|제공)|\d+\s*%\s*(?:OFF|할인|우대)/i,body);
+ const community=add("활동·참여",/워크숍|워크샵|클리닉|클래스|참가자\s*모집|참가\s*신청|커뮤니티\s*(?:활동|프로그램|이벤트)|크루\s*(?:모집|활동)|하이킹\s*프로그램|workshop|clinic|community\s*(?:event|program)|join\s+us/i,title+" "+body+" "+cta);
+ const editorial=add("스토리·정보",/인터뷰|브랜드\s*(?:스토리|철학|역사)|헤리티지|제작\s*(?:과정|비하인드)|개발\s*스토리|필드\s*테스트|착용\s*(?:후기|테스트)|가이드|매거진|저널|탐험기|산행기|지속\s*가능|원주민|interview|behind.the.scenes|heritage|brand\s*story|our\s*story|sustainab|field\s*test|gear\s*guide|journal|about\s*us|about\s*the\s*founder|community\s*impact/i,title+" "+body);
+ const formats=new Set([x.type,...(x.type_tags||[])]);
+ const narrative=editorial||(article&&(formats.has("BRAND_STORY")||formats.has("PRODUCT_STORY")||formats.has("LOOKBOOK"))&&body.length>=100&&!/^(?:what'?s new|new arrivals|weekly best)/i.test(title));
+ if(narrative&&!editorial)reasons.push("기사형 본문 및 스토리 형식");
+ const directProduct=placement==="main_visual"&&(/\/product\/(?:view\.asp|[a-z0-9_-]{5,})(?:[/?#]|$)|\/products\/(?:view\/\d+|[^/?#]+$)|\/goods\/(?:view|detail)/i.test(String(x.url||"")))&&!/(?:category|list|search)/i.test(String(x.url||""));
+ const buy=add("구매 CTA",/상품\s*보기|제품\s*보기|남성\s*제품\s*보기|여성\s*제품\s*보기|구매하기|쇼핑하기|shop\s*now|shop\s*(?:men|women|the\s*collection)|buy\s*now/i,cta);
+ const collection=add("판매 큐레이션 문구",/상품\s*기획전|쇼핑\s*기획전|상품\s*모아보기|상품\s*라인업|제품\s*라인업|컬렉션\s*구매|상품\s*셀렉션|shop\s*the\s*collection/i,title+" "+cta);
+ const count=Array.isArray(x.products)?x.products.filter(p=>p&&p.url&&p.name&&!/^\d+(?:\.\d+)?\s*\(/.test(p.name)).length:0;
+ const productEvidence=article&&count>0;
+ if(productEvidence)reasons.push("명시 상품 링크 "+count+"개");
+ if(directProduct)reasons.push("상품 상세 페이지로 직접 연결");
+ const price=article&&/\d{1,3}(?:,\d{3})+\s*원/.test(body);
+ if(price&&productEvidence)reasons.push("가격 노출");
+ const commerce=directProduct||buy||collection||productEvidence;
+ let code="UNCLASSIFIED";
+ if(promo)code="PROMOTION";
+ else if(community)code="COMMUNITY";
+ else if(narrative&&commerce)code="HYBRID";
+ else if(narrative)code="EDITORIAL";
+ else if(commerce)code="COMMERCIAL";
+ if(code==="UNCLASSIFIED")reasons.push("구매·스토리 판단 근거 부족");
+ return {code,evidence:[...new Set(reasons)],confidence:code==="UNCLASSIFIED"?"insufficient":"rule_inferred",commercial_evidence:commerce,promotion_evidence:promo};
+}
+
 // Offline content strategy analysis; no network.
 export function analyze(feed){
  const norm=s=>String(s??"").normalize("NFKC").replace(/\s+/g," ").trim().toLowerCase();
@@ -36,10 +70,11 @@ export function analyze(feed){
  const c=clean(feed.items),h=clean(feed.history||feed.items);
  const ref=(x,r)=>({brand:x.brand,title:x.title,url:x.placement==="main_visual"?(x.url||x.source_url):x.source_url,thumbnail:x.thumbnail||null,evidence:r});
  const match=(x,r)=>r[2].test([x.title,x.summary,...(x.type_tags||[]),...(x.tpo||[]),...(x.selling_points||[])].join(" "))||(r[0]==="PEOPLE"&&!!x.influencer?.length)||(r[0]==="SHOPPABLE"&&!!x.products?.length);
- const items=c.items.map(x=>({...x,strategy_signals:rules.filter(r=>match(x,r)).map(r=>r[0])}));
+ const describe=x=>({...x,strategy_signals:rules.filter(r=>match(x,r)).map(r=>r[0]),purpose:classifyPurpose(x)});
+ const items=c.items.map(describe);
  const brands=(feed.brands||[]).map(b=>{const xs=items.filter(x=>x.brand===b.brand),n=xs.length;const signals=Object.fromEntries(rules.map(r=>[r[0],n?xs.filter(x=>x.strategy_signals.includes(r[0])).length:null]));return {brand:b.brand,pages_checked:b.pages_checked,raw_count:b.candidate_count,unique_count:n,collection_status:b.status,signals,dominant_signals:rules.filter(r=>signals[r[0]]>0).sort((a,b)=>signals[b[0]]-signals[a[0]]).slice(0,2).map(r=>r[1]),sample_status:n<3?"thin_sample":"observed_sample",examples:xs.slice(0,2).map(x=>ref(x,"observed"))}});
  const market=items.filter(x=>x.brand!=="COLUMBIA"),owned=items.filter(x=>x.brand==="COLUMBIA"),insights=[];
  for(const r of rules){const ms=market.filter(x=>x.strategy_signals.includes(r[0])),os=owned.filter(x=>x.strategy_signals.includes(r[0])),bs=[...new Set(ms.map(x=>x.brand))];if(!ms.length)continue;const gap=market.length&&owned.length?Math.round((ms.length/market.length-os.length/owned.length)*1000)/10:null;insights.push({signal:r[0],label:r[1],action:r[3],kpi:r[4],competitor_count:ms.length,competitor_total:market.length,competitor_brands:bs.length,owned_count:os.length,owned_total:owned.length,gap_pp:gap,priority:bs.length>=2&&owned.length>=3&&gap>0?"review":"reference",references:bs.slice(0,3).map(b=>{const x=ms.find(y=>y.brand===b);return ref(x,[x.title,x.summary].join(" ").match(r[2])?.[0]||"분류 태그 또는 연결 근거")})})}
  insights.sort((a,b)=>(b.priority==="review")-(a.priority==="review")||b.competitor_brands-a.competitor_brands||b.competitor_count-a.competitor_count);
- return {source_checked_at:feed.checked_at_kst,schema_version:1,notes:"Observed content candidates, not publication or performance. Multi-label inferred signals. 27SS ideas are hypotheses; uncollected is not zero.",quality:{raw_count:(feed.items||[]).length,unique_count:items.length,rejected_count:c.rejected.length,merged_count:c.merged.length,market_count:market.length,owned_count:owned.length},signals:rules.map(r=>({id:r[0],label:r[1]})),brands,insights,items,history:h.items,dedup_audit:{rejected:c.rejected,merged:c.merged}}
+ return {source_checked_at:feed.checked_at_kst,schema_version:1,notes:"Observed content candidates, not publication or performance. Multi-label inferred signals. 27SS ideas are hypotheses; uncollected is not zero.",quality:{raw_count:(feed.items||[]).length,unique_count:items.length,rejected_count:c.rejected.length,merged_count:c.merged.length,market_count:market.length,owned_count:owned.length},signals:rules.map(r=>({id:r[0],label:r[1]})),purpose_counts:Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.purpose.code===code).length])),purpose_by_brand:Object.fromEntries(brands.map(b=>[b.brand,Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.brand===b.brand&&x.purpose.code===code).length]))])),brands,insights,items,history:h.items.map(describe),dedup_audit:{rejected:c.rejected,merged:c.merged}}
 }

@@ -11,3 +11,13 @@ assert.equal(r.items.find(a=>a.brand==='TEST').member_ids.length,2);
 assert.equal(r.items.find(a=>a.brand==='TEST').placements.length,2);
 assert.equal(r.insights.every(a=>a.owned_total===0&&a.gap_pp===null),true);
 console.log('Content strategy regression tests passed');
+
+// Purpose regressions: type is not primary intent, URL alone is insufficient.
+import {classifyPurpose} from '../../reports/competitor_content/strategy.mjs';
+assert.equal(classifyPurpose({title:"겨울 컬렉션",placement:"main_visual",url:"https://example.org/event/planning/123"}).code,"UNCLASSIFIED");
+assert.equal(classifyPurpose({title:"상품 기획전",placement:"main_visual"}).code,"COMMERCIAL");
+assert.equal(classifyPurpose({title:"앰배서더 인터뷰",placement:"editorial_page"}).code,"EDITORIAL");
+assert.equal(classifyPurpose({title:"앰배서더 인터뷰",placement:"editorial_page",products:[{name:"재킷",url:"https://example.org/product/12345"}]}).code,"HYBRID");
+assert.equal(classifyPurpose({title:"구매 혜택 쿠폰"}).code,"PROMOTION");
+assert.equal(classifyPurpose({title:"하이킹 클래스 참가 신청"}).code,"COMMUNITY");
+assert.equal(classifyPurpose({title:"아우터",placement:"main_visual",summary:"다른 배너 30% 할인"}).code,"UNCLASSIFIED");
