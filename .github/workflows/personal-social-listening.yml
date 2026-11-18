@@ -1,0 +1,42 @@
+name: Private Social Listening
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/personal-social-listening.yml']
+permissions:
+  contents: read
+concurrency:
+  group: private-social-listening
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unit tests and real cache validation
+        run: |
+          set -euo pipefail
+          umask 077
+          python -m py_compile scripts/personal_intelligence/social_listening.py scripts/personal_intelligence/render_social.py
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_social_listening.py'
+          day=$(TZ=Asia/Seoul date -d yesterday +%F)
+          python scripts/personal_intelligence/render_social.py --date "$day" --out "$RUNNER_TEMP/private-social"
+          python - <<'PY'
+          import os,json
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'private-social'
+          d=json.loads((p/'social.json').read_text())
+          assert len(d['community_daily'])==7
+          assert d['observed_community_mentions'] is not None or d['voc']['reviews'] is not None
+          assert '13. SOCIAL LISTENING' in (p/'social.html').read_text()
+          assert d['keyword_sentiment'] is None
+          print('[SOCIAL] real cache validations passed; no content logged')
+          PY
+      - name: Clean private output
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/private-social"
