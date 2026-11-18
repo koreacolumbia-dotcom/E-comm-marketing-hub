@@ -2,34 +2,30 @@
 // URL names (event/collection/special) alone are not evidence of a sale.
 export const PURPOSES=[["COMMERCIAL","상품 기획전"],["PROMOTION","할인·혜택 프로모션"],["EDITORIAL","브랜드 콘텐츠"],["HYBRID","콘텐츠형 기획전"],["COMMUNITY","커뮤니티·체험"],["UNCLASSIFIED","판단 보류"]];
 export function classifyPurpose(x){
- const title=String(x.title||""),summary=String(x.summary||""),cta=Array.isArray(x.cta)?x.cta.join(" / "):"",placement=x.placement||"",article=placement==="editorial_page";
- const body=article?summary:""; // Main visual summaries may include adjacent banners and global menus.
- const reasons=[];
- const add=(name,re,str)=>{const m=String(str||"").match(re);if(m){reasons.push(name+": "+m[0].slice(0,90));return true}return false};
- const promo=add("혜택 문구",/블랙\s*프라이데이|black\s*friday|쿠폰|할인|특가|세일|페이백|적립금|구매\s*혜택|구매\s*금액대별|(?:최대\s*)?\d+\s*%\s*(?:off|할인|우대)|\d+\s*%\s*OFF|\bclearance\b/i,title+" "+cta)||add("혜택 설명",/구매\s*(?:시|금액대별).{0,28}(?:할인|증정|쿠폰|사은품|우대)|(?:쿠폰|할인)\s*(?:증정|혜택|적용|제공)|\d+\s*%\s*(?:OFF|할인|우대)/i,body);
- const community=add("활동·참여",/워크숍|워크샵|클리닉|클래스|참가자\s*모집|참가\s*신청|커뮤니티\s*(?:활동|프로그램|이벤트)|크루\s*(?:모집|활동)|하이킹\s*프로그램|workshop|clinic|community\s*(?:event|program)|join\s+us/i,title+" "+body+" "+cta);
- const editorial=add("스토리·정보",/인터뷰|브랜드\s*(?:스토리|철학|역사)|헤리티지|제작\s*(?:과정|비하인드)|개발\s*스토리|필드\s*테스트|착용\s*(?:후기|테스트)|가이드|매거진|저널|탐험기|산행기|지속\s*가능|원주민|interview|behind.the.scenes|heritage|brand\s*story|our\s*story|sustainab|field\s*test|gear\s*guide|journal|about\s*us|about\s*the\s*founder|community\s*impact/i,title+" "+body);
- const formats=new Set([x.type,...(x.type_tags||[])]);
- const narrative=editorial||(article&&(formats.has("BRAND_STORY")||formats.has("PRODUCT_STORY")||formats.has("LOOKBOOK"))&&body.length>=100&&!/^(?:what'?s new|new arrivals|weekly best)/i.test(title));
- if(narrative&&!editorial)reasons.push("기사형 본문 및 스토리 형식");
- const directProduct=placement==="main_visual"&&(/\/product\/(?:view\.asp|[a-z0-9_-]{5,})(?:[/?#]|$)|\/products\/(?:view\/\d+|[^/?#]+$)|\/goods\/(?:view|detail)/i.test(String(x.url||"")))&&!/(?:category|list|search)/i.test(String(x.url||""));
- const buy=add("구매 CTA",/상품\s*보기|제품\s*보기|남성\s*제품\s*보기|여성\s*제품\s*보기|구매하기|쇼핑하기|shop\s*now|shop\s*(?:men|women|the\s*collection)|buy\s*now/i,cta);
- const collection=add("판매 큐레이션 문구",/상품\s*기획전|쇼핑\s*기획전|상품\s*모아보기|상품\s*라인업|제품\s*라인업|컬렉션\s*구매|상품\s*셀렉션|shop\s*the\s*collection/i,title+" "+cta);
- const count=Array.isArray(x.products)?x.products.filter(p=>p&&p.url&&p.name&&!/^\d+(?:\.\d+)?\s*\(/.test(p.name)).length:0;
- const productEvidence=article&&count>0;
- if(productEvidence)reasons.push("명시 상품 링크 "+count+"개");
- if(directProduct)reasons.push("상품 상세 페이지로 직접 연결");
- const price=article&&/\d{1,3}(?:,\d{3})+\s*원/.test(body);
- if(price&&productEvidence)reasons.push("가격 노출");
- const commerce=directProduct||buy||collection||productEvidence;
- let code="UNCLASSIFIED";
- if(promo)code="PROMOTION";
- else if(community)code="COMMUNITY";
- else if(narrative&&commerce)code="HYBRID";
- else if(narrative)code="EDITORIAL";
- else if(commerce)code="COMMERCIAL";
- if(code==="UNCLASSIFIED")reasons.push("구매·스토리 판단 근거 부족");
- return {code,evidence:[...new Set(reasons)],confidence:code==="UNCLASSIFIED"?"insufficient":"rule_inferred",commercial_evidence:commerce,promotion_evidence:promo};
+ const title=String(x.title||""),summary=String(x.summary||""),cta=(x.cta||[]).join(" / "),url=String(x.url||x.source_url||""),article=x.placement==="editorial_page",m=x.page_metrics||{},ev=[];
+ const add=(n,r,t)=>{const z=String(t||"").match(r);if(z){ev.push(n+": "+z[0].slice(0,100));return true}return false};
+ const global=/로그인.{0,45}회원가입|멤버십 혜택\s*>\s*얼리 윈터 프로모션|매장찾기.{0,80}공지사항/i.test(summary);
+ const local=x.evidence_scope==="local_block"||x.evidence_scope==="editorial_root"||(!global&&title.length>3&&summary.toLowerCase().startsWith(title.toLowerCase()));
+ const body=(article&&!global||local)?summary:"",text=title+" "+body;
+ const promo=add("명시 혜택",/블랙\s*프라이데이|black\s*friday|쿠폰|페이백|구매\s*혜택|구매\s*금액대별|\d+\s*%\s*(?:off|할인|우대)|특가|특별한\s*혜택/i,title+" "+cta+" "+(local?body:""));
+ const community=add("활동·참여",/워크숍|워크샵|클리닉|클래스|참가자\s*모집|참가\s*신청|크루\s*(?:모집|활동)|community\s*(?:event|program)|workshop|clinic|팝업\s*스토어|pop.up\s*store/i,text+" "+cta);
+ const story=add("스토리·정보",/인터뷰|브랜드\s*(?:스토리|철학|역사)|헤리티지|개발\s*(?:스토리|과정)|제작\s*과정|비하인드|필드\s*테스트|착용\s*(?:후기|테스트)|직접\s*(?:입어본|체험)|가이드|매거진|저널|탐험기|산행기|지속\s*가능|interview|heritage|founding\s*stor|brand\s*story|our\s*story|about\s*us|sustainab|field\s*test|journal|gear\s*guide|since\s*(?:19|20)\d{2}/i,text);
+ const storyRoute=add("스토리 전용 경로",/\/(?:editorial[-/]|blogs\/[^/]+\/|stories\/(?:[a-z-]+\/)?\d+|brand\/brandStory|brand\/nepa\/story|about\/history|page\/(?:our_heritage|who_we_are|forged_on_mt_hunter)|history2\.html)|\/(?:NBMADEHISTORY|NBRunningGuide)\.action|lookBook[^/]*\/[^/]+\.html/i,url);
+ const tech=add("기능 설명",/보온|체열|발열|발수|방수|경량|통기|투습|내구|기능성|기술력|테크놀로지|인터체인지|옴니히트|omni.?heat|프리마로프트|polartec|고어텍스|gore.?tex|BOA[®™]?\s*핏|핏\s*시스템|소재\s*기술|설계|insulat|waterproof|lightweight|technology|디테일/i,text);
+ const collection=add("제품 큐레이션",/컬렉션|collection|라인업|셀렉션|아이템\s*모음|상품\s*기획전|상품\s*모아보기|캡슐|capsule|리미티드\s*에디션|limited\s*edition|신상품|시즌\s*오픈|season\s*open|stylebook|룩북|lookbook/i,text);
+ const product=add("상품·착장 설명",/다운\s*자켓|다운자켓|구스다운|패딩|플리스|재킷|자켓|아우터|방한화|백팩|코트|텐트|풀오버|레이어|슈즈|착장|스타일링|\b(?:down|jacket|outerwear|backpack|fleece|shoes|gloves)\b/i,text);
+ const direct=add("상품·상품모음 연결",/\/product\/(?:view\.asp|productDetail\.action|[a-z0-9_-]{5,})(?:[/?#]|$)|\/products\/(?:view\/\d+|category\/\d+)|\/goods\/catalog[?]|\/goods\/category\/|\/collections\/[^/?#]+|\/product\/activity\.asp|\/lifestyle\/lifestyle-type\//i,url);
+ const buy=add("구매 CTA",/상품\s*보기|제품\s*보기|구매하기|쇼핑하기|shop\s*now|shop\s*(?:men|women|the\s*collection)|buy\s*now|add\s*to\s*cart/i,cta+" "+(local?body:""));
+ const read=add("읽기 CTA",/read\s*article|read\s*more|learn\s*more|스토리\s*보기|자세히\s*읽기|view\s*lookbook/i,cta+" "+(local?body:""));
+ const products=Math.max((article||local?(x.products||[]).filter(z=>z?.name&&z?.url).length:0),Number(m.product_links||0));
+ const prices=Number(m.price_mentions||0)||((local?body:"").match(/\d{1,3}(?:,\d{3})+\s*원/g)||[]).length;
+ if(products)ev.push("관측 상품 연결 "+products+"개");if(prices)ev.push("관측 가격 "+prices+"개");
+ const campaign=/\/(?:Brands\/KOLONSPORT\/Special\/\d+|event\/view\/eventCategoryNF\/\d+|event\/\d{6}(?:_\d+)?\/[^/?#]+\.asp|promotion\/view\.asp|etc\/collection\.action|app\/planning2\/views\/|display\/promotions\/collection\/\d+|20\d{2}[a-z-]+\/)/i.test(url);
+ const commerce=direct||buy||products>0||prices>=2, narrative=story||storyRoute||read||tech;
+ let code="UNCLASSIFIED",confidence="insufficient";
+ if(promo){code="PROMOTION";confidence="evidence_based"}else if(community){code="COMMUNITY";confidence="evidence_based"}else if(narrative&&commerce){code="HYBRID";confidence="evidence_based"}else if(story||storyRoute||read){code="EDITORIAL";confidence="evidence_based"}else if(commerce){code="COMMERCIAL";confidence="evidence_based"}else if(campaign&&(tech||product||collection)){code=tech?"HYBRID":"COMMERCIAL";confidence="inferred";ev.push("기획 상세 경로 + 제품 문구; 실제 판매 구조 재확인") }else if(tech||product&&local&&body.length>title.length+12){code=tech?"EDITORIAL":"COMMERCIAL";confidence="inferred";ev.push("제품 문구 기반 추정")}else if(collection&&(article||local)){code="COMMERCIAL";confidence="inferred";ev.push("컬렉션 문구 기반 추정; 구매 구조 미확인")}
+ if(code==="UNCLASSIFIED")ev.push("개별 콘텐츠 근거 부족");
+ return {code,confidence,evidence:[...new Set(ev)],commercial_evidence:commerce,promotion_evidence:promo};
 }
 
 // Offline content strategy analysis; no network.
@@ -50,12 +46,15 @@ export function analyze(feed){
  function clean(items){
   const keep=[],rejected=[],merged=[];
   for(const orig of items||[]){
-   const x={...orig},src=canon(x.source_url),dest=canon(x.url),title=norm(x.title),body=norm(x.summary);
+   const x={...orig},src=canon(x.source_url),dest=canon(x.url);let title=norm(x.title),body=norm(x.summary);
+   if(/로그인.*회원가입|^개인정보 처리 방침|^고객 서비스$|^베스트 구매 후기$|^image-img$|^our stores$|^stay in the loop$|^you may also like$|^shop all$|^메인 비주얼$/i.test(title)||/personal-information-collection-statement|\/service\/company\//i.test(src)){rejected.push({id:x.id,brand:x.brand,title:x.title,reason:"navigation_or_generic"});continue}
+   if((title===norm(x.brand)||/^(?:new balance|블랙야크|내셔널지오그래픽|자주 묻는 질문|stay connected|collection)$/i.test(title))&&x.placement==="editorial_page"&&body.length>=12&&!/로그인|회원가입|멤버십 혜택\s*>/.test(body)){x.title=String(x.summary).slice(0,105);title=norm(x.title)}
    if(!src||!title||noise.test(title)||/안목을 넓히는 새로운 시선, 코오롱몰$/.test(title)||(x.placement!=="main_visual"&&index.test(src.split("?")[0]))){rejected.push({id:x.id,brand:x.brand,title:x.title,reason:"generic_or_index"});continue}
    if(x.placement==="main_visual"&&dest&&index.test(dest.split("?")[0])&&/^(?:packs|jackets|footwear|men|women|kids|accessories|가방|신발|아우터|남성|여성)$/i.test(title)){rejected.push({id:x.id,brand:x.brand,title:x.title,reason:"category_navigation"});continue}
    if(title==="이런 기획전도 놓치지 마세요"){if(!body){rejected.push({id:x.id,brand:x.brand,reason:"generic_title"});continue}x.title=x.summary.slice(0,160)}
    const effective=x.placement==="main_visual"?dest:src,img=canon(x.thumbnail);
-   const keys=[effective&&detail.test(effective)?"detail:"+effective:"",img?"image_title:"+img+"|"+norm(x.title):"","source_title:"+src+"|"+norm(x.title)].filter(Boolean);
+   const realDetail=effective&&(/\/event\/\d{6}(?:_\d+)?\/[^/?]+\.asp|[?&]collectionIdx=\d+|\/event\/view\/eventCategoryNF\/\d+|\/app\/planning2\/views\/\d+\/\d+/i.test(effective)||detail.test(effective));
+   const keys=[realDetail?"detail:"+effective:"",img?"image_title:"+img+"|"+norm(x.title):"","source_title:"+src+"|"+norm(x.title)].filter(Boolean);
    const m=keep.find(a=>a.brand===x.brand&&a.keys.some(k=>keys.includes(k)));
    if(!m){keep.push({...x,keys,placements:[x.placement].filter(Boolean),source_urls:[src],member_ids:[x.id].filter(Boolean)});continue}
    const old={...m},prefer=x.placement!=="main_visual"&&m.placement==="main_visual";
@@ -76,5 +75,5 @@ export function analyze(feed){
  const market=items.filter(x=>x.brand!=="COLUMBIA"),owned=items.filter(x=>x.brand==="COLUMBIA"),insights=[];
  for(const r of rules){const ms=market.filter(x=>x.strategy_signals.includes(r[0])),os=owned.filter(x=>x.strategy_signals.includes(r[0])),bs=[...new Set(ms.map(x=>x.brand))];if(!ms.length)continue;const gap=market.length&&owned.length?Math.round((ms.length/market.length-os.length/owned.length)*1000)/10:null;insights.push({signal:r[0],label:r[1],action:r[3],kpi:r[4],competitor_count:ms.length,competitor_total:market.length,competitor_brands:bs.length,owned_count:os.length,owned_total:owned.length,gap_pp:gap,priority:bs.length>=2&&owned.length>=3&&gap>0?"review":"reference",references:bs.slice(0,3).map(b=>{const x=ms.find(y=>y.brand===b);return ref(x,[x.title,x.summary].join(" ").match(r[2])?.[0]||"분류 태그 또는 연결 근거")})})}
  insights.sort((a,b)=>(b.priority==="review")-(a.priority==="review")||b.competitor_brands-a.competitor_brands||b.competitor_count-a.competitor_count);
- return {source_checked_at:feed.checked_at_kst,schema_version:1,notes:"Observed content candidates, not publication or performance. Multi-label inferred signals. 27SS ideas are hypotheses; uncollected is not zero.",quality:{raw_count:(feed.items||[]).length,unique_count:items.length,rejected_count:c.rejected.length,merged_count:c.merged.length,market_count:market.length,owned_count:owned.length},signals:rules.map(r=>({id:r[0],label:r[1]})),purpose_counts:Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.purpose.code===code).length])),purpose_by_brand:Object.fromEntries(brands.map(b=>[b.brand,Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.brand===b.brand&&x.purpose.code===code).length]))])),brands,insights,items,history:h.items.map(describe),dedup_audit:{rejected:c.rejected,merged:c.merged}}
+ return {source_checked_at:feed.checked_at_kst,schema_version:1,notes:"Observed content candidates, not publication or performance. Multi-label inferred signals. 27SS ideas are hypotheses; uncollected is not zero.",quality:{raw_count:(feed.items||[]).length,unique_count:items.length,rejected_count:c.rejected.length,merged_count:c.merged.length,market_count:market.length,owned_count:owned.length},signals:rules.map(r=>({id:r[0],label:r[1]})),purpose_confidence:Object.fromEntries(["evidence_based","inferred","insufficient"].map(k=>[k,items.filter(x=>x.purpose.confidence===k).length])),purpose_counts:Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.purpose.code===code).length])),purpose_by_brand:Object.fromEntries(brands.map(b=>[b.brand,Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.brand===b.brand&&x.purpose.code===code).length]))])),brands,insights,items,history:h.items.map(describe),dedup_audit:{rejected:c.rejected,merged:c.merged}}
 }
