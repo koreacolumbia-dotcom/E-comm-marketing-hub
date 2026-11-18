@@ -42,7 +42,7 @@ jobs:
           assert inv['title']=='INVENTORY INTELLIGENCE'
           assert inv['lost_sales'] is None and inv['stock_as_of'] is None
           assert all(r['stock_status']=='not_verified' and r['coverage_days'] is None for r in inv['sku_candidates'])
-          assert "['daily_intelligence','인텔리전스','fa-chart-line']" in Path('assets/dashboard-redesign.js').read_text()
+          assert "['daily_intelligence','통합분석','fa-chart-line']" in Path('assets/dashboard-redesign.js').read_text()
           assert Path('index.html').read_text().count('data-key="daily_intelligence"')==2
           cal,impact,forecast,plan=x['sections'][14:18]
           assert len(cal['days'])==37 and cal['days'][-8]['date']==x['report_date']
@@ -60,6 +60,9 @@ jobs:
           Path('/tmp/intelligence.js').write_text(re.findall(r'<script>(.*?)</script>',src,re.S)[0])
           PY
           node --check /tmp/intelligence.js
+          node --check assets/dashboard-redesign.js
+          grep -Fq '일일 통합 분석' reports/daily_intelligence/index.html
+          grep -Fq 'ko(names[n-1])' reports/daily_intelligence/index.html
       - name: Publish only aggregate dashboard snapshot
         run: |
           set -euo pipefail
