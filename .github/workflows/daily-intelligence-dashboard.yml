@@ -1,4 +1,4 @@
-name: Daily Intelligence Dashboard (01–14)
+name: Daily Intelligence Dashboard (01–18)
 on:
   workflow_dispatch:
   schedule:
@@ -24,9 +24,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Generate 14-section aggregate snapshot (no BigQuery queries)
+      - name: Generate 18-section aggregate snapshot (no BigQuery queries)
         run: |
           python -m unittest discover -s scripts/personal_intelligence -p 'test_inventory_intelligence.py'
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_advanced_intelligence.py'
           python scripts/personal_intelligence/build_dashboard.py --out reports/daily_intelligence/latest.json
       - name: Validate navigation and aggregate output
         run: |
@@ -34,7 +35,7 @@ jobs:
           from pathlib import Path
           import json
           x=json.loads(Path('reports/daily_intelligence/latest.json').read_text())
-          assert [s['number'] for s in x['sections']]==list(range(1,15))
+          assert [s['number'] for s in x['sections']]==list(range(1,19))
           assert sum(s['status']!='validation_required' for s in x['sections'])>=10
           assert x['sections'][10]['multi_touch_status']=='private_local_only'
           inv=x['sections'][13]
@@ -43,7 +44,13 @@ jobs:
           assert all(r['stock_status']=='not_verified' and r['coverage_days'] is None for r in inv['sku_candidates'])
           assert "['daily_intelligence','인텔리전스','fa-chart-line']" in Path('assets/dashboard-redesign.js').read_text()
           assert Path('index.html').read_text().count('data-key="daily_intelligence"')==2
-          print('14 sections and PC/mobile tabs checked')
+          cal,impact,forecast,plan=x['sections'][14:18]
+          assert len(cal['days'])==37 and cal['days'][-8]['date']==x['report_date']
+          assert all(r['revenue'] is None for r in cal['days'][-7:])
+          if impact['reconciled']: assert abs(sum(r['accounting_delta'] for r in impact['drivers'])-impact['revenue_delta'])<0.1
+          assert len(forecast['forecast'])==(7 if forecast['status']=='available' else 0)
+          assert not plan['auto_execute'] and plan['expected_incremental_revenue'] is None
+          print('18 sections and PC/mobile tabs checked')
           PY
           node --version
           python - <<'PY'
