@@ -20,19 +20,21 @@ def revenue_bridge(current, prior):
             effects[i]+=(prod(v)-before)/6
     return dict(zip(('traffic','conversion','aov'),effects))
 
-def trend_svg(labels,actual,prior,forecast=None,lower=None,upper=None,events=None):
+def trend_svg(labels,actual,prior,forecast=None,lower=None,upper=None,events=None, *, allow_negative=False):
     n=len(labels)
     if n<2 or any(len(s)!=n for s in (actual,prior)) or any(s is not None and len(s)!=n for s in (forecast,lower,upper)):
         raise ValueError('Aligned dates and series required')
     series=[actual,prior,forecast or [],lower or [],upper or []]
     vals=[float(v) for s in series for v in s if v is not None]
-    if not vals or not all(isfinite(v) and v>=0 for v in vals): raise ValueError('Finite nonnegative data required')
-    ceiling=max(vals) or 1
+    if not vals or not all(isfinite(v) and (allow_negative or v>=0) for v in vals): raise ValueError('Finite data required; negative values require allow_negative')
+    floor=min(0,min(vals)) if allow_negative else 0
+    ceiling=max(0,max(vals))
+    if ceiling==floor: ceiling=floor+1
     x=lambda i: 56+800*i/(n-1)
-    y=lambda v: 210-180*float(v)/ceiling
+    y=lambda v: 210-180*(float(v)-floor)/(ceiling-floor)
     out=['<svg class="chart" viewBox="0 0 900 255" role="img" aria-label="Revenue trend and forecast">']
     for j in range(5):
-        v=ceiling*j/4; yy=y(v)
+        v=floor+(ceiling-floor)*j/4; yy=y(v)
         out.append(f'<line class="gridline" x1="56" x2="856" y1="{yy}" y2="{yy}"/><text x="50" y="{yy+4}" text-anchor="end" font-size="10">{v:,.0f}</text>')
     def path(s):
         active=False; cmds=[]
