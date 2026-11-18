@@ -33,7 +33,8 @@ ROOTS={
 "MERRELL":"https://www.merrellkorea.co.kr/",
 "GREGORY":"https://www.gregorypacks.co.kr/home/",
 "SNOWLINE":"https://www.snowlinemall.com/"}
-SEEDS={"ARC'TERYX":["https://arcteryx.co.kr/explore/whoweare","https://arcteryx.co.kr/lp"],
+SEEDS={"BLACKYAK":["https://www.byn.kr/story/blackyak/","https://www.byn.kr/story/blackyak/?cate=BRAND_CAMPAIGN&gb=list","https://www.byn.kr/story/blackyak/?gb=detail&no=1894","https://www.byn.kr/blackyak/_event/23ss_by_campaign.php","https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1"],
+"ARC'TERYX":["https://arcteryx.co.kr/explore/whoweare","https://arcteryx.co.kr/lp"],
 "SALOMON":["https://salomon.co.kr/pages/77years-of-salomon","https://salomon.co.kr/blogs/salomon-blog"],
 "KOLON SPORT":["https://www.kolonmall.com/Brands/KOLONSPORT/Special","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259601","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259682","https://www.kolonmall.com/Brands/kolonsport/Special/254611"],
 "TNF":["https://www.thenorthfacekorea.co.kr/brand/brandStory","https://www.thenorthfacekorea.co.kr/brand/technology","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93338","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93329","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93337","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93314","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93313","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93341","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93339","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93332","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93168"],
@@ -52,7 +53,7 @@ BRAND_SECONDS=int(os.getenv("CONTENT_BRAND_SECONDS","1200"))
 SCROLL_LIMIT=int(os.getenv("CONTENT_SCROLL_LIMIT","80"))
 SCROLL_STABLE_LIMIT=4
 FRONTIER_LIMIT=5000
-PRIORITY_BRANDS={"TNF","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
+PRIORITY_BRANDS={"TNF","BLACKYAK","NEPA","PATAGONIA","MILLET","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
 UA="CSKMarketResearchBot"
 OUT=Path("reports/competitor_content")
 DISCOVERY_FILE=OUT/"public-discovery.json"
@@ -89,7 +90,8 @@ def scoped(brand,u):
     if PRODUCT_PATH.search(u): return False
     if brand=="COLUMBIA": return path.startswith(("/main/","/event/","/promotion/","/exhibition/","/about/","/technology/","/pc/technology/"))
     if brand=="KOLON SPORT": return path.startswith("/brands/kolonsport")
-    if brand=="BLACKYAK": return path.startswith("/blackyak") or (path=="/_container/exh_list.php" and dict(parse_qsl(p.query)).get("hta_brand")=="blackyak")
+    if brand=="BLACKYAK":
+        return (path.rstrip("/") in ("/blackyak","/story/blackyak") or path.startswith(("/blackyak/","/story/blackyak/")) or (path=="/_container/exh_list.php" and dict(parse_qsl(p.query)).get("hta_brand")=="blackyak")) and not PDP.search(u)
     return not PDP.search(u)
 def tags(patterns, s): return [k for k,v in patterns.items() if re.search(v,s,re.I)]
 def published(raw):
@@ -199,6 +201,13 @@ def content_link(url,label,listing=False,pagination=False):
     if listing and pagination: return True
     return bool(KEY.search(url+" "+label) or (listing and re.search(r"event|promo|project|_exh|planning|/article/|campaignCode|/filmDetail/|story|journal|/special/",url,re.I)))
 
+def brand_listing(brand,u):
+    p=urlsplit(u); path=p.path.lower().rstrip("/"); q=dict(parse_qsl(p.query))
+    if brand=="BLACKYAK":
+        return (path=="/story/blackyak" and q.get("gb","list")!="detail") or (path=="/_container/exh_list.php" and q.get("hta_brand")=="blackyak") or (path=="/blackyak/_exh" and not q.get("no"))
+    if brand=="TNF": return path in ("/lookbook","/event","/events")
+    return False
+
 async def scan(browser,session,brand,checked,old,frontier=None):
     root=ROOTS[brand]; page_limit=PRIORITY_PAGE_LIMIT if brand in PRIORITY_BRANDS else PAGE_LIMIT; row={"brand":brand,"root":root,"pages_checked":0,"items":[],"errors":[]}
     same=lambda u: scoped(brand,u)
@@ -261,7 +270,7 @@ async def scan(browser,session,brand,checked,old,frontier=None):
                 if not resp or resp.status>=400 or not same(page.url): raise RuntimeError("navigation failed or out of scope")
                 await page.wait_for_timeout(1200)
                 path_hint=urlsplit(page.url).path.lower()
-                list_hint=u==canonical(root) or bool(re.search(r"list|archive|/special/?$|/campaign/?$|/stories/(?:main|all)|/blogs/[^/]+/?$|/events/?$|/promotion/?$",path_hint)) or any(e.get("kind")=="list" and e.get("brand")==brand and canonical(e.get("url",""))==u for e in locals().get("discovered",[]))
+                list_hint=u==canonical(root) or brand_listing(brand,page.url) or bool(re.search(r"list|archive|/special/?$|/campaign/?$|/stories/(?:main|all)|/blogs/[^/]+/?$|/events/?$|/promotion/?$",path_hint)) or any(e.get("kind")=="list" and e.get("brand")==brand and canonical(e.get("url",""))==u for e in locals().get("discovered",[]))
                 scroll_links,scroll=await explore_scroll(page,deadline,list_hint)
                 row["scroll_steps"]+=scroll["steps"];row["load_more_clicks"]+=scroll["more_clicks"]
                 row["scroll_limited_pages"]+=int(scroll["stop"]!="stable_bottom")
@@ -287,14 +296,14 @@ async def scan(browser,session,brand,checked,old,frontier=None):
                                 row["official_social_links"].append({"handle":handle,"url":"https://www.instagram.com/"+handle+"/","source":source,"verification":"official_site_footer_candidate"})
                     except Exception: pass
                 is_index=any(entry.get("brand")==brand and entry.get("kind")=="list" and canonical(entry.get("url",""))==source for entry in discovered) if 'discovered' in locals() else False
-                listing=is_index or bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$|/stories/(?:main|all|filmDetail)$|/campaign$",path,re.I))
+                listing=is_index or brand_listing(brand,source) or bool(re.search(r"/(?:list|category|search)(?:/|$)|/special$|/blogs/[^/]+$|/collections/?$|/stories/(?:main|all|filmDetail)$|/campaign$",path,re.I))
                 blocks=data["blocks"] if home else ([] if listing else [data["article"]])
                 for b in blocks:
                     evidence=(b.get("title") or "")+" "+(b.get("summary") or "")
                     if home and not b.get("image") and not KEY.search(evidence): continue
                     if home and re.search(r"\d[\d,]*\s*원|₩\s*\d",evidence) and not (KEY.search(b.get("title","")) or (b.get("image_details") and len(b.get("summary",""))>30)): continue
                     if home and b.get("links") and all(PRODUCT_PATH.search(v) for v in b["links"]) and not b.get("image"): continue
-                    if not home and not (KEY.search(source+" "+evidence) or tags(TYPES,evidence)): continue
+                    if not home and not (KEY.search(source+" "+evidence) or tags(TYPES,evidence) or (brand=="BLACKYAK" and re.search(r"/blackyak/_(?:exh|event)/",urlsplit(source).path,re.I))): continue
                     x=item(brand,source,b,checked,old,"main_visual" if home else "editorial_page")
                     if x and x["id"] not in ids:
                         row["items"].append(x);ids.add(x["id"])
@@ -326,7 +335,8 @@ async def scan(browser,session,brand,checked,old,frontier=None):
                 found=[]
                 for link in [*scroll_links,*data["links"]]:
                     v=canonical(link["url"])
-                    if not same(v) or v in seen or SALE.search(link["label"]): continue
+                    if not same(v) or v in seen: continue
+                    if SALE.search(link["label"]) and not brand_listing(brand,v): continue
                     if content_link(v,link["label"],listing or list_hint,link.get("pagination",False)):
                         if link.get("pagination"): row["pagination_links"]+=1
                         found.append(v)
@@ -368,6 +378,14 @@ def aggregate(rows,prior,checked,prior_brands=None):
 def self_test():
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
     assert not scoped("BLACKYAK","https://www.byn.kr/other")
+    assert scoped("BLACKYAK","https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
+    assert not scoped("BLACKYAK","https://www.byn.kr/story/blackyakkids/")
+    assert not scoped("BLACKYAK","https://www.byn.kr/blackyakkids/_exh/?no=123")
+    assert scoped("BLACKYAK","https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1")
+    assert brand_listing("BLACKYAK","https://www.byn.kr/story/blackyak/?cate=BRAND_CAMPAIGN&gb=list")
+    assert not brand_listing("BLACKYAK","https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
+    assert brand_listing("BLACKYAK","https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1")
+    assert not brand_listing("BLACKYAK","https://www.byn.kr/blackyak/_exh/?no=1627")
     assert not scoped("SALOMON","https://salomon.co.kr/account/login")
     assert not scoped("ARC'TERYX","https://arcteryx.co.kr/products/view/685326")
     assert not scoped("SALOMON","https://salomon.co.kr/products/shoe")
