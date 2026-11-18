@@ -34,11 +34,12 @@ jobs:
           python-version: '3.11'
       - name: Prepare private output directory
         run: echo "PRIVATE_MTA_OUT=$RUNNER_TEMP/private-mta" >> "$GITHUB_ENV"
-      - name: Unit tests
+      - name: Unit and budget optimizer tests
         run: |
           python -m py_compile scripts/personal_intelligence/multi_touch*.py scripts/personal_intelligence/run_multi_touch.py
           python -m unittest discover -s scripts/personal_intelligence -p 'test_multi_touch.py'
           python -m unittest discover -s scripts/personal_intelligence -p 'test_attribution.py'
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_budget_optimizer.py'
       - name: Install existing GA4 classifier dependencies
         run: pip install pandas numpy requests beautifulsoup4 python-dateutil google-analytics-data google-cloud-bigquery google-auth
       - name: Read-only private MTA calculation (15 GiB cap)
@@ -54,7 +55,31 @@ jobs:
           args=(--out "$PRIVATE_MTA_OUT" --maximum-gib 15)
           if [ -n "$REPORT_DATE_INPUT" ]; then args+=(--date "$REPORT_DATE_INPUT"); fi
           python scripts/personal_intelligence/run_multi_touch.py "${args[@]}"
-      - name: Render and send owner-only report when explicitly requested
+      - name: Render and verify private sections 11 and 12 PNG
+        run: |
+          pip install playwright
+          python -m playwright install chromium
+          python - <<'PY'
+          import os,json
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          p=Path(os.environ['PRIVATE_MTA_OUT'])
+          model=json.loads((p/'report_sections.json').read_text())
+          assert model['sections']['Marketing Attribution']['status']=='available'
+          assert 'Budget Optimizer' in model['sections']
+          with sync_playwright() as pl:
+              browser=pl.chromium.launch(headless=True)
+              page=browser.new_page(viewport={'width':1160,'height':900},device_scale_factor=1.5)
+              page.goto((p/'multi_touch.html').as_uri(),wait_until='load')
+              assert page.locator('h1').filter(has_text='MULTI-TOUCH ATTRIBUTION').count()==1
+              assert page.locator('h1').filter(has_text='BUDGET OPTIMIZER').count()==1
+              assert page.locator('table').count()>=3
+              page.screenshot(path=str(p/'multi_touch.png'),full_page=True)
+              browser.close()
+          assert (p/'multi_touch.png').stat().st_size>1000
+          print('[MTA + BUDGET] private HTML and PNG verified; no values logged')
+          PY
+      - name: Send owner-only report when explicitly requested
         if: github.event_name == 'workflow_dispatch' && inputs.send_owner
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
@@ -62,30 +87,21 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
         run: |
-          pip install playwright
-          python -m playwright install chromium
           python - <<'PY'
           import os,sys
           from pathlib import Path
-          from playwright.sync_api import sync_playwright
           sys.path.insert(0,'scripts')
           from send_daily_email import send_email_mixed_with_inline_image
           p=Path(os.environ['PRIVATE_MTA_OUT'])
-          with sync_playwright() as pl:
-              browser=pl.chromium.launch(headless=True)
-              page=browser.new_page(viewport={'width':1160,'height':900},device_scale_factor=1.5)
-              page.goto((p/'multi_touch.html').as_uri(),wait_until='load')
-              page.screenshot(path=str(p/'multi_touch.png'),full_page=True)
-              browser.close()
           png=(p/'multi_touch.png').read_bytes()
           send_email_mixed_with_inline_image(
               host=os.environ['SMTP_HOST'],port=int(os.environ.get('SMTP_PORT') or 587),
               user=os.environ['SMTP_USER'],password=os.environ['SMTP_PASS'],
-              to_list=['hugh.kang@columbia.com'],subject='CSK PRIVATE | Multi-touch Attribution',
-              text_fallback='Private multi-touch attribution section. See attached PNG.',
+              to_list=['hugh.kang@columbia.com'],subject='CSK PRIVATE | Attribution and Budget Optimizer',
+              text_fallback='Private sections 11 and 12. See attached PNG.',
               html_body='<p>Private report</p><img src="cid:mta_preview" style="max-width:100%">',
               inline_png_cid='mta_preview',inline_png_bytes=png,
-              attachments=[('multi_touch.png','png',png)])
+              attachments=[('multi_touch_budget.png','png',png)])
           PY
       - name: Clean private results (no public artifacts or commits)
         if: always()
