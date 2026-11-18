@@ -31,7 +31,7 @@ function paletteVector(x){
  v[3+Math.min(8,Math.floor(hue*1.5))]++;}
  return v.map(z=>z/hex.length)
 }
-function imageKey(x){try{const u=new URL(x.thumbnail||x.media_url);u.search="";u.hash="";return u.href}catch{return null}}
+function imageKey(x){if(/^[a-f0-9]{64}$/.test(x.media_fingerprint||""))return x.media_fingerprint;try{const u=new URL(x.thumbnail||x.media_url);u.search="";u.hash="";return u.href}catch{return null}}
 function group(rows){const valid=rows.map(x=>({item:x,copy:copyEvidence(x)})).filter(v=>v.copy),seen=new Set(),colors=[];for(const x of rows){const k=imageKey(x),v=paletteVector(x);if(k&&v&&!seen.has(k)){seen.add(k);colors.push(v)}}
  const vector=mean(valid.map(v=>v.copy.vector)),palette=mean(colors);
  const toneCounts=TONES.map(([key,label],i)=>({key,label,n:valid.filter(v=>v.copy.vector[i]).length,evidence:valid.filter(v=>v.copy.vector[i]).map(v=>({id:v.item.id,phrase:v.copy.matches.find(m=>m.key===key)?.phrase}))}));
