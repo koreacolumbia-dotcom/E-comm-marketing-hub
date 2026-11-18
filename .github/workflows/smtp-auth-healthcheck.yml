@@ -24,6 +24,8 @@ jobs:
           host, user, password = (os.getenv(k, '').strip() for k in ('SMTP_HOST','SMTP_USER','SMTP_PASS'))
           if not all((host,user,password)):
               raise SystemExit('Missing SMTP configuration')
+          if user.lower() != 'koreacolumbia@gmail.com':
+              raise SystemExit('SMTP_USER does not match intended sender; update repository secret')
           if host.lower() == 'smtp.gmail.com':
               password = ''.join(password.split())
           port = int(os.getenv('SMTP_PORT') or '587')
