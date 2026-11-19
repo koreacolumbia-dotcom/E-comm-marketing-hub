@@ -7,6 +7,7 @@ on:
     paths:
       - 'scripts/competitor_content/**'
       - 'reports/competitor_content/strategy.mjs'
+      - 'reports/competitor_content/gap-summary.mjs'
       - 'reports/competitor_content/index.html'
       - '.github/workflows/competitor-content.yml'
 permissions:
@@ -32,6 +33,7 @@ jobs:
         with:
           node-version: '22'
       - run: node scripts/competitor_content/strategy.test.mjs
+      - run: node scripts/competitor_content/gap-summary.test.mjs
       - run: node scripts/competitor_content/calendar.test.mjs
       - run: node scripts/competitor_content/advanced.test.mjs
       - name: Prepare browser
