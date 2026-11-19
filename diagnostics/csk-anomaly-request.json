@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-17",
-  "request_id": "2026-11-17-etc-intraday-pdp-reconciliation-v1",
-  "reason": "P0 ETC 2413/14079=17.14% vs 43/15867=0.27% 11/16; 17 orders KRW1866080; intraday partition; GA API 14689 sessions/92 orders/KRW13688400 vs BQ 14079/87/KRW12584850; Organic 802 vs 2219, Owned 397 vs 849; PDP Padding/Slim and Mid/Heavy source_status unreconciled; revenue -43.7% vs 11/10; signups 148 vs 251. Verify actual partitions, session attribution, missing/duplicate transactions and PDP sources. Read-only aggregate diagnosis only."
+  "date": "2026-11-18",
+  "request_id": "2026-11-18-missing-daily-admin-zero-revenue-drop-v1",
+  "reason": "P0 as of 2026-11-19 morning KST, reports/daily_digest/data/daily/2026-11-18.json is absent; last confirmed 2026-11-17 JSON built 2026-11-18 23:03:32 KST. Diagnose GA4 export partition and daily pipeline freshness for 11/18, compare 11/17 and 11/11. 11/17 finalized revenue KRW 13,688,400 vs 11/10 KRW 22,352,740 (-38.8%), orders 92 vs 107 (-14.0%), sessions 14,657 vs 15,822 (-7.4%), signups 156 vs 251 (-37.8%); admin KPIs remain all zero. 11/17 ETC 26/14657=0.18% and channel sessions sum reconciles, so prior intraday ETC 17.14% was transient and should not be repeated as current issue. Validate source, purchase duplicates, PDP category and source/medium; read-only aggregate only, no PII, no team email."
 }
