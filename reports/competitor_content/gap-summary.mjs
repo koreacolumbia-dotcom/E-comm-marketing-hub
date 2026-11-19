@@ -41,15 +41,15 @@ export function compareOwnedContent({items=[],brands=[],sourceCheckedAt='',minOw
       const x=p.matched.find(z=>sourceUrl(z))||p.matched[0];
       return x?[{brand:p.brand,title:x.title||'공식 콘텐츠',url:sourceUrl(x)||null,id:x.id}]:[];
     });
-    const status=gap?'insufficient':delta>=8&&peerPct>=12&&supporting.length>=3?'review':delta>=3&&peerPct>=8?'watch':'no_gap';
+    const status=gap?'insufficient':delta>=8&&peerPct>=12&&supporting.length>=3?'review':delta<=-8&&ownPct>=12&&ownMatched.length>=3?'strength':delta>=3&&peerPct>=8?'watch':'no_gap';
     return {id:t.id,label:t.label,note:t.note,action:t.action,ownedCount:ownMatched.length,
       ownedTotal:owned.length,ownedPct:ownPct,peerPct,delta,peerBrands:peers.length,
       supportingBrands:supporting.length,peerTotal:peers.reduce((sum,p)=>sum+p.items.length,0),
-      status,references:refs};
+      status,references:refs,ownedReferences:ownMatched.filter(x=>sourceUrl(x)).slice(0,2).map(x=>({brand:'COLUMBIA',title:x.title||'컬럼비아 공식 콘텐츠',url:sourceUrl(x),id:x.id}))};
   });
   const review=rows.filter(x=>x.status==='review').sort((a,b)=>b.delta-a.delta);
   const watch=rows.filter(x=>x.status==='watch').sort((a,b)=>b.delta-a.delta);
-  const strengths=rows.filter(x=>!gap&&x.delta<=-8).sort((a,b)=>a.delta-b.delta);
+  const strengths=rows.filter(x=>x.status==='strength').sort((a,b)=>a.delta-b.delta);
   return {status:gap?'insufficient':'ready',ownedTotal:owned.length,peerBrands:peers.length,
     peerObserved:peers.reduce((a,p)=>a+p.items.length,0),excluded,
     minOwned,minPeer,minPeerBrands,sourceCheckedAt,review,watch,strengths,rows,
