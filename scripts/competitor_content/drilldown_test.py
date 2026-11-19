@@ -18,13 +18,16 @@ async def run():
             u=r.request.url
             if u==ROOT or u==ROOT+"index.html":
                 await r.fulfill(content_type="text/html",body=(BASE/"index.html").read_text())
-            elif u in (ROOT+"strategy.mjs",ROOT+"calendar.mjs",ROOT+"advanced.mjs",ROOT+"brand-dna.mjs"):
+            elif u in (ROOT+"strategy.mjs",ROOT+"gap-summary.mjs",ROOT+"calendar.mjs",ROOT+"advanced.mjs",ROOT+"brand-dna.mjs"):
                 await r.fulfill(content_type="text/javascript",body=(BASE/u.rsplit("/",1)[-1]).read_text())
             elif u==ROOT+"latest.json":
                 await r.fulfill(content_type="application/json",body=json.dumps(feed))
             else: await r.fulfill(status=404,body="")
         await page.route("**/*",route)
         await page.goto(ROOT)
+        await page.locator("#gapRadar").wait_for()
+        assert await page.locator("#gapCards .gap-quiet").count()==1
+        assert "표본 부족" in (await page.locator("#gapCards").inner_text())
         await page.locator("#tpo .barrow").first.wait_for()
         await page.locator("#dnaSummary .dna-kpi").first.wait_for()
         assert await page.locator("#dnaSummary .dna-kpi").count()==4
