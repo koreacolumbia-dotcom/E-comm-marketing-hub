@@ -41,6 +41,8 @@ jobs:
           else
             python -m playwright install chromium
           fi
+      - name: Validate conflict-safe publication merger
+        run: python scripts/competitor_publish/safe_publish.py --self-test
       - name: Test interactive drilldowns in Chromium
         run: python scripts/competitor_content/drilldown_test.py
       - name: Crawl official editorial pages
@@ -79,13 +81,6 @@ jobs:
           assert len(feed['brands'])==len(summary['brands'])==feed['coverage']['target'], 'brand scope mismatch'
           assert feed['coverage']['accessible']>0, 'no observed brands'
           PY
-      - name: Publish measured content feed
+      - name: Publish measured content feed without rebasing generated JSON
         if: success()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add reports/competitor_content/
-          git diff --cached --quiet && exit 0
-          git commit -m "Publish official content observations ${{ github.run_id }}"
-          git pull --rebase origin main
-          git push origin HEAD:main
+        run: python scripts/competitor_publish/safe_publish.py
