@@ -41,9 +41,9 @@ SEEDS={"BLACKYAK":["https://www.byn.kr/story/blackyak/","https://www.byn.kr/stor
 "SALOMON":["https://salomon.co.kr/pages/77years-of-salomon","https://salomon.co.kr/blogs/salomon-blog"],
 "KOLON SPORT":["https://www.kolonmall.com/Brands/KOLONSPORT/Special","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259601","https://www.kolonmall.com/Brands/KOLONSPORT/Special/259682","https://www.kolonmall.com/Brands/kolonsport/Special/254611"],
 "TNF":["https://www.thenorthfacekorea.co.kr/lookbook","https://www.thenorthfacekorea.co.kr/brand/vision","https://www.thenorthfacekorea.co.kr/brand/brandStory","https://www.thenorthfacekorea.co.kr/brand/technology","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93320","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93338","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93329","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93337","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93314","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93313","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93341","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93339","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93332","https://www.thenorthfacekorea.co.kr/event/view/eventCategoryNF/93168"],
-"DISCOVERY":["https://www.discovery-expedition.com/display/promotions/collection/1556","https://www.discovery-expedition.com/display/promotions/collection/705"],
-"K2":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/k2/is","https://www.k-village.co.kr/k2/campaign","https://www.k-village.co.kr/k2/film","https://www.k-village.co.kr/k2/lookbook"],
-"EIDER":["https://www.k-village.co.kr/eider","https://www.k-village.co.kr/eider/film","https://www.k-village.co.kr/eider/lookbook","https://www.k-village.co.kr/eider/is"],
+"DISCOVERY":["https://www.discovery-expedition.com/display/promotions","https://www.discovery-expedition.com/display/promotions/collection/1556","https://www.discovery-expedition.com/display/promotions/collection/705","https://www.discovery-expedition.com/display/promotions/collection/1649","https://www.discovery-expedition.com/display/promotions/collection/1619","https://www.discovery-expedition.com/display/promotions/collection/1596","https://www.discovery-expedition.com/display/promotions/collection/1760"],
+"K2":["https://www.k-village.co.kr/k2","https://www.k-village.co.kr/k2/is","https://www.k-village.co.kr/k2/line","https://www.k-village.co.kr/k2/campaign","https://www.k-village.co.kr/k2/film","https://www.k-village.co.kr/k2/lookbook"],
+"EIDER":["https://www.k-village.co.kr/eider","https://www.k-village.co.kr/eider/film","https://www.k-village.co.kr/eider/lookbook","https://www.k-village.co.kr/eider/is","https://www.k-village.co.kr/eider/line","https://www.k-village.co.kr/eider/line/XENIUM"],
 "NATIONAL GEOGRAPHIC":["https://www.nstationmall.com/natgeo","https://www.nstationmall.com/event/planning/1155","https://www.nstationmall.com/event/planning/1157","https://nstationmall.com/event/planning/1124"],
 "NEPA":["https://www.nplus.co.kr/promotion/list.asp","https://www.nplus.co.kr/brand/nepa/story.asp","https://www.nplus.co.kr/brand/nepa/csr.asp"],
 "MAMMUT":["https://mammut.kr/stories.html","https://mammut.kr/board/promotion/list.html?board_no=8","https://mammut.kr/technologies.html","https://mammut.kr/responsibility.html"],
@@ -53,6 +53,7 @@ SEEDS={"BLACKYAK":["https://www.byn.kr/story/blackyak/","https://www.byn.kr/stor
 "HOKA":["https://brand.naver.com/hoka"],
 "PATAGONIA":["https://www.patagonia.co.kr/stories/main","https://www.patagonia.co.kr/stories/all_films","https://www.patagonia.co.kr/stories/articleDetail/276","https://www.patagonia.co.kr/stories/articleDetail/255","https://www.patagonia.co.kr/stories/articleDetail/151","https://www.patagonia.co.kr/stories/filmDetail/275","https://www.patagonia.co.kr/stories/filmDetail/265","https://www.patagonia.co.kr/stories/filmDetail/264","https://www.patagonia.co.kr/stories/all","https://www.patagonia.co.kr/quality/main","https://www.patagonia.co.kr/stories/filmDetail/260","https://www.patagonia.co.kr/stories/filmDetail/272"],
 "SNOW PEAK":["https://www.snowpeak.co.kr/event-page/2026/lookBook2/apparel.html","https://www.snowpeak.co.kr/event-page/2026/lookBook/apparel.html"],
+"MONTBELL":["https://www.montbell.co.kr/shop/event.php","https://www.montbell.co.kr/shop/event_latest.php","https://www.montbell.co.kr/shop/event.php?ev_id=1792636687"],
 "MILLET":["https://www.millet.co.kr/front/main","https://www.millet.co.kr/front/etc/brand_story","https://www.millet.co.kr/front/promo/pstories/196","https://www.millet.co.kr/front/promo/pstories/154","https://www.millet.co.kr/front/promo/pstories/161"]}
 ALTERNATE={"HOKA":"brand.naver.com","K2":"k-village.co.kr","EIDER":"k-village.co.kr","NATIONAL GEOGRAPHIC":"nstationmall.com","SNOW PEAK":"snowpeak.co.kr"}
 NATGEO_CURATED_PATHS={"/event/planning/1155","/event/planning/1157","/event/planning/1124"}
@@ -243,7 +244,8 @@ def brand_listing(brand,u):
     p=urlsplit(u); path=p.path.lower().rstrip("/"); q=dict(parse_qsl(p.query))
     if brand=="BLACKYAK":
         return (path=="/story/blackyak" and q.get("gb","list")!="detail") or (path=="/_container/exh_list.php" and q.get("hta_brand")=="blackyak") or (path=="/blackyak/_exh" and not q.get("no"))
-    if brand in ("K2","EIDER"): return path in ("/"+brand.lower()+"/film","/"+brand.lower()+"/lookbook","/"+brand.lower()+"/campaign")
+    if brand in ("K2","EIDER"): return path in ("/"+brand.lower()+"/film","/"+brand.lower()+"/lookbook","/"+brand.lower()+"/campaign","/"+brand.lower()+"/line")
+    if brand=="MONTBELL": return (path=="/shop/event.php" and not q.get("ev_id")) or path=="/shop/event_latest.php"
     if brand=="COLUMBIA": return path=="/event/list.asp"
     if brand=="DISCOVERY": return path=="/display/promotions"
     if brand=="MILLET": return path in ("/front/promo/pstories","/front/promo/event")
@@ -303,6 +305,8 @@ def editorial_route(brand,u):
     if brand=="MERRELL" and path in ("/history.html","/history2.html"): return True
     if brand=="NEPA" and (path in ("/brand/nepa/story.asp","/brand/nepa/csr.asp") or (path=="/promotion/view.asp" and q.get("EventNo"))): return True
     if brand=="COLUMBIA" and (re.fullmatch(r"/event/\d{6}(?:_\d+)?/[^/]+\.asp",path) or (path=="/event/view.asp" and q.get("en")) or path=="/montrail/montrail.asp"): return True
+    if brand in ("K2","EIDER") and (path=="/"+brand.lower()+"/is" or re.fullmatch(r"/"+brand.lower()+r"/(?:line|lookbook)/[^/]+/?",path)): return True
+    if brand=="MONTBELL" and ((path=="/shop/event.php" and bool(q.get("ev_id"))) or (path in ("/shop/event_view.php","/shop/event_detail.php") and bool(q.get("ev_id")))): return True
     if brand=="MILLET" and re.fullmatch(r"/front/promo/(?:pstories|event)/\d+",path): return True
     if brand=="PATAGONIA" and (path.startswith("/our_footprint/") or path.rstrip("/") in ("/innovation-unusual","/innovation-unusual/main","/company-history","/50/main")): return True
     return bool(re.search(r"/(?:stories/(?:articledetail|filmdetail|view)/[^/]+|event/view/[^/]+/[^/]+|display/promotions/collection/[^/]+|blogs/[^/]+/[^/]+|special/\d+|journal/[^/]+|magazine/[^/]+|lookbook/[^/]+|campaign/[^/]+|pages/[^/]+|collections/[^/]+|s/[^/]+)",path,re.I))
@@ -743,6 +747,18 @@ def self_test():
     films=film_archive_entries("K2","https://www.k-village.co.kr/k2/film","NAV\nFILM\nALPHA\n2025 FW\nALPHA\n2025 FW\nBETA\n2026SS\nK.VILLAGE\nGAMMA\n2025 SS",now)
     assert len(films)==2 and films[1]["season"]=="2026 SS"
     assert brand_listing("EIDER","https://www.k-village.co.kr/eider/lookbook")
+    assert brand_listing("EIDER","https://www.k-village.co.kr/eider/line")
+    assert editorial_route("EIDER","https://www.k-village.co.kr/eider/line/XENIUM")
+    assert editorial_route("K2","https://www.k-village.co.kr/k2/is")
+    assert brand_listing("MONTBELL","https://www.montbell.co.kr/shop/event.php")
+    assert brand_listing("MONTBELL","https://www.montbell.co.kr/shop/event.php?page=2")
+    assert brand_listing("MONTBELL","https://www.montbell.co.kr/shop/event_latest.php")
+    assert editorial_route("MONTBELL","https://www.montbell.co.kr/shop/event.php?ev_id=1792636687")
+    assert not editorial_route("MONTBELL","https://www.montbell.co.kr/shop/event.php")
+    assert shard_selection(list(range(12)),"2026-11-19T13:05:00+09:00",4)[0]==[2,6,10]
+    assert shard_selection(list(range(12)),"2026-11-19T13:35:00+09:00",4)[0]==[3,7,11]
+    assert shard_selection(list(range(12)),"2026-11-19T14:05:00+09:00",4)[0]==[0,4,8]
+    assert shard_selection(list(range(12)),"2026-11-19T14:35:00+09:00",4)[0]==[1,5,9]
     styles=staff_archive_entries("https://www.thenorthfacekorea.co.kr/lookbook","STAFF GALLERY\n키 : 170cm 사이즈 : 100L 색상 : BLACK 매장명 : Example\nTEST JACKET\n착용 사이즈 : 100L\n10\n키 : 175cm 사이즈 : 100L 색상 : BLACK 매장명 : Example\nTEST JACKET\n착용 사이즈 : 100L\nabout us",now)
     assert len(styles)==1 and styles[0]["content_type"]=="STAFF_STYLE"
     assert "Example" not in str(styles) and "170cm" not in str(styles)
@@ -775,6 +791,13 @@ def self_test():
     assert visual_signature(uniform)["dhash"]=="0000000000000000"
     assert visual_signature(uniform)["pixel_sha256"]!=visual_signature(Image.new("RGB",(16,16),(20,30,40)))["pixel_sha256"]
     print("content self-tests passed")
+def shard_selection(brand_order,checked,shards):
+    """Short official-brand sets are revisited in a two-hour rotation."""
+    shards=max(1,int(shards))
+    now=datetime.fromisoformat(checked)
+    slot=(now.hour*2+now.minute//30)%shards
+    return brand_order[slot::shards],slot
+
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
     OUT.mkdir(parents=True,exist_ok=True)
@@ -797,6 +820,7 @@ async def main():
     plans={b:coverage_plan(b,counts[b],len(frontier.get(b,{}).get("pending",[])),columbia_count) for b in ROOTS}
     for plan in plans.values(): plan["sample_basis"]="retained_30d_observations" if retained_basis else "previous_snapshot_observations"
     order=sorted(ROOTS,key=lambda b:(not plans[b]["focus_brand"],not plans[b]["below_columbia"],not plans[b]["undercovered"],counts[b],b not in PRIORITY_BRANDS,b))
+    selected,shard_slot=shard_selection(order,checked,os.getenv("CONTENT_CRAWL_SHARDS","1"))
     origin_locks={}
     def group(brand): return ALTERNATE.get(brand) or host(ROOTS[brand])
     async with aiohttp.ClientSession(headers={"User-Agent":UA},timeout=aiohttp.ClientTimeout(total=15)) as session:
@@ -815,9 +839,22 @@ async def main():
                     "mode":plans[brand]["crawl_mode"],"slice_seconds":plans[brand]["seconds"]},ensure_ascii=False),flush=True)
                 return result
             print(json.dumps({"crawl_start":checked,"target_brands":len(order),
-                "slice_seconds":CRAWL_SLICE_SECONDS,"brand_order":order},ensure_ascii=False),flush=True)
-            rows=await asyncio.gather(*(task(b) for b in order))
+                "shard":shard_slot,"shards":max(1,int(os.getenv("CONTENT_CRAWL_SHARDS","1"))),
+                "selected_brands":selected,"slice_seconds":CRAWL_SLICE_SECONDS},ensure_ascii=False),flush=True)
+            scanned_rows=await asyncio.gather(*(task(b) for b in selected))
             await browser.close()
+    scanned={b["brand"]:b for b in scanned_rows}
+    old_brands={b.get("brand"):b for b in previous.get("brands",[])}
+    rows=[]
+    for brand in ROOTS:
+        if brand in scanned:
+            rows.append(scanned[brand]);continue
+        prior_brand=old_brands.get(brand,{})
+        rows.append({"brand":brand,"root":ROOTS[brand],"pages_checked":0,"items":[],
+            "status":"not_scheduled","coverage_plan":plans[brand],"errors":[],
+            "archive_entries":[],"pending_urls":len(frontier.get(brand,{}).get("pending",[])),
+            "url_coverage":prior_brand.get("url_coverage",{}),
+            "shard_note":"이번 회차 미선택 · 최근 30일 관측은 별도 유지"})
     for b in rows:
         if "_pending" in b: frontier[b["brand"]]={"pending":b["_pending"],"url_ledger":b.get("_url_ledger",{}),"sitemap_state":b.get("_sitemap_state",{}),"checked_at_kst":checked}
     temp=FRONTIER_FILE.with_suffix(".tmp")

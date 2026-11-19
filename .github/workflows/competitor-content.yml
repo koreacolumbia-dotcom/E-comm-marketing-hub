@@ -2,7 +2,7 @@ name: Competitor Content Intelligence
 on:
   workflow_dispatch:
   schedule:
-    - cron: '35 * * * *'
+    - cron: '5,35 * * * *'
   push:
     paths:
       - 'scripts/competitor_content/**'
@@ -53,7 +53,8 @@ jobs:
           CONTENT_PRIORITY_PAGE_LIMIT: '180'
           CONTENT_BRAND_SECONDS: '1200'
           CONTENT_SCROLL_LIMIT: '80'
-          CONTENT_CRAWL_SLICE_SECONDS: '240'
+          CONTENT_CRAWL_SLICE_SECONDS: '165'
+          CONTENT_CRAWL_SHARDS: '4'
           CONTENT_TARGET_SAMPLE: '50'
           CONTENT_MAINTENANCE_PAGE_LIMIT: '40'
           CONTENT_MAINTENANCE_SECONDS: '300'
