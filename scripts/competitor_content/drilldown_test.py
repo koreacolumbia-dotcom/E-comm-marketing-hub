@@ -25,9 +25,10 @@ async def run():
             else: await r.fulfill(status=404,body="")
         await page.route("**/*",route)
         await page.goto(ROOT)
-        await page.locator("#gapRadar").wait_for()
+        await page.locator("#gapCards .gap-quiet").wait_for()
         assert await page.locator("#gapCards .gap-quiet").count()==1
-        assert "표본 부족" in (await page.locator("#gapCards").inner_text())
+        msg=await page.locator("#gapCards").inner_text()
+        assert ("표본이 부족" in msg or "표본 부족" in msg),msg
         await page.locator("#tpo .barrow").first.wait_for()
         await page.locator("#dnaSummary .dna-kpi").first.wait_for()
         assert await page.locator("#dnaSummary .dna-kpi").count()==4
