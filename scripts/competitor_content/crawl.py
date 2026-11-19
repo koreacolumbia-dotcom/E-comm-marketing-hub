@@ -74,6 +74,7 @@ CATCHUP_PAGE_LIMIT=int(os.getenv("CONTENT_CATCHUP_PAGE_LIMIT","250"))
 CATCHUP_SECONDS=int(os.getenv("CONTENT_CATCHUP_SECONDS","1500"))
 MAINTENANCE_PAGE_LIMIT=int(os.getenv("CONTENT_MAINTENANCE_PAGE_LIMIT","40"))
 MAINTENANCE_SECONDS=int(os.getenv("CONTENT_MAINTENANCE_SECONDS","300"))
+CRAWL_SLICE_SECONDS=max(60,int(os.getenv("CONTENT_CRAWL_SLICE_SECONDS","165")))
 PRIORITY_BRANDS={"TNF","HOKA","DECATHLON","BLACKYAK","NEPA","PATAGONIA","MILLET","NEW BALANCE","KOLON SPORT","COLUMBIA","SALOMON","K2","EIDER","DISCOVERY","NATIONAL GEOGRAPHIC","ARC'TERYX"}
 UA="CSKMarketResearchBot"
 OUT=Path("reports/competitor_content")
@@ -414,19 +415,22 @@ def take_next_url(queue,brand,scanned,prior_urls,ledger):
     return queue.pop(0)
 
 def coverage_plan(brand,observed_count,pending_count=0,columbia_count=0):
-    # Benchmark comparable deduplicated current-run observations, not indexed leads.
-    # Missing comparator is not proof of parity; the absolute sample target remains active.
+    # Bounded slices preserve time for every brand. Unfinished public URLs
+    # remain in the frontier for scheduled deep-crawl continuation.
     sample_target=max(TARGET_SAMPLE,columbia_count,200 if brand=="TNF" else 100 if brand in {"BLACKYAK","PATAGONIA","DISCOVERY","K2","EIDER","MILLET","NEPA"} else 0)
     catchup=brand!="COLUMBIA" and observed_count<columbia_count
     focus=brand=="TNF" and observed_count<sample_target
     undercovered=observed_count<sample_target
     deep=undercovered or pending_count>0
+    full_seconds=max(CATCHUP_SECONDS,BRAND_SECONDS) if catchup or focus else BRAND_SECONDS if deep else MAINTENANCE_SECONDS
     return {"sample_target":sample_target,"prior_sample":observed_count,
             "columbia_benchmark":columbia_count,
             "gap_to_columbia":max(0,columbia_count-observed_count),
             "below_columbia":catchup,"focus_brand":focus,"undercovered":undercovered,
             "page_limit":max(CATCHUP_PAGE_LIMIT,PRIORITY_PAGE_LIMIT) if catchup or focus else PRIORITY_PAGE_LIMIT if deep else MAINTENANCE_PAGE_LIMIT,
-            "seconds":max(CATCHUP_SECONDS,BRAND_SECONDS) if catchup or focus else BRAND_SECONDS if deep else MAINTENANCE_SECONDS}
+            "seconds":min(CRAWL_SLICE_SECONDS,full_seconds),
+            "requested_deep_seconds":full_seconds,
+            "crawl_mode":"incremental_deep_crawl"}
 
 async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     plan=plan or coverage_plan(brand,0)
@@ -755,6 +759,8 @@ def self_test():
     assert take_next_url(q,"TNF",5,set(),{}).endswith("page=3") and len(q)==1
     assert coverage_plan("TNF",17,0,13)["focus_brand"]
     assert coverage_plan("TNF",17,0,13)["sample_target"]==200
+    assert coverage_plan("TNF",17,0,13)["seconds"]<=CRAWL_SLICE_SECONDS
+    assert coverage_plan("PATAGONIA",0,0,13)["requested_deep_seconds"]>=BRAND_SECONDS
     assert all(coverage_plan(b,0)["sample_target"]==100 for b in ("BLACKYAK","PATAGONIA","DISCOVERY","K2","EIDER","MILLET","NEPA"))
     assert len(retain_archive_entries(styles,styles,"2026-11-01"))==1
     assert len(retain_archive_entries(styles,[],"2026-11-19"))==0
@@ -801,8 +807,15 @@ async def main():
                 try:
                     async with origin_locks.setdefault(group(brand),asyncio.Lock()):
                         async with sem:
-                            return await asyncio.wait_for(scan(browser,session,brand,checked,old,frontier.get(brand),plans[brand]),timeout=plans[brand]["seconds"]+60)
-                except Exception as e: return {"brand":brand,"root":ROOTS[brand],"pages_checked":0,"items":[],"status":"not_collected","coverage_plan":plans[brand],"errors":[{"error":str(e) or type(e).__name__}]}
+                            result=await asyncio.wait_for(scan(browser,session,brand,checked,old,frontier.get(brand),plans[brand]),timeout=plans[brand]["seconds"]+60)
+                except Exception as e:
+                    result={"brand":brand,"root":ROOTS[brand],"pages_checked":0,"items":[],"status":"not_collected","coverage_plan":plans[brand],"errors":[{"error":str(e) or type(e).__name__}]}
+                print(json.dumps({"brand":brand,"pages":result.get("pages_checked",0),"candidates":len(result.get("items",[])),
+                    "pending":result.get("pending_urls"),"errors":len(result.get("errors",[])),
+                    "mode":plans[brand]["crawl_mode"],"slice_seconds":plans[brand]["seconds"]},ensure_ascii=False),flush=True)
+                return result
+            print(json.dumps({"crawl_start":checked,"target_brands":len(order),
+                "slice_seconds":CRAWL_SLICE_SECONDS,"brand_order":order},ensure_ascii=False),flush=True)
             rows=await asyncio.gather(*(task(b) for b in order))
             await browser.close()
     for b in rows:
