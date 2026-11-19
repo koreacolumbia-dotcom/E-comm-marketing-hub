@@ -1,6 +1,6 @@
 name: Daily Digest
 # Rebuild after ETC warning and PDP source reconciliation fixes.
-# Website-only refresh requested: product-name default tabs and SKU charts, 2026-11-18.
+# Recovery run requested: generate, QA, and email 2026-11-18 PNG/HTML on 2026-11-19.
 
 on:
   # Explicit recovery push rebuilds and emails the exact prior-day report.
@@ -238,7 +238,7 @@ jobs:
           echo "run_daily=true" >> "$GITHUB_OUTPUT"
           # Afternoon schedule refreshes HTML/PNG/JSON but never emails the team.
           # On-demand "daily_hub_only" also rebuilds without email.
-          if [ "$DAILY_HUB_ONLY" = "true" ] || { [ "${{ github.event_name }}" = "push" ] && [ "${{ github.event.head_commit.message }}" != "Recover 2026-11-14 Daily Digest and email" ]; } || { [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 5 * * *" ]; }; then
+          if [ "$DAILY_HUB_ONLY" = "true" ] || { [ "${{ github.event_name }}" = "push" ] && [ "${{ github.event.head_commit.message }}" != "Recover 2026-11-14 Daily Digest and email" ] && [ "${{ github.event.head_commit.message }}" != "Recover 2026-11-18 Daily Digest and send verified PNG email" ]; } || { [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 5 * * *" ]; }; then
             echo "send_daily_email=false" >> "$GITHUB_OUTPUT"
           else
             echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
