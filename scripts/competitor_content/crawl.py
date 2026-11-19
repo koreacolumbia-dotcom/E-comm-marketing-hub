@@ -820,7 +820,11 @@ async def main():
     plans={b:coverage_plan(b,counts[b],len(frontier.get(b,{}).get("pending",[])),columbia_count) for b in ROOTS}
     for plan in plans.values(): plan["sample_basis"]="retained_30d_observations" if retained_basis else "previous_snapshot_observations"
     order=sorted(ROOTS,key=lambda b:(not plans[b]["focus_brand"],not plans[b]["below_columbia"],not plans[b]["undercovered"],counts[b],b not in PRIORITY_BRANDS,b))
-    selected,shard_slot=shard_selection(order,checked,os.getenv("CONTENT_CRAWL_SHARDS","1"))
+    # Keep shard membership stable across runs; prioritize only inside each fixed shard.
+    fixed_order=list(ROOTS)
+    selected,shard_slot=shard_selection(fixed_order,checked,os.getenv("CONTENT_CRAWL_SHARDS","1"))
+    priority_rank={brand:index for index,brand in enumerate(order)}
+    selected.sort(key=lambda brand:priority_rank[brand])
     origin_locks={}
     def group(brand): return ALTERNATE.get(brand) or host(ROOTS[brand])
     async with aiohttp.ClientSession(headers={"User-Agent":UA},timeout=aiohttp.ClientTimeout(total=15)) as session:
