@@ -1,27 +1,27 @@
-# CSK Marketing Intelligence 2.0 — 2026-11-18
+# CSK Marketing Intelligence 2.0 — 2026-11-19
 
 데이터 상태: **READY**
 
 ## 주요 지표
-- 세션: 16,489 | 전주 +7.9% | 전년 -37.1%
-- 주문: 94 | 전주 +4.4% | 전년 -28.8%
-- 매출: 14,231,270 | 전주 -35.5% | 전년 -24.6%
-- 구매 CVR: 0 | 전주 -3.2% | 전년 +13.3%
+- 세션: 17,299 | 전주 -6.2% | 전년 -19.3%
+- 주문: 85 | 전주 -15.8% | 전년 +9.0%
+- 매출: 13,557,640 | 전주 -12.7% | 전년 +11.2%
+- 구매 CVR: 0 | 전주 -10.3% | 전년 +35.0%
 
 ## QA
 - ADMIN_UNAVAILABLE (info): 어드민 실적이 0으로 내려왔습니다. 실제 매출 0으로 단정하지 않습니다.
 
 ## PDP 상품 분석 (ready)
-- PDP 상품 분석 종료일 2026-11-19은 Daily Digest 기준일 2026-11-18과 다름. 별도 30일 관측으로만 사용하며 당일 매출 감소의 원인으로 단정하지 않음
+- PDP 상품 분석 종료일 2026-11-20은 Daily Digest 기준일 2026-11-19과 다름. 별도 30일 관측으로만 사용하며 당일 매출 감소의 원인으로 단정하지 않음
 - 상품 퍼널 지표는 30일 GA4 상품별 세션 기준. 재고/광고 원인 및 매출 하락 기여도를 직접 증명하지 않음
-- C74YM3674342 M`s MT.Hood Down Jacket: 14,588 세션 · ATC 0.1% · 구매 0.0%
-- C71XM4875265 CSC1938 Dually Mountain Outerchange: 773 세션 · ATC 0.1% · 구매 0.0%
-- C74WR9847309 Amaze Puff Hooded Jacket: 373 세션 · ATC 0.0% · 구매 0.0%
-- C74WE4490235 Sauvie Sky Quad Parka IC Jacket: 224 세션 · ATC 0.0% · 구매 0.0%
-- C76BL5658010 SNOWTROT PEAK ODX: 211 세션 · ATC 0.0% · 구매 0.0%
-- C76PU7257125 Birdree Lite Drawstring Backpack: 211 세션 · ATC 0.0% · 구매 0.0%
-- C71WR6042027 W Saudan Pro 3L Shell: 150 세션 · ATC 0.0% · 구매 0.0%
+- C74YM3674342 M`s MT.Hood Down Jacket: 15,113 세션 · ATC 0.1% · 구매 0.0%
+- C74WR9847309 Amaze Puff Hooded Jacket: 419 세션 · ATC 0.0% · 구매 0.0%
+- C74WE4490235 Sauvie Sky Quad Parka IC Jacket: 229 세션 · ATC 0.0% · 구매 0.0%
+- C76PU7257125 Birdree Lite Drawstring Backpack: 215 세션 · ATC 0.0% · 구매 0.0%
+- C71WR6042027 W Saudan Pro 3L Shell: 152 세션 · ATC 0.0% · 구매 0.0%
 - C76BL0303550 KONOS SPEED TRAIL ATR: 146 세션 · ATC 0.0% · 구매 0.0%
+- C73PG2054278 Joseph Park Jacket: 143 세션 · ATC 0.0% · 구매 0.0%
+- C75YU8771010 RUDDY LEAF SHORT II: 141 세션 · ATC 0.0% · 구매 0.0%
 
 ## 광고 대행사 점검 (traffic_only)
 - PMax: 최근 7일 캠페인별 비용·전환가치·주문·상품군·검색어/브랜드 유입 비중을 확인하고, Demand Gen/GDN과 별도 집계되는지 점검해 주세요.
@@ -43,19 +43,20 @@
 - 등록된 개선 실험 없음
 
 ## 미해결 액션
-- [OPEN] P0 · DATA · MSSQL 실재고 조회 접근 문제 해결 (최근 관측 2026-11-18; 담당 인프라/DBA 담당)
-- [OPEN] P0 · PAID · 광고비 원본 자동 수집 재개 (최근 관측 2026-11-18; 담당 퍼포먼스 대행사/매체 담당)
-- [OPEN] P0 · DATA · CSC1938 Dually Mountain Outerchange 상품별 이벤트 정합성 검증 (최근 관측 2026-11-18; 담당 데이터/이커머스)
-- [OPEN] P0 · DATA · M`s MT.Hood Down Jacket 상품별 이벤트 정합성 검증 (최근 관측 2026-11-18; 담당 데이터/이커머스)
-- [OPEN] P0 · DATA · MSSQL → BigQuery 주문·CRM 적재 갱신 (최근 관측 2026-11-18; 담당 데이터 엔지니어/BigQuery 담당)
-- [OPEN] P1 · PRODUCT · Sauvie Sky Quad Parka IC Jacket 상세페이지 개선 검토 (최근 관측 2026-11-18; 담당 이커머스/MD)
-- [OPEN] P1 · PRODUCT · Amaze Puff Hooded Jacket 상세페이지 개선 검토 (최근 관측 2026-11-18; 담당 이커머스/MD)
-- [OPEN] P2 · COMMERCE · 주문당 매출 감소 (최근 관측 2026-11-18; 담당 이커머스/MD)
-- [OPEN] P2 · CRM · CRM 세그먼트 집계 연동 (최근 관측 2026-11-18; 담당 CRM/데이터 담당)
+- [OPEN] P0 · DATA · MSSQL 실재고 조회 접근 문제 해결 (최근 관측 2026-11-19; 담당 인프라/DBA 담당)
+- [OPEN] P0 · PAID · 광고비 원본 자동 수집 재개 (최근 관측 2026-11-19; 담당 퍼포먼스 대행사/매체 담당)
+- [OPEN] P0 · DATA · M`s MT.Hood Down Jacket 상품별 이벤트 정합성 검증 (최근 관측 2026-11-19; 담당 데이터/이커머스)
+- [OPEN] P0 · DATA · MSSQL → BigQuery 주문·CRM 적재 갱신 (최근 관측 2026-11-19; 담당 데이터 엔지니어/BigQuery 담당)
+- [OPEN] P1 · PRODUCT · Sauvie Sky Quad Parka IC Jacket 상세페이지 개선 검토 (최근 관측 2026-11-19; 담당 이커머스/MD)
+- [OPEN] P1 · PRODUCT · Amaze Puff Hooded Jacket 상세페이지 개선 검토 (최근 관측 2026-11-19; 담당 이커머스/MD)
+- [OPEN] P1 · PRODUCT · Birdree Lite Drawstring Backpack 상세페이지 개선 검토 (최근 관측 2026-11-19; 담당 이커머스/MD)
+- [OPEN] P2 · CRM · CRM 세그먼트 집계 연동 (최근 관측 2026-11-19; 담당 CRM/데이터 담당)
 - [OPEN] P0 · PAID · 대행사 채널 귀속 데이터 우선 점검 (최근 관측 2026-11-15; 담당 데이터/퍼포먼스 대행사)
 - [OPEN] P0 · DATA · 채널별 성과 분석 보류 (최근 관측 2026-11-14; 담당 데이터/GA4 담당)
 - [OPEN] P0 · DATA · PDP 일별 조회 데이터 복구 (최근 관측 2026-11-14; 담당 데이터/BigQuery 담당)
+- [OPEN] P0 · DATA · CSC1938 Dually Mountain Outerchange 상품별 이벤트 정합성 검증 (최근 관측 2026-11-18; 담당 데이터/이커머스)
 - [OPEN] P1 · COMMERCE · 유입 대비 구매 전환 급락 (최근 관측 2026-11-14; 담당 이커머스/분석 담당)
 - [OPEN] P1 · PRODUCT · SNOWTROT PEAK ODX 상세페이지 개선 검토 (최근 관측 2026-11-15; 담당 이커머스/MD)
+- [OPEN] P2 · COMMERCE · 주문당 매출 감소 (최근 관측 2026-11-18; 담당 이커머스/MD)
 
 원천과 제약: 인과 설명은 가설, 기간이 다른 상품 데이터는 당일 증감 원인에 사용하지 않음
