@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-18",
-  "request_id": "2026-11-18-missing-daily-admin-zero-revenue-drop-v1",
-  "reason": "P0 as of 2026-11-19 morning KST, reports/daily_digest/data/daily/2026-11-18.json is absent; last confirmed 2026-11-17 JSON built 2026-11-18 23:03:32 KST. Diagnose GA4 export partition and daily pipeline freshness for 11/18, compare 11/17 and 11/11. 11/17 finalized revenue KRW 13,688,400 vs 11/10 KRW 22,352,740 (-38.8%), orders 92 vs 107 (-14.0%), sessions 14,657 vs 15,822 (-7.4%), signups 156 vs 251 (-37.8%); admin KPIs remain all zero. 11/17 ETC 26/14657=0.18% and channel sessions sum reconciles, so prior intraday ETC 17.14% was transient and should not be repeated as current issue. Validate source, purchase duplicates, PDP category and source/medium; read-only aggregate only, no PII, no team email."
+  "date": "2026-11-19",
+  "request_id": "2026-11-19-missing-daily-admin-zero-revenue-trend-v1",
+  "reason": "As of 2026-11-20 morning KST 2026-11-19 daily JSON missing. 2026-11-18 finalized daily JSON built 2026-11-19 23:33:32 KST: sessions 16489, orders 94, revenue KRW14231270, CVR 0.5701%, compared with 2026-11-11 sessions 15284, orders 90, revenue KRW22054230 (-35.5% WoW). ETC 54/16489=0.33% normalized after intraday, channel sum reconciles. Admin KPI sessions/orders/buyers/revenue/signups/AOV all 0. Validate 11/19 partition arrival and actual session attribution, transaction quality, PDP category and TOP2 sources, plus revenue/AOV decline. Read-only aggregate only, no PII, no team email."
 }
