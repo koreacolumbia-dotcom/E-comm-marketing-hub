@@ -1,4 +1,4 @@
-# CSK Marketing Operations 3.0 — 2026-11-18
+# CSK Marketing Operations 3.0 — 2026-11-19
 
 **보고 상태: READY** · 원천 복구 우선
 
@@ -13,18 +13,16 @@
 
 ## 7일 KPI (전주 완결 기간 비교)
 상태: **ready**
-기간: 2026-11-12 ~ 2026-11-18 / 비교: 2026-11-05 ~ 2026-11-11
-- 세션 116,087 · WoW -2.8%
-- 주문 614 · WoW -25.3%
-- 매출 ₩91,920,020 · WoW -37.1%
-- 구매 CVR 0.53% · 상대 WoW -23.2%
+기간: 2026-11-13 ~ 2026-11-19 / 비교: 2026-11-06 ~ 2026-11-12
+- 세션 114,822 · WoW -2.7%
+- 주문 598 · WoW -24.4%
+- 매출 ₩89,955,040 · WoW -37.0%
+- 구매 CVR 0.52% · 상대 WoW -22.3%
 
 ## 마케팅 캘린더 (기간과 출처 확인)
-올해 2026-11-12 ~ 2026-11-18: not_connected
-전년 동요일 대응 기간 2025-11-13 ~ 2025-11-19: available
+올해 2026-11-13 ~ 2026-11-19: not_connected
+전년 동요일 대응 기간 2025-11-14 ~ 2025-11-20: available
 ### 전년 확인 활동
-- 2025-11-13 [event] Winter Boots 콘텐츠 · W46 · 8p
-- 2025-11-13 [event] Winter Down 콘텐츠 · W46 · 4p, 7p
 - 2025-11-14 [message] (광고) [컬럼비아] 일상과 아웃도어 어디에서도 스타일과 보온성이 뛰어난 윈터부츠 · 트래픽현황 2026 · 2025 비교기준 70행
 - 2025-11-16 [event] 무신사 블랙프라이데이 · W47 · 4p
 - 2025-11-17 [message] 윈터페스티벌 · 트래픽현황 2026 · 2025 비교기준 54행
@@ -35,25 +33,25 @@
 - 2025-11-19 윈터페스티벌 티징
 
 ## 상품/PDP 개선 검토
-- [MEASUREMENT_QA] M`s MT.Hood Down Jacket (C74YM3674342) · PDP 14,588 · Cart 0.08% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
-- [MEASUREMENT_QA] CSC1938 Dually Mountain Outerchange (C71XM4875265) · PDP 773 · Cart 0.13% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
-- [CRO_HYPOTHESIS] Amaze Puff Hooded Jacket (C74WR9847309) · PDP 373 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 224 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] SNOWTROT PEAK ODX (C76BL5658010) · PDP 211 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 211 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 150 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [MEASUREMENT_QA] M`s MT.Hood Down Jacket (C74YM3674342) · PDP 15,113 · Cart 0.09% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
+- [CRO_HYPOTHESIS] Amaze Puff Hooded Jacket (C74WR9847309) · PDP 419 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 229 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 215 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 152 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
 - [CRO_HYPOTHESIS] KONOS SPEED TRAIL ATR (C76BL0303550) · PDP 146 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Joseph Park Jacket (C73PG2054278) · PDP 143 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] RUDDY LEAF SHORT II (C75YU8771010) · PDP 141 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
 
 ## 경쟁사 가격 참고 (동일 SKU 비교 불가)
 수집 상태: reference_fresh
 브랜드 평균 가격은 상품 구성·시즌·판매처가 달라 동일 SKU의 가격 차이를 증명하지 않음
-- DISCOVERY: 수집상품 5,696, 표기 평균가 ₩60,756, 할인 상품 비율 46.0% (수집일 2026-11-18, recent)
-- NEW_BALANCE: 수집상품 5,221, 표기 평균가 ₩113,231, 할인 상품 비율 1.9% (수집일 2026-11-19, recent)
-- THE_NORTH_FACE: 수집상품 3,628, 표기 평균가 ₩144,528, 할인 상품 비율 0.0% (수집일 2026-11-19, recent)
-- NEPA: 수집상품 3,143, 표기 평균가 ₩88,859, 할인 상품 비율 0.0% (수집일 2026-11-19, recent)
-- MILLET: 수집상품 2,260, 표기 평균가 ₩112,739, 할인 상품 비율 92.2% (수집일 2026-11-19, recent)
-- COLUMBIA: 수집상품 1,601, 표기 평균가 ₩129,186, 할인 상품 비율 0.0% (수집일 2026-11-18, recent)
-- ARCTERYX: 수집상품 657, 표기 평균가 ₩220,000, 할인 상품 비율 0.0% (수집일 2026-11-19, recent)
+- DISCOVERY: 수집상품 5,698, 표기 평균가 ₩60,770, 할인 상품 비율 46.0% (수집일 2026-11-19, recent)
+- NEW_BALANCE: 수집상품 5,221, 표기 평균가 ₩113,231, 할인 상품 비율 1.9% (수집일 2026-11-20, recent)
+- THE_NORTH_FACE: 수집상품 3,628, 표기 평균가 ₩144,528, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
+- NEPA: 수집상품 3,154, 표기 평균가 ₩89,003, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
+- MILLET: 수집상품 2,262, 표기 평균가 ₩112,768, 할인 상품 비율 92.2% (수집일 2026-11-20, recent)
+- COLUMBIA: 수집상품 1,612, 표기 평균가 ₩129,926, 할인 상품 비율 0.0% (수집일 2026-11-19, recent)
+- ARCTERYX: 수집상품 657, 표기 평균가 ₩220,000, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
 
 ## 신상품 7·14·30일
 상태: launch_registry_missing
