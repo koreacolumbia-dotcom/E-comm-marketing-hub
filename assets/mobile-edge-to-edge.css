@@ -1,0 +1,128 @@
+/* CSK edge-to-edge mobile report presentation.
+   Applied to hub and (same-origin) embedded report pages. Desktop unchanged. */
+@media (max-width: 1023px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body.csk-unified-hub {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  body.csk-unified-hub > main {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 0 calc(76px + env(safe-area-inset-bottom)) !important;
+  }
+  body.csk-unified-hub > main > section {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  body.csk-unified-hub #frame {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    min-height: 72svh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+  body.csk-unified-hub #frame[style*="display: none"] { display: none !important; }
+  body.csk-unified-hub #performanceInline {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow-x: clip !important;
+  }
+  body.csk-unified-hub #hub-mobile-root {
+    z-index: 70 !important;
+    border-radius: 0 !important;
+  }
+  /* Embedded reports: remove unnecessary outer presentation shells, not data cards. */
+  body.csk-embedded-mobile {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    -webkit-text-size-adjust: 100%;
+  }
+  html.csk-embedded-mobile {
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    width: 100% !important;
+  }
+  body.csk-embedded-mobile > :is(main, section, .wrap, .wrapper, .container, .dashboard, .page, .layout, .shell, .report-shell, .dashboard-shell, .page-shell, .content, #app, #root) {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  body.csk-embedded-mobile > :is(.glass-card, .outer-frame, .report-frame, .dashboard-frame),
+  body.csk-embedded-mobile > main > :is(.glass-card, .outer-frame, .report-frame, .dashboard-frame) {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  body.csk-embedded-mobile :is(.report-shell, .dashboard-shell, .page-shell, .main-shell, .outer-frame, .report-frame) {
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  body.csk-embedded-mobile :is(img, canvas, svg) { max-width: 100%; }
+  body.csk-embedded-mobile :is(.dx-grid, .ops-grid, .report-grid, .dashboard-grid, .comparison-grid, .content-grid) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .csk-mobile-scroll-table {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .csk-mobile-scroll-table > table {
+    width: max-content !important;
+    min-width: 100% !important;
+    max-width: none !important;
+  }
+  body.csk-embedded-mobile :is(pre, .code-block) {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+}
+@media (max-width: 420px) {
+  body.csk-embedded-mobile > :is(main, section, .wrap, .wrapper, .container, .dashboard, .page, .layout, .shell, .report-shell, .dashboard-shell, .page-shell, .content, #app, #root) {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
