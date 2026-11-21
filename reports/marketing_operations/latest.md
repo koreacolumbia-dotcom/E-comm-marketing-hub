@@ -1,4 +1,4 @@
-# CSK Marketing Operations 3.0 — 2026-11-19
+# CSK Marketing Operations 3.0 — 2026-11-20
 
 **보고 상태: READY** · 원천 복구 우선
 
@@ -13,45 +13,48 @@
 
 ## 7일 KPI (전주 완결 기간 비교)
 상태: **ready**
-기간: 2026-11-13 ~ 2026-11-19 / 비교: 2026-11-06 ~ 2026-11-12
-- 세션 114,822 · WoW -2.7%
-- 주문 598 · WoW -24.4%
-- 매출 ₩89,955,040 · WoW -37.0%
-- 구매 CVR 0.52% · 상대 WoW -22.3%
+기간: 2026-11-14 ~ 2026-11-20 / 비교: 2026-11-07 ~ 2026-11-13
+- 세션 134,393 · WoW +12.1%
+- 주문 876 · WoW +10.9%
+- 매출 ₩134,038,093 · WoW -2.7%
+- 구매 CVR 0.65% · 상대 WoW -1.0%
 
 ## 마케팅 캘린더 (기간과 출처 확인)
-올해 2026-11-13 ~ 2026-11-19: not_connected
-전년 동요일 대응 기간 2025-11-14 ~ 2025-11-20: available
+올해 2026-11-14 ~ 2026-11-20: not_connected
+전년 동요일 대응 기간 2025-11-15 ~ 2025-11-21: available
 ### 전년 확인 활동
-- 2025-11-14 [message] (광고) [컬럼비아] 일상과 아웃도어 어디에서도 스타일과 보온성이 뛰어난 윈터부츠 · 트래픽현황 2026 · 2025 비교기준 70행
 - 2025-11-16 [event] 무신사 블랙프라이데이 · W47 · 4p
 - 2025-11-17 [message] 윈터페스티벌 · 트래픽현황 2026 · 2025 비교기준 54행
 - 2025-11-19 [message] (광고) 컬럼비아 윈터페스티벌 D-2, 매일 100명 한정 최대 20% 할인쿠폰 증정! · 트래픽현황 2026 · 2025 비교기준 71행
+- 2025-11-21 [event] Winter Festival 본행사 · W47 · 4~7p
+- 2025-11-21 [message] 카카오 · Winter Festival · W47 · 3p
 ### 전년 계획만 확인된 활동 (실행 미확인)
 - 2025-11-19 LMS · Winter Festival 티징
 - 2025-11-19 Winter Festival 티저
 - 2025-11-19 윈터페스티벌 티징
+- 2025-11-21 윈터페스티벌 1차
+- 2025-11-21 윈터페스티벌 2차
 
 ## 상품/PDP 개선 검토
-- [MEASUREMENT_QA] M`s MT.Hood Down Jacket (C74YM3674342) · PDP 15,113 · Cart 0.09% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
-- [CRO_HYPOTHESIS] Amaze Puff Hooded Jacket (C74WR9847309) · PDP 419 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 229 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 215 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 152 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] KONOS SPEED TRAIL ATR (C76BL0303550) · PDP 146 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Joseph Park Jacket (C73PG2054278) · PDP 143 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] RUDDY LEAF SHORT II (C75YU8771010) · PDP 141 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [MEASUREMENT_QA] M`s MT.Hood Down Jacket (C74YM3674342) · PDP 15,844 · Cart 0.10% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
+- [CRO_HYPOTHESIS] Amaze Puff Hooded Jacket (C74WR9847309) · PDP 462 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] PFG PRO SPORT BOOT (C75BM1935063) · PDP 365 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 233 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 216 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Endevour Mountain Down Jacket (C74WE0547011) · PDP 177 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 147 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] RUDDY LEAF SHORT II (C75YU8771010) · PDP 145 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
 
 ## 경쟁사 가격 참고 (동일 SKU 비교 불가)
 수집 상태: reference_fresh
 브랜드 평균 가격은 상품 구성·시즌·판매처가 달라 동일 SKU의 가격 차이를 증명하지 않음
-- DISCOVERY: 수집상품 5,698, 표기 평균가 ₩60,770, 할인 상품 비율 46.0% (수집일 2026-11-19, recent)
-- NEW_BALANCE: 수집상품 5,221, 표기 평균가 ₩113,231, 할인 상품 비율 1.9% (수집일 2026-11-20, recent)
-- THE_NORTH_FACE: 수집상품 3,628, 표기 평균가 ₩144,528, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
-- NEPA: 수집상품 3,154, 표기 평균가 ₩89,003, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
-- MILLET: 수집상품 2,262, 표기 평균가 ₩112,768, 할인 상품 비율 92.2% (수집일 2026-11-20, recent)
-- COLUMBIA: 수집상품 1,612, 표기 평균가 ₩129,926, 할인 상품 비율 0.0% (수집일 2026-11-19, recent)
-- ARCTERYX: 수집상품 657, 표기 평균가 ₩220,000, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
+- DISCOVERY: 수집상품 5,698, 표기 평균가 ₩60,770, 할인 상품 비율 46.0% (수집일 2026-11-20, recent)
+- NEW_BALANCE: 수집상품 5,308, 표기 평균가 ₩113,699, 할인 상품 비율 1.8% (수집일 2026-11-21, recent)
+- THE_NORTH_FACE: 수집상품 3,631, 표기 평균가 ₩144,729, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
+- NEPA: 수집상품 3,165, 표기 평균가 ₩89,148, 할인 상품 비율 0.0% (수집일 2026-11-21, recent)
+- MILLET: 수집상품 2,266, 표기 평균가 ₩112,677, 할인 상품 비율 92.2% (수집일 2026-11-21, recent)
+- COLUMBIA: 수집상품 1,614, 표기 평균가 ₩129,884, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
+- ARCTERYX: 수집상품 657, 표기 평균가 ₩220,000, 할인 상품 비율 0.0% (수집일 2026-11-21, recent)
 
 ## 신상품 7·14·30일
 상태: launch_registry_missing
