@@ -137,18 +137,40 @@ if report and results.get("pdp"):
         if r["category"] in reported and r["views"]!=reported[r["category"]]:
             findings.append(f"PDP {r['category']}: 원천 {r['views']:,} / 리포트 {reported[r['category']]:,}")
 
-# Winter Sale pre-notification cohort: aggregate-only read-only BigQuery.
 if request.get("analysis_mode") == "winter_sale_cohort":
     try:
-        cohort_sql = """
-WITH base AS (
- SELECT PARSE_DATE('%Y%m%d',event_date) AS d, event_name, user_pseudo_id,
-   (SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id' LIMIT 1) AS sid,
-   COALESCE(ecommerce.purchase_revenue,0) AS revenue,
-   COALESCE(NULLIF(CAST(ecommerce.transaction_id AS STRING),''),
-     (SELECT NULLIF(value.string_value,'') FROM UNNEST(event_params) WHERE key='transaction_id' LIMIT 1)) AS tid
+        sql = """
+WITH e AS (
+ SELECT PARSE_DATE('%Y%m%d',event_date) AS d,event_name,user_pseudo_id,
+ COALESCE(ecommerce.purchase_revenue,0) AS revenue,
+ CAST(ecommerce.transaction_id AS STRING) AS tid
  FROM `columbia-ga4.analytics_358593394.events_*`
- WHERE _TABLE_SUFFIX BETWEEN '20261111' AND '20261120'
+ WHERE _TABLE_SUFFIX BETWEEN '20261111' AND '20261120' AND user_pseudo_id IS NOT NULL
+), v AS (
+ SELECT user_pseudo_id,
+ MAX(IF(d BETWEEN DATE '2026-11-18' AND DATE '2026-11-19',1,0)) previsit,
+ MAX(IF(d BETWEEN DATE '2026-11-11' AND DATE '2026-11-17',1,0)) baseline_visit,
+ MAX(IF(d=DATE '2026-11-20',1,0)) salevisit
+ FROM e WHERE event_name='session_start' GROUP BY 1
+), p AS (
+ SELECT user_pseudo_id,COUNT(DISTINCT tid) orders,SUM(revenue) revenue
+ FROM e WHERE d=DATE '2026-11-20' AND event_name='purchase' AND tid IS NOT NULL GROUP BY 1
+)
+SELECT CASE WHEN previsit=1 THEN 'pre_notification_visitor'
+ WHEN baseline_visit=1 THEN 'earlier_visitor_no_prenotification'
+ ELSE 'no_recorded_visit_11_11_to_11_19' END cohort,
+ COUNT(*) visitors_in_cohort,COUNTIF(salevisit=1) sale_day_return_visitors,
+ COUNTIF(IFNULL(orders,0)>0) sale_day_buyers,
+ SUM(IFNULL(orders,0)) sale_day_orders,
+ ROUND(SUM(IFNULL(revenue,0)),0) sale_day_revenue
+FROM v LEFT JOIN p USING(user_pseudo_id) GROUP BY 1 ORDER BY 1
+"""
+        results["winter_sale_cohort"] = execute("winter_sale_cohort",sql).to_dict("records")
+        results["winter_sale_cohort_definition"] = "GA4 user_pseudo_id observational association, not causal attribution."
+    except Exception as exc:
+        problems.append(f"윈터세일 코호트 쿼리: {type(exc).__name__}: {str(exc)[:350]}")
+
+results.update({"findings":findings,"errors":problems,"query_jobs":query_results,"report_built_at":report.get("built_at_kst")})
 out = Path("anomaly-output")
 out.mkdir(exist_ok=True)
 payload=json.dumps(results,ensure_ascii=False,indent=2,default=str)
@@ -171,56 +193,3 @@ if request.get("analysis_mode") != "winter_sale_cohort":
     print("[DIAGNOSTIC_EMAIL_OK] SMTP accepted aggregate diagnosis for Hugh only",flush=True)
 else:
     print("[COHORT_ANALYSIS_ONLY] No duplicate email sent",flush=True)
-)
- AND user_pseudo_id IS NOT NULL
-),
-visitors AS (
- SELECT user_pseudo_id,
-   MAX(IF(d BETWEEN DATE '2026-11-18' AND DATE '2026-11-19',1,0)) AS previsit,
-   MAX(IF(d BETWEEN DATE '2026-11-11' AND DATE '2026-11-17',1,0)) AS baseline_visit,
-   MAX(IF(d=DATE '2026-11-20',1,0)) AS salevisit
- FROM base WHERE event_name='session_start'
- GROUP BY 1
-),
-sales AS (
- SELECT user_pseudo_id,COUNT(DISTINCT tid) AS orders,SUM(revenue) AS revenue
- FROM base WHERE d=DATE '2026-11-20' AND event_name='purchase' AND tid IS NOT NULL
- GROUP BY 1
-)
-SELECT CASE WHEN v.previsit=1 THEN 'pre_notification_visitor'
- WHEN v.baseline_visit=1 THEN 'earlier_visitor_no_prenotification'
- ELSE 'no_recorded_visit_11_11_to_11_19' END AS cohort,
- COUNT(*) AS visitors_in_cohort,
- COUNTIF(v.salevisit=1) AS sale_day_return_visitors,
- COUNTIF(s.orders>0) AS sale_day_buyers,
- SUM(IFNULL(s.orders,0)) AS sale_day_orders,
- ROUND(SUM(IFNULL(s.revenue,0)),0) AS sale_day_revenue
-FROM visitors v LEFT JOIN sales s USING(user_pseudo_id)
-WHERE v.salevisit=1 OR v.previsit=1 OR v.baseline_visit=1
-GROUP BY 1 ORDER BY 1
-"""
-        cohort = execute("winter_sale_cohort", cohort_sql)
-        results["winter_sale_cohort"] = cohort.to_dict("records")
-        results["winter_sale_cohort_definition"] = "GA4 user_pseudo_id, session_start visitor cohort; sale-day purchase events; observational association, not causal attribution. Device/cookie changes can undercount returning visitors."
-    except Exception as exc:
-        problems.append(f"윈터세일 코호트 쿼리: {type(exc).__name__}: {str(exc)[:350]}")
-
-results.update({"findings":findings,"errors":problems,"query_jobs":query_results,"report_built_at":report.get("built_at_kst")})
-out = Path("anomaly-output")
-out.mkdir(exist_ok=True)
-payload=json.dumps(results,ensure_ascii=False,indent=2,default=str)
-(out/"diagnosis.json").write_text(payload,encoding="utf-8")
-sql_bundle="\n\n".join("-- "+name+"\n"+sql for name,sql in queries.items())
-(out/"executed_queries.sql").write_text(sql_bundle,encoding="utf-8")
-print("[DIAGNOSTIC_RESULT] "+json.dumps(results,ensure_ascii=False,default=str),flush=True)
-
-lines=[f"CSK E-COMM 데이터 원천 재검증 | {day}",f"감지 사유: {reason}",f"리포트 생성: {report.get('built_at_kst','미도착')}", ""]
-if current:
-    for d,r in results["comparisons"].items():
-        t=r["totals"]
-        cvr=f"{t['cvr']:.2%}" if t.get("cvr") is not None else "N/A"
-        lines.append(f"{d}: 세션 {t['sessions']:,.0f} / 주문 {t['transactions']:,.0f} / 매출 {t['purchaseRevenue']:,.0f}원 / CVR {cvr}")
-lines += ["","[확인된 편차]",*(findings or ["원천 재조회에서 설정 기준 이상의 편차가 추가 확인되지 않았습니다."]), "", "[조회 오류/제약]",*(problems or ["없음"]), "", "판단: 원천과 리포트 차이는 데이터 확정 지연·집계 정의 변경 가능성이 있으므로 실제 성과 이상과 구분합니다.", "권장 조치: 확정 파티션 확인, 불일치 지표 재집계, 동일 기준 비교. Paid 광고비/매체 ROAS는 별도 매체 원본 확인이 필요합니다.", "첨부: 실제 쿼리와 집계 결과(JSON). 사용자 개인 식별자는 결과에 포함하지 않았습니다."]
-body="\n".join(lines)
-send_email_mixed_with_inline_image(host=os.environ["SMTP_HOST"],port=int(os.environ.get("SMTP_PORT") or "587"),user=os.environ["SMTP_USER"],password=os.environ["SMTP_PASS"],to_list=[RECIPIENT],subject=f"[CSK DATA ALERT] {day} 원천 재검증",text_fallback=body,html_body="<pre style='font:14px Arial;white-space:pre-wrap'>"+html.escape(body)+"</pre>",inline_png_cid=None,inline_png_bytes=None,attachments=[("diagnosis.json","json",payload.encode()),("executed_queries.sql","octet-stream",sql_bundle.encode())])
-print("[DIAGNOSTIC_EMAIL_OK] SMTP accepted aggregate diagnosis for Hugh only",flush=True)
