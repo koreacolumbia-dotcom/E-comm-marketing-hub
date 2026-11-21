@@ -7,6 +7,7 @@ on:
     paths:
       - "index.html"
       - "assets/csk-unified-hub.js"
+      - "tests/test_unified_hub.py"
       - "scripts/prepare_cloudflare_bundle.py"
       - "assets/dashboard-redesign.js"
       - "reports/decision_health/index.html"
@@ -88,6 +89,7 @@ jobs:
           PY
           node --check /tmp/csk-calendar-release-check.js
           node --check assets/csk-unified-hub.js
+          python -m unittest discover -s tests -p 'test_unified_hub.py' -v
           python - <<'PY'
           import re
           from pathlib import Path
