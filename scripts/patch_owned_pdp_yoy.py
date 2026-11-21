@@ -11,8 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-from google.cloud import bigquery
+from pdp_yoy_guard import is_current_report, load_payload, replace_section, sync_latest_index, verified_series
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_DIR = ROOT / "reports" / "daily_digest" / "daily"
@@ -112,6 +111,9 @@ def dual_svg(labels: list[str], cur: list[float], py: list[float], cy: int, pyy:
 
 
 def query(end_date: dt.date) -> list[dict[str, Any]]:
+    import pandas as pd
+    from google.cloud import bigquery
+    setup_credentials()
     cur_dates = [end_date - dt.timedelta(days=i) for i in range(6, -1, -1)]
     py_dates = [d - dt.timedelta(days=364) for d in cur_dates]
     cur_start, py_start, py_end = cur_dates[0], py_dates[0], py_dates[-1]
@@ -162,14 +164,48 @@ def query(end_date: dt.date) -> list[dict[str, Any]]:
     return rows
 
 
+def rows_from_embedded_yoy(data: dict[str, Any], end_date: dt.date) -> list[dict[str, Any]]:
+    """Reuse the original GA4 summary and category definitions instead of re-querying."""
+    source = data.get("pdp_series") or {}
+    labels = source.get("x") or [(end_date - dt.timedelta(days=i)).strftime("%m/%d") for i in range(6, -1, -1)]
+    if len(labels) != 7:
+        labels = [(end_date - dt.timedelta(days=i)).strftime("%m/%d") for i in range(6, -1, -1)]
+    rows = []
+    for item in verified_series(data):
+        cur = list(map(float, item["ys"]))
+        py = list(map(float, item["ys_yoy"]))
+        rows.append({
+            "category": str(item.get("itemCategory") or "미분류"),
+            "cur": cur, "py": py, "labels": labels,
+            "svg": dual_svg(labels, cur, py, end_date.year, end_date.year-1),
+        })
+    return rows
+
+
 def patch(end_date: dt.date) -> None:
     report = REPORT_DIR / f"{end_date:%Y-%m-%d}.html"
     data_path = DATA_DIR / f"{end_date:%Y-%m-%d}.json"
     if not report.exists():
         raise SystemExit(f"[ERROR] report not found: {report}")
-    rows = query(end_date)
+    text = report.read_text(encoding="utf-8")
+    data = load_payload(data_path)
+    index_path = REPORT_DIR.parent / "index.html"
+
+    if is_current_report(text, data):
+        synced = sync_latest_index(report, index_path, text)
+        print(f"[OK] Preserved Daily Digest built-in PDP 7D YoY; stable index synced={synced}")
+        return
+
+    # The report's own category measurements take precedence. The BigQuery fallback
+    # is reserved for reports with no trustworthy embedded year-on-year series.
+    rows = rows_from_embedded_yoy(data, end_date)
+    source = "Daily Digest embedded GA4"
     if not rows:
-        raise SystemExit("[ERROR] PDP YoY query returned no comparable rows")
+        rows = query(end_date)
+        source = "BigQuery fallback"
+    if not rows:
+        raise SystemExit("[ERROR] No comparable PDP 7D YoY categories; existing report preserved")
+
     cards = []
     for row in rows:
         cur, py = row["cur"], row["py"]
@@ -181,43 +217,32 @@ def patch(end_date: dt.date) -> None:
         <div class='text-xs text-slate-500'>{end_date.year} D1 {fmt(cur[-1])} · 7D Avg {fmt(cur_avg)} &nbsp;|&nbsp; {end_date.year-1} D1 {fmt(py[-1])} · 7D Avg {fmt(py_avg)} · <b class='{cls}'>YoY {yoy:+.1f}%</b></div></div>
         <div class='shrink-0 overflow-x-auto'>{row['svg']}</div></div>""")
     replacement = "<div class=\"mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4\" data-pdp-yoy-section=\"true\"><div class=\"flex flex-wrap items-end justify-between gap-2\"><div><div class=\"text-xs font-extrabold tracking-widest text-slate-500 uppercase\">PDP View Trend (Category)</div><div class=\"mt-1 text-xs text-slate-400\">Current 7D vs prior-year comparable 7D · comparable categories only</div></div></div><div class=\"mt-3 space-y-2\">" + "".join(cards) + "</div></div>"
-    text = report.read_text(encoding="utf-8")
 
-    # Replace the entire PDP block, including any duplicated legacy single-year cards,
-    # up to the next Search section. This is intentionally broader than the old regex.
-    pattern = re.compile(
-        r'<div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4"(?:\s+data-pdp-yoy-section="true")?>'
-        r'(?=\s*(?:<div[^>]*>\s*){0,2}'
-        r'<div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend \(Category\)</div>)'
-        r'.*?(?=\s*<div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">\s*'
-        r'<div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">\s*'
-        r'<div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Search · New</div>)',
-        re.S,
-    )
-    new_text, count = pattern.subn(replacement + "\n\n    ", text, count=1)
-    if count != 1:
-        raise SystemExit("[ERROR] Full PDP category section was not found in HTML")
+    try:
+        new_text = replace_section(text, replacement)
+    except ValueError as exc:
+        raise SystemExit(f"[ERROR] Safe PDP replacement refused: {exc}") from exc
+
+    # Construct and validate both outputs before writing either file.
+    if "Search · New" not in new_text or "Current 7D vs prior-year comparable 7D" not in new_text:
+        raise SystemExit("[ERROR] PDP replacement integrity check failed")
+    if not data_path.is_file():
+        raise SystemExit("[ERROR] Daily Digest JSON missing; cannot persist verified comparison")
+    data["pdp_series_yoy"] = {
+        "current_year": end_date.year,
+        "previous_year": end_date.year-1,
+        "shift_days": 364,
+        "comparable_only": True,
+        "source": source,
+        "rows": [{"itemCategory": r["category"], "ys": r["cur"], "ys_py": r["py"]} for r in rows],
+    }
     report.write_text(new_text, encoding="utf-8")
-
-    # Keep the stable Owned report entry point in sync with the latest patched report.
-    index_path = REPORT_DIR.parent / "index.html"
-    index_path.write_text(new_text, encoding="utf-8")
-
-    if data_path.exists():
-        data = json.loads(data_path.read_text(encoding="utf-8"))
-        data["pdp_series_yoy"] = {
-            "current_year": end_date.year,
-            "previous_year": end_date.year-1,
-            "shift_days": 364,
-            "comparable_only": True,
-            "rows": [{"itemCategory": r["category"], "ys": r["cur"], "ys_py": r["py"]} for r in rows],
-        }
-        data_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"[OK] PDP YoY patched: {report} comparable_rows={len(rows)}")
+    data_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    synced = sync_latest_index(report, index_path, new_text)
+    print(f"[OK] PDP YoY patched: {report} rows={len(rows)} source={source} index_synced={synced}")
 
 
 if __name__ == "__main__":
-    setup_credentials()
     raw = os.getenv("YMD", "").strip()
     end = dt.date.fromisoformat(raw) if raw else dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).date()-dt.timedelta(days=1)
     patch(end)
