@@ -149,7 +149,6 @@ WITH base AS (
      (SELECT NULLIF(value.string_value,'') FROM UNNEST(event_params) WHERE key='transaction_id' LIMIT 1)) AS tid
  FROM `columbia-ga4.analytics_358593394.events_*`
  WHERE _TABLE_SUFFIX BETWEEN '20261111' AND '20261120'
- AND REGEXP_CONTAINS(_TABLE_SUFFIX,r'^\\d{8},"errors":problems,"query_jobs":query_results,"report_built_at":report.get("built_at_kst")})
 out = Path("anomaly-output")
 out.mkdir(exist_ok=True)
 payload=json.dumps(results,ensure_ascii=False,indent=2,default=str)
