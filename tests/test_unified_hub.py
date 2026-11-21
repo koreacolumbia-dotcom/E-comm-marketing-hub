@@ -60,7 +60,7 @@ class UnifiedHubTests(unittest.TestCase):
     def test_one_controller_owns_menu_routes(self) -> None:
         self.assertIn("window.CSKUnifiedMenus", self.js)
         self.assertIn("function initialNavigate", self.js)
-        self.assertIn("data.unifiedHub", DESIGN.read_text(encoding="utf-8"))
+        self.assertIn("dataset.unifiedHub", DESIGN.read_text(encoding="utf-8"))
         self.assertIn('"csk-unified-hub.js"', BUNDLER.read_text(encoding="utf-8"))
 
 
