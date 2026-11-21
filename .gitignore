@@ -34,3 +34,15 @@ test-results/
 # Never publish member-level or private CRM aggregates to the public site
 reports/private_aggregate_crm/
 data/private_marketing/
+
+# Public report quarantine: customer-level member funnel data must stay out of Git
+/reports/member_funnel/data/
+/reports/member_funnel/downloads/
+/reports/member_funnel/*.html
+!/reports/member_funnel/index.html
+/reports/voc_crema/data/member_funnel/
+/reports/voc_crema/member_funnel/*.html
+!/reports/voc_crema/member_funnel/index.html
+/site/data/member_funnel/
+/site/member_funnel/*.html
+!/site/member_funnel/index.html
