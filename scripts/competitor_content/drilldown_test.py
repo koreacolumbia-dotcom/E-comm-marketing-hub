@@ -25,6 +25,17 @@ async def run():
             else: await r.fulfill(status=404,body="")
         await page.route("**/*",route)
         await page.goto(ROOT)
+        await page.locator("#summaryObserved").get_by_text("3건").wait_for()
+        assert await page.locator("#summaryBrands").inner_text()=="2개"
+        assert await page.locator("#brandPulseGrid .brand-tile").count()==1
+        await page.locator('[data-brand-mode="all"]').click()
+        assert await page.locator("#brandPulseGrid .brand-tile").count()==2
+        await page.locator('[data-brand-mode="zero"]').click()
+        assert await page.locator("#brandPulseGrid .brand-tile").count()==0
+        await page.locator("#brandQuickSearch").fill("노스페이스")
+        assert await page.locator("#brandPulseGrid .brand-blank").count()==1
+        await page.locator("#brandQuickSearch").fill("")
+        await page.locator('[data-brand-mode="focus"]').click()
         await page.locator("#gapCards .gap-quiet").wait_for()
         assert await page.locator("#gapCards .gap-quiet").count()==1
         msg=await page.locator("#gapCards").inner_text()
