@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 MAX_FILE_BYTES = 24 * 1024 * 1024
 ROOT_FILES = ("index.html", "Columbia_logo.png", "robots.txt", "_headers")
-DESIGN_FILES = ("dashboard-redesign.css", "dashboard-mobile-compact.css", "dashboard-redesign.js", "csk-unified-hub.js")
+DESIGN_FILES = ("dashboard-redesign.css", "dashboard-mobile-compact.css", "dashboard-redesign.js", "csk-unified-hub.js", "mobile-edge-to-edge.css", "mobile-edge-to-edge.js")
 SKIP_NAMES = {".git", ".github", "__pycache__", ".pytest_cache", ".naver_cache"}
 EXCLUDED_PREFIXES = (
     Path("member_funnel"),
