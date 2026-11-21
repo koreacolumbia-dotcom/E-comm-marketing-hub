@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-19",
-  "request_id": "2026-11-19-missing-daily-admin-zero-revenue-trend-v1",
-  "reason": "As of 2026-11-20 morning KST 2026-11-19 daily JSON missing. 2026-11-18 finalized daily JSON built 2026-11-19 23:33:32 KST: sessions 16489, orders 94, revenue KRW14231270, CVR 0.5701%, compared with 2026-11-11 sessions 15284, orders 90, revenue KRW22054230 (-35.5% WoW). ETC 54/16489=0.33% normalized after intraday, channel sum reconciles. Admin KPI sessions/orders/buyers/revenue/signups/AOV all 0. Validate 11/19 partition arrival and actual session attribution, transaction quality, PDP category and TOP2 sources, plus revenue/AOV decline. Read-only aggregate only, no PII, no team email."
+  "date": "2026-11-20",
+  "request_id": "2026-11-20-etc-intraday-traffic-spike-admin-zero-v1",
+  "reason": "2026-11-20 daily JSON built 2026-11-21 07:52:22 KST uses intraday 11/20. ETC 5013/36600=13.70% vs 75/17299=0.43% on 11/19 finalized; ETC 77 orders KRW12016942 and possible (not set) session attribution. Sessions 36600 vs 17299 (+111.6%), orders 368 vs 85 (+332.9%), revenue KRW57988353 vs KRW13557640 (+327.7%); verify promotion vs tracking anomalies. GA API sessions 36262 vs BQ 36600. Admin KPIs all zero. Verify partition arrival, session source attribution, purchase duplicates, PDP category and TOP2 source/medium. Read-only aggregate only, no PII, no team mail."
 }
