@@ -78,9 +78,9 @@ jobs:
           import re
           from pathlib import Path
           src=Path("reports/decision_health/index.html").read_text(encoding="utf-8")
-          scripts=re.findall(r"<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>",src,re.I)
+          scripts=re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>",src,re.I)
           assert scripts, "No decision health script"
-          Path("/tmp/csk-decision-center.js").write_text("\\n".join(scripts),encoding="utf-8")
+          Path("/tmp/csk-decision-center.js").write_text("\n".join(scripts),encoding="utf-8")
           assert "source" in src.lower() or "원천" in src
           PY
           node --check /tmp/csk-decision-center.js
