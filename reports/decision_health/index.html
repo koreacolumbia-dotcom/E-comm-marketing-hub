@@ -74,4 +74,4 @@ const load=async path=>{try{const r=await fetch(path+"?v="+Date.now(),{cache:"no
  const prioritized=[...a].sort((x,y)=>({"P0":0,"P1":1,"P2":2}[x.priority]??3)-({"P0":0,"P1":1,"P2":2}[y.priority]??3)).slice(0,8);
  $("actions").innerHTML=prioritized.length?prioritized.map(x=>'<div class="row"><strong>'+pill(x.priority==="P0"?"bad":"warn",x.priority||"점검")+' '+esc(x.title)+'</strong><p class="muted">담당: '+esc(x.owner||"미지정")+' · 상태: '+esc(x.status||"확인 필요")+'</p></div>').join(""):'<p class="muted">등록된 과제가 없습니다.</p>';
 })().catch(e=>{$("loading").textContent="데이터 렌더링에 실패했습니다. 원천 보고서를 확인해 주세요.";console.error(e)});
-</script></body></html>
+</script><script src="./timeline.js?v=20261121"></script></body></html>
