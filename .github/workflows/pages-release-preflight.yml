@@ -2,6 +2,13 @@ name: Pages Release Preflight
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "reports/decision_health/index.html"
+      - "scripts/patch_owned_pdp_yoy.py"
+      - ".github/workflows/pages-release-preflight.yml"
   schedule:
     # Validate a fixed integration snapshot once an hour, not on every push.
     - cron: '35 * * * *'
@@ -39,6 +46,8 @@ jobs:
           index=Path("index.html").read_text(encoding="utf-8")
           targets=sorted(set(re.findall(r'data-target="([^"]+)"',index)))
           assert targets, "No navigation targets"
+          assert any("decision_health/index.html" in x for x in targets), "Decision health navigation missing"
+          assert all("reports/voc_blog/index.html" not in x for x in targets), "Unbuilt blog VOC navigation must not be published"
           for target in targets:
               rel=target.split("#",1)[0].split("?",1)[0]
               if re.match(r"^[a-z]+://",rel,re.I): continue
@@ -65,6 +74,16 @@ jobs:
           print("Navigation, calendar and CRM schema checks passed.")
           PY
           node --check /tmp/csk-calendar-release-check.js
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          src=Path("reports/decision_health/index.html").read_text(encoding="utf-8")
+          scripts=re.findall(r"<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>",src,re.I)
+          assert scripts, "No decision health script"
+          Path("/tmp/csk-decision-center.js").write_text("\\n".join(scripts),encoding="utf-8")
+          assert "source" in src.lower() or "원천" in src
+          PY
+          node --check /tmp/csk-decision-center.js
       - name: Validate calendar regression tests
         run: python -m unittest discover -s tests -p 'test_competitor_sale_calendar.py' -v
       - name: Check existing public artifact security policy without modifying data
