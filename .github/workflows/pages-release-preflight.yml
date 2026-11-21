@@ -8,6 +8,11 @@ on:
       - "index.html"
       - "reports/decision_health/index.html"
       - "scripts/patch_owned_pdp_yoy.py"
+      - "scripts/dashboard_security.py"
+      - ".github/workflows/reports_build.yml"
+      - "reports/decision_health/timeline.js"
+      - "reports/member_funnel/index.html"
+      - "reports/voc_crema/member_funnel/index.html"
       - ".github/workflows/pages-release-preflight.yml"
   schedule:
     # Validate a fixed integration snapshot once an hour, not on every push.
@@ -84,6 +89,8 @@ jobs:
           assert "source" in src.lower() or "원천" in src
           PY
           node --check /tmp/csk-decision-center.js
+          node --check reports/decision_health/timeline.js
+          python -m py_compile scripts/patch_owned_pdp_yoy.py scripts/dashboard_security.py
       - name: Validate calendar regression tests
         run: python -m unittest discover -s tests -p 'test_competitor_sale_calendar.py' -v
       - name: Check existing public artifact security policy without modifying data
