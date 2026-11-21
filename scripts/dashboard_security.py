@@ -37,6 +37,26 @@ def token(value: str) -> str:
     return f"masked_{digest}"
 
 
+def plausible_rrn(candidate: str) -> bool:
+    """Reject image hashes and serial numbers that only resemble an unformatted RRN.
+
+    Explicitly separated values remain candidates for privacy review, whereas
+    plain thirteen-digit strings require a valid birth date and check digit.
+    """
+    digits = re.sub(r"\\D", "", candidate)
+    if len(digits) != 13:
+        return False
+    month = int(digits[2:4])
+    day = int(digits[4:6])
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        return False
+    if "-" in candidate or " " in candidate:
+        return True
+    weights = (2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5)
+    checksum = (11 - sum(int(n) * weight for n, weight in zip(digits[:12], weights)) % 11) % 10
+    return checksum == int(digits[-1])
+
+
 def mask_text(text: str) -> tuple[str, int]:
     count = 0
 
@@ -55,7 +75,7 @@ def mask_text(text: str) -> tuple[str, int]:
 
     text = EMAIL_RE.sub(email_repl, text)
     text = PHONE_RE.sub(pii_repl, text)
-    text = RRN_RE.sub(pii_repl, text)
+    text = RRN_RE.sub(lambda match: pii_repl(match) if plausible_rrn(match.group(0)) else match.group(0), text)
     return text, count
 
 
@@ -142,7 +162,9 @@ def sanitize_text_file(path: Path) -> int:
 
 def remaining_pii(text: str) -> int:
     emails = [x for x in EMAIL_RE.findall(text) if not PUBLIC_EMAIL_RE.match(x)]
-    return len(emails) + len(PHONE_RE.findall(text)) + len(RRN_RE.findall(text))
+    return len(emails) + len(PHONE_RE.findall(text)) + sum(
+        plausible_rrn(match.group(0)) for match in RRN_RE.finditer(text)
+    )
 
 
 def main() -> int:
