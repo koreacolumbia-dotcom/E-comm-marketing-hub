@@ -2,11 +2,7 @@ name: CSK Competitor Sale Calendar
 
 on:
   workflow_dispatch:
-  # Rebuild from published evidence even when the crawler quality gate fails.
-  workflow_run:
-    workflows: ["Competitor Intelligence"]
-    types: [completed]
-    branches: [main]
+  # Scheduled rebuild; avoid invalid/recursive workflow_run triggers on bot commits.
   schedule:
     # 08:40 and 17:40 KST: existing banner crawler refresh is independent.
     - cron: "40 23 * * *"
@@ -37,7 +33,7 @@ jobs:
       - name: Checkout only banner capture CSVs and sale-calendar code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: main
           fetch-depth: 1
           sparse-checkout-cone-mode: false
           sparse-checkout: |
