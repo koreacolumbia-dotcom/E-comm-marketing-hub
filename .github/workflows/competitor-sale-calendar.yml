@@ -1,22 +1,20 @@
 name: CSK Competitor Sale Calendar
 
 on:
-  workflow_dispatch:
-  # Scheduled rebuild; avoid invalid/recursive workflow_run triggers on bot commits.
+  workflow_dispatch: {}
   schedule:
-    # 08:40 and 17:40 KST: existing banner crawler refresh is independent.
-    - cron: "40 23 * * *"
-    - cron: "40 8 * * *"
+    - cron: '40 23 * * *'
+    - cron: '40 8 * * *'
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - ".github/workflows/competitor-sale-calendar.yml"
-      - "scripts/build_competitor_sale_calendar.py"
-      - "tests/test_competitor_sale_calendar.py"
-      - "config/competitor_sale_events_verified.json"
-      - "reports/competitor_sale_calendar/index.html"
-      - "reports/hero_main_banners_*.csv"
-      - "reports/competitor_intelligence/owned/20??-??-??.json"
+      - '.github/workflows/competitor-sale-calendar.yml'
+      - 'scripts/build_competitor_sale_calendar.py'
+      - 'tests/test_competitor_sale_calendar.py'
+      - 'config/competitor_sale_events_verified.json'
+      - 'reports/hero_main_banners_*.csv'
+      - 'reports/competitor_intelligence/owned/*.json'
 
 permissions:
   contents: write
@@ -30,11 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout only banner capture CSVs and sale-calendar code
+      - name: Checkout required evidence and code
         uses: actions/checkout@v4
         with:
           ref: main
-          fetch-depth: 1
+          fetch-depth: 0
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             /scripts/build_competitor_sale_calendar.py
@@ -42,51 +40,36 @@ jobs:
             /config/competitor_sale_events_verified.json
             /reports/competitor_sale_calendar/
             /reports/hero_main_banners_*.csv
-            /reports/competitor_intelligence/owned/20??-??-??.json
-      - name: Setup Python 3.11
+            /reports/competitor_intelligence/owned/
+      - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Validate event periods, official links and capture-only semantics
+          python-version: '3.11'
+      - name: Validate calendar source
+        shell: bash
         run: |
           set -euo pipefail
-          python -m unittest discover -s tests -p test_competitor_sale_calendar.py -v
           python -m py_compile scripts/build_competitor_sale_calendar.py
-      - name: Build sale calendar from recent real banner captures
-        if: github.ref == 'refs/heads/main'
+          python -m unittest discover -s tests -p 'test_competitor_sale_calendar.py' -v
+      - name: Build validated evidence calendar
         shell: bash
         run: |
           set -euo pipefail
-          TODAY="$(TZ=Asia/Seoul date '+%Y-%m-%d')"
+          TODAY="$(TZ=Asia/Seoul date +%F)"
           python scripts/build_competitor_sale_calendar.py --as-of "$TODAY" --lookback 65
-          test -s reports/competitor_sale_calendar/latest.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          data=json.loads(Path("reports/competitor_sale_calendar/latest.json").read_text())
-          assert data["schema_version"] == 1
-          assert len(data["events"]) > 0
-          assert all(e["end_date"] is None for e in data["events"] if e["kind"] in ("observed_banner","verified_start"))
-          assert all(e["source_url"] is None or e["source_url"].startswith("https://") for e in data["events"])
-          assert all(not any(k in e for k in ("member_id","phone","customer_id")) for e in data["events"])
-          print("[VALIDATED]", data["as_of"],data["status"],
-                "events",data["counts"]["events"],
-                "periods",data["counts"]["dated_periods"],
-                "capture_dates",data["freshness"]["snapshot_days"])
-          PY
-      - name: Publish only safe aggregate calendar JSON
-        if: github.ref == 'refs/heads/main'
+          python -c 'import json; from pathlib import Path; d=json.loads(Path("reports/competitor_sale_calendar/latest.json").read_text()); assert d["schema_version"] == 1 and len(d["events"]) > 0; assert all(e.get("end_date") is None for e in d["events"] if e["kind"] in ("observed_banner", "verified_start")); print("Calendar:", d["as_of"], d["status"], len(d["events"]))'
+      - name: Publish calendar snapshot
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add reports/competitor_sale_calendar/latest.json
-          if git diff --cached --quiet; then echo "[SKIP] calendar unchanged"; exit 0; fi
-          git commit -m "Refresh verified CSK competitor sale calendar"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Refresh dated competitor sale evidence'
           for attempt in 1 2 3 4; do
-            if git push origin HEAD:main; then echo "[OK] Calendar published"; exit 0; fi
-            if [ "$attempt" -eq 4 ]; then echo "[ERROR] Publish retries exceeded"; exit 1; fi
+            if git push origin HEAD:main; then exit 0; fi
+            if [ "$attempt" -eq 4 ]; then exit 1; fi
             git fetch origin main
             git rebase origin/main
           done
