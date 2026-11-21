@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - "index.html"
+      - "assets/csk-unified-hub.js"
+      - "scripts/prepare_cloudflare_bundle.py"
+      - "assets/dashboard-redesign.js"
       - "reports/decision_health/index.html"
       - "scripts/patch_owned_pdp_yoy.py"
       - "scripts/dashboard_security.py"
@@ -49,9 +52,14 @@ jobs:
           from pathlib import Path
           root=Path(".").resolve()
           index=Path("index.html").read_text(encoding="utf-8")
-          targets=sorted(set(re.findall(r'data-target="([^"]+)"',index)))
-          assert targets, "No navigation targets"
-          assert any("decision_health/index.html" in x for x in targets), "Decision health navigation missing"
+          menu=Path("assets/csk-unified-hub.js").read_text(encoding="utf-8")
+          assert 'src="assets/csk-unified-hub.js' in index, "Unified app script not linked"
+          routes=re.findall(r'^\s*\["([a-z0-9_]+)","[^"]+","([^"]+)","fa-[^"]+"\]',menu,re.M)
+          assert len(routes)>=20, f"Unified navigation incomplete: {len(routes)} routes"
+          keys=[key for key,_ in routes]
+          assert len(keys)==len(set(keys)), "Duplicate route keys"
+          targets=sorted(set(target for _,target in routes))
+          assert any("decision_health/index.html" in x for x in targets), "Decision center navigation missing"
           assert all("reports/voc_blog/index.html" not in x for x in targets), "Unbuilt blog VOC navigation must not be published"
           for target in targets:
               rel=target.split("#",1)[0].split("?",1)[0]
@@ -79,6 +87,7 @@ jobs:
           print("Navigation, calendar and CRM schema checks passed.")
           PY
           node --check /tmp/csk-calendar-release-check.js
+          node --check assets/csk-unified-hub.js
           python - <<'PY'
           import re
           from pathlib import Path
