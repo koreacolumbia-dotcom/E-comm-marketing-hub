@@ -50,7 +50,8 @@ css.textContent=[
  ".csk-drawer-link{display:block;width:100%;text-align:left;padding:11px;background:none;border:0;border-radius:8px;cursor:pointer;color:#345}.csk-drawer-link.active{background:#e9f2fb;font-weight:800}",
  ".csk-drawer-label{font-size:12px;font-weight:800;color:#5c7187;margin:14px 0 4px}",
  ".csk-drawer-link[hidden],.csk-drawer-label[hidden]{display:none!important}",
- "#hub-mobile-root{z-index:70;background:#fffffff2;border-top:1px solid #e1e8f1;backdrop-filter:blur(14px)}@media(min-width:1024px){#hub-mobile-root{display:none!important}}"
+ "#hub-mobile-root{z-index:70;background:#fffffff2;border-top:1px solid #e1e8f1;backdrop-filter:blur(14px)}@media(min-width:1024px){#hub-mobile-root{display:none!important}}",
+ "@media(max-width:1023px){body.csk-unified-hub #hub-mobile-root.mo-tabbar{display:block!important;position:fixed!important;bottom:0!important;left:0!important;right:0!important}body.csk-unified-hub>main{padding-bottom:90px!important}}"
 ].join("");
 document.head.appendChild(css);
 const search=document.createElement("input");search.id="hub-nav-search";search.type="search";search.className="csk-menu-search";search.placeholder="메뉴 검색 (Ctrl+K)";search.setAttribute("aria-label","분석 메뉴 검색");
