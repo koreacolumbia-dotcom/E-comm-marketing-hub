@@ -14,7 +14,7 @@ DEFAULT_ROOTS = [Path("reports"), Path("site")]
 TEXT_SUFFIXES = {".html", ".js", ".json", ".csv", ".txt"}
 EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
 PHONE_RE = re.compile(r"(?<!\d)(?:01[016789])[- .]?\d{3,4}[- .]?\d{4}(?!\d)")
-RRN_RE = re.compile(r"(?<!\d)\d{6}[- ]?[1-4]\d{6}(?!\d)")
+RRN_RE = re.compile(r"(?<![A-Za-z0-9])\d{6}[- ]?[1-4]\d{6}(?![A-Za-z0-9])")
 PUBLIC_EMAIL_RE = re.compile(r"(?i)^[A-Z0-9._%+-]+@(columbia\.com|columbiakorea\.co\.kr)$")
 SECRET_PATTERNS = {
     "private_key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
@@ -160,6 +160,14 @@ def main() -> int:
         if not root.exists():
             continue
         for path in root.rglob("*"):
+            # These binary/row-level Member Funnel exports must never be hosted.
+            if path.is_file() and "member_funnel" in path.parts and (
+                path.suffix.lower() in {".xlsx", ".xls", ".parquet", ".gz"}
+                or path.name.endswith("_bundle.json")
+                or path.name.endswith("_view.json")
+            ):
+                findings.append(f"{path}: per-member public export not allowed")
+                continue
             if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES or path.stat().st_size > 25_000_000:
                 continue
             scanned += 1
