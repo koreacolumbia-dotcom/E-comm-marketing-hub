@@ -61,6 +61,12 @@
     try { doc = frame.contentDocument; } catch (_) { return; }
     if (!doc || !doc.body || !doc.head) return;
     attachedDoc = doc;
+    if (!doc.querySelector('meta[name="viewport"]')) {
+      var viewport = doc.createElement('meta');
+      viewport.name = 'viewport';
+      viewport.content = 'width=device-width, initial-scale=1';
+      doc.head.appendChild(viewport);
+    }
     doc.documentElement.classList.add('csk-embedded-mobile');
     doc.body.classList.add('csk-embedded-mobile');
 
