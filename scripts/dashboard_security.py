@@ -43,7 +43,7 @@ def plausible_rrn(candidate: str) -> bool:
     Explicitly separated values remain candidates for privacy review, whereas
     plain thirteen-digit strings require a valid birth date and check digit.
     """
-    digits = re.sub(r"\\D", "", candidate)
+    digits = re.sub(r"\D", "", candidate)
     if len(digits) != 13:
         return False
     month = int(digits[2:4])
