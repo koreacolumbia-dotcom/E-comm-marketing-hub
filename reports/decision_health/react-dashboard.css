@@ -359,3 +359,84 @@ body.csk-react-ready.csk-show-legacy #decision-additional:not([hidden]){max-widt
  .csk-product-head h3{font-size:18px}
  .csk-product-official{font-size:10px}
 }
+
+
+/* Expanded original diagnostics: same light-card SaaS visual language. */
+body.csk-react-ready.csk-show-legacy :is(#macro-health,#market-context,#source-medium-health,#product-drilldown,#decision-additional){
+ box-sizing:border-box;
+ width:calc(100% - 42px)!important;max-width:1290px!important;
+ margin:18px auto!important;
+}
+body.csk-react-ready.csk-show-legacy :is(#macro-health,#market-context,#source-medium-health){
+ border:1px solid #e7eaf2!important;border-radius:19px!important;
+ padding:20px!important;background:#fff!important;
+ box-shadow:0 8px 29px rgba(22,25,44,.04)!important;
+}
+body.csk-react-ready.csk-show-legacy :is(#macro-health,#source-medium-health) h2,
+body.csk-react-ready.csk-show-legacy #priority-products h2{
+ color:#1c223e!important;letter-spacing:-.045em!important;
+ font-weight:830!important;
+}
+body.csk-react-ready.csk-show-legacy :is(.macro-driver,.sm-kpi,.p-card,.product-row,.sm-signal,.sm-entry,.macro-context-item){
+ border:1px solid #e8eaf3!important;border-radius:15px!important;
+ box-shadow:0 5px 21px rgba(27,33,70,.035)!important;
+ background:#fff!important;
+}
+body.csk-react-ready.csk-show-legacy .macro-headline{
+ background:linear-gradient(120deg,#16192C 2%,#303a67 67%,#5E54F3 100%)!important;
+ border-radius:20px!important;
+}
+body.csk-react-ready.csk-show-legacy :is(#product-drilldown,#decision-additional){
+ border:1px solid #e7eaf2!important;border-radius:18px!important;
+ background:#fff!important;padding:12px 16px!important;
+ box-shadow:0 7px 25px rgba(22,25,44,.04)!important;
+}
+body.csk-react-ready.csk-show-legacy :is(#product-drilldown,#decision-additional)>summary{
+ border:0!important;background:#f5f6fc!important;border-radius:12px!important;
+ color:#4547b5!important;padding:13px 15px!important;font-weight:800!important;
+}
+body.csk-react-ready.csk-show-legacy :is(.sm-filters button.active,.sm-filter.active,.sm-sort button.active){
+ background:linear-gradient(120deg,#0072CE,#5E54F3)!important;
+ border-color:#5E54F3!important;color:#fff!important;
+}
+body.csk-react-ready.csk-show-legacy .product-row{
+ display:grid!important;grid-template-columns:82px minmax(0,1fr)!important;
+ gap:5px 13px!important;align-items:start!important;padding:14px!important;
+ margin-bottom:8px!important;
+}
+body.csk-react-ready.csk-show-legacy .product-row:not(:has(.csk-legacy-product-image)){
+ grid-template-columns:minmax(0,1fr)!important;
+}
+body.csk-react-ready.csk-show-legacy .csk-legacy-product-link{
+ grid-row:1 / span 4!important;grid-column:1!important;
+ width:82px;height:100px;padding:3px;border-radius:10px;
+ border:1px solid #e5e7f3;background:#fff;overflow:hidden;
+ display:block!important;
+}
+body.csk-react-ready.csk-show-legacy .csk-legacy-product-image{
+ display:block;width:100%;height:100%;object-fit:contain;
+}
+body.csk-react-ready.csk-show-legacy .product-row :is(h3,.product-evidence,.product-action,.product-source){
+ grid-column:2;min-width:0;
+}
+body.csk-react-ready.csk-show-legacy .product-row:not(:has(.csk-legacy-product-image)) :is(h3,.product-evidence,.product-action,.product-source){
+ grid-column:1!important;
+}
+body.csk-react-ready.csk-show-legacy .product-row h3{font-weight:810;font-size:14px;color:#202845}
+body.csk-react-ready.csk-show-legacy .product-row .product-evidence{
+ display:flex;flex-wrap:wrap;gap:5px;font-size:11px;
+}
+body.csk-react-ready.csk-show-legacy .product-row .product-evidence span{
+ background:#f5f6fa!important;color:#4e5974!important;
+ border:1px solid #e9ebf3!important;border-radius:999px!important;
+ padding:5px 9px!important;
+}
+@media(max-width:640px){
+ body.csk-react-ready.csk-show-legacy :is(#macro-health,#market-context,#source-medium-health,#product-drilldown,#decision-additional){
+  width:calc(100% - 20px)!important;margin:10px auto!important;padding:10px!important;
+  border-radius:13px!important;
+ }
+ body.csk-react-ready.csk-show-legacy .product-row{grid-template-columns:62px minmax(0,1fr)!important;gap:5px 9px!important;padding:10px!important}
+ body.csk-react-ready.csk-show-legacy .csk-legacy-product-link{width:62px;height:78px}
+ body.csk-react-ready.csk-show-legacy .product-row h3{font-size:12px}
+}
