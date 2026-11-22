@@ -108,7 +108,7 @@ jobs:
                          and bool(data.get('pdp_series_yoy', {}).get('rows')))
               in_sync = index.is_file() and index.read_bytes() == report.read_bytes()
               needed = not ((embedded or patched) and in_sync)
-              requires_bq = needed and not original_yoy
+              requires_bq = needed and not original_yoy and not patched
               print(f"[AUDIT] embedded_yoy={embedded} legacy_patched={patched} index_current={in_sync}"
                     f" patch_needed={needed} bigquery_fallback={requires_bq}")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
