@@ -28,7 +28,7 @@
       "order_coupon_presence_pct": 100.0
     }
   },
-  "coupon_presence_delta_pp": 0.0,
+  "coupon_presence_delta_pp": null,
   "ga4_purchase_totals_aligned": false,
   "source": "GA4 items.coupon presence; not coupon discount amount or proven causal impact",
   "quality_caveat": "An item may have coupon code without an applied monetary discount. Counts are not discount savings.",
@@ -37,5 +37,14 @@
     "billed_bytes": 252706816,
     "maximum_bytes_billed": 536870912,
     "dry_run_required": true
+  },
+  "quality_checks": {
+    "purchase_events_without_item_rows": {
+      "previous": 17,
+      "current": 11
+    },
+    "coupon_marker_present_in_all_item_rows": true,
+    "can_interpret_coupon_as_applied_discount": false,
+    "reason": "GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
   }
 }
