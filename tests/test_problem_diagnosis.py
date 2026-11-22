@@ -152,7 +152,7 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('id="evidence-short"', DECISION_HTML)
         self.assertIn('id="raw-evidence"', DECISION_HTML)
         self.assertIn('src="./evidence-cards.js?v=', DECISION_HTML)
-        self.assertIn('원인 1·2·3의 실측 증거만 먼저 표시', DECISION_HTML)
+        self.assertIn('검증된 숫자 3개만 보기', DECISION_HTML)
         self.assertIn('CSKDetailEvidence?.render(window.__cskCausePayload)', DECISION_HTML)
 
     def test_verified_funnel_refines_ranked_causes(self):
@@ -162,6 +162,17 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('조회 감소 + 장바구니 진입 약화', DECISION_HTML)
         self.assertIn('stageDiagnosis(p)?.proof||detail.breakdown', DECISION_HTML)
         self.assertIn('f.report_date===day', DECISION_HTML)
+
+    def test_numbered_proofs_and_no_verbose_raw_diagnostics(self):
+        self.assertIn('metric(x.data1,1)+metric(x.data2,2)', DECISION_HTML)
+        self.assertIn('근거 3 · ', DECISION_HTML)
+        self.assertIn('장바구니→구매완료', DECISION_HTML)
+        self.assertIn('조회→장바구니', DECISION_HTML)
+        self.assertNotIn('근거 ③', DECISION_HTML)
+        self.assertIn('id="raw-evidence" hidden', DECISION_HTML)
+        self.assertNotIn('원천 로그·기술 진단 더 보기', DECISION_HTML)
+        self.assertIn('href="./product_funnel_evidence.json"', DECISION_HTML)
+        self.assertIn('href="./ga4_purchase_diagnostics.json"', DECISION_HTML)
 
     def test_decision_product_priority_and_evidence(self):
         self.assertIn('d>=15&&s<=-15', DECISION_HTML)
