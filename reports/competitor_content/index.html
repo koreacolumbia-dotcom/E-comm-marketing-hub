@@ -98,6 +98,30 @@ body{background:#fff}main{padding:28px 26px 42px;max-width:1600px}
 #brandPulseGrid .brand-tile:focus-visible{outline-offset:3px}
 @media(max-width:950px){#brandPulseGrid.brand-pulse{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.exec-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.exec-stat{padding:11px}.exec-stat strong{font-size:26px}.brand-toolbar button{font-size:11px;flex:1 1 auto;padding:7px}.brand-search{flex:1 1 100%;margin-left:0}#brandPulseGrid.brand-pulse{grid-template-columns:1fr}#brandPulseGrid .brand-tile{padding:12px}}
+
+/* Unified compact intelligence dashboard: responsive, readable, no nested mobile frames */
+:root{--radius:14px;--shadow:none;--soft:#f6f8fa;--line:#e6ebef}
+body{background:#fafbfc}
+main{max-width:1440px;padding:28px 28px 56px}
+.header{padding-bottom:20px}.section-nav{gap:12px;position:sticky;top:0;z-index:10;background:#fafbfc;padding:10px 0}
+.section-nav a{padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:#fff}
+.panel{padding:20px;margin-bottom:12px}.kpi{min-height:106px;padding:15px 12px;text-align:left;align-items:flex-start}.kpi strong,.kpi .kpi-value{font-size:30px}
+@media(max-width:800px){
+ main{width:100%;max-width:100%;padding:14px 12px 36px}
+ .header{display:block}.header h1{font-size:26px}.updated{min-width:0;text-align:left;margin-top:12px}
+ .section-nav{margin:0 -12px 12px;padding:9px 12px;gap:7px;overflow-x:auto}
+ .section-nav a{flex:none;font-size:11px;padding:7px 10px}
+ .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+ .kpi{min-height:92px;padding:12px}.kpi strong,.kpi .kpi-value{font-size:25px}
+ .panel{padding:14px 12px;margin-bottom:10px;border-radius:12px}
+ .mix{display:block}.mix .panel{padding:14px 12px}
+ .section-head{flex-wrap:wrap;gap:6px;margin-bottom:12px}.section-sub{font-size:11px}
+ .hint{white-space:normal}
+ .table-wrap{width:100%;max-width:100%;overflow-x:auto}
+ table{font-size:11px}th,td{padding:9px 10px}
+ .strategy{min-width:760px}
+}
+@media(max-width:420px){.kpi strong,.kpi .kpi-value{font-size:23px}.kpi>div:first-child{font-size:10px}}
 </style><link id="csk-saas-shared-theme" rel="stylesheet" href="../../assets/csk-saas-unified.css?v=20261122-layout-v2">
 <style id="csk-reference-layout-v1">
 /* Reference-inspired layout: unified white/navy palette, dark navigation and compact evidence cards. */
