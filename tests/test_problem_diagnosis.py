@@ -91,7 +91,7 @@ class ProblemDiagnosisTests(unittest.TestCase):
         result = build(OPS, DI, content, QUALITY, CAL)
         item = next(p for p in result["problems"] if p["id"] == "OWNED_CONTENT_BASELINE")
         self.assertEqual(item["status"], "source_required")
-        self.assertIn("비교할 수 없음", item["cause_component"].replace("계산할 수 없음","비교할 수 없음"))
+        self.assertIn("강약점 비교가 성립하지 않음", item["cause_component"])
         self.assertFalse(item["causal_confirmed"])
 
     def test_error_classification(self):
