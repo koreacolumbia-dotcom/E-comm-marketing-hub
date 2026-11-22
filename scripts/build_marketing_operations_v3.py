@@ -648,7 +648,7 @@ footer{font-size:12px;color:var(--mut);margin-top:26px}
 @media(max-width:760px){main{padding:16px 12px 45px}.kpis{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr}h1{font-size:23px}.hero{padding:18px}.kpi strong{font-size:18px}}
 </style>
 <link id='csk-saas-shared-theme' rel='stylesheet' href='../../assets/csk-saas-unified.css?v=20261122-layout-v2'>
-<script defer data-csk-route='ops3' src='../../assets/csk-saas-standalone.js?v=20261122-layout-v2'></script>
+<script defer data-csk-route="ops3" src='../../assets/csk-saas-standalone.js?v=20261122-layout-v2'></script>
 </head><body><main><header><div><div class='small'>CSK · E-COMMERCE DECISION SUPPORT</div>
 <h1>Marketing Operations 3.0</h1><div class='small'>Calendar · Product · Recovery · Experiments · Action Board</div>
 </div><span class='pill'>""" + e(r["status"]) + " · "+ e(r["report_date"]) + """</span></header>
