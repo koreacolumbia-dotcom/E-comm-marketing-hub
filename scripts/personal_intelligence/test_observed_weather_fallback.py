@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 from unittest.mock import patch
-from observed_weather import parse,parse_noaa,fetch,NOAA_SEOUL
+from observed_weather import parse,parse_noaa,parse_kma_public,fetch,NOAA_SEOUL
 from product_signal_hub import valid_temp
 
 
@@ -21,13 +21,21 @@ class WeatherFallbackTests(unittest.TestCase):
     def test_official_kma_observation_not_overwritten(self):
         kma={"2026-11-21":{"mean_temp":3.2,"verified":True,"kind":"observed","station":"108","source":"KMA ASOS"}}
         noaa={"2026-11-21":{"mean_temp":8.4,"verified":True,"kind":"observed","station":NOAA_SEOUL,"source":"NOAA GSOD Seoul WMO 47108"}}
-        with patch("observed_weather._request",return_value=kma),patch("observed_weather.fetch_noaa",return_value=noaa),patch.dict("os.environ",{"DAILY_DIGEST_KMA_SERVICE_KEY":"TEST"}):
+        with patch("observed_weather._request",return_value=kma),patch("observed_weather.fetch_kma_public",return_value={}),patch("observed_weather.fetch_noaa",return_value=noaa),patch.dict("os.environ",{"DAILY_DIGEST_KMA_SERVICE_KEY":"TEST"}):
             self.assertEqual(fetch(date(2026,11,21),date(2026,11,21))["2026-11-21"]["mean_temp"],3.2)
 
     def test_kma_missing_uses_real_noaa_only(self):
         noaa={"2026-11-21":{"mean_temp":5,"verified":True,"kind":"observed","station":NOAA_SEOUL,"source":"NOAA GSOD Seoul WMO 47108"}}
-        with patch("observed_weather._request",return_value={}),patch("observed_weather.fetch_noaa",return_value=noaa),patch.dict("os.environ",{"DAILY_DIGEST_KMA_SERVICE_KEY":"TEST"}):
+        with patch("observed_weather._request",return_value={}),patch("observed_weather.fetch_kma_public",return_value={}),patch("observed_weather.fetch_noaa",return_value=noaa),patch.dict("os.environ",{"DAILY_DIGEST_KMA_SERVICE_KEY":"TEST"}):
             self.assertEqual(fetch(date(2026,11,21),date(2026,11,21))["2026-11-21"]["source"],"NOAA GSOD Seoul WMO 47108")
+
+    def test_kma_public_grid_parses_day_and_november_month(self):
+        header="<tr><th>일자</th>"+ "".join(f"<th>{i}월</th>" for i in range(1,13))+"</tr>"
+        row="<tr><th>21일</th>"+ "".join("<td>4.7</td>" if i==11 else "<td></td>" for i in range(1,13))+"</tr>"
+        raw="<html><body>[ 일평균기온(℃) ] 2026년<table>"+header+row+"</table></body></html>"
+        got=parse_kma_public(raw,2026,date(2026,11,8),date(2026,11,21))
+        self.assertEqual(got["2026-11-21"]["mean_temp"],4.7)
+        self.assertEqual(got["2026-11-21"]["source"],"KMA weather.go.kr Seoul ASOS 108")
 
     def test_forecast_and_unverified_are_not_treated_as_observations(self):
         data={"mean_temp":5,"verified":True,"kind":"observed","station":NOAA_SEOUL,"source":"NOAA GSOD Seoul WMO 47108"}
