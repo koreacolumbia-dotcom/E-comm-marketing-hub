@@ -98,6 +98,32 @@ def infer(rows,reference,end):
     }
 
 
+def validate_coupon_scope(doc,reference):
+    """Only validated item-bearing orders can support a coupon use comparison."""
+    parts=doc.get("periods") or {}
+    totals=(reference.get("totals") or {})
+    missing={}
+    for name in ("previous","current"):
+        total=(totals.get(name) or {}).get("orders")
+        matched=(parts.get(name) or {}).get("orders_with_items")
+        missing[name]=(int(total)-int(matched) if total is not None and matched is not None else None)
+    all_tagged=all(
+        parts.get(p,{}).get("observed_item_rows")==parts.get(p,{}).get("item_coupon_rows")
+        for p in ("previous","current")
+    )
+    quality={
+       "purchase_events_without_item_rows":missing,
+       "coupon_marker_present_in_all_item_rows":all_tagged,
+       "can_interpret_coupon_as_applied_discount":False,
+       "reason":"GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
+    }
+    doc["quality_checks"]=quality
+    if all_tagged or any((v is None or v>0) for v in missing.values()):
+        doc["status"]="partial_quality"
+        doc["coupon_presence_delta_pp"]=None
+    return doc
+
+
 def save(doc):
     OUT.parent.mkdir(parents=True,exist_ok=True)
     prior=load(OUT)
@@ -111,8 +137,10 @@ def main():
     if ref.get("status")!="ga4_measured":return
     end=dt.date.fromisoformat(ref["report_date"])
     prior=load(OUT)
-    if prior.get("report_date")==end.isoformat() and prior.get("status")=="measured_coupon_presence" and os.getenv("CSK_COUPON_FORCE")!="1":
-        print("[COUPON] Reusing measured result; no query")
+    if prior.get("report_date")==end.isoformat() and prior.get("status") in ("measured_coupon_presence","partial_quality") and os.getenv("CSK_COUPON_FORCE")!="1":
+        updated=validate_coupon_scope(prior,ref)
+        save(updated)
+        print("[COUPON] Reusing measured item observations; no extra BigQuery scan")
         return
     status={"schema":1,"status":"blocked_metadata","report_date":end.isoformat(),
             "cost":{"maximum_bytes_billed":CAP,"dry_run_required":True}}
@@ -139,7 +167,7 @@ def main():
         save({**status,"status":"blocked_budget","estimated_bytes":int(estimate)});return
     job=client.query(sql,location="asia-northeast3",
       job_config=bigquery.QueryJobConfig(maximum_bytes_billed=CAP,use_query_cache=True))
-    data=infer([dict(x) for x in job.result(timeout=110)],ref,end)
+    data=validate_coupon_scope(infer([dict(x) for x in job.result(timeout=110)],ref,end),ref)
     data["cost"]={"estimated_bytes":int(estimate),
        "billed_bytes":int(job.total_bytes_billed or 0),
        "maximum_bytes_billed":CAP,"dry_run_required":True}
