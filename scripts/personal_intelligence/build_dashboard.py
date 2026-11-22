@@ -17,6 +17,7 @@ from advanced_intelligence import integrated_calendar,impact_matrix,predict,stra
 from product_signal_hub import build_signals
 from product_timeline import build_timeline
 from observed_weather import fetch as fetch_observed_weather
+import observed_weather as weather_source
 
 ROOT=Path(__file__).resolve().parents[2]
 def read(p):
@@ -46,8 +47,10 @@ def build(root=ROOT,day=None):
     content=read(rep/"competitor_content/latest.json")
     end=date.fromisoformat(d["end_date"])
     observed=fetch_observed_weather(end-timedelta(days=13),end)
+    observed_status=weather_source.LAST_STATUS
     prior_end=end-timedelta(days=364)
     prior_observed=fetch_observed_weather(prior_end-timedelta(days=13),prior_end)
+    prior_status=weather_source.LAST_STATUS
     cached=d.get("weather_observed") or {}
     d["weather_observed"]={**(cached if isinstance(cached,dict) else {}),**prior_observed,**observed}
     results=[]
@@ -150,7 +153,11 @@ def build(root=ROOT,day=None):
     focus['timeline']=build_timeline(d,recent,calendar,observed,focus)
     from product_signal_hub import valid_temp
     focus['timeline']['weather_prior']=[valid_temp(prior_observed.get((date.fromisoformat(t)-timedelta(days=364)).isoformat())) for t in focus['dates']]
-    return {"product_focus":focus,"schema":1,"report_date":d["end_date"],"target_date":target,"source_scope":"existing public aggregate caches only; private journey files not included","sections":results}
+    return {"product_focus":focus,"schema":1,"report_date":d["end_date"],"target_date":target,
+            "weather_source_health":{"current":observed_status,"previous":prior_status,
+                "observed_days":len(observed),"previous_observed_days":len(prior_observed),
+                "source":"KMA ASOS Seoul station 108; observation, never forecast"},
+            "source_scope":"existing public aggregate caches only; private journey files not included","sections":results}
 def main():
     p=argparse.ArgumentParser();p.add_argument("--out",required=True);a=p.parse_args()
     target=Path(a.out);target.parent.mkdir(parents=True,exist_ok=True)
