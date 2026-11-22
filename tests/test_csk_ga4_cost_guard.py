@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
-from csk_ga4_cost_guard import CAP, analyze, sqls, split_aov
+from csk_ga4_cost_guard import CAP, analyze, sqls, split_aov, revenue_bridge
 
 END=dt.date(2026,11,20)
 ORDERS=[
@@ -53,6 +53,20 @@ class GA4CappedDiagnosticsTests(unittest.TestCase):
         self.assertEqual(r["product_sales"][0]["current_units"],20)
         self.assertEqual(r["product_sales"][0]["daily_units"][-3],20)
         self.assertEqual(len(r["product_sales"][0]["daily_units"]),14)
+
+    def test_full_purchase_revenue_bridge_reconciles_without_coupon_assumption(self):
+        previous={"units":1188,"item_revenue":153898000,"purchase_revenue":137770660}
+        current={"units":1166,"item_revenue":151830115,"purchase_revenue":134038093}
+        result=revenue_bridge(current,previous)
+        self.assertEqual(result["purchase_revenue_delta_krw"],-3732567)
+        self.assertEqual(result["item_to_purchase_gap_effect_krw"],-1664682)
+        self.assertEqual(result["prior_item_to_purchase_gap_krw"],16127340)
+        self.assertEqual(result["current_item_to_purchase_gap_krw"],17792022)
+        self.assertAlmostEqual(
+            result["qty_effect_krw"]+result["realized_unit_revenue_effect_krw"]+
+            result["item_to_purchase_gap_effect_krw"],
+            result["purchase_revenue_delta_krw"],delta=0.02)
+        self.assertIn("not proof",result["note"])
 
     def test_missing_items_cannot_be_verified(self):
         incomplete=[dict(ITEMS[0]),dict(ITEMS[1])]
