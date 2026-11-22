@@ -86,6 +86,8 @@ jobs:
           assert len(feed['brands'])==len(summary['brands'])==feed['coverage']['target'], 'brand scope mismatch'
           assert feed['coverage']['accessible']>0, 'no observed brands'
           PY
+      - name: Validate 24-brand scope, crawl frontier and snapshot quality
+        run: python scripts/competitor_content/validate_snapshot.py
       - name: Publish measured content feed without rebasing generated JSON
         if: success()
         run: python scripts/competitor_publish/safe_publish.py
