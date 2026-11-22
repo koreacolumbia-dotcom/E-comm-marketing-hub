@@ -61,6 +61,17 @@ async function main(){
  assert(overview.includes(Math.round(ops.weekly.current.total.orders).toLocaleString("ko-KR")+"건"),"Observed order count absent");
  assert(overview.includes(Math.round(ops.weekly.current.total.revenue/ops.weekly.current.total.orders).toLocaleString("ko-KR")+"원"),"AOV must preserve won units");
  assert(!overview.includes("INV-1003")&&!overview.includes("$ 24,850"),"Sample invoice numbers must never appear");
+ const yr=ops.weekly && ops.weekly.yoy||{},lastYear=ops.calendar||{};
+ if(yr.status==="ready" && lastYear.yoy_window===yr.period){
+   assertContent(overview,["작년 행사 · 매출 비교","YOY CONTEXT","동일 요일 기준"]);
+   const confirmed=lastYear.last_year_confirmed||[];
+   assert(confirmed.some(x=>overview.includes(x.title)),"At least one verified last-year event must appear");
+   if(yr.daily_comparison && yr.daily_comparison.length===7){
+     assert(overview.includes("당일 매출 YoY"),"Event-aligned revenue context absent");
+   }
+   const plans=lastYear.last_year_planned||[];
+   if(plans.length)assert(overview.includes("계획 기록 "+plans.length+"건"),"Unverified sending plans must be distinguished");
+ }
  const acquisition=await render("acquisition");
  assertContent(acquisition,["유입부터 구매전환까지","소스/매체 검색"]);
  if(source.rows.length){
