@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* Source-route smoke test for CSK shared SaaS theme.
-   All 23 menu routes are evaluated; only the owned daily report remains unchanged. */
+   All 24 menu routes are evaluated; owned daily and the custom Winter Festival report remain unchanged. */
 "use strict";
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
 const ROOT=path.resolve(__dirname,"..");
@@ -10,8 +10,8 @@ const SHELL=fs.readFileSync(path.join(ROOT,"index.html"),"utf8");
 const CSS=fs.readFileSync(path.join(ROOT,"assets/csk-saas-unified.css"),"utf8");
 const re=/^\s*\["([a-z0-9_]+)","([^"]+)","([^"]+)","fa-[^"]+"\]/gm;
 const routes=Array.from(HUB.matchAll(re),m=>[m[1],m[2],m[3],"fa"]);
-const skipped=new Set(["daily"]);
-assert.equal(routes.length,23,"All original report menu items must remain");
+const skipped=new Set(["daily","winter_festival"]);
+assert.equal(routes.length,24,"All original report menu items plus Winter Festival must remain");
 assert.equal(routes.filter(r=>!skipped.has(r[0])).length,22);
 assert(SHELL.includes('href="assets/csk-saas-unified.css'),"Shared CSS not linked");
 assert(SHELL.includes('src="assets/csk-saas-unified.js'),"Shared controller not linked");
@@ -59,8 +59,8 @@ function makeDoc(url,readyState="complete"){
 for(const [key,label,target] of routes){
  const obj=makeDoc(target);currentDoc=obj.doc;listeners.load();
  if(skipped.has(key)){
-  assert.equal(obj.links.length,0,"Daily report must not be injected: "+key);
-  assert(!obj.doc.body.classList.contains("csk-saas-report"),"Daily report body mutated: "+key);
+  assert.equal(obj.links.length,0,"Custom report must not be injected: "+key);
+  assert(!obj.doc.body.classList.contains("csk-saas-report"),"Custom report body mutated: "+key);
   unchanged++;
  }else{
   assert.equal(obj.links.length,3,"Shared theme, layout CSS and chart runtime per route: "+key);
@@ -81,5 +81,5 @@ for(const p of ["reports/daily_digest/daily/20261121.html","reports/daily_digest
 }
 const ext=makeDoc("https://elsewhere.test/untrusted");currentDoc=ext.doc;listeners.load();
 assert.equal(ext.links.length,0,"Cross-origin CSS injection prohibited");
-assert.equal(styled,22);assert.equal(unchanged,1);
-console.log("CSK v2 passed: "+styled+" reflowed + chart-themed, "+unchanged+" daily excluded, idempotent.");
+assert.equal(styled,22);assert.equal(unchanged,2);
+console.log("CSK v2 passed: "+styled+" reflowed + chart-themed, "+unchanged+" custom reports excluded, idempotent.");
