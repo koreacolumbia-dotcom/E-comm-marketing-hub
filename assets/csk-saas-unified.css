@@ -293,3 +293,109 @@ body.csk-saas-report:not(.csk-saas-existing) :where(.analysis-workspace,.dark-wo
   transition:none!important;
  }
 }
+
+
+/* Route-specific adapters for structurally distinct existing reports. */
+body.csk-saas-report[data-csk-route="edm_intelligence"]>aside{
+ display:none!important;
+}
+body.csk-saas-report[data-csk-route="edm_intelligence"]>main{
+ margin-left:0!important;
+ width:100%!important;
+ max-width:1550px!important;
+ margin-right:auto!important;
+ margin-left:auto!important;
+}
+body.csk-saas-report[data-csk-route="edm_intelligence"] :where(.item,.gallery>.item){
+ border-radius:18px!important;
+ border-color:#e7eaf2!important;
+ box-shadow:var(--csk-saas-shadow)!important;
+}
+body.csk-saas-report[data-csk-route="edm_intelligence"] :where(.primary,.view-tabs .active){
+ background:var(--csk-saas-gradient)!important;color:#fff!important;
+ border-color:#5E54F3!important;border-radius:999px!important;
+}
+body.csk-saas-report[data-csk-route="ai_agent"]{
+ --forest:#16192C!important;--forest2:#282e4b!important;
+ --charcoal:#141629!important;--paper:#F8F9FC!important;--paper2:#fff!important;
+ --card:#fff!important;--line:#e7eaf2!important;--muted:#7b8499!important;
+ --accent:#5E54F3!important;--accent2:#9fa4ff!important;
+}
+body.csk-saas-report[data-csk-route="ai_agent"] .hero{
+ background:radial-gradient(circle at 84% 15%,rgba(94,84,243,.30),transparent 32%),
+ linear-gradient(135deg,#16192C,#293252 60%,#5552bc 100%)!important;
+ border-radius:25px!important;box-shadow:0 16px 38px rgba(22,25,44,.13)!important;
+}
+body.csk-saas-report[data-csk-route="ai_agent"] .hero :where(.provider,.dot){
+ color:#fff!important;
+}
+body.csk-saas-report[data-csk-route="ai_agent"] .dot{
+ background:#9c9bff!important;box-shadow:0 0 16px #6665f1!important;
+}
+body.csk-saas-report[data-csk-route="ai_agent"] .hero :where(.eyebrow,.hero-sub,.hero-meta){
+ color:#e5e7ff!important;
+}
+body.csk-saas-report[data-csk-route="pdp_priority"] .glass{
+ background:#fff!important;backdrop-filter:none!important;
+ border-color:#e7eaf2!important;box-shadow:var(--csk-saas-shadow)!important;
+}
+body.csk-saas-report[data-csk-route="pdp_priority"] :where(.chip.active,.pill.active,.btn.active){
+ background:var(--csk-saas-gradient)!important;color:#fff!important;border-color:#5E54F3!important;
+}
+body.csk-saas-report[data-csk-route="funnel"] :where(.chip.active,.group-chip.active,.btn.active){
+ background:var(--csk-saas-gradient)!important;color:#fff!important;
+ border-color:#5E54F3!important;
+}
+body.csk-saas-report[data-csk-route="ops3"]{
+ --navy:#16192C;--bd:#e7eaf2;--bg:#F8F9FC;--card:#fff;
+}
+body.csk-saas-report[data-csk-route="ops3"] .hero{
+ background:linear-gradient(116deg,#16192C,#333969 72%,#5e54f3)!important;
+ border-radius:22px!important;
+}
+body.csk-saas-report[data-csk-route="crm_intelligence"] .brandbar button.active{
+ background:var(--csk-saas-gradient)!important;
+ border-color:#5E54F3!important;
+ border-radius:999px!important;
+}
+body.csk-saas-report[data-csk-route="sale_calendar"]{
+ --navy:#16192C;--light:#F8F9FC;--blue:#0072CE;
+ --line:#e7eaf2;--ink:#222942;
+}
+body.csk-saas-report[data-csk-route="competitor_content"]{
+ --navy:#16192C;--soft:#f5f6fc;--line:#e7eaf2;
+ --blue:#0072CE;--shadow:var(--csk-saas-shadow);
+}
+body.csk-saas-report[data-csk-route="competitor_content"] .kpi{
+ border-radius:18px!important;
+ box-shadow:var(--csk-saas-shadow)!important;
+}
+body.csk-saas-report[data-csk-route="owned"] .glass{
+ background:#fff!important;backdrop-filter:none!important;
+ border-color:#e7eaf2!important;
+ box-shadow:var(--csk-saas-shadow)!important;
+}
+body.csk-saas-report[data-csk-route="owned"] :where(.chip.active,.tab.active,.btn.active){
+ background:var(--csk-saas-gradient)!important;color:#fff!important;
+ border-color:#5E54F3!important;
+}
+body.csk-saas-report[data-csk-route="voc"]{
+ background:#F8F9FC!important;
+}
+body.csk-saas-report[data-csk-route="voc"] .tab-btn.active{
+ background:var(--csk-saas-gradient)!important;
+ color:#fff!important;
+ box-shadow:0 5px 19px rgba(94,84,243,.18)!important;
+}
+body.csk-saas-report[data-csk-route="crema"]{
+ --brand:#0072CE;--bg0:#F8F9FC;--bg1:#F8F9FC;
+}
+/* Do not style dynamic daily report output, even if another route embeds it. */
+@media(max-width:1023px){
+ body.csk-saas-report[data-csk-route="edm_intelligence"]>main{
+  padding:14px 10px!important;
+ }
+ body.csk-saas-report[data-csk-route="ai_agent"] .hero{
+  border-radius:17px!important;
+ }
+}
