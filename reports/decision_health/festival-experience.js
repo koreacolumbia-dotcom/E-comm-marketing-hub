@@ -426,8 +426,11 @@ function drawProductWindow(){
  var section=document.getElementById("fm-product-cause");
  if(section){
   var category=section.querySelector("#fm-product-category");if(category)category.hidden=!!showEvent;
-  var subtitle=section.querySelectorAll(".fm-product-movers h3 small");
-  subtitle.forEach(function(node){node.textContent=showEvent?"2025 → 2026 본행사":"최근 7일 vs 전주"});
+  if(!showEvent){
+   var head=section.querySelectorAll(".fm-product-movers h3");
+   if(head[0])head[0].innerHTML="최근 7일 상승 TOP 4 <small>전주 대비</small>";
+   if(head[1])head[1].innerHTML="최근 7일 하락 TOP 4 <small>전주 대비</small>";
+  }
   var chip=section.querySelector(".fm-product-top .fm-chip");
   if(chip)chip.textContent=showEvent?"동일 행사일 · YoY":"행사 포함 최근 7일 · WoW";
   var label=section.querySelector("#fm-product-window-note");
