@@ -173,6 +173,20 @@ def build(root=ROOT,day=None):
                 card["sales_admin_reconciled"]=bool(
                     (ga4.get("admin_reconciliation") or {}).get("comparable"))
                 focus["ga4_sales_matched_cards"]+=1
+    from product_signal_hub import assess_weather_association
+    # Enrich only AFTER the complete GA4 purchase-item series has been joined.
+    # Bestseller top-N absence must never be converted into a zero-sale day.
+    for card in focus["cards"]:
+        assessment=assess_weather_association(
+            focus["temperature"],card.get("sales_series"),
+            card.get("sales_source"))
+        card["weather_signal"]=assessment
+        card["weather_assessment"]=assessment["label"]
+    focus["weather_signal_counts"]={
+        state:sum(card["weather_signal"]["status"]==state for card in focus["cards"])
+        for state in ("signal","weak","insufficient")
+    }
+    focus["weather_causal_note"]="날씨 연관 신호는 관측값의 동행 패턴이며 원인으로 확정할 수 없습니다. 특히 11/20 이후 자사 겨울 행사 및 경쟁사 프로모션과 시기가 겹칩니다."
     focus['timeline']=build_timeline(d,recent,calendar,observed,focus)
     from product_signal_hub import valid_temp
     focus['timeline']['weather_prior']=[valid_temp(prior_observed.get((date.fromisoformat(t)-timedelta(days=364)).isoformat())) for t in focus['dates']]
