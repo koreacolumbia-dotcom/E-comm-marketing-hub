@@ -62,7 +62,10 @@ class SharedBigQueryAndImageTests(unittest.TestCase):
         self.assertNotIn("<!-- DASHBOARD-OPS-START -->",summary)
         self.assertIn('id="dailyKpi"',summary)
         self.assertIn('id="weeklyKpi"',summary)
-        daily=(ROOT/"reports/daily_intelligence/index.html").read_text(encoding="utf-8")
+        integrated=(ROOT/"reports/daily_intelligence/index.html").read_text(encoding="utf-8")
+        self.assertIn("csk-saas-unified.css",integrated)
+        self.assertIn('data-csk-route="daily_intelligence"',integrated)
+        daily=(ROOT/"reports/daily_digest/index.html").read_text(encoding="utf-8")
         self.assertNotIn("csk-saas-unified.css",daily)
 
     def test_calendar_has_one_seven_column_grid_and_mobile_override(self):
