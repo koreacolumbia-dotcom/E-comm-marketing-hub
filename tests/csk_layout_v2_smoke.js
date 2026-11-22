@@ -10,10 +10,10 @@ const sheet=read("assets/csk-layout-v2.css");
 const standalone=read("assets/csk-saas-standalone.js");
 const main=read("assets/csk-saas-unified.js");
 const routes=[...hub.matchAll(/^\s*\["([a-z0-9_]+)","([^"]+)","([^"]+)","fa-[^"]+"\]/gm)].map(x=>({key:x[1],name:x[2],path:x[3]}));
-const excluded=["daily","daily_intelligence"];
+const excluded=["daily"];
 const covered=routes.filter(x=>!excluded.includes(x.key));
 assert.equal(routes.length,23);
-assert.equal(covered.length,21);
+assert.equal(covered.length,22);
 assert(layout.includes('const cfg={'),"Route-specific source-preserving layouts required");
 for(const {key,path:uri} of covered){
  if(key==="decision_health"){
@@ -39,17 +39,21 @@ assert(standalone.includes("csk-layout-v2.js"),"Standalone report runtime missin
 assert(standalone.includes("csk-layout-v2.css"),"Standalone report CSS missing");
 assert(main.includes("csk-layout-v2.js"),"Hub iframe runtime missing");
 assert(main.includes("csk-layout-v2.css"),"Hub iframe CSS missing");
-assert(main.includes('const SKIP = new Set(["daily","daily_intelligence"])'),"Daily menu exclusion lost");
+assert(main.includes('const SKIP = new Set(["daily"])'),"Owned daily exclusion lost");
 const js=read("scripts/prepare_cloudflare_bundle.py");
 assert(js.includes('"csk-layout-v2.css"')&&js.includes('"csk-layout-v2.js"'),"Cloudflare packaging lost");
-for(const filename of ["reports/daily_digest/index.html","reports/daily_intelligence/index.html"]){
+for(const filename of ["reports/daily_digest/index.html"]){
  const html=read(filename);
  assert(!html.includes("csk-layout-v2.js"),"Daily report modified: "+filename);
 }
 // Actual runtime with a daily path must not add layouts or chart observers.
 let visited=false;
-vm.runInNewContext(layout,{location:{pathname:"/reports/daily_intelligence/index.html"},
+vm.runInNewContext(layout,{location:{pathname:"/reports/daily_digest/index.html"},
   document:{getElementById(){visited=true}},window:{},MutationObserver:function(){visited=true},
   requestAnimationFrame(){visited=true},Event:function(){}},{timeout:4000});
 assert(!visited,"Daily analytics runtime must return immediately");
-console.log("CSK Layout v2 OK: "+covered.length+" routes, 20 shared blueprints + React, 2 daily excluded.");
+const integrated=read("reports/daily_intelligence/index.html");
+assert(integrated.includes('data-csk-route="daily_intelligence"'),"18-section theme not mounted");
+assert(integrated.includes('id="sections"'),"Existing 18 sections must remain available");
+assert(sheet.includes('data-csk-route="daily_intelligence"'),"18-section layout styling missing");
+console.log("CSK Layout v2 OK: "+covered.length+" routes, 21 shared blueprints + React, 1 Owned daily excluded.");
