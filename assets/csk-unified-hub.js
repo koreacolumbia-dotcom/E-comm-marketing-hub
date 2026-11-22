@@ -6,7 +6,7 @@ const GROUPS=[
   ["decision_health","의사결정 센터","reports/decision_health/index.html","fa-shield-halved"],
   ["summary","전체 Summary","reports/index.html","fa-chart-simple"],
   ["daily","Owned 데일리","reports/daily_digest/index.html","fa-calendar-day"],
-  ["daily_intelligence","18개 통합 분석","reports/daily_intelligence/index.html","fa-chart-line"]]],
+  ["daily_intelligence","18개 통합 분석","reports/daily_intelligence/index.html?v=20261122-weatherfocus-v1","fa-chart-line"]]],
  ["commerce","매출·상품","성과","fa-chart-column",[
   ["performance","실적 대시보드","reports/performance_dashboard.html?v=20261121070922","fa-chart-pie"],
   ["pdp_priority","PDP 이탈 우선순위","reports/pdp_opportunity/index.html","fa-arrow-trend-down"],
