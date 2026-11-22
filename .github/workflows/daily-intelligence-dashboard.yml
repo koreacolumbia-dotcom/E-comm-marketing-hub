@@ -28,6 +28,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          sparse-checkout: |
+            scripts
+            tests
+            config
+            assets
+            index.html
+            reports/daily_digest/data/daily
+            reports/daily_intelligence
+            reports/decision_health
+            reports/marketing_operations
+            reports/competitor_intelligence
+            reports/competitor_content
+            reports/competitor_sale_calendar
+            reports/competitor_intel
+            reports/marketing_intelligence
+            reports/marketing_intelligence_v2
+            reports/crm_intelligence
+            reports/crema_raw
+            reports/external_signal_cache
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
