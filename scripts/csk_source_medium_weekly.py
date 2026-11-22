@@ -20,7 +20,7 @@ OUT=ROOT/"reports/decision_health/source_medium_weekly.json"
 OPS=ROOT/"reports/marketing_operations/latest.json"
 TABLE="columbia-ga4.analytics_358593394.events_*"
 LOCATION="asia-northeast3"
-PER_QUERY_CAP=3*1024**3
+PER_QUERY_CAP=3*1024**3+8*1024**2  # +8 MiB headroom; combined 6-GiB hard cap unchanged
 TOTAL_DRY_CAP=6*1024**3
 METRICS=("sessions","transactions","revenue")
 
@@ -113,6 +113,115 @@ def summarize(current,previous,dates,scope):
                "GA4 export sessions and revenue may differ from GA4 API and administrative totals.")
 
 
+
+def cached_subchannel_fallback(dates,root=None):
+    """Zero-query fallback from already published Daily Digest subchannel totals.
+
+    Explicitly NOT raw GA4 session source/medium. Keep channel bucket in key,
+    and put gaps in UNALLOCATED rather than assigning them to a plausible source.
+    """
+    daily=root or (ROOT/"reports/daily_digest/data/daily")
+    records=defaultdict(lambda:{"previous":dict.fromkeys(METRICS,0.0),
+                                "current":dict.fromkeys(METRICS,0.0)})
+    period_totals={}
+    missing=[]; unstamped=[]; residuals=[]
+    for period in ("previous","current"):
+        total={key:0.0 for key in METRICS}
+        start=dt.date.fromisoformat(dates[period]["start"])
+        for offset in range(7):
+            date=(start+dt.timedelta(days=offset)).isoformat()
+            day=read(daily/f"{date}.json")
+            channel=day.get("channels") or {}
+            breakdown=day.get("channel_detail_map") or {}
+            kpi=day.get("kpis") or {}
+            if (day.get("mode") not in ("daily",None) or day.get("end_date")!=date
+                or not isinstance(breakdown,dict) or not breakdown or
+                not isinstance(channel,dict) or
+                not all(type(kpi.get(k)) in (int,float) for k in ("sessions","orders","revenue"))):
+                missing.append(date);continue
+            if day.get("traffic_metric_source")!="ga4_bigquery_session_key_v1":
+                unstamped.append(date)
+            perday={"sessions":0.0,"transactions":0.0,"revenue":0.0}
+            for bucket,value in channel.items():
+                if bucket=="Total":continue
+                items=breakdown.get(bucket) or []
+                for key,origin in (("sessions","sessions"),("transactions","orders"),("revenue","revenue")):
+                    if type(value.get(origin)) not in (int,float) or value[origin]<0:
+                        missing.append(date);break
+                else:
+                    expected={"sessions":float(value["sessions"]),
+                              "transactions":float(value["orders"]),
+                              "revenue":float(value["revenue"])}
+                    allocated={key:0.0 for key in METRICS}
+                    for item in items:
+                        if not isinstance(item,dict):missing.append(date);break
+                        try:
+                            values={"sessions":n(item.get("sessions")),
+                                    "transactions":n(item.get("orders")),
+                                    "revenue":n(item.get("purchaseRevenue"))}
+                        except ValueError:
+                            missing.append(date);break
+                        name=source_label(item.get("sub_channel") or "미분류")
+                        key=bucket+" · "+name
+                        for metric in METRICS:
+                            allocated[metric]+=values[metric]
+                            records[key][period][metric]+=values[metric]
+                    gap={metric:round(expected[metric]-allocated[metric],2) for metric in METRICS}
+                    if any(x< -1.01 for x in gap.values()):
+                        missing.append(date);continue
+                    if any(x>0.01 for x in gap.values()):
+                        # Missing subcategory attribution remains unknown.
+                        key=bucket+" · 미배분(원본 세부채널 없음)"
+                        for metric in METRICS:
+                            if gap[metric]>0:
+                                records[key][period][metric]+=gap[metric]
+                        residuals.append({"date":date,"bucket":bucket,
+                                          **{m:gap[m] for m in METRICS}})
+                    for metric in METRICS:perday[metric]+=expected[metric]
+            if any(abs(perday[k]-float(kpi[mapkey]))>1.01 for k,mapkey in
+                   (("sessions","sessions"),("transactions","orders"),("revenue","revenue"))):
+                missing.append(date)
+            for key in METRICS: total[key]+=perday[key]
+        period_totals[period]=total
+    if missing:
+        return {"schema":1,"report_date":dates["current"]["end"],"period":dates,
+                "status":"fallback_incomplete","rows":[],"missing_dates":sorted(set(missing))}
+    rows=[]
+    for key,v in records.items():
+        before,after=v["previous"],v["current"]
+        cvr0=100*before["transactions"]/before["sessions"] if before["sessions"] else None
+        cvr1=100*after["transactions"]/after["sessions"] if after["sessions"] else None
+        rows.append({
+            "source_medium":key,
+            "previous":{"sessions":round(before["sessions"],2),"transactions":round(before["transactions"],2),
+                        "revenue":round(before["revenue"],2),"cvr_pct":round(cvr0,3) if cvr0 is not None else None},
+            "current":{"sessions":round(after["sessions"],2),"transactions":round(after["transactions"],2),
+                       "revenue":round(after["revenue"],2),"cvr_pct":round(cvr1,3) if cvr1 is not None else None},
+            "sessions_change_pct":round(100*(after["sessions"]/before["sessions"]-1),2) if before["sessions"] else None,
+            "session_delta":round(after["sessions"]-before["sessions"]),
+            "transactions_delta":round(after["transactions"]-before["transactions"]),
+            "cvr_change_pp":round(cvr1-cvr0,3) if cvr0 is not None and cvr1 is not None else None,
+            "revenue_delta":round(after["revenue"]-before["revenue"],2)
+        })
+    rows.sort(key=lambda row:(-row["current"]["sessions"],row["source_medium"]))
+    return {"schema":1,"status":"ga4_subchannel_aggregated",
+            "report_date":dates["current"]["end"],"period":dates,
+            "definition":"Daily Digest 채널 버킷×세부채널 합산. 원본 GA4 source/medium과 동등하지 않음.",
+            "source":"reports/daily_digest/data/daily/YYYY-MM-DD.json:channel_detail_map",
+            "totals":{p:{**{k:round(v,2) for k,v in vals.items()},
+                          "cvr_pct":round(100*vals["transactions"]/vals["sessions"],3)}
+                      for p,vals in period_totals.items()},
+            "rows":rows,"row_count":len(rows),
+            "cost":{"billed_bytes":0,"reused_aggregate":True,
+                    "per_query_cap":PER_QUERY_CAP,"combined_cap":TOTAL_DRY_CAP},
+            "quality":{"unstamped_traffic_source_days":unstamped,
+                       "unallocated_rows":residuals,
+                       "source_medium_exact":False,
+                       "caveat":"과거 일부 일자의 채널 측정 방식 표기가 없고 세부채널 누락분이 존재. 소스/매체 원본 정확도 미확인."},
+            "caveat":"새 BigQuery 조회 0회. 실제 세부채널 분류이며 광고비·증분 기여도·원본 source/medium이 아닙니다."}
+
+
+
 def save(x):
     OUT.parent.mkdir(parents=True,exist_ok=True)
     OUT.write_text(json.dumps(x,ensure_ascii=False,indent=2,allow_nan=False)+"\n",encoding="utf-8")
@@ -134,7 +243,10 @@ def main():
         return
     secret=os.getenv("GOOGLE_SA_JSON_B64","").strip()
     if not secret:
-        save({**status,"status":"blocked_credentials"})
+        fallback=cached_subchannel_fallback(dates)
+        save({**fallback,"cost":{**status["cost"],**fallback.get("cost",{})},"raw_source_status":"blocked_credentials"}
+             if fallback.get("status")=="ga4_subchannel_aggregated"
+             else {**status,"status":"blocked_credentials"})
         return
     try:
         from google.cloud import bigquery
@@ -161,8 +273,11 @@ def main():
             prepared[period]=sql
         cost={**status["cost"],"dry_run_bytes":estimates,"dry_run_total_bytes":sum(estimates.values())}
         if any(v>PER_QUERY_CAP for v in estimates.values()) or sum(estimates.values())>TOTAL_DRY_CAP:
-            save({**status,"status":"blocked_budget","cost":cost})
-            print("[SOURCE MEDIUM] Exceeds strict dry-run cap; zero queries executed",cost["dry_run_bytes"])
+            fallback=cached_subchannel_fallback(dates)
+            save({**fallback,"cost":{**cost,**fallback.get("cost",{})},"raw_source_status":"blocked_budget"}
+                 if fallback.get("status")=="ga4_subchannel_aggregated"
+                 else {**status,"status":"blocked_budget","cost":cost})
+            print("[SOURCE MEDIUM] Exceeds strict dry-run cap; raw query not executed",cost["dry_run_bytes"])
             return
         results={}
         billing={}
@@ -179,7 +294,11 @@ def main():
               "sessions",out["totals"]["current"]["sessions"],"billed_bytes",billing)
     except Exception as exc:
         # No raw SQL, event properties or service-account secrets in the public file.
-        save({**status,"status":"query_error","error_type":type(exc).__name__})
+        fallback=cached_subchannel_fallback(dates)
+        save({**fallback,"cost":{**status["cost"],**fallback.get("cost",{})},"raw_source_status":"query_error",
+              "raw_error_type":type(exc).__name__}
+             if fallback.get("status")=="ga4_subchannel_aggregated"
+             else {**status,"status":"query_error","error_type":type(exc).__name__})
         print("[SOURCE MEDIUM] Unavailable:",type(exc).__name__)
 
 
