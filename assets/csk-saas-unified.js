@@ -6,7 +6,7 @@
   const frame = document.getElementById("frame");
   if (!frame || !document.getElementById("hub-menu-root")) return;
   const assetHref = new URL("assets/csk-saas-unified.css?v=20261122-3",document.baseURI).href;
-  const SKIP = new Set(["daily"]);
+  const SKIP = new Set(["daily","winter_festival"]);
   const routeByPath = new Map();
   const groups = window.CSKUnifiedMenus && window.CSKUnifiedMenus.groups || [];
   groups.forEach(g => (g[4] || []).forEach(route => {
