@@ -206,7 +206,7 @@ def diagnose_drivers(event, media, paid):
             ft["aov"]["amount_krw"],"객단가 변화의 매출 산술 배분액 (원)",
             f"AOV {a['revenue']/a['orders']:,.0f}원 → {b['revenue']/b['orders']:,.0f}원",
             "주문수 증가와 별개로 객단가가 하락했습니다. 할인율·SKU 믹스·수량 구성이 원인인지는 아직 미검증입니다.",
-            "스타일·카테고리·할인율별 구매수량, 주문당 상품수와 객단가 비교"))
+            "스타일·카테고리·할인율별 구매수량, 주문당 상품수와 객단가 비교")
     if (media.get("status")!="ga4_measured" or
             not all((media.get("years") or {}).get(y) for y in ("2025","2026"))):
         out["media_unavailable_reason"]="2025·2026 채널 귀속 원본 미확보"
