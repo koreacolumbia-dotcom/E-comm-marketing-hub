@@ -281,6 +281,28 @@
       ]
     },
     {
+      "id": "OWNED_CONTENT_BASELINE",
+      "priority": "P0",
+      "status": "source_required",
+      "title": "컬럼비아와 경쟁사의 콘텐츠 강·약점 비교 기준이 부족함",
+      "finding": "이번 회차 경쟁사 48건 / 자사 0건 · 자사 최근 30일 기존 관측 80건",
+      "cause_component": "이번 수집 회차 자사 관측 0건. 30일 보유 표본과 별개이며 동일 회차/기준의 강약점 비교가 성립하지 않음",
+      "cause_hypotheses": [
+        "크롤링 샤드에서 해당 회차 자사가 미선택됨",
+        "공식몰 동적 페이지 수집 불완전",
+        "관측일·분류 기준 차이"
+      ],
+      "hypothesis_status": "unverified",
+      "causal_confirmed": false,
+      "how_to_verify": "컬럼비아 공식몰을 현재 회차 우선 수집한 다음 보유 30일 표본과 최신 관측 표본을 구분해 비교",
+      "blocked_by": [
+        "자사 콘텐츠 표본"
+      ],
+      "sources": [
+        "reports/competitor_content/strategy-summary.json"
+      ]
+    },
+    {
       "id": "SOURCE_FRESHNESS",
       "priority": "P0",
       "status": "source_error_confirmed",
@@ -423,7 +445,7 @@
     }
   ],
   "crawl": {
-    "checked_at": "2026-11-22T22:06:32.149507+09:00",
+    "checked_at": "2026-11-22T23:04:00.272613+09:00",
     "brand_count": 24,
     "covered_30d": 21,
     "top_gaps": [
@@ -446,15 +468,15 @@
       },
       {
         "brand": "DISCOVERY",
-        "priority_score": 353,
+        "priority_score": 340,
         "observed_30d": 6,
         "sample_target": 100,
         "gap": 94,
-        "pending_known_urls": 113,
-        "known_urls": 120,
-        "known_url_coverage_pct": 10.8,
-        "pages_checked_this_run": 3,
-        "run_status": "candidate",
+        "pending_known_urls": 100,
+        "known_urls": 109,
+        "known_url_coverage_pct": 8.3,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
         "error_types": {
           "rate_limited": 1
         },
@@ -500,14 +522,14 @@
       {
         "brand": "SALOMON",
         "priority_score": 240,
-        "observed_30d": 169,
+        "observed_30d": 172,
         "sample_target": 77,
         "gap": 0,
-        "pending_known_urls": 340,
+        "pending_known_urls": 408,
         "known_urls": 413,
-        "known_url_coverage_pct": 24.2,
-        "pages_checked_this_run": 0,
-        "run_status": "not_scheduled",
+        "known_url_coverage_pct": 24.9,
+        "pages_checked_this_run": 4,
+        "run_status": "candidate",
         "error_types": {},
         "policy_or_access_blockers": [],
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
@@ -544,15 +566,15 @@
       },
       {
         "brand": "K2",
-        "priority_score": 186,
+        "priority_score": 187,
         "observed_30d": 13,
         "sample_target": 100,
         "gap": 87,
-        "pending_known_urls": 0,
+        "pending_known_urls": 1,
         "known_urls": 7,
         "known_url_coverage_pct": 85.7,
-        "pages_checked_this_run": 5,
-        "run_status": "candidate",
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
         "error_types": {
           "robots_policy": 1,
           "navigation_race": 1
@@ -585,9 +607,9 @@
         "gap": 58,
         "pending_known_urls": 46,
         "known_urls": 89,
-        "known_url_coverage_pct": 56.2,
-        "pages_checked_this_run": 6,
-        "run_status": "candidate",
+        "known_url_coverage_pct": 50.6,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
         "error_types": {},
         "policy_or_access_blockers": [],
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
