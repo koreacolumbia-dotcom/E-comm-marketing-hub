@@ -10,6 +10,12 @@ on:
       - "tests/test_unified_hub.py"
       - "scripts/prepare_cloudflare_bundle.py"
       - "assets/dashboard-redesign.js"
+      - "assets/mobile-edge-to-edge.js"
+      - "assets/mobile-edge-to-edge.css"
+      - "scripts/patch_owned_pdp_yoy.py"
+      - "scripts/pdp_yoy_guard.py"
+      - "tests/test_pdp_yoy_guard.py"
+      - "tests/test_mobile_dashboard.py"
       - "reports/decision_health/index.html"
       - "scripts/patch_owned_pdp_yoy.py"
       - "scripts/dashboard_security.py"
@@ -89,6 +95,7 @@ jobs:
           PY
           node --check /tmp/csk-calendar-release-check.js
           node --check assets/csk-unified-hub.js
+          node --check assets/mobile-edge-to-edge.js
           python -m unittest discover -s tests -p 'test_unified_hub.py' -v
           python - <<'PY'
           import re
@@ -101,9 +108,13 @@ jobs:
           PY
           node --check /tmp/csk-decision-center.js
           node --check reports/decision_health/timeline.js
-          python -m py_compile scripts/patch_owned_pdp_yoy.py scripts/dashboard_security.py
+          python -m py_compile scripts/patch_owned_pdp_yoy.py scripts/pdp_yoy_guard.py scripts/dashboard_security.py
       - name: Validate calendar regression tests
         run: python -m unittest discover -s tests -p 'test_competitor_sale_calendar.py' -v
+      - name: Validate PDP YoY preservation and mobile layout
+        run: |
+          python -m unittest discover -s tests -p 'test_pdp_yoy_guard.py' -v
+          python -m unittest discover -s tests -p 'test_mobile_dashboard.py' -v
       - name: Check existing public artifact security policy without modifying data
         run: python scripts/dashboard_security.py --root reports --root site
       - name: Record verified candidate
