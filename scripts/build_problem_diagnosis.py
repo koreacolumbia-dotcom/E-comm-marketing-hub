@@ -226,15 +226,18 @@ def build(operations: dict, intelligence: dict, content: dict,
     content_quality = content.get("quality") or {}
     observed_market = int(num(content_quality.get("market_count")) or 0)
     observed_owned = int(num(content_quality.get("owned_count")) or 0)
+    columbia_retained = next((int(num(b.get("retained_unique_count")) or 0)
+                             for b in content.get("brands",[])
+                             if b.get("brand")=="COLUMBIA"),0)
     if observed_market > 0 and observed_owned == 0:
         problems.append({
             "id": "OWNED_CONTENT_BASELINE", "priority": "P0", "status": "source_required",
             "title": "컬럼비아와 경쟁사의 콘텐츠 강·약점 비교 기준이 부족함",
-            "finding": f"현재 분석 표본: 경쟁사 {observed_market}건 / 자사 0건",
-            "cause_component": "자사 콘텐츠의 직접 관측 표본이 없으므로 경쟁사 대비 열세를 계산할 수 없음",
-            "cause_hypotheses": ["공식몰 콘텐츠 경로 수집 누락", "자사 홈페이지 배너/기획전 연결 미흡", "수집 회차 차이"],
+            "finding": f"이번 회차 경쟁사 {observed_market}건 / 자사 0건 · 자사 최근 30일 기존 관측 {columbia_retained}건",
+            "cause_component": "이번 수집 회차 자사 관측 0건. 30일 보유 표본과 별개이며 동일 회차/기준의 강약점 비교가 성립하지 않음",
+            "cause_hypotheses": ["크롤링 샤드에서 해당 회차 자사가 미선택됨", "공식몰 동적 페이지 수집 불완전", "관측일·분류 기준 차이"],
             "hypothesis_status": "unverified", "causal_confirmed": False,
-            "how_to_verify": "컬럼비아 공식몰·공식 SNS의 동일 기간/동일 분류 기준 콘텐츠와 원본 URL을 수집한 뒤 표본 편향을 보정",
+            "how_to_verify": "컬럼비아 공식몰을 현재 회차 우선 수집한 다음 보유 30일 표본과 최신 관측 표본을 구분해 비교",
             "blocked_by": ["자사 콘텐츠 표본"], "sources": [INPUTS["content"]],
         })
     gaps = crawl_gaps(content, quality, limit=12)
