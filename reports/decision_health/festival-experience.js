@@ -6,7 +6,7 @@ var root=document.getElementById("fm-integrated");
 if(!root)return;
 document.body.classList.add("festival-motion");
 var $=function(s){return root.querySelector(s)};
-var app={data:null,view:"weekly",filter:"all",metric:"revenue",drawer:null,lastFocus:null};
+var app={data:null,view:"event",filter:"all",metric:"revenue",drawer:null,lastFocus:null};
 var NF=new Intl.NumberFormat("ko-KR");
 var note={
 revenue:"GA4 세션 귀속 매출입니다. 광고 플랫폼의 전환가치 또는 캠페인 순증 매출이 아닙니다.",
@@ -63,6 +63,91 @@ function selectedRows(){
 function unavailable(){
  return '<div class="fm-state warn">요청한 분류의 검증된 세션·구매 데이터가 없습니다. 0건으로 해석하지 않습니다.</div>';
 }
+
+/* Causal humility: factors are arithmetic, channels are GA4 attribution. These
+   two explanations are alternative views of the SAME revenue, not additive. */
+function fmSigned(n){
+ var v=Number(n);
+ if(!Number.isFinite(v))return "미확보";
+ return (v<0?"−":v>0?"+":"")+fmt(Math.abs(v),"revenue");
+}
+function fmReasonCard(card,index,good){
+ var value=Number(card.headline),title=card.title||"분석 항목",evidence=card.evidence||"동일 경과일 근거 미확보";
+ return '<article class="fm-cause" data-fm-reason="'+esc(card.id)+'">'+
+ '<div class="fm-cause-kicker">'+String(index+1).padStart(2,"0")+' · '+(card.axis==="funnel"?"구매 구조":"채널 변화")+' · 실측</div>'+
+ '<div class="fm-cause-title">'+esc(title)+'</div>'+
+ '<div class="fm-cause-amount">'+esc(fmSigned(value))+'</div>'+
+ '<div class="fm-cause-sub">'+esc(card.subtitle||"동기간 GA4 귀속 매출")+'</div>'+
+ '<p><b>관측:</b> '+esc(evidence)+'</p>'+
+ '<details><summary>해석 근거와 다음 검증</summary><div class="fm-cause-explain">'+
+ '<p><b>해석 (인과 미확정)</b> · '+esc(card.interpretation||"추가 검증 필요")+'</p>'+
+ '<p><b class="fm-verify-label">다음 검증</b> · '+esc(card.verify_next||"원본 추가 확인")+'</p>'+
+ '</div></details></article>';
+}
+function renderDiagnosis(){
+ var section=document.getElementById("fm-diagnosis");
+ if(!section)return;
+ var d=app.data||{},diag=d.diagnosis||{},event=d.event||{};
+ var status=section.querySelector("#fm-diagnosis-period");
+ if(diag.status!=="funnel_only"&&diag.status!=="reconciled"){
+  status.textContent="기준일 실측 갱신 대기";
+  section.querySelector("#fm-diagnosis-thesis").innerHTML="<strong>검증 상태</strong><p>원인 판단용 최신 집계가 아직 준비되지 않았습니다. 아래 고정 D1–D2 참고 수치는 이전 검증 기준입니다.</p>";
+  return;
+ }
+ status.textContent="행사 D1~D"+esc(diag.event_days)+" · "+esc((diag.compared_dates||{}).current?.join(" ~ ")||"");
+ var funnel=diag.funnel||{},term=(funnel.terms||{}).cvr||{};
+ var revenue=Number(diag.net_revenue_change_krw),netPct=Number(diag.net_revenue_yoy_pct);
+ var thesis=section.querySelector("#fm-diagnosis-thesis");
+ var line=Number.isFinite(term.amount_krw)?(
+    "매출 차이 "+fmSigned(revenue)+" ("+(netPct>=0?"+":"")+netPct.toFixed(1)+"% YoY). "+
+    "CVR 변화의 산술 기여 "+fmSigned(term.amount_krw)+". "+
+    "이 값은 구매전환율 변화로 매출 차이를 분해한 것이며 프로모션 인과 효과가 아닙니다."
+ ):"행사 KPI는 확인됐지만 세션·전환율·객단가 분해는 아직 검증 중입니다.";
+ thesis.innerHTML='<strong>핵심 결론 · 확정 행사 D1~D'+esc(diag.event_days)+'</strong><p>'+esc(line)+'</p>';
+ var goods=Array.isArray(diag.strengths)?diag.strengths:[],bads=Array.isArray(diag.weaknesses)?diag.weaknesses:[];
+ var aligned=diag.event_media_aligned===true;
+ var sectionNote='<article class="fm-cause"><div class="fm-cause-kicker">추가 근거 대기</div>'+
+   '<p>현재 행사 D1~D'+esc(diag.event_days)+' 기준의 매체별 전년 실측 자료가 동일 기간으로 검증되지 않았습니다. 이전 기간 값을 더해 결론 내리지 않습니다.</p></article>';
+ section.querySelector("#fm-success-cards").innerHTML=goods.length?goods.slice(0,3).map(function(c,i){return fmReasonCard(c,i,true)}).join(""):sectionNote;
+ section.querySelector("#fm-weak-cards").innerHTML=bads.length?bads.slice(0,3).map(function(c,i){return fmReasonCard(c,i,false)}).join(""):sectionNote;
+ var basket=diag.basket_watch,aw=section.querySelector("#fm-aov-warning");
+ if(basket){aw.innerHTML='<strong>추가 점검 · 객단가/상품 구성</strong>'+
+   '<p>객단가 변화의 매출 산술 배분 '+esc(fmSigned(basket.headline))+' · '+esc(basket.evidence)+
+   ' · 할인·상품 믹스가 실제 원인인지 미검증</p>';}
+ var traffic=diag.traffic_watch,tw=section.querySelector("#fm-awareness-warning");
+ if(traffic){tw.innerHTML='<strong>추가 점검 · META_BD 별도 평가</strong>'+
+   '<p>'+esc(fmt(traffic.sessions,"sessions"))+' 중 '+esc(fmt(traffic.orders,"orders"))+
+   ' · CVR '+esc(fmt(traffic.cvr_pct,"cvr"))+
+   '. 인지도 목적은 노출·도달·CPM으로 따로 평가해야 합니다.</p>';}
+ else {tw.innerHTML='<strong>추가 점검 · Meta 인지도 유입</strong><p>인지 목적 캠페인은 구매 실적만으로 성과를 판정하지 않습니다.</p>';}
+ var place=section.querySelector("#fm-driver-bridge");
+ if(!aligned||!Array.isArray(diag.channel_bridge)){
+  place.innerHTML='<div class="fm-state warn">'+esc(diag.media_unavailable_reason||"매체별 동일 행사일 비교 대기")+
+    ' · 채널별 변화가 해당 기간과 일치할 때만 증감 그래프를 표시합니다.</div>';
+  section.querySelector("#fm-diagnosis-foot").textContent="세션·CVR·객단가의 산술 분해만 확정됐습니다. 매체별 원인 판단은 동일 날짜 원본 검증 전까지 보류합니다.";
+  return;
+ }
+ var rows=diag.channel_bridge.filter(function(x){return Number.isFinite(Number(x.delta_krw))})
+     .sort(function(x,y){return Math.abs(y.delta_krw)-Math.abs(x.delta_krw)});
+ var ceiling=Math.max(1,...rows.map(function(x){return Math.abs(Number(x.delta_krw))}));
+ var bars=rows.filter(function(x){return x.delta_krw!==0}).map(function(x){
+  var delta=Number(x.delta_krw),pct=Math.max(0,(Math.abs(delta)/ceiling)*100);
+  return '<div class="fm-bridge-row '+(delta<0?"down":"")+'">'+
+    '<span class="fm-bridge-label" title="'+esc(x.label)+'">'+esc(x.label)+'</span>'+
+    '<div class="fm-bridge-track" role="img" aria-label="'+esc(x.label)+" "+esc(fmSigned(delta))+'"><i style="width:'+pct.toFixed(1)+'%"></i></div>'+
+    '<b class="fm-bridge-amount">'+esc(fmSigned(delta))+'</b></div>';
+ }).join("");
+ var net=Number(diag.channel_total_change_krw);
+ var warning=Number(diag.unclassified?.current||0);
+ place.innerHTML=bars+'<div class="fm-bridge-total"><span>전체 채널 증감 합계 (대사 완료)</span>'+
+ '<strong>'+esc(fmSigned(net))+'</strong></div>'+
+ (warning>0?'<p class="fm-bridge-warning">기타·미분류 귀속 매출 '+esc(fmt(warning,"revenue"))+
+ '은 별도 표기합니다. 실제 Paid/CRM 성과에 임의 배분하지 않습니다.</p>':"");
+ section.querySelector("#fm-diagnosis-foot").textContent=
+  "채널 증감 합계 "+fmSigned(net)+" = 공식몰 총매출 증감 "+fmSigned(revenue)+
+  ". 단, 유입·CVR·AOV Shapley와 채널 귀속 증감은 서로 중복되는 별도 분해 축입니다. 원인 인과를 증명하지 않으며, Meta 광고비·매체 ROAS는 검증 전까지 미표시합니다.";
+}
+
 function renderLiveAggregate(){
  var rootEl=$("#fm-live-aggregate"),d=app.data||{},e=d.event||{};
  if(!rootEl)return;
@@ -147,6 +232,7 @@ function render(){
  }else if(period&&app.view==="event"){
   windowEl.textContent="2026 "+((period["2026"]||[]).join("~"))+" · 2025 "+((period["2025"]||[]).join("~"));
  }else windowEl.textContent="확정 기간 없음";
+ renderDiagnosis();
  renderLiveAggregate();
  renderPaidTotal();
  renderReasons();
