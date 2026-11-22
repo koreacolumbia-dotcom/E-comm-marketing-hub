@@ -41,6 +41,18 @@ def build_timeline(d,history,calendar,weather,focus):
             names[k]=r["itemName"]; a=points(r,cur,"qty")
             if a is not None and a[-1]==number(r.get("qty")):data[k]["sales"].update(zip(cur,a))
             elif number(r.get("qty")) is not None:data[k]["sales"][dt]=number(r["qty"])
+    # Prefer fully-scanned GA4 purchase items over Top-N snippet inference when
+    # the same dated product card has a verified 14-day series.
+    if focus.get("ga4_purchase_status")=="ga4_measured":
+        for card in focus.get("cards",[]):
+            if card.get("sales_source")!="ga4_purchase_items":continue
+            series=card.get("sales_series")
+            if not isinstance(series,list) or len(series)!=14:continue
+            if any(number(v) is None for v in series):continue
+            key=namekey(card.get("name"))
+            if not key:continue
+            names[key]=card.get("name")
+            data[key]["sales"].update(zip(dates,series))
     selected=[namekey(r["name"]) for r in focus.get("cards",[])]
     # Rank additional complete same-weekday pairs on observed absolute movement.
     ranking={"pdp_up":[],"pdp_down":[],"sales_up":[],"sales_down":[]}
