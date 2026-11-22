@@ -20,6 +20,7 @@
     "realized_item_revenue_effect": 950.72,
     "interpretation": "Arithmetic only: realized item revenue includes discount and SKU mix."
   },
+  "basket_distribution": null,
   "sales_revenue_bridge": {
     "qty_effect_krw": -2857341.06,
     "realized_unit_revenue_effect_krw": 789456.06,
@@ -32,23 +33,30 @@
     "note": "Accounting identity, not proof of coupon/discount/refund causality."
   },
   "category_bridge": {
-    "category_mix_effect_per_item": -7241.28,
-    "within_category_effect_per_item": 7912.02,
+    "category_mix_effect_per_item": -5591.31,
+    "within_category_effect_per_item": 6262.05,
     "realized_item_price_delta": 670.74,
     "rows": [
       {
         "category": "OUTER",
-        "share_previous_pct": 9.51,
-        "share_current_pct": 6.09,
-        "mix_effect_per_item": -12329.22,
-        "within_category_effect_per_item": -279.89
+        "share_previous_pct": 9.18,
+        "share_current_pct": 6.43,
+        "mix_effect_per_item": -10003.74,
+        "within_category_effect_per_item": 690.08
       },
       {
         "category": "SALE",
-        "share_previous_pct": 44.02,
-        "share_current_pct": 47.51,
-        "mix_effect_per_item": 4577.31,
-        "within_category_effect_per_item": 8865.72
+        "share_previous_pct": 44.36,
+        "share_current_pct": 47.86,
+        "mix_effect_per_item": 4553.92,
+        "within_category_effect_per_item": 6082.17
+      },
+      {
+        "category": "FLEECE",
+        "share_previous_pct": 22.39,
+        "share_current_pct": 17.92,
+        "mix_effect_per_item": -4159.53,
+        "within_category_effect_per_item": -1268.91
       },
       {
         "category": "FOOTWEAR",
@@ -56,13 +64,6 @@
         "share_current_pct": 5.92,
         "mix_effect_per_item": 3907.24,
         "within_category_effect_per_item": -923.93
-      },
-      {
-        "category": "FLEECE",
-        "share_previous_pct": 22.39,
-        "share_current_pct": 18.61,
-        "mix_effect_per_item": -3507.42,
-        "within_category_effect_per_item": -1432.52
       },
       {
         "category": "CAP",
@@ -2245,32 +2246,6 @@
       ]
     },
     {
-      "name": "M’s Eagle Bay Hybrid Insulation Straight Pants",
-      "codes": [
-        "C74YM8678010"
-      ],
-      "current_units": 2,
-      "previous_units": 0,
-      "current_revenue": 498000.0,
-      "previous_revenue": 0.0,
-      "daily_units": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        1
-      ]
-    },
-    {
       "name": "TELLURIX TITANIUM OUTDRY MID WIDE",
       "codes": [
         "C76BI9380010",
@@ -2295,6 +2270,32 @@
         0,
         0,
         0
+      ]
+    },
+    {
+      "name": "M’s Eagle Bay Hybrid Insulation Straight Pants",
+      "codes": [
+        "C74YM8678010"
+      ],
+      "current_units": 2,
+      "previous_units": 0,
+      "current_revenue": 498000.0,
+      "previous_revenue": 0.0,
+      "daily_units": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1
       ]
     },
     {
@@ -2781,33 +2782,6 @@
       ]
     },
     {
-      "name": "Arctic Crest II Hooded Full Zip",
-      "codes": [
-        "C73AE9364010",
-        "C73AE9364491"
-      ],
-      "current_units": 2,
-      "previous_units": 0,
-      "current_revenue": 398000.0,
-      "previous_revenue": 0.0,
-      "daily_units": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0
-      ]
-    },
-    {
       "name": "Sauvie Sky Fleece Jacket",
       "codes": [
         "C74AE5715010",
@@ -2832,6 +2806,33 @@
         0,
         0,
         1
+      ]
+    },
+    {
+      "name": "Arctic Crest II Hooded Full Zip",
+      "codes": [
+        "C73AE9364010",
+        "C73AE9364491"
+      ],
+      "current_units": 2,
+      "previous_units": 0,
+      "current_revenue": 398000.0,
+      "previous_revenue": 0.0,
+      "daily_units": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
       ]
     },
     {
@@ -2871,6 +2872,11 @@
       "units": 1188.0,
       "item_revenue": 153898000.0,
       "missing_item_revenue": 0,
+      "single_item_orders": 618,
+      "multi_item_orders": 155,
+      "unknown_basket_orders": 17,
+      "single_item_revenue": 78401960.0,
+      "multi_item_revenue": 55697160.0,
       "bad_quantity": 0,
       "discount_null": 1025,
       "reported_discount": 0.0
@@ -2884,6 +2890,11 @@
       "units": 1166.0,
       "item_revenue": 151830115.0,
       "missing_item_revenue": 0,
+      "single_item_orders": 682,
+      "multi_item_orders": 183,
+      "unknown_basket_orders": 11,
+      "single_item_revenue": 89967804.0,
+      "multi_item_revenue": 42039829.0,
       "bad_quantity": 0,
       "discount_null": 1144,
       "reported_discount": 0.0
@@ -2910,8 +2921,8 @@
   },
   "source_scope": "GA4 daily purchase items; aggregated by item name, deduplicated on valid transaction ID. No customer data or causal conclusions.",
   "cost": {
-    "dry_run_bytes": 606953290,
-    "billed_bytes": 608174080,
+    "dry_run_bytes": 652465138,
+    "billed_bytes": 653262848,
     "maximum_bytes_billed_total": 1073741824,
     "dry_run_required": true
   }
