@@ -256,7 +256,7 @@ def write_or_preserve_on_blocked(payload):
     """Never erase an already verified D1-D2 comparison when D3 budget exceeds cap."""
     try:
         existing=json.loads(OUTPUT.read_text(encoding="utf-8"))
-        if existing.get("status")=="ga4_measured" and existing.get("data") and existing.get("media_rollup"):
+        if existing.get("status")=="ga4_measured" and existing.get("data"):
             existing["refresh"]={"status":payload["status"],
                                 "attempted_period":payload.get("period"),
                                 "note":"Last measured period preserved; newer event source not yet available."}
