@@ -381,3 +381,53 @@ body.festival-motion .kpi strong{font-size:clamp(18px,2.4vw,27px)!important}
 .fm-item-effect.negative b{color:#ffadbb}
 .fm-item-effect .fm-product-bar{height:9px;background:#283c45}
 @media(max-width:460px){.fm-item-bridge{padding:10px}.fm-item-bridge-grid{gap:8px}.fm-item-effect b{font-size:17px}}
+
+/* Complete style-ranking tabs: 2025/2026 best sellers, same-name cohort and impact. */
+.fm-ranking-head{display:flex;align-items:center;justify-content:space-between;gap:8px;
+ flex-wrap:wrap;margin:18px 0 8px}
+.fm-ranking-head>div{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.fm-ranking-head strong{color:#dcf7ee;font-size:14px}
+.fm-ranking-head span{font-size:10px;color:#9bb5be}
+.fm-ranking-count{border:1px solid #335f59;background:#18342f;padding:6px 10px;border-radius:8px;
+ color:#9de4ca!important;max-width:100%}
+.fm-ranking-head[hidden],.fm-ranking-tabs[hidden],.fm-product-movers[hidden]{display:none!important}
+.fm-ranking-tabs{display:flex;gap:7px;align-items:center;overflow-x:auto;scrollbar-width:thin;
+ padding:2px 0 12px;margin-bottom:3px}
+.fm-ranking-tabs button{flex:0 0 auto;cursor:pointer;background:#1c3039;color:#aec7d1;
+ border:1px solid #34525c;padding:9px 11px;border-radius:9px;font-size:11px;font-weight:750;
+ transition:background .16s ease,color .16s ease}
+.fm-ranking-tabs button[aria-selected="true"]{background:#35d2a8;color:#052d22;border-color:#35d2a8}
+.fm-ranking-tabs button:disabled{opacity:.45;cursor:not-allowed}
+.fm-ranking-tabs button:focus-visible{outline:2px solid #a7fff0;outline-offset:2px}
+.fm-product-columns.fm-ranking-single{grid-template-columns:1fr}
+.fm-ranking-single .fm-product-movers{max-width:100%}
+.fm-ranked-item{grid-template-columns:47px minmax(0,1fr) auto;gap:10px;align-items:start;
+ padding:10px;min-height:102px}
+.fm-ranked-photo{position:relative;width:47px;min-width:0}
+.fm-ranked-photo .fm-product-photo{height:54px;width:47px}
+.fm-rank-number{position:absolute;bottom:-5px;left:-4px;color:#063122;background:#51e6b8;
+ border:1px solid #245449;border-radius:5px;font-size:9px;font-weight:850;padding:2px 4px}
+.fm-ranked-item .fm-product-name{font-size:12px;line-height:1.4;white-space:normal;max-height:2.9em;
+ overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.fm-rank-badge{font-size:9px;color:#90cabc;margin:1px 0 4px}
+.fm-rank-comparison{display:grid;gap:5px}
+.fm-rank-year{display:grid;grid-template-columns:18px minmax(0,1fr) 75px 29px;
+ align-items:center;gap:5px;font-size:9px;color:#aec3cd}
+.fm-rank-year>b{font-size:10px;text-align:right;color:#d7e6eb;font-variant-numeric:tabular-nums}
+.fm-rank-year>small{font-size:9px;text-align:right;color:#8aabb5}
+.fm-rank-track{height:7px;border-radius:4px;background:#2b434f;overflow:hidden}
+.fm-rank-track i{height:100%;display:block;min-width:1px;border-radius:4px}
+.fm-rank-track .prior{background:#8797ab}
+.fm-rank-track .current{background:linear-gradient(90deg,#19a99c,#49e3b8)}
+.fm-ranked-value{display:grid;justify-items:end;gap:5px;margin-top:3px;max-width:110px}
+.fm-ranked-value small{font-size:9px;color:#a9bcc7;text-align:right}
+.fm-ranked-item .fm-product-change{font-size:12px;white-space:nowrap}
+@media(max-width:680px){
+ .fm-ranking-head{margin:12px 0 6px}.fm-ranking-tabs{gap:6px}
+ .fm-ranking-tabs button{padding:8px 9px;font-size:10px}
+ .fm-ranked-item{grid-template-columns:38px minmax(0,1fr) auto;gap:7px;padding:8px}
+ .fm-ranked-photo{width:38px}.fm-ranked-photo .fm-product-photo{width:38px;height:45px}
+ .fm-rank-year{grid-template-columns:16px minmax(0,1fr) 59px 24px;gap:3px}
+ .fm-rank-year>b{font-size:9px}.fm-rank-year>small{font-size:8px}
+ .fm-ranked-value{max-width:83px}.fm-ranked-item .fm-product-change{font-size:10px}
+}
