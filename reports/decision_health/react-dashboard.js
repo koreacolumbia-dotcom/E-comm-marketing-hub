@@ -182,18 +182,28 @@
     var list=rows.filter(function (x) {
       return (props.group==="all" || sourceGroup(x.source_medium)===props.group) &&
         String(x.source_medium || "").toLowerCase().indexOf(props.search.toLowerCase())!==-1;
-    }).sort(function (a,b) { return a.revenue_delta-b.revenue_delta; });
+    }).sort(function (a,b) {
+      if(props.sort==="sessions")return (b.current && b.current.sessions||0)-(a.current && a.current.sessions||0);
+      if(props.sort==="revenue")return (b.current && b.current.revenue||0)-(a.current && a.current.revenue||0);
+      if(props.sort==="conversion")return (b.current && b.current.cvr_pct||0)-(a.current && a.current.cvr_pct||0);
+      return a.revenue_delta-b.revenue_delta;
+    });
     var selected=list.find(function (x) { return x.source_medium===props.selected; }) || list[0];
     var current=raw && raw.period && raw.period.current || {},prior=raw && raw.period && raw.period.previous || {};
     return h("div",null,
       h("div",{className:"csk-workspace-controls"},
         h(SourcePills,{value:props.group,onChange:props.onGroup}),
-        h("input",{type:"search",className:"csk-search",value:props.search,onChange:function(e){props.onSearch(e.target.value);},placeholder:"소스/매체 검색","aria-label":"소스/매체 검색"})
+        h("div",{className:"csk-filter-right"},
+          h("select",{className:"csk-sort",value:props.sort,onChange:function(e){props.onSort(e.target.value);},"aria-label":"소스/매체 정렬"},
+            [["loss","매출 하락순"],["sessions","세션순"],["revenue","매출순"],["conversion","CVR순"]].map(function(opt){return h("option",{key:opt[0],value:opt[0]},opt[1]);})
+          ),
+          h("input",{type:"search",className:"csk-search",value:props.search,onChange:function(e){props.onSearch(e.target.value);},placeholder:"소스/매체 검색","aria-label":"소스/매체 검색"})
+        )
       ),
       !alignedSource(raw,props.ops) ? h(PeriodWarning,{current:attr(current.start)+" ~ "+attr(current.end),operation:props.ops && props.ops.weekly && props.ops.weekly.period || "미확보"}) : null,
       h("div",{className:"csk-workspace-grid"},
         h("aside",{className:"csk-workspace-list"},
-          h("p",{className:"list-meta"},"매출 감소순 · ",fmt(list.length),"개 소스/매체"),
+          h("p",{className:"list-meta"},props.sort==="loss"?"매출 감소순":props.sort==="sessions"?"세션순":props.sort==="revenue"?"매출순":"CVR순"," · ",fmt(list.length),"개 소스/매체"),
           list.length ? list.slice(0,props.showAll?list.length:12).map(function(x,i) {
             var chosen=selected && selected.source_medium===x.source_medium;
             return h("button",{key:x.source_medium,type:"button",className:cls("workspace-row",chosen&&"selected"),onClick:function(){props.onSelect(x.source_medium);}},
@@ -222,22 +232,42 @@
     );
   }
   function ProductWorkspace(props) {
-    var products=props.products;
+    var allProducts=props.products;
+    var families=Array.from(new Set(allProducts.map(function(x){return x.family;}).filter(Boolean))).sort();
+    var products=allProducts.filter(function(x){
+      return (props.family==="all" || x.family===props.family) &&
+        String(x.name||"").toLowerCase().indexOf(props.search.toLowerCase())!==-1;
+    });
     var selected=products.find(function (x) { return x.name===props.selected; })||products[0];
     var funnel=props.funnel;
     var aligned=funnel && funnel.status==="ga4_measured" && funnel.report_date===props.ops.report_date;
     var f=aligned && selected && Array.isArray(funnel.products)?funnel.products.find(function (x) {return x.name===selected.name && x.coverage_reliable===true;}):null;
-    return h("div",{className:"csk-workspace-grid"},
+    return h("div",null,
+      h("div",{className:"csk-workspace-controls"},
+        h("div",{className:"csk-filter-pills"},
+          [["all","전체"]].concat(families.map(function(x){return [x,x];})).map(function(opt){
+            return h("button",{type:"button",key:opt[0],
+              className:cls("filter-pill",props.family===opt[0]&&"active"),
+              "aria-pressed":props.family===opt[0],
+              onClick:function(){props.onFamily(opt[0]);}},opt[1]);
+          })
+        ),
+        h("input",{type:"search",className:"csk-search",value:props.search,
+          onChange:function(e){props.onSearch(e.target.value);},
+          placeholder:"상품명 검색","aria-label":"상품명 검색"})
+      ),
+      h("div",{className:"csk-workspace-grid"},
       h("aside",{className:"csk-workspace-list"},
         h("p",{className:"list-meta"},"PDP 조회·GA4 판매 비교 가능 ",fmt(products.length),"종"),
-        products.length?products.slice(0,16).map(function(x,i){
+        products.length?products.slice(0,props.showAll?products.length:12).map(function(x,i){
           var saleDelta=x.sales_7d-x.sales_previous_7d;
           return h("button",{key:x.name,type:"button",className:cls("workspace-row",selected&&selected.name===x.name&&"selected"),onClick:function(){props.onSelect(x.name);}},
             h("span",{className:"workspace-row-number"},""+(i+1)),
             h("span",{className:"workspace-row-copy"},h("strong",null,x.name),h("small",null,"PDP "+delta(x.pdp_change_pct)+" · 구매 "+fmt(x.sales_previous_7d)+" → "+fmt(x.sales_7d)+"개")),
             h("span",{className:cls("row-number",saleDelta<0?"minus":"plus")},(saleDelta>0?"+":"")+fmt(saleDelta)+"개")
           );
-        }):h(EmptyState,{title:"PDP·판매 매칭 자료가 없습니다."})
+        }):h(EmptyState,{title:"PDP·판매 매칭 자료가 없습니다."}),
+        products.length>12?h("button",{type:"button",className:"csk-show-all",onClick:props.onToggleAll},props.showAll?"접기":"전체 "+fmt(products.length)+"개 보기"):null
       ),
       h("section",{className:"csk-workspace-detail"},
         selected?[
@@ -253,6 +283,7 @@
           h(ActionPanel,{key:"action",text:f?"유입 소스 구성·조회→장바구니·장바구니→구매 완료 흐름을 비교하세요.":"일치하는 세션 퍼널 확보 후 이탈 단계 분석을 진행하세요."}),
           h("p",{key:"disclaimer",className:"detail-footer"},"GA4 상품명 매칭 표본 · PDP 조회 대비 판매 단순비는 CVR이 아닙니다.")
         ]:h(EmptyState,{title:"검증 가능한 상품 상세 데이터가 없습니다."})
+      )
       )
     );
   }
@@ -340,6 +371,10 @@
     var [tab,setTab]=useState("overview");
     var [causeId,setCause]=useState(null);
     var [group,setGroup]=useState("all");
+    var [sourceSort,setSourceSort]=useState("loss");
+    var [productFamily,setProductFamily]=useState("all");
+    var [productSearch,setProductSearch]=useState("");
+    var [showAllProducts,setShowAllProducts]=useState(false);
     var [search,setSearch]=useState("");
     var [selectedSource,setSource]=useState(null);
     var [selectedProduct,setProduct]=useState(null);
@@ -389,8 +424,8 @@
       h("section",{className:"csk-workspace rounded-2xl","aria-label":"선택한 의사결정 분석"},
         h("div",{className:"csk-workspace-toolbar"},h("strong",null,title),h("span",null,attr(ops.report_date)," 기준")),
         tab==="overview"?h(CauseWorkspace,{causes:drivers,selected:causeId,onSelect:setCause,onTab:setTab}):
-        tab==="acquisition"?h(SourceWorkspace,{source:source,ops:ops,group:group,onGroup:setGroup,search:search,onSearch:setSearch,selected:selectedSource,onSelect:setSource,showAll:showAll,onToggleAll:function(){setShowAll(!showAll);}}):
-        tab==="products"?h(ProductWorkspace,{products:products,funnel:funnel,ops:ops,selected:selectedProduct,onSelect:setProduct}):
+        tab==="acquisition"?h(SourceWorkspace,{source:source,ops:ops,group:group,onGroup:setGroup,sort:sourceSort,onSort:setSourceSort,search:search,onSearch:setSearch,selected:selectedSource,onSelect:setSource,showAll:showAll,onToggleAll:function(){setShowAll(!showAll);}}):
+        tab==="products"?h(ProductWorkspace,{products:products,funnel:funnel,ops:ops,selected:selectedProduct,onSelect:setProduct,family:productFamily,onFamily:setProductFamily,search:productSearch,onSearch:setProductSearch,showAll:showAllProducts,onToggleAll:function(){setShowAllProducts(!showAllProducts);}}):
         h(EventWorkspace,{events:events,ops:ops,selected:selectedEvent,onSelect:setEvent})
       ),
       h(ContextCards,{di:di,ops:ops,dx:dx,events:events,products:products}),
