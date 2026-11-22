@@ -91,7 +91,7 @@ header{display:flex;justify-content:space-between;gap:16px;align-items:center;bo
 <article class="card"><h2>05 · 우선 실행할 검증 과제</h2><div id="actions" class="actions"></div></article>
 </section></details>
 <div class="links"><a href="../daily_intelligence/index.html">18개 상세 분석</a><a href="../marketing_operations/index.html">운영·실행 추적</a><a href="../competitor_content/index.html">경쟁 콘텐츠</a><a href="../competitor_sale_calendar/index.html">세일 캘린더</a><a href="../daily_digest/index.html">Owned.com Report</a></div>
-<p class="footer">매출 변동의 산술적 분해는 원인 증명이 아닙니다. 광고비·재고·매체 성과는 원천과 기간이 일치할 때만 의사결정 근거로 사용합니다.</p>
+<p class="footer">매출 변동의 산술적 분해는 원인 증명이 아닙니다. 광고비·매체 성과는 원천과 기간이 일치할 때만 의사결정 근거로 사용합니다.</p>
 </main><script>
 "use strict";
 const $=id=>document.getElementById(id);
@@ -111,7 +111,7 @@ const load=async path=>{try{const r=await fetch(path+"?v="+Date.now(),{cache:"no
  const o=op.executive||{},w=op.weekly||{},a=op.actions||[],cw=w.current?.total||{},pw=w.previous?.total||{};
  const block=o.data_readiness||{},oldCanonical=age(canonical.period?.split(" ~ ").pop());
  const oldCalendar=age(calendar.as_of),oldDi=age(di.report_date);
- const raw=[["성과 보고일",oldDi,oldDi!==null&&oldDi<=2,di.report_date],["광고비",null,block.paid_cost==="ready",block.paid_cost||"미확보"],["주문/CRM",null,block.order_mart==="ready"&&block.crm==="ready",(block.order_mart||"미확보")+" / "+(block.crm||"미확보")],["재고",null,block.inventory==="ready",block.inventory||"미연결"],["구형 Canonical",oldCanonical,oldCanonical!==null&&oldCanonical<=2,canonical.period?.split(" ~ ").pop()||"미확보"],["세일 캘린더",oldCalendar,oldCalendar!==null&&oldCalendar<=2,calendar.as_of||"미확보"]];
+ const raw=[["성과 보고일",oldDi,oldDi!==null&&oldDi<=2,di.report_date],["광고비",null,block.paid_cost==="ready",block.paid_cost||"미확보"],["주문/CRM",null,block.order_mart==="ready"&&block.crm==="ready",(block.order_mart||"미확보")+" / "+(block.crm||"미확보")],["구형 Canonical",oldCanonical,oldCanonical!==null&&oldCanonical<=2,canonical.period?.split(" ~ ").pop()||"미확보"],["세일 캘린더",oldCalendar,oldCalendar!==null&&oldCalendar<=2,calendar.as_of||"미확보"]];
  const risks=raw.filter(x=>!x[2]);
  $("overall").textContent=missing.length?"원천 연결 불안정":risks.length?"판단 제한 · 미검증 "+risks.length+"영역":"원천 상태 확인";
  $("health").innerHTML=raw.map(([name,days,valid,description])=>'<div class="line"><div><strong>'+esc(name)+'</strong><div class="muted">'+esc(description)+(days===null?"":" · "+days+"일 경과")+'</div></div>'+pill(valid?"good":"bad",valid?"확인":"주의")+'</div>').join("");
@@ -128,7 +128,7 @@ const load=async path=>{try{const r=await fetch(path+"?v="+Date.now(),{cache:"no
  $("decomposition").textContent="관측기간: "+(w.period||"미확보")+" / 비교: "+(w.comparison_period||"미확보")+" · 현재 CVR "+(cv(cw)?.toFixed(2)||"미확보")+"%, 이전 "+(cv(pw)?.toFixed(2)||"미확보")+"%. 객단가와 주문수의 변화가 매출 변화를 설명하지만, 가격·할인·상품 믹스의 원인 검증은 별도입니다.";
  const safe=w.status==="ready"&&Number.isFinite(aovChange)&&Number.isFinite(orderChange)&&oldDi!==null&&oldDi<=2;
  $("story").textContent=!safe?"최신 매출 구조 또는 데이터 품질을 먼저 검증해야 합니다.":(revenueChange<0&&orderChange>0&&aovChange<0?"주문은 "+pct(orderChange)+" 증가했지만 객단가가 "+pct(aovChange)+" 하락해 매출은 "+pct(revenueChange)+" 변화했습니다.":"주간 매출 "+pct(revenueChange)+" · 주문 "+pct(orderChange)+" · 객단가 "+pct(aovChange));
- $("story-note").textContent=risks.length?"광고비·재고·고객 원천 등 "+risks.length+"개 데이터 상태를 추가로 확인해야 합니다. 할인/날씨/경쟁사 영향은 관측 시점의 일치만으로 단정할 수 없습니다.":"동일 기간의 가격·판매수량·캠페인 데이터를 대조하여 인과 가설을 검증하세요.";
+ $("story-note").textContent=risks.length?"광고비·주문/고객 원천 등 "+risks.length+"개 데이터 상태를 추가로 확인해야 합니다. 할인/날씨/경쟁사 영향은 관측 시점의 일치만으로 단정할 수 없습니다.":"동일 기간의 가격·판매수량·캠페인 데이터를 대조하여 인과 가설을 검증하세요.";
  const focus=di.product_focus||{},cards=Array.isArray(focus.cards)?focus.cards:[];
  window.__cskPriorityFocus=focus;
  window.__cskCausePayload={focus,diagnoses,ga4Purchase};
@@ -190,8 +190,8 @@ const tag=(p)=>{
 };
 const headline=(p)=>tag(p)==="조회 증가 · 판매 감소"?"조회 대비 구매 약화":
   tag(p)==="조회·판매 동반 감소"?"유입·판매 동반 하락":"조회·구매 흐름 이상";
-const action=(p)=>p.pdp_change_pct>=15&&salePct(p)<=-15?"장바구니율 · 옵션재고 · 유입매체":
-  p.pdp_change_pct<=-15&&salePct(p)<=-15?"노출·유입경로 · 가격 · 재고":"유입구성 · PDP→장바구니 · 가격";
+const action=(p)=>p.pdp_change_pct>=15&&salePct(p)<=-15?"장바구니율 · 유입매체 · 평균 실현매출":
+  p.pdp_change_pct<=-15&&salePct(p)<=-15?"노출·유입경로 · 평균 실현매출":"유입구성 · PDP→장바구니 · 가격";
 
 /* Quantified components are an accounting identity, not a causal claim. */
 function measuredDetails(p,focus,ga4){
@@ -291,16 +291,16 @@ function detail(item,focus,idx){
       ["official_period","first_party_landing_text"].includes(e.date_status)&&e.start&&e.end).slice(0,2);
     const events=official.length?official.map(e=>'<div>'+esc(e.brand)+' · '+esc(e.start)+'~'+esc(e.end)+'</div>').join(""):'검증된 동일 상품군 행사 날짜 부족';
     inner='<div class="p-trends">'+chart(p,focus,"pdp")+chart(p,focus,"sales")+'</div>'+
-      '<div class="p-extra-row"><div><b>확인 순서 1·2·3</b><p>1. 유입 채널 · 2. 장바구니 흐름 · 3. 가격/옵션 재고</p></div>'+
+      '<div class="p-extra-row"><div><b>확인 순서 1·2·3</b><p>1. 유입 채널 · 2. 장바구니 흐름 · 3. 실현매출·상품구성</p></div>'+
       '<div><b>교차 근거</b><p>'+events+' · 기온 '+(finite(p.temperature_change_c)?p.temperature_change_c.toFixed(1)+"°C":"미확보")+'</p></div></div>'+
-      '<p class="p-disclaimer">근거: PDP 조회수 + GA4 정규화 상품명 매칭 구매수량. 구매/PDP는 서로 다른 이벤트 수의 단순비로 실제 CVR이 아닙니다. 관리자 주문·옵션별 재고·인과관계 미검증.</p>';
+      '<p class="p-disclaimer">근거: PDP 조회수 + GA4 정규화 상품명 매칭 구매수량. 구매/PDP는 서로 다른 이벤트 수의 단순비로 실제 CVR이 아닙니다. 관리자 주문·상품별 유입매체·인과관계 미검증.</p>';
     inner+='<div class="p-extra-row"><div><b>실제 구매 감소 설명 요소</b><p>'+esc(item.detail.breakdown)+
       ' (수량 산술분해·인과효과 아님)</p></div><div><b>가격 영향 점검</b><p>'+
       esc(item.detail.price||"GA4 상품별 평균 실현매출 원천 미확보")+'</p></div></div>'+
       '<div class="p-extra-row"><div><b>윈터세일 시작일(11/20)</b><p>'+
       esc(item.detail.day||"행사일 구매 원천 미확보")+
       ' · 행사로 인한 구매 증가는 미확인</p></div><div><b>세부 검증 우선순위</b><p>'+
-      '① 상품별 유입 채널 ② 장바구니 전환 ③ 옵션별 재고·노출 가격</p></div></div>';
+      '① 상품별 유입 채널 ② 장바구니 전환 ③ 평균 실현매출·상품구성</p></div></div>';
   }else{
     const g=item.g,b=g.item_aov_bridge||{},rows=g.category_bridge?.rows||[];
     const names=["OUTER","SALE"],chosen=rows.filter(r=>names.includes(r.category));

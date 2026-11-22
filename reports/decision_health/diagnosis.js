@@ -1,7 +1,7 @@
 /* CSK integrated decision hypotheses: observed facts != causal attribution. */
 (() => {
   'use strict';
-  const anchor = document.querySelector('main > section.grid');
+  const anchor = document.querySelector('main #decision-additional > section.grid, main > section.grid');
   if (!anchor || document.getElementById('csk-root-diagnosis')) return;
   const css = document.createElement('style');
   css.textContent = `
@@ -188,6 +188,12 @@
         root.append(couponPanel);
       }
       const grid=el('div',null,'diag-grid');
+      const withoutStock=s=>String(s||'')
+        .replace(/옵션별 재고·품절/g,'상품구성')
+        .replace(/재고·사이즈 품절·/g,'')
+        .replace(/가격·품절·유입 매체/g,'가격·유입 매체')
+        .replace(/ · 재고/g,'')
+        .replace(/inventory: connection_error/g,'원천 제외');
       for(const p of data.problems){
         const card=el('article',null,'diag-card');
         const observedStatus=['observed_decomposition','observed_ga4_components','observed_product_divergence','source_error_confirmed'].includes(p.status);
@@ -197,21 +203,23 @@
           p.status==='source_error_confirmed'?'원천 오류 확인':
           p.status==='coverage_limited'?'수집 범위 제한':'검증 자료 필요';
         const tag=el('span',p.priority+' · '+label,'diag-status'+(observedStatus?' known':''));
-        card.append(tag,el('h3',p.title),el('p',p.finding,'observed'));
+        card.append(tag,el('h3',p.title),el('p',withoutStock(p.finding),'observed'));
         const fact=el('p',null);
-        fact.append(el('strong','확인된 사실: '),document.createTextNode(p.cause_component||'미확보'));
+        fact.append(el('strong','확인된 사실: '),document.createTextNode(withoutStock(p.cause_component)||'미확보'));
         card.append(fact);
-        if(p.cause_hypotheses?.length){
+        const hypotheses=(p.cause_hypotheses||[]).filter(v=>!/(재고|품절|stock|inventory)/i.test(v));
+        if(hypotheses.length){
           const hypo=el('div',null,'hypothesis');
           hypo.append(el('span','원인 후보 · 아직 미확정','diagnosis-label'));
-          const list=el('p',p.cause_hypotheses.join(' / '));
+          const list=el('p',hypotheses.join(' / '));
           hypo.append(list);
           card.append(hypo);
         }
         const test=el('p',null);
-        test.append(el('strong','다음 검증: '),document.createTextNode(p.how_to_verify||'원천 확인'));
+        test.append(el('strong','다음 검증: '),document.createTextNode(withoutStock(p.how_to_verify)||'원천 확인'));
         card.append(test);
-        if(p.blocked_by?.length)card.append(el('p','현재 장애 요인: '+p.blocked_by.join(', '),'blocked'));
+        const blockers=(p.blocked_by||[]).filter(v=>!/(재고|품절|stock|inventory)/i.test(v));
+        if(blockers.length)card.append(el('p','현재 장애 요인: '+blockers.join(', '),'blocked'));
         const evidence=el('div',null,'evidence-list');
         for(const source of p.sources||[]){
           if(sources[source])addLink(evidence,sources[source][0],sources[source][1]);

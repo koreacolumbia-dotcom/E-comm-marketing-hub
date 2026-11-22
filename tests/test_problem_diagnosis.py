@@ -134,6 +134,18 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('윈터세일 시작일(11/20)', DECISION_HTML)
         self.assertIn('수량 산술분해·인과효과 아님', DECISION_HTML)
 
+    def test_cause_cards_do_not_require_manual_inventory_tracking(self):
+        start=DECISION_HTML.index('/* Evidence-first cause shortlist.')
+        end=DECISION_HTML.index('</script>', start)
+        cause_html=DECISION_HTML[start:end]
+        self.assertNotIn('옵션재고', cause_html)
+        self.assertNotIn('옵션별 재고', cause_html)
+        self.assertIn('장바구니율 · 유입매체 · 평균 실현매출', cause_html)
+        self.assertIn('③ 평균 실현매출·상품구성', cause_html)
+        self.assertNotIn('["재고",null,block.inventory', DECISION_HTML)
+        self.assertIn('main #decision-additional > section.grid', DIAGNOSIS_JS)
+        self.assertIn('const withoutStock=', DIAGNOSIS_JS)
+
     def test_decision_product_priority_and_evidence(self):
         self.assertIn('d>=15&&s<=-15', DECISION_HTML)
         self.assertIn('GA4 구매 매칭', DECISION_HTML)
