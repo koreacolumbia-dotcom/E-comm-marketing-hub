@@ -19,6 +19,7 @@ INPUTS = {
     "content": "reports/competitor_content/strategy-summary.json",
     "quality": "reports/competitor_intelligence/latest-quality.json",
     "calendar": "reports/competitor_sale_calendar/latest.json",
+    "ga4_purchase": "reports/decision_health/ga4_purchase_diagnostics.json",
 }
 TARGET = ROOT / "reports/decision_health/diagnoses.json"
 
@@ -117,7 +118,7 @@ def crawl_gaps(content: dict, quality: dict, limit: int = 8) -> list[dict]:
 
 
 def build(operations: dict, intelligence: dict, content: dict,
-          quality: dict, calendar: dict) -> dict:
+          quality: dict, calendar: dict, ga4_purchase: dict | None = None) -> dict:
     report_day = day(intelligence.get("report_date") or operations.get("report_date"))
     weekly = operations.get("weekly") or {}
     current = (weekly.get("current") or {}).get("total") or {}
@@ -249,6 +250,71 @@ def build(operations: dict, intelligence: dict, content: dict,
             "blocked_by": [g["brand"] for g in gaps if g["policy_or_access_blockers"]],
             "sources": [INPUTS["content"], INPUTS["quality"]],
         })
+    # Separate verified source failure from generic guesses about missing weather.
+    weather_health = intelligence.get("weather_source_health") or {}
+    if weather_health.get("current") in ("access_denied_403", "rate_limited_429"):
+        weather_problem = next((p for p in problems if p["id"] == "WEATHER_COVERAGE"), None)
+        if weather_problem:
+            status = weather_health["current"]
+            weather_problem["status"] = "source_error_confirmed"
+            weather_problem["finding"] += f" · 기상청 원천 응답 {status}"
+            weather_problem["cause_component"] = (
+                "기상청 API 접근 거부(HTTP 403) 확인" if status=="access_denied_403"
+                else "기상청 API 요청 제한(HTTP 429) 확인"
+            )
+            weather_problem["hypothesis_status"] = "confirmed_source_failure"
+            weather_problem["cause_hypotheses"] = []
+            weather_problem["how_to_verify"] = "공식 API Hub 키의 서비스 사용 승인·유효기간·허용 IP/권한 점검. 재발급 전 추가 요청 중단"
+            weather_problem["blocked_by"] = ["기상청 API 인증/접근 권한"]
+    ga4 = ga4_purchase or {}
+    matched = ga4.get("report_date") == (report_day.isoformat() if report_day else None)
+    if matched and ga4.get("status") == "ga4_measured" and ga4.get("item_aov_bridge"):
+        bridge = ga4["item_aov_bridge"]
+        categories = ga4.get("category_bridge") or {}
+        reconciled = bool((ga4.get("admin_reconciliation") or {}).get("comparable"))
+        ga4_scope = (
+            "GA4와 관리자 주문/매출 합계가 허용오차 내 일치" if reconciled
+            else "GA4 구매 이벤트 분석이며 관리자 주문/매출과 불일치 또는 미확인"
+        )
+        problems.append({
+            "id": "GA4_PURCHASE_COMPONENTS", "priority": "P0", "status": "observed_ga4_components",
+            "title": "구매 객단가의 수량·실현단가 기여도 측정",
+            "finding": (
+                f"GA4 상품기준 주문당 수량 효과 {bridge['items_per_order_effect']:+,.0f}원, "
+                f"상품 실현단가 효과 {bridge['realized_item_revenue_effect']:+,.0f}원 "
+                f"· {ga4_scope}"
+            ),
+            "cause_component": (
+                "GA4 구매 상품의 주문당 수량 변화와 상품 평균 실현매출 변화는 산술적으로 분해 완료. "
+                "실현단가에는 할인, 상품구성, 정가 변화가 함께 포함됨."
+            ),
+            "cause_hypotheses": [
+                "쿠폰/할인 변화", "SKU별 가격 변화", "상품 구성 및 저가 상품 비중 변화"
+            ],
+            "hypothesis_status": "verified_component_unverified_causal",
+            "causal_confirmed": False,
+            "how_to_verify": (
+                "GA4 item.discount 필드 유효율을 확인하고 동일 SKU 실결제가/정가와 "
+                "관리자 결제금액을 대조해 할인 효과와 상품 믹스 효과를 독립 검증"
+            ),
+            "blocked_by": ([] if reconciled else ["관리자 주문/매출과 GA4 정합성 검증"]),
+            "category_mix": {
+                "mix_effect_per_item": categories.get("category_mix_effect_per_item"),
+                "within_category_effect_per_item": categories.get("within_category_effect_per_item"),
+                "rows": (categories.get("rows") or [])[:6],
+            },
+            "sources": [INPUTS["ga4_purchase"], INPUTS["operations"]],
+        })
+    elif matched and ga4.get("status") in ("blocked_budget","blocked_credentials","blocked_estimate","partial_quality","query_error"):
+        problems.append({
+            "id":"GA4_QUERY_STATUS","priority":"P0","status":"source_required",
+            "title":"저비용 BigQuery 상품별 구매 원천 확인 필요",
+            "finding":"GA4 분석 상태: "+str(ga4["status"]),
+            "cause_component":"비용 상한·인증·품질 요건 중 하나가 충족되지 않아 상품별 구매 원인을 확정하지 못함",
+            "cause_hypotheses":[],"hypothesis_status":"execution_blocked","causal_confirmed":False,
+            "how_to_verify":"쿼리 dry-run 처리량 및 GA4 구매 원천 상태를 확인. 비용 상한은 증액하지 않고 최소 날짜/컬럼으로 축소",
+            "blocked_by":[ga4["status"]],"sources":[INPUTS["ga4_purchase"]],
+        })
     for problem in problems:
         problem["blocked_by"] = [v for v in problem.get("blocked_by", []) if v]
     return {
@@ -256,6 +322,15 @@ def build(operations: dict, intelligence: dict, content: dict,
         "period": weekly.get("period"), "status": "partial" if problems else "no_diagnosis",
         "method": "관측 사실, 산술 분해, 검증 전 가설 구분. 단순 동시 발생을 원인으로 선언하지 않음.",
         "finance": finance,
+        "ga4_evidence": {
+            "report_date": ga4.get("report_date"),
+            "status": ga4.get("status","not_connected"),
+            "cost": ga4.get("cost"),
+            "item_aov_bridge": ga4.get("item_aov_bridge") if matched else None,
+            "category_bridge": ga4.get("category_bridge") if matched else None,
+            "admin_reconciliation": ga4.get("admin_reconciliation") if matched else None
+        },
+        "weather_source_health": weather_health,
         "problems": sorted(problems,key=lambda p: ({"P0":0,"P1":1,"P2":2}.get(p["priority"],3),p["id"])),
         "crawl": {
             "checked_at": content.get("source_checked_at") or quality.get("checked_at_kst"),
@@ -275,7 +350,7 @@ def build(operations: dict, intelligence: dict, content: dict,
 def main() -> None:
     inputs = {k: read(ROOT / p) for k,p in INPUTS.items()}
     data = build(inputs["operations"],inputs["intelligence"],inputs["content"],
-                 inputs["quality"],inputs["calendar"])
+                 inputs["quality"],inputs["calendar"],inputs["ga4_purchase"])
     if not data["report_date"]:
         raise SystemExit("[ERROR] no consistent report date")
     TARGET.parent.mkdir(parents=True, exist_ok=True)
