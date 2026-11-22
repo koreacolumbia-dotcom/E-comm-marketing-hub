@@ -58,6 +58,7 @@
   const sources={
     'reports/marketing_operations/latest.json':['운영·매출 원본','../marketing_operations/index.html'],
     'reports/daily_intelligence/latest.json':['18개 분석','../daily_intelligence/index.html'],
+    'reports/decision_health/ga4_purchase_diagnostics.json':['실제 GA4 상품 집계','./ga4_purchase_diagnostics.json'],
     'reports/competitor_content/strategy-summary.json':['경쟁 콘텐츠','../competitor_content/index.html'],
     'reports/competitor_intelligence/latest-quality.json':['경쟁사 수집 품질','../competitor_intel/dashboard.html'],
     'reports/competitor_sale_calendar/latest.json':['경쟁사 행사','../competitor_sale_calendar/index.html']
@@ -93,11 +94,26 @@
         observed.append(el('p','상품군 구성 효과(판매 상품 1개당) '+
           fmt(part.category_mix_effect_per_item)+'원 · 동일 상품군 내 실현단가 효과 '+
           fmt(part.within_category_effect_per_item)+'원'));
-        const passed=g.admin_reconciliation?.comparable===true;
-        observed.append(el('p',passed?
-          '관리자 주문/매출과 허용오차 내 정합성 통과. 세금·반품·할인 원인은 별도 검증 대상.':
-          '관리자 주문/매출과 정합성 미충족 또는 미확인. GA4 기준 결과를 관리자 순매출 원인으로 단정할 수 없음.',
-          passed?'hint':'blocked'));
+        const sameKpi=g.admin_reconciliation?.comparable===true;
+        const independent=g.independent_admin_verified===true;
+        observed.append(el('p',independent?
+          '기존 Daily KPI와 독립 관리자 주문 원천까지 확인된 집계입니다. 할인·세금·반품의 세부 귀속은 별도 확인이 필요합니다.':
+          sameKpi?'GA4 구매 이벤트와 기존 Daily KPI 합계는 일치하지만, 독립 관리자 주문마트는 최신성이 부족해 별도 검증이 필요합니다.':
+          '기존 Daily KPI와 원천 수치가 일치하지 않아 데이터 정합성을 우선 검증해야 합니다.',
+          independent?'hint':'blocked'));
+        const revenue=g.sales_revenue_bridge||{};
+        if(typeof revenue.purchase_revenue_delta_krw==='number'){
+          const line=el('p',null,'observed');
+          line.append(el('strong','주간 전체 매출 구성: '),
+            document.createTextNode(
+              '판매수량 효과 '+fmt(revenue.qty_effect_krw)+'원 / '+
+              '상품 실현단가 효과 '+fmt(revenue.realized_unit_revenue_effect_krw)+'원 / '+
+              '상품매출−구매매출 차액 변화 '+fmt(revenue.item_to_purchase_gap_effect_krw)+'원 = '+
+              fmt(revenue.purchase_revenue_delta_krw)+'원'
+            ));
+          observed.append(line);
+          observed.append(el('p','마지막 차액은 원인 미분류 항목입니다. 할인액으로 단정하지 않으며, 쿠폰·배송·환불·집계 정의를 원천에서 확인해야 합니다.','blocked'));
+        }
         const cost=g.cost||{};
         observed.append(el('p','BigQuery 처리량: '+fmt(cost.billed_bytes||0)+' bytes 청구 / 실행 상한 1GiB, 사전 dry-run 통과','hint'));
         if(part.rows?.length){
@@ -122,16 +138,23 @@
       const grid=el('div',null,'diag-grid');
       for(const p of data.problems){
         const card=el('article',null,'diag-card');
-        const tag=el('span',p.priority+' · '+(p.status==='observed_decomposition'?'산술 확인':p.status==='coverage_limited'?'수집 범위 제한':'검증 자료 필요'),'diag-status'+(p.status==='observed_decomposition'?' known':''));
+        const observedStatus=['observed_decomposition','observed_ga4_components','source_error_confirmed'].includes(p.status);
+        const label=p.status==='observed_decomposition'?'산술 분해 확인':
+          p.status==='observed_ga4_components'?'실측 상품 집계':
+          p.status==='source_error_confirmed'?'원천 오류 확인':
+          p.status==='coverage_limited'?'수집 범위 제한':'검증 자료 필요';
+        const tag=el('span',p.priority+' · '+label,'diag-status'+(observedStatus?' known':''));
         card.append(tag,el('h3',p.title),el('p',p.finding,'observed'));
         const fact=el('p',null);
         fact.append(el('strong','확인된 사실: '),document.createTextNode(p.cause_component||'미확보'));
         card.append(fact);
-        const hypo=el('div',null,'hypothesis');
-        hypo.append(el('span','원인 후보 · 아직 미확정','diagnosis-label'));
-        const list=el('p',(p.cause_hypotheses||[]).join(' / '));
-        hypo.append(list);
-        card.append(hypo);
+        if(p.cause_hypotheses?.length){
+          const hypo=el('div',null,'hypothesis');
+          hypo.append(el('span','원인 후보 · 아직 미확정','diagnosis-label'));
+          const list=el('p',p.cause_hypotheses.join(' / '));
+          hypo.append(list);
+          card.append(hypo);
+        }
         const test=el('p',null);
         test.append(el('strong','다음 검증: '),document.createTextNode(p.how_to_verify||'원천 확인'));
         card.append(test);
