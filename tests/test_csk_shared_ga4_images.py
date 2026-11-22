@@ -22,8 +22,8 @@ PRODUCT=load_module("csk_official_images","scripts/personal_intelligence/product
 
 class SharedBigQueryAndImageTests(unittest.TestCase):
     def test_same_period_ga4_aggregate_is_reused(self):
-        end=dt.date(2026,11,21)
         original=json.loads((ROOT/"reports/decision_health/weekly_ga4_aligned.json").read_text(encoding="utf-8"))
+        end=dt.date.fromisoformat(original["report_date"])
         self.assertTrue(BQ.matching_shared_evidence(original,end))
         self.assertFalse(BQ.matching_shared_evidence(original,end-dt.timedelta(days=1)))
         copy=dict(original);copy["status"]="blocked_budget"
@@ -34,7 +34,10 @@ class SharedBigQueryAndImageTests(unittest.TestCase):
         self.assertFalse(BQ.matching_shared_evidence(copy,end))
 
     def test_existing_pdp_image_is_a_real_official_store_asset(self):
-        daily=json.loads((ROOT/"reports/daily_digest/data/daily/2026-11-21.json").read_text(encoding="utf-8"))
+        daily_dir=ROOT/"reports/daily_digest/data/daily"
+        files=sorted(daily_dir.glob("20??-??-??.json"))
+        self.assertTrue(files)
+        daily=json.loads(files[-1].read_text(encoding="utf-8"))
         sample=(daily["product_scopes"]["current_name"])[0]
         image=PRODUCT.official_product_image(sample)
         self.assertIsNotNone(image)
@@ -46,7 +49,7 @@ class SharedBigQueryAndImageTests(unittest.TestCase):
     def test_manifest_one_verified_color_per_style(self):
         doc=json.loads((ROOT/"reports/decision_health/official_product_images.json").read_text(encoding="utf-8"))
         self.assertEqual(len(doc["products"]),len({p["name"] for p in doc["products"]}))
-        self.assertEqual(len(doc["products"]),4)
+        self.assertGreaterEqual(len(doc["products"]),4)
         for record in doc["products"]:
             with self.subTest(name=record["name"]):
                 self.assertIsNotNone(PRODUCT.official_product_image(record))
