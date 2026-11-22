@@ -8,6 +8,8 @@ on:
       - 'scripts/apply_csk_saas_theme.py'
       - 'assets/csk-saas-unified.css'
       - 'assets/csk-saas-standalone.js'
+      - 'assets/csk-layout-v2.css'
+      - 'assets/csk-layout-v2.js'
       - 'reports/**/*.html'
       - 'edm-intelligence.html'
   workflow_dispatch:
@@ -40,6 +42,8 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_csk_standalone_theme.py' -v
           node --check assets/csk-saas-standalone.js
+          node --check assets/csk-layout-v2.js
+          node tests/csk_layout_v2_smoke.js
       - name: Commit regenerated page themes if changed
         env:
           GH_TOKEN: ${{ github.token }}
