@@ -16,9 +16,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "20261122-layout-v2"
 
-# Matches assets/csk-unified-hub.js route keys, except daily and daily_intelligence.
+# Matches assets/csk-unified-hub.js route keys, except the owned daily report.
 TARGETS = {
     "decision_health": "reports/decision_health/index.html",
+    "daily_intelligence": "reports/daily_intelligence/index.html",
     "summary": "reports/index.html",
     "performance": "reports/performance_dashboard.html",
     "pdp_priority": "reports/pdp_opportunity/index.html",
@@ -42,7 +43,6 @@ TARGETS = {
 }
 EXCLUDED = {
     "reports/daily_digest/index.html",
-    "reports/daily_intelligence/index.html",
 }
 HEAD_END = re.compile(r"</head\s*>", re.I)
 BODY_OPEN = re.compile(r"<body(?:\s|>)", re.I)
