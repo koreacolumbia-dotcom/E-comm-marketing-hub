@@ -62,7 +62,8 @@ class SourceDriverTests(unittest.TestCase):
 
  def test_low_volume_is_flagged_not_certified(self):
     out=build(OPS,SRC)
-    self.assertTrue(all(x["quality"]!="reviewable_descriptive" for x in out["rows"]))
+    self.assertEqual(next(x for x in out["rows"] if x["source_medium"]=="google / cpc")["quality"],"reviewable_descriptive")
+    self.assertEqual(next(x for x in out["rows"] if x["source_medium"]=="new / email")["quality"],"small_session_base")
 
 if __name__=="__main__":
  unittest.main()
