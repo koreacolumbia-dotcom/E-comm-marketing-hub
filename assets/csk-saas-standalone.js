@@ -6,9 +6,9 @@
 const entry=document.currentScript;
 if(!entry||!document.body)return;
 const key=String(entry.dataset.cskRoute||"");
-const forbidden=new Set(["daily","daily_intelligence"]);
+const forbidden=new Set(["daily"]);
 const path=window.location.pathname;
-if(!key||forbidden.has(key)||/\/reports\/daily_intelligence\/index\.html$/.test(path)||
+if(!key||forbidden.has(key)||
    /\/reports\/daily_digest\/(?:index\.html|daily\/[^/]+\.html)$/.test(path))return;
 const cssId="csk-saas-shared-theme";
 const expectedCss=new URL("./csk-saas-unified.css?v=20261122-2",entry.src).href;
