@@ -1,6 +1,6 @@
 import unittest
 from datetime import date,timedelta
-from product_signal_hub import build_signals
+from product_signal_hub import build_signals, assess_weather_association
 from observed_weather import parse
 class ProductTests(unittest.TestCase):
     def fixture(self):
@@ -31,6 +31,27 @@ class ProductTests(unittest.TestCase):
     def test_weather_no_forecast(self):
         d=self.fixture()
         self.assertEqual(build_signals(d,weather={"2026-11-17":{"mean_temp":1,"station":"108","kind":"forecast","verified":True}})["weather_days"],0)
+    def test_weather_signal_requires_complete_ga4_observations(self):
+        temperatures=[5.2,7.2,6.3,9.2,10.8,12.5,11,12.1,12.8,12.6,5.7,1.3,-0.8,-1.5]
+        rock=[1,1,1,2,0,0,0,1,0,0,0,0,5,4]
+        strong=assess_weather_association(temperatures,rock,"ga4_purchase_items")
+        self.assertEqual(strong["status"],"signal")
+        self.assertEqual(strong["paired_days"],14)
+        self.assertLessEqual(strong["correlation"],-.6)
+        self.assertFalse(strong["causal"])
+        self.assertEqual(strong["cold_days"],3)
+        self.assertEqual(strong["cold_avg_units"],3)
+        self.assertEqual(assess_weather_association(temperatures,rock,None)["status"],"insufficient")
+        self.assertEqual(assess_weather_association(temperatures,[None]*14,"ga4_purchase_items")["status"],"insufficient")
+
+    def test_weather_signal_weak_or_insufficient_when_evidence_disagrees(self):
+        temperatures=[5.2,7.2,6.3,9.2,10.8,12.5,11,12.1,12.8,12.6,5.7,1.3,-0.8,-1.5]
+        river=[4,9,2,8,3,5,3,3,3,3,2,1,7,1]
+        adventure=[0,0,0,0,0,1,0,0,0,1,0,1,0,0]
+        self.assertEqual(assess_weather_association(temperatures,river,"ga4_purchase_items")["status"],"weak")
+        self.assertEqual(assess_weather_association(temperatures,adventure,"ga4_purchase_items")["status"],"insufficient")
+        self.assertEqual(assess_weather_association([None]*14,river,"ga4_purchase_items")["status"],"insufficient")
+
     def test_parse_station_date_and_invalid(self):
         raw="# TM STN TA_AVG TA_MAX TA_MIN RN_DAY\n20261117 108 2.2 8 -1 0\n20261116 109 3 8 -1 0\n20261116 108 -99 8 -1 0\n"
         x=parse(raw,date(2026,11,16),date(2026,11,17))
