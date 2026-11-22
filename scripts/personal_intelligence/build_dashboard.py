@@ -76,10 +76,12 @@ def build(root=ROOT,day=None):
           "note":m["channel_note"]}
     def weather():
         m=weather_business(d)
+        from product_signal_hub import assess_weather_business
         days=(m.get("forecast") or {}).get("days") or []
         return {"forecast":[pick(x,"date min_temp max_temp pop precipitation_probability") for x in days if isinstance(x,dict)][:7],
           "dates":m["dates"],"revenue":m["overall"]["revenue"],"sessions":m["overall"]["sessions"],
-          "temperature":m["temperature_current"],"temperature_prior":m["temperature_prior"],"prior_dates":m["prior_dates"],"missing":m["missing"],"note":m["interpretation"]}
+          "temperature":m["temperature_current"],"temperature_prior":m["temperature_prior"],"prior_dates":m["prior_dates"],"missing":m["missing"],"note":m["interpretation"],
+                "weather_impact":assess_weather_business(m["dates"],m["temperature_current"],m["overall"]["revenue"],m["overall"]["sessions"])}
     def product():
         m=product_intelligence(d)
         return {"dates":m["dates"],"prior_dates":m["prior_dates"],
