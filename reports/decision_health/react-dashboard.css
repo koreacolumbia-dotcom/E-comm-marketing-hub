@@ -306,3 +306,22 @@ body.csk-react-ready.csk-show-legacy #decision-additional:not([hidden]){max-widt
 @media(prefers-reduced-motion:reduce){
  .csk-top-tab,.workspace-row{transition:none}
 }
+
+
+/* Schema-aware source sorting and product-family filters. */
+.csk-filter-right{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}
+.csk-sort{
+ background:#252941!important;color:#f3f3ff!important;border:1px solid #454963!important;
+ border-radius:11px!important;padding:10px 11px!important;font-size:12px!important;
+ min-width:126px;cursor:pointer;
+}
+.csk-sort option{background:#252941;color:#fff}
+@media(max-width:900px){
+ .csk-filter-right{flex:1;min-width:250px}
+ .csk-search{flex:1}
+}
+@media(max-width:620px){
+ .csk-filter-right{display:grid;grid-template-columns:130px minmax(0,1fr);width:100%;min-width:0;gap:7px}
+ .csk-sort{min-width:0;font-size:11px!important;padding:10px 7px!important}
+ .csk-search{min-width:0;width:100%;flex:1}
+}
