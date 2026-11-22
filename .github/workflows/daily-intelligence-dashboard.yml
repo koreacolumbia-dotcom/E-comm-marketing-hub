@@ -7,6 +7,9 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/daily-intelligence-dashboard.yml'
+      - 'reports/daily_intelligence/index.html'
+      - 'reports/daily_intelligence/coverage.js'
+      - 'scripts/personal_intelligence/build_dashboard.py'
 permissions:
   contents: write
 concurrency:
@@ -68,15 +71,21 @@ jobs:
           assert inv['title']=='INVENTORY INTELLIGENCE'
           assert inv['lost_sales'] is None and inv['stock_as_of'] is None
           assert all(r['stock_status']=='not_verified' and r['coverage_days'] is None for r in inv['sku_candidates'])
-          assert "['daily_intelligence','통합분석','fa-chart-line']" in Path('assets/dashboard-redesign.js').read_text()
-          assert Path('index.html').read_text().count('data-key="daily_intelligence"')==2
+          nav=Path('assets/csk-unified-hub.js').read_text(encoding='utf-8')
+          shell=Path('index.html').read_text(encoding='utf-8')
+          intel=Path('reports/daily_intelligence/index.html').read_text(encoding='utf-8')
+          assert '["daily_intelligence","18개 통합 분석",' in nav
+          assert 'src="assets/csk-unified-hub.js' in shell
+          assert 'id="hub-menu-root"' in shell and 'id="hub-mobile-root"' in shell
+          assert 'src="./coverage.js' in intel
+          assert Path('reports/daily_intelligence/coverage.js').is_file()
           cal,impact,forecast,plan=x['sections'][14:18]
           assert len(cal['days'])==37 and cal['days'][-8]['date']==x['report_date']
           assert all(r['revenue'] is None for r in cal['days'][-7:])
           if impact['reconciled']: assert abs(sum(r['accounting_delta'] for r in impact['drivers'])-impact['revenue_delta'])<0.1
           assert len(forecast['forecast'])==(7 if forecast['status']=='available' else 0)
           assert not plan['auto_execute'] and plan['expected_incremental_revenue'] is None
-          print('18 sections and PC/mobile tabs checked')
+          print('18 sections and unified five-group PC/mobile navigation checked')
           PY
           node --version
           python - <<'PY'
@@ -87,6 +96,7 @@ jobs:
           PY
           node --check /tmp/intelligence.js
           node --check reports/daily_intelligence/timeline.js
+          node --check reports/daily_intelligence/coverage.js
           node --check assets/dashboard-redesign.js
           grep -Fq '일일 통합 분석' reports/daily_intelligence/index.html
           grep -Fq 'ko(names[n-1])' reports/daily_intelligence/index.html
