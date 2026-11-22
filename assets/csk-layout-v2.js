@@ -27,7 +27,7 @@
   competitor_content:{shell:"main#contentPage",kpi:"#snapshot,#kpis",chart:".chart,.timeline,.bar-chart,.gap-columns",header:"main > header",full:"#gapRadar,#archive,#advancedPanel,.deep-section"},
   competitor:{shell:"main,.wrap,.container",kpi:".kpis,.metrics,.stats",chart:".chart,.chartbox,canvas",header:"header,h1"},
   price:{shell:"main,.wrap,.container",kpi:".kpis,.metrics,.stats",chart:".chart,.chartbox,canvas",header:"header,h1"},
-  hero:{shell:"body > main",kpi:".kpis,.metrics,.stats",chart:".heatmap,.chart,.chartbox,.keyword-cloud,.mini-card",header:"main > header",full:".heatmap,.keyword-cloud"},
+  hero:{shell:"body > main",kpi:".kpis,.metrics,.stats",chart:".heatmap,.chart,.chartbox,.keyword-cloud",header:"main > header",full:".heatmap,.keyword-cloud"},
   ops3:{shell:"body > main",kpi:".kpis",chart:".chart,.trend,.stack",header:"main > header",full:".stack,.hero"},
   ai_agent:{shell:".wrap",kpi:".kpis",chart:".chart,.bar,.table-card",header:".hero",full:".section.grid.two"},
   voc:{shell:"body > div:first-of-type",kpi:".grid.xl\\:grid-cols-4,.summary-grid",chart:".chart,.chartbox,.trend-graph,svg[role='img']",header:"section:first-child",full:".tab-panel,.detail-panel"},
@@ -201,6 +201,11 @@
       gridLayout(root,key,conf);
       updateChartLibraries(root);
       standardizeSvg(root);
+      // Recompute source-authored chart sizes once after the new grid is applied.
+      requestAnimationFrame(function(){
+        try{window.dispatchEvent(new Event("resize"))}catch(e){}
+        updateChartLibraries(root);
+      });
       // Dynamic cards/filters are generated from their own files. Relabel
       // structure when data changes without replacing DOM or subscribing to
       // metric state. All report-specific handlers remain live.
