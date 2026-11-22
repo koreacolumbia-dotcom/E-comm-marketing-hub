@@ -108,7 +108,7 @@
       return {
         ...x,image_url:validated?sourcePhoto:(p?p.image_url:null),
         product_url:p?p.product_url:null,
-        representative_color:p?p.color:(validated?"공식몰 상품 대표 컬러":null)
+        representative_color:validated?"공식몰 수집 컬러":(p?p.color:null)
       };
     }).sort(function (a,b) {
       var aDelta=Math.abs(a.sales_7d-a.sales_previous_7d),bDelta=Math.abs(b.sales_7d-b.sales_previous_7d);
