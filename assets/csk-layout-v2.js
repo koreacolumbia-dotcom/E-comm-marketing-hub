@@ -5,13 +5,14 @@
 (function () {
  "use strict";
  const NAME="csk-layout-v2";
- const daily=/\/reports\/(?:daily_intelligence\/index\.html|daily_digest\/(?:index\.html|daily\/[^/]+\.html))$/i;
+ const daily=/\/reports\/daily_digest\/(?:index\.html|daily\/[^/]+\.html)$/i;
  if(daily.test(location.pathname))return;
- const ALLOWED=new Set(["decision_health","summary","performance","pdp_priority","product_keyword",
+ const ALLOWED=new Set(["decision_health","daily_intelligence","summary","performance","pdp_priority","product_keyword",
    "utm_channel","funnel","purchase_pattern","member","owned","edm_intelligence",
    "crm_intelligence","sale_calendar","competitor_content","competitor","price","hero",
    "ops3","ai_agent","voc","crema"]);
  const cfg={
+  daily_intelligence:{shell:"main",kpi:".tiles",chart:".trend,.spark,.barrow",header:"header",full:"#product-focus,#sections"},
   summary:{shell:"body > div:first-of-type",kpi:".summary-kpi-grid",chart:".summary-chart,.trend-svg,.chart-container,canvas,svg[role='img']",header:"header.hero-shell",full:".summary-section"},
   performance:{shell:".hubmain > .wrap",kpi:".cards",chart:".chartbox,.trend-svg,.source-panel,.trend-grid",header:"h1",full:".toolbar,.source-panel"},
   pdp_priority:{shell:"main.shell",kpi:"#kpis",chart:"#trendGrid,.trend-grid,.trend-panel,canvas",header:"header.hero",full:".trend-panel"},
