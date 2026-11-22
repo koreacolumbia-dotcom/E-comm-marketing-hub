@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const root={innerHTML:'',addEventListener:()=>{},querySelector:()=>null,querySelectorAll:()=>[]};
+const results={innerHTML:''},count={textContent:''},more={hidden:false,textContent:''};
+const root={innerHTML:'',addEventListener:()=>{},querySelector:sel=>({'.sm-results':results,'.sm-count':count,'.sm-more':more}[sel]||null),querySelectorAll:()=>[]};
 const ctx={window:{},document:{getElementById:()=>root}};
 vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../reports/decision_health/source-medium.js'),'utf8'),ctx);
 const board=ctx.window.CSKSourceMedium;
@@ -34,6 +35,6 @@ assert.match(root.innerHTML,/naver \/ cpc/);
 assert.match(root.innerHTML,/구매 건수 ÷ 세션 수/);
 assert.equal(board.currentRows().length,2);
 board.render({...sample,rows:[{...sample.rows[0],source_medium:'<script>alert(1)</script>'}]});
-assert.doesNotMatch(root.innerHTML,/<script>alert\(1\)<\/script>/);
-assert.match(root.innerHTML,/&lt;script&gt;/);
+assert.doesNotMatch(results.innerHTML,/<script>alert\(1\)<\/script>/);
+assert.match(results.innerHTML,/&lt;script&gt;/);
 console.log('Source/medium board: weekly GA4 KPI, responsive rows, filters, safe escaping, blocked-state and definitions.');
