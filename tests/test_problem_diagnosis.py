@@ -99,6 +99,12 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn("강약점 비교가 성립하지 않음", item["cause_component"])
         self.assertFalse(item["causal_confirmed"])
 
+    def test_editorial_design_loaded_on_same_page(self):
+        self.assertIn('href="./editorial.css?v=', DECISION_HTML)
+        self.assertIn('id="macro-health"', DECISION_HTML)
+        self.assertIn('id="product-drilldown"', DECISION_HTML)
+        self.assertLess(DECISION_HTML.index('id="macro-health"'), DECISION_HTML.index('id="product-drilldown"'))
+
     def test_macro_business_diagnosis_is_primary_and_products_drill_down(self):
         self.assertIn('id="macro-health"', DECISION_HTML)
         self.assertIn('id="product-drilldown"', DECISION_HTML)

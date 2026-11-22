@@ -156,7 +156,7 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
  const channelMarkup=weeklyChecked?
    '<div class="macro-channel-main"><strong>유입 채널별 매출 변화</strong><small>전주 대비</small></div>'+
    '<div class="macro-channel-values">'+["Organic Traffic","Paid Ad","Owned Channel","etc"].map(n=>
-     '<div><small>'+esc(n==="Organic Traffic"?"오가닉":n==="Paid Ad"?"Paid Ad":
+     '<div class="'+(lookup(n)?.delta_revenue>0?"is-up":lookup(n)?.delta_revenue<0?"is-down":"is-neutral")+'"><small>'+esc(n==="Organic Traffic"?"오가닉":n==="Paid Ad"?"Paid Ad":
        n==="Owned Channel"?"Owned/CRM":"기타")+'</small><b>'+esc(numDelta(n))+'</b></div>').join("")+
    '</div>':'<p class="macro-data-note">채널별 매출 변화는 집계 중입니다.</p>';
  const weather=sec.find(x=>x.number===4);

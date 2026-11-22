@@ -65,6 +65,8 @@ assert.match(target.innerHTML,/OUTER 9.5% → 6.1%/);
 assert.match(target.innerHTML,/SALE 44.0% → 47.5%/);
 assert.match(target.innerHTML,/추천 실행/);
 assert.match(target.innerHTML,/채널별 매출 흐름/);
+assert.match(target.innerHTML,/class="is-up"/);
+assert.match(target.innerHTML,/class="is-down"/);
 assert.doesNotMatch(target.innerHTML,/데이터 품질 확인|검증 상태|채널 세션 정합성|원천 로그/);
 render(ops,di,weekly,{...aligned,report_date:'2026-11-21'});
 assert.doesNotMatch(target.innerHTML,/1개 구매 주문 80.0% → 78.8%/);
