@@ -206,8 +206,8 @@ def compare(period: dict, years: dict) -> dict:
                              lambda x:(-x["delta_revenue"],x["name"])),
       "impact_down":top_names([x for x in rows if x["delta_revenue"]<0],
                                lambda x:(x["delta_revenue"],x["name"])),
-      "common_growth":top_names(common,lambda x:(-x["delta_revenue"],x["name"])),
-      "common_decline":top_names(common,lambda x:(x["delta_revenue"],x["name"])),
+      "common_growth":top_names([x for x in common if x["delta_revenue"]>0],lambda x:(-x["delta_revenue"],x["name"])),
+      "common_decline":top_names([x for x in common if x["delta_revenue"]<0],lambda x:(x["delta_revenue"],x["name"])),
     }
     quality["full_product_ranking_verified"] = True
     quality["style_match_definition"] = "Unicode NFKC + normalized apostrophes, whitespace and casefold on item_name; SKU/color variants grouped by normalized name"
