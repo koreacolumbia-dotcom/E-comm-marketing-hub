@@ -9,6 +9,7 @@ const code=fs.readFileSync(file,"utf8");
 const ops=JSON.parse(fs.readFileSync(path.join(root,"reports/marketing_operations/latest.json"),"utf8"));
 const di=JSON.parse(fs.readFileSync(path.join(root,"reports/daily_intelligence/latest.json"),"utf8"));
 const source=JSON.parse(fs.readFileSync(path.join(root,"reports/decision_health/source_medium_weekly.json"),"utf8"));
+const sourceDrivers=JSON.parse(fs.readFileSync(path.join(root,"reports/decision_health/source_driver_bridge.json"),"utf8"));
 const dx=JSON.parse(fs.readFileSync(path.join(root,"reports/decision_health/diagnoses.json"),"utf8"));
 const deepTexts=(node,out=[])=>{
  if(node==null || node===false)return out;
@@ -61,6 +62,16 @@ async function main(){
  assert(overview.includes(Math.round(ops.weekly.current.total.orders).toLocaleString("ko-KR")+"건"),"Observed order count absent");
  assert(overview.includes(Math.round(ops.weekly.current.total.revenue/ops.weekly.current.total.orders).toLocaleString("ko-KR")+"원"),"AOV must preserve won units");
  assert(!overview.includes("INV-1003")&&!overview.includes("$ 24,850"),"Sample invoice numbers must never appear");
+ if(sourceDrivers.status==="measured_descriptive" && sourceDrivers.report_date===ops.report_date){
+   assert(sourceDrivers.causal===false,"Source driver must never claim causal lift");
+   assert(sourceDrivers.quality.no_additional_bigquery_jobs===true,"Source driver must reuse measured reports");
+   assert(Math.abs(Object.values(sourceDrivers.driver_totals).reduce((a,b)=>a+b,0)-
+       sourceDrivers.headline.revenue_delta)<1,"Source driver must sum to observed revenue delta");
+   assertContent(overview,["어떤 유입에서 매출이 변했을까?","CHANNEL MOVEMENT",
+       "검토 표본 "+(sourceDrivers.row_count-sourceDrivers.quality.small_sample_rows)]);
+   const leaders=sourceDrivers.top_gains.slice(0,3);
+   assert(leaders.some(x=>overview.includes(x.source_medium)),"Measured top source not surfaced");
+ }
  const thisYear=ops.calendar||{},actual=thisYear.impact_diagnostics||{};
  if(Array.isArray(thisYear.current) && thisYear.current.length) {
    assertContent(overview,["올해 행사 · 예상 여파","2026 CAMPAIGN CONTEXT"]);
@@ -98,6 +109,14 @@ async function main(){
  } else {
    assert(acquisition.includes("소스/매체 데이터 미확보"),
      "Blocked or unavailable BigQuery must not fabricate source-medium data");
+ }
+ if(sourceDrivers.status==="measured_descriptive" && sourceDrivers.report_date===ops.report_date){
+   const leading=sourceDrivers.top_gains.find(x=>x.components);
+   if(leading){
+     const selected=await render("acquisition",{8:leading.source_medium});
+     assertContent(selected,["이 소스의 매출 변화 분해",
+       "세션 변화와 구매전환율 변화를 함께 점검하세요"]);
+   }
  }
  const current=source.period&&source.period.current||{},wk=ops.weekly||{};
  if(current.end!==ops.report_date || current.start!==(wk.period||"").split(" ~ ")[0])
