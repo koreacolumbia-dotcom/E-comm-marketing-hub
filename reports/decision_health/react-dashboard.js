@@ -695,6 +695,9 @@
       verified.length?h("p",{className:"cy-campaign-conclusion"},
         "공식몰 프로모션 진행 · 주문·CVR 상승 가능 / 할인·상품 믹스로 객단가 하락 가능",
         h("small",null,"효과 규모·원인 확정 아님")):null,
+      h("a",{className:"cy-compare-report-link",href:"./winter_festival_comparison_2026.html",
+        target:"_blank",rel:"noopener noreferrer"},
+        "2025 vs 2026 윈터페스티벌 임시 비교 리포트 열기 ↗"),
       diagnostic.status==="descriptive" && num(diagnostic.pre_revenue_yoy_pct) && num(diagnostic.active_revenue_yoy_pct)?
         h("div",{className:"cy-campaign-measured","aria-label":"행사 전후 실측 매출 성장률"},
           h("div",null,h("span",null,"본행사 전 "+diagnostic.pre_days+"일 · 매출 YoY"),
