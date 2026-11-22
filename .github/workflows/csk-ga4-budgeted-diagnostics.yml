@@ -21,12 +21,23 @@ jobs:
   aggregate:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
-          fetch-depth: 0
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts/csk_ga4_cost_guard.py
+            scripts/build_problem_diagnosis.py
+            tests
+            reports/daily_digest/data/daily
+            reports/daily_intelligence/latest.json
+            reports/marketing_operations/latest.json
+            reports/competitor_content/strategy-summary.json
+            reports/competitor_intelligence/latest-quality.json
+            reports/competitor_sale_calendar/latest.json
+            reports/decision_health
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
