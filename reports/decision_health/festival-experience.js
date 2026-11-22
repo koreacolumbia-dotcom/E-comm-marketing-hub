@@ -227,12 +227,106 @@ function renderProductSignals(data,images){
  get("fm-product-scope").textContent=p.current_start+"~"+p.current_end+" vs "+p.previous_start+"~"+p.previous_end+
   " · 전주 비교 / GA4 스타일 집계 "+items.length+"개 중 증감 상위 4개 표시. 상품 원인과 할인·재고 영향은 미확정.";
 }
+
+var productState={event:null,weekly:null,images:null,mode:"event"};
+function renderEventProduct(source,images){
+ var section=document.getElementById("fm-product-cause");
+ if(!section||!source||source.status!=="ga4_measured")return false;
+ var years=source.years||{},a=years["2025"],b=years["2026"],items=source.products||[];
+ if(!a||!b||!Array.isArray(items)||!Number.isFinite(a.units)||!Number.isFinite(b.units)||a.units<=0)return false;
+ var get=function(id){return document.getElementById(id)};
+ var pct=function(x,y){return x>0?(100*(y/x-1)):null};
+ var signed=function(v){return fmSigned(v)};
+ var unitsChange=pct(a.units,b.units),unitPriceChange=pct(a.revenue_per_item,b.revenue_per_item);
+ var itemsPerOrderChange=pct(a.items_per_order,b.items_per_order);
+ var avgPrev=a.orders?a.purchase_revenue/a.orders:0,avgNow=b.orders?b.purchase_revenue/b.orders:0;
+ var aovChange=pct(avgPrev,avgNow);
+ get("fm-product-verdict").innerHTML='<strong>상품 수량 '+(unitsChange>=0?"+":"")+unitsChange.toFixed(1)+'% · 개당 매출 '+
+   (unitPriceChange>=0?"+":"")+unitPriceChange.toFixed(1)+'%</strong>'+
+   '<small>같은 행사 경과일 · 품목 판매 기준. 상품 가격·할인·구성 중 어느 요인의 영향인지는 별도 확인 필요</small>';
+ var kpis=[
+  ["상품 판매수량",a.units.toLocaleString("ko-KR")+" → "+b.units.toLocaleString("ko-KR")+"개",
+   (unitsChange>=0?"+":"")+unitsChange.toFixed(1)+"% YoY"],
+  ["상품당 실현매출",Math.round(a.revenue_per_item).toLocaleString("ko-KR")+" → "+Math.round(b.revenue_per_item).toLocaleString("ko-KR")+"원",
+   (unitPriceChange>=0?"+":"")+unitPriceChange.toFixed(1)+"% YoY"],
+  ["주문당 상품수",a.items_per_order.toFixed(2)+" → "+b.items_per_order.toFixed(2)+"개",
+   (itemsPerOrderChange>=0?"+":"")+itemsPerOrderChange.toFixed(1)+"% YoY"],
+  ["주문 객단가",Math.round(avgPrev).toLocaleString("ko-KR")+" → "+Math.round(avgNow).toLocaleString("ko-KR")+"원",
+   (aovChange>=0?"+":"")+aovChange.toFixed(1)+"% YoY"]
+ ];
+ get("fm-product-kpis").innerHTML=kpis.map(function(x){
+  return '<div class="fm-mini-metric"><small>'+esc(x[0])+'</small><b>'+esc(x[1])+'</b><span>'+esc(x[2])+'</span></div>';
+ }).join("");
+ var chart=get("fm-product-category");if(chart)chart.hidden=true;
+ var matchName=function(n){return String(n||"").toLowerCase().replace(/[‘’\x60]/g,"'").replace(/\s+/g," ").trim()};
+ var imagesByName=new Map(((images||{}).products||[]).filter(function(x){
+  return /^https:\/\/assetscdn\d+\.styleship\.com\/assets\/columbia\/data\/productimages\/a\/[124]\/[a-z0-9_-]+\.jpg$/i.test(x.image_url||"");
+ }).map(function(x){return [matchName(x.name),x]}));
+ var winners=items.filter(function(x){return x&&x.delta_revenue>0})
+   .sort(function(x,y){return y.delta_revenue-x.delta_revenue}).slice(0,4);
+ var losers=items.filter(function(x){return x&&x.delta_revenue<0})
+   .sort(function(x,y){return x.delta_revenue-y.delta_revenue}).slice(0,4);
+ var maximum=Math.max(1,...winners.concat(losers).map(function(x){return Math.abs(x.delta_revenue)}));
+ function rowsText(rows){
+  if(!rows.length)return '<span class="fm-note">비교 가능한 상품 없음</span>';
+  return rows.map(function(x){
+   var p=imagesByName.get(matchName(x.name));
+   var image=p?'<img class="fm-product-photo" alt="" loading="lazy" src="'+esc(p.image_url)+'">':
+       '<span class="fm-product-photo fm-no-photo" aria-hidden="true">▣</span>';
+   var oldUnits=x.previous?.units??0,nowUnits=x.current?.units??0;
+   return '<div class="fm-product-item">'+image+
+     '<div class="fm-product-info"><span class="fm-product-name" title="'+esc(x.name)+'">'+esc(x.name)+'</span>'+
+     '<div class="fm-product-bar"><i class="'+(x.delta_revenue<0?"down":"")+'" style="width:'+
+       (100*Math.abs(x.delta_revenue)/maximum).toFixed(1)+'%"></i></div>'+
+     '<small>'+esc(String(oldUnits))+' → '+esc(String(nowUnits))+'개</small></div>'+
+     '<strong class="fm-product-change '+(x.delta_revenue<0?"down":"")+'">'+esc(signed(x.delta_revenue))+'</strong></div>';
+  }).join("");
+ }
+ get("fm-product-winners").innerHTML=rowsText(winners);
+ get("fm-product-losers").innerHTML=rowsText(losers);
+ var compareLabel="2025 "+(source.period?.["2025"]||[]).join("~")+" / 2026 "+(source.period?.["2026"]||[]).join("~");
+ var label=get("fm-product-window-note");if(label)label.textContent=compareLabel;
+ get("fm-product-scope").textContent="GA4 상품 아이템 귀속 기준 · SKU 색상 통합 스타일 "+String(source.product_count||items.length)+
+   "개 비교, 증감 TOP 4 표시. 아이템 매출은 공식몰 주문매출과 정의가 달라 별도 합산 금지.";
+ return true;
+}
+function drawProductWindow(){
+ var eventReady=productState.event?.status==="ga4_measured" &&
+  Array.isArray(productState.event.products)&&productState.event.years?.["2025"]&&productState.event.years?.["2026"];
+ if(productState.mode==="event"&&!eventReady)productState.mode="weekly";
+ var showEvent=productState.mode==="event"&&eventReady;
+ if(showEvent)renderEventProduct(productState.event,productState.images);
+ else renderProductSignals(productState.weekly,productState.images);
+ var section=document.getElementById("fm-product-cause");
+ if(section){
+  var category=section.querySelector("#fm-product-category");if(category)category.hidden=!!showEvent;
+  var subtitle=section.querySelectorAll(".fm-product-movers h3 small");
+  subtitle.forEach(function(node){node.textContent=showEvent?"2025 → 2026 본행사":"최근 7일 vs 전주"});
+  var chip=section.querySelector(".fm-product-top .fm-chip");
+  if(chip)chip.textContent=showEvent?"동일 행사일 · YoY":"행사 포함 최근 7일 · WoW";
+  var label=section.querySelector("#fm-product-window-note");
+  if(label&&!showEvent&&productState.weekly?.period){
+   var p=productState.weekly.period;
+   label.textContent=p.current_start+"~"+p.current_end+" vs "+p.previous_start+"~"+p.previous_end;
+  }
+ }
+ document.querySelectorAll("[data-fm-product-window]").forEach(function(button){
+  var mode=button.getAttribute("data-fm-product-window");
+  button.setAttribute("aria-pressed",String((mode==="event")===showEvent));
+  button.disabled=mode==="event"&&!eventReady;
+  button.title=mode==="event"&&!eventReady?"행사일 상품 원천 확인 중":"";
+ });
+}
+
 async function loadProductSignals(){
- try{
-  var result=await Promise.all([getJSON("./ga4_purchase_diagnostics.json"),
-    getJSON("./official_product_images.json").catch(function(){return {products:[]}})]);
-  renderProductSignals(result[0],result[1]);
- }catch(e){renderProductSignals(null,null)}
+ var data=await Promise.all([
+   getJSON("./winter_festival_products_yoy_2026.json").catch(function(){return null}),
+   getJSON("./ga4_purchase_diagnostics.json").catch(function(){return null}),
+   getJSON("./official_product_images.json").catch(function(){return {products:[]}})
+ ]);
+ productState.event=data[0];productState.weekly=data[1];productState.images=data[2];
+ productState.mode=productState.event?.status==="ga4_measured"?"event":"weekly";
+ drawProductWindow();
 }
 
 function renderLiveAggregate(){
@@ -353,7 +447,13 @@ function render(){
  $("#fm-event-mode").disabled=!canEvent;
  $("#fm-event-mode").title=canEvent?"2025/2026 행사 동일 경과일 비교":"행사 채널별 GA4 검증 집계 대기";
  if(!canEvent && app.view==="event"){app.view="weekly";return render();}
- root.querySelectorAll("[data-fm-view]").forEach(function(b){b.setAttribute("aria-pressed",String(app.view===b.getAttribute("data-fm-view")))});
+ document.querySelectorAll("[data-fm-product-window]").forEach(function(button){
+ button.addEventListener("click",function(){
+  productState.mode=button.getAttribute("data-fm-product-window")==="event"?"event":"weekly";
+  drawProductWindow();
+ });
+});
+root.querySelectorAll("[data-fm-view]").forEach(function(b){b.setAttribute("aria-pressed",String(app.view===b.getAttribute("data-fm-view")))});
  root.querySelectorAll("[data-fm-filter]").forEach(function(b){b.setAttribute("aria-selected",String(app.filter===b.getAttribute("data-fm-filter")))});
 }
 function metaCampaigns(row){
