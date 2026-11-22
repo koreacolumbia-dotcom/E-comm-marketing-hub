@@ -65,9 +65,8 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
    (cur.aov-prev.aov)-(qEffect+pEffect):null;
  const reconciledBasketComponents=gapEffect!==null&&Math.abs(gapEffect)<Math.abs(cur.aov-prev.aov)*0.5+10000;
  const basketBreakdown=basketReconciled&&reconciledBasketComponents?
-   '<div class="macro-basket-bridge"><div><span>주문당 상품수 변화</span><b>'+won(qEffect).replace("만 원","만원")+
-   '</b><small>'+fmt(qEffect)+'원/건</small></div>'+
-   '<div><span>상품당 실현매출 변화</span><b>'+fmt(pEffect)+'원/건</b></div>'+
+   '<div class="macro-basket-bridge"><div><span>주문당 상품수 변화</span><b>'+(qEffect>0?"+":"")+fmt(qEffect)+'원/건</b></div>'+
+   '<div><span>상품당 실현매출 변화</span><b>'+(pEffect>0?"+":"")+fmt(pEffect)+'원/건</b></div>'+
    '<div><span>상품행·구매매출 차이</span><b>'+(gapEffect>0?"+":"")+fmt(gapEffect)+'원/건</b></div></div>':
    '';
  const basketNote=basketReconciled?
