@@ -58,10 +58,10 @@
     var w=ops && ops.weekly, a=w && w.current && w.current.total, b=w && w.previous && w.previous.total;
     if (!w || w.status !== "ready" || !finiteTotal(a) || !finiteTotal(b)) return [];
     return [
-      {key:"revenue",label:"구매매출",value:a.revenue,prior:b.revenue,display:krw(a.revenue),before:krw(b.revenue),icon:"₩"},
-      {key:"orders",label:"주문 수",value:a.orders,prior:b.orders,display:fmt(a.orders)+"건",before:fmt(b.orders)+"건",icon:"□"},
+      {key:"revenue",label:"매출",value:a.revenue,prior:b.revenue,display:krw(a.revenue),before:krw(b.revenue),icon:"₩"},
+      {key:"orders",label:"주문",value:a.orders,prior:b.orders,display:fmt(a.orders)+"건",before:fmt(b.orders)+"건",icon:"□"},
       {key:"sessions",label:"세션",value:a.sessions,prior:b.sessions,display:fmt(a.sessions),before:fmt(b.sessions),icon:"↗"},
-      {key:"aov",label:"객단가",value:a.revenue/a.orders,prior:b.revenue/b.orders,display:krw(a.revenue/a.orders),before:krw(b.revenue/b.orders),icon:"◇"}
+      {key:"aov",label:"객단가",value:a.revenue/a.orders,prior:b.revenue/b.orders,display:fmt(a.revenue/a.orders)+"원",before:fmt(b.revenue/b.orders)+"원",icon:"◇"}
     ];
   }
   function alignedSource(source,ops) {
@@ -167,8 +167,8 @@
           h("strong",{key:"impact",className:"detail-large"},(selected.impact>0?"+":"")+krw(selected.impact)),
           h("p",{key:"desc",className:"detail-sub"},"전체 매출 변화에 대한 ",selected.metric," 요인의 산술 기여 금액입니다."),
           h("div",{key:"stats",className:"csk-detail-stats"},
-            h(StatCard,{title:"직전 7일 "+selected.metric,value:selected.metric==="객단가"?krw(selected.before):selected.metric==="CVR"?selected.before.toFixed(2)+"%":fmt(selected.before)}),
-            h(StatCard,{title:"최근 7일 "+selected.metric,value:selected.metric==="객단가"?krw(selected.after):selected.metric==="CVR"?selected.after.toFixed(2)+"%":fmt(selected.after)}),
+            h(StatCard,{title:"직전 7일 "+selected.metric,value:selected.metric==="객단가"?fmt(selected.before)+"원":selected.metric==="CVR"?selected.before.toFixed(2)+"%":fmt(selected.before)}),
+            h(StatCard,{title:"최근 7일 "+selected.metric,value:selected.metric==="객단가"?fmt(selected.after)+"원":selected.metric==="CVR"?selected.after.toFixed(2)+"%":fmt(selected.after)}),
             h(StatCard,{title:"변동",value:selected.metric==="CVR"?delta(selected.after-selected.before,"pp"):delta(percent(selected.after,selected.before))})
           ),
           h(ActionPanel,{key:"action",text:selected.action}),
