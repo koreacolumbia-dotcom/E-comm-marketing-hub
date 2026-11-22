@@ -454,6 +454,7 @@
     }
     entries.sort(function(a,b){return rank(a)-rank(b)||String(a.date).localeCompare(String(b.date));});
     var verified=entries.filter(function(x){return x.status==="confirmed" && x.scope==="official_mall";});
+    var diagnostic=cal.impact_diagnostics||{};
     function shortDate(s){return String(s||"—").slice(5).replace("-",".");}
     function statusText(item){
       if(item.status==="confirmed")return item.scope==="offline_partner"?"오프라인 행사 확인":"공식몰 행사 확인";
@@ -492,6 +493,16 @@
       verified.length?h("p",{className:"cy-campaign-conclusion"},
         "공식몰 프로모션 진행 · 주문·CVR 상승 가능 / 할인·상품 믹스로 객단가 하락 가능",
         h("small",null,"효과 규모·원인 확정 아님")):null,
+      diagnostic.status==="descriptive" && num(diagnostic.pre_revenue_yoy_pct) && num(diagnostic.active_revenue_yoy_pct)?
+        h("div",{className:"cy-campaign-measured","aria-label":"행사 전후 실측 매출 성장률"},
+          h("div",null,h("span",null,"본행사 전 "+diagnostic.pre_days+"일 · 매출 YoY"),
+            h("strong",{className:diagnostic.pre_revenue_yoy_pct<0?"negative":"positive"},delta(diagnostic.pre_revenue_yoy_pct))),
+          h("div",null,h("span",null,"본행사 시작 후 "+diagnostic.active_days+"일 · 매출 YoY"),
+            h("strong",{className:diagnostic.active_revenue_yoy_pct<0?"negative":"positive"},delta(diagnostic.active_revenue_yoy_pct))),
+          h("small",null,
+            "동일 요일 비교, 추정 기여액 아님. ",
+            diagnostic.ly_same_weekday_event?"작년에도 대응 요일에 윈터페스티벌 진행":"작년 행사 여부 추가 확인 필요")
+        ):null,
       entries.length?h("div",null,
         h("div",{className:"cy-campaign-list"},entries.slice(0,2).map(row)),
         entries.length>2?h("details",{className:"cy-campaign-more"},
