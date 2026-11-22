@@ -79,6 +79,46 @@
         main.textContent=`분석 기준 ${data.report_date} · 주문 ${pct(fin.orders_pct)} / 매출 ${pct(fin.revenue_pct)} / 객단가 ${pct(fin.aov_pct)}. 주문수 효과 ${fmt(fin.order_effect_krw)}원, 객단가 효과 ${fmt(fin.aov_effect_krw)}원 (매출 변화 ${fmt(fin.revenue_delta_krw)}원). 가격·상품 구성의 원인은 아직 검증하지 않았습니다.`;
       }else main.textContent=`기준일 ${data.report_date} · 원천 집계가 부족해 매출 분해를 확정하지 않았습니다.`;
       root.append(main);
+      const g=data.ga4_evidence||{};
+      if(g.status==='ga4_measured'&&g.item_aov_bridge){
+        const b=g.item_aov_bridge,part=g.category_bridge||{};
+        const observed=el('article',null,'diag-card');
+        observed.style.marginBottom='12px';
+        observed.append(el('h3','GA4 구매 원인 분해 · 실제 상품 구매 이벤트'));
+        const line=el('p',
+          '주문당 구매수량 효과 '+fmt(b.items_per_order_effect)+'원 / '+
+          '상품 실현단가 효과 '+fmt(b.realized_item_revenue_effect)+'원 / '+
+          'GA4 상품기준 객단가 변화 '+fmt(b.item_aov_delta)+'원','observed');
+        observed.append(line);
+        observed.append(el('p','상품군 구성 효과(판매 상품 1개당) '+
+          fmt(part.category_mix_effect_per_item)+'원 · 동일 상품군 내 실현단가 효과 '+
+          fmt(part.within_category_effect_per_item)+'원'));
+        const passed=g.admin_reconciliation?.comparable===true;
+        observed.append(el('p',passed?
+          '관리자 주문/매출과 허용오차 내 정합성 통과. 세금·반품·할인 원인은 별도 검증 대상.':
+          '관리자 주문/매출과 정합성 미충족 또는 미확인. GA4 기준 결과를 관리자 순매출 원인으로 단정할 수 없음.',
+          passed?'hint':'blocked'));
+        const cost=g.cost||{};
+        observed.append(el('p','BigQuery 처리량: '+fmt(cost.billed_bytes||0)+' bytes 청구 / 실행 상한 1GiB, 사전 dry-run 통과','hint'));
+        if(part.rows?.length){
+          const t=el('div',null,'crawl-scroll');const table=el('table',null,'crawl-table');
+          const head=el('thead'),hr=el('tr');
+          ['상품군','이전 비중','현재 비중','구성 효과 (원/개)'].forEach(v=>hr.append(el('th',v)));
+          head.append(hr);const body=el('tbody');
+          for(const x of part.rows.slice(0,5)){
+            const tr=el('tr');
+            [x.category,pct(x.share_previous_pct),pct(x.share_current_pct),
+             fmt(x.mix_effect_per_item)].forEach(v=>tr.append(el('td',v)));
+            body.append(tr);
+          }
+          table.append(head,body);t.append(table);observed.append(t);
+        }
+        root.append(observed);
+      }else if(['blocked_budget','blocked_credentials','blocked_estimate','query_error','partial_quality'].includes(g.status)){
+        const source=el('div','GA4 상품 원인 검증: '+g.status+
+          ' · 비용 상한 또는 원천 품질 조건을 만족하지 않아 가격/믹스 원인 확정 보류','error-state');
+        root.append(source);
+      }
       const grid=el('div',null,'diag-grid');
       for(const p of data.problems){
         const card=el('article',null,'diag-card');
