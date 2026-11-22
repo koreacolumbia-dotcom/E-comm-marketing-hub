@@ -103,7 +103,7 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('id="macro-health"', DECISION_HTML)
         self.assertIn('id="product-drilldown"', DECISION_HTML)
         self.assertLess(DECISION_HTML.index('id="macro-health"'), DECISION_HTML.index('id="priority-products"'))
-        self.assertIn('window.CSKMacroBoard?.render(op,di)', DECISION_HTML)
+        self.assertIn('window.CSKMacroBoard?.render(op,di,weeklyEvidence,alignedBasket)', DECISION_HTML)
         self.assertIn('src="./macro-board.js?v=', DECISION_HTML)
         self.assertIn('상품별 하위 원인 TOP 3', DECISION_HTML)
         self.assertIn('전체 성과를 먼저 확인하고 상품별로 내려갑니다', DECISION_HTML)
