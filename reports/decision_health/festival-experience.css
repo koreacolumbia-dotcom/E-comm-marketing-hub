@@ -338,3 +338,20 @@ body.festival-motion .kpi strong{font-size:clamp(18px,2.4vw,27px)!important}
 .fm-cause-column{padding:11px}
 .fm-cause-column h3{margin-bottom:9px}
 @media(max-width:680px){.fm-anchor-nav{margin:0 0 10px}.fm-anchor-nav a{padding:8px 10px}}
+
+/* Dense, label-first category mix view; pairs show prior/current item share (not discount). */
+.fm-product-category{border:1px solid #2d4750;background:#101e28;border-radius:12px;padding:13px;margin:0 0 12px}
+.fm-product-category-head{display:flex;gap:9px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.fm-product-category-head strong{font-size:12px;color:#d6f1eb}
+.fm-product-category-head small{font-size:10px;color:#8baeb6}
+.fm-category-bars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}
+.fm-category-row{display:grid;grid-template-columns:64px minmax(0,1fr) 55px;align-items:center;gap:7px;min-width:0}
+.fm-category-row>b{font-size:10px;color:#b6cbd2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fm-category-row>strong{font-size:10px;color:#6ee2bb;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.fm-category-row>strong.down{color:#f3a0b1}
+.fm-category-pair{display:grid;gap:4px}
+.fm-category-track{background:#2b3c49;height:7px;border-radius:4px;overflow:hidden}
+.fm-category-track i{display:block;height:100%;border-radius:4px}
+.fm-category-track i.prior{background:#708897}
+.fm-category-track i.now{background:#37d8af}
+@media(max-width:680px){.fm-category-bars{grid-template-columns:1fr;gap:9px}.fm-product-category{padding:11px}}
