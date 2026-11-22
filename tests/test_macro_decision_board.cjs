@@ -53,7 +53,15 @@ assert.doesNotMatch(target.innerHTML,/1.500→1.300개/);
 aligned.admin_reconciliation.comparable=true;
 render(base,di,weekly,aligned);
 assert.match(target.innerHTML,/1.500→1.300개/);
-assert.match(target.innerHTML,/상품 구성 확인\(동기간·대사 통과\)/);
+assert.match(target.innerHTML,/GA4 구매 이벤트·운영 KPI 대사 통과/);
+assert.match(target.innerHTML,/주문당 상품수 변화/);
+assert.match(target.innerHTML,/상품행·구매매출 차이/);
+aligned.item_aov_bridge={items_per_order_previous:1.504,items_per_order_current:1.331,
+ realized_item_price_previous:129543.77,realized_item_price_current:130214.51,
+ items_per_order_effect:-22436.26,realized_item_revenue_effect:950.72};
+render(base,di,weekly,aligned);
+assert.match(target.innerHTML,/-22,436원\/건/);
+assert.match(target.innerHTML,/\+951원\/건/);
 render(base,di,{...weekly,net_revenue_delta:1000000},aligned);
 assert.match(target.innerHTML,/동일 기간 채널별 매출 대사 결과를 아직 확보/);
 console.log('Business evidence: same-window channel anomaly, quality gate, buyer suppression, weather alignment and AOV reconciliation');

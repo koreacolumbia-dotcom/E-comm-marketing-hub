@@ -33,6 +33,7 @@ const card=(i,driver)=>{
   '<div class="macro-impact">'+esc(won(driver.impact))+'</div>'+
   '<div class="macro-numbers">'+esc(driver.metric)+'</div>'+
   '<p class="macro-explain">'+esc(driver.insight)+'</p>'+
+  (driver.breakdown||"")+
   '<div class="macro-next"><b>근거</b> '+esc(driver.proof||"동일 기간 운영 KPI의 산술 분해")+'</div>'+
   '<div class="macro-next"><b>검증 상태</b> '+esc(driver.confidence||"산술 확인 · 인과 미확정")+'</div>'+
   '<div class="macro-next"><b>우선 조치</b> '+esc(driver.next)+'</div></article>';
@@ -58,6 +59,17 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
    finite(alignedBasket.item_aov_bridge.items_per_order_current);
  const basketReconciled=samePeriodBasket&&alignedBasket.admin_reconciliation?.comparable===true;
  const basket=samePeriodBasket?alignedBasket.item_aov_bridge:null;
+ const qEffect=basketReconciled&&finite(basket.items_per_order_effect)?basket.items_per_order_effect:null;
+ const pEffect=basketReconciled&&finite(basket.realized_item_revenue_effect)?basket.realized_item_revenue_effect:null;
+ const gapEffect=qEffect!==null&&pEffect!==null?
+   (cur.aov-prev.aov)-(qEffect+pEffect):null;
+ const reconciledBasketComponents=gapEffect!==null&&Math.abs(gapEffect)<Math.abs(cur.aov-prev.aov)*0.5+10000;
+ const basketBreakdown=basketReconciled&&reconciledBasketComponents?
+   '<div class="macro-basket-bridge"><div><span>주문당 상품수 변화</span><b>'+won(qEffect).replace("만 원","만원")+
+   '</b><small>'+fmt(qEffect)+'원/건</small></div>'+
+   '<div><span>상품당 실현매출 변화</span><b>'+fmt(pEffect)+'원/건</b></div>'+
+   '<div><span>상품행·구매매출 차이</span><b>'+(gapEffect>0?"+":"")+fmt(gapEffect)+'원/건</b></div></div>':
+   '';
  const basketNote=basketReconciled?
    "같은 7일 구간 GA4 구매구성 확인 · 주문당 상품수 "+basket.items_per_order_previous.toFixed(3)+
    "→"+basket.items_per_order_current.toFixed(3)+"개 / 상품당 실현매출 "+
@@ -69,8 +81,10 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
   {id:"aov",title:"객단가·구매 구성",impact:data.aov,
    metric:"객단가 "+fmt(prev.aov)+" → "+fmt(cur.aov)+"원 ("+signed(pct(cur.aov,prev.aov))+")",
    insight:data.aov<0?"주문은 늘었지만 주문 1건당 매출이 낮아졌습니다.":"주문당 매출이 전체 실적에 기여했습니다.",
-   proof:basketNote,confidence:basketReconciled?"상품 구성 확인(동기간·대사 통과) · 인과는 미확정":"운영 객단가 산술 확인 · 구매구성 원인은 검증 제한",
-   next:basketReconciled?"주문당 상품수 감소 구간 → 고객군·상품군 확인":"동기간 GA4 구매구성/관리자 주문 대사 우선"},
+   proof:basketNote,breakdown:basketBreakdown,
+   confidence:basketReconciled?"동일 기간 GA4 구매 이벤트·운영 KPI 대사 통과 · 독립 ERP 검증 전":
+     "운영 객단가 산술 확인 · 구매구성 원인은 검증 제한",
+   next:basketReconciled?"1개 구매 주문 비중 · 고객/상품군별 구매수량 분포 조사":"동기간 GA4 구매구성·운영 지표 대사 우선"},
   {id:"conversion",title:"구매전환 효율",impact:data.conversion,
    metric:"CVR "+cvBefore.toFixed(3)+"% → "+cvAfter.toFixed(3)+"% ("+
      (cvAfter-cvBefore>0?"+":"")+(cvAfter-cvBefore).toFixed(3)+"%p)",
