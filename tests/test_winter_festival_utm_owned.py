@@ -37,7 +37,12 @@ GROUP BY 1,2,3
                 {"sessionSourceMedium":"other / referral","sessionCampaignName":"Winter Festival 2025",
                  "sessionManualTerm":"owned","sessions":10,"transactions":1,"purchaseRevenue":50000},
                 {"sessionSourceMedium":"private / internal","sessionCampaignName":"Winter Festival",
-                 "sessionManualTerm":"user@example.com","sessions":10,"transactions":2,"purchaseRevenue":10000}
+                 "sessionManualTerm":"user@example.com","sessions":10,"transactions":2,"purchaseRevenue":10000},
+                {"sessionSourceMedium":"naver / cpc","sessionCampaignName":"winterfestival",
+                 "sessionManualTerm":"paid","sessions":300,"transactions":5,"purchaseRevenue":900000},
+                {"sessionSourceMedium":"LMS_ECOM / LMS_ECOM","sessionCampaignName":"LMS_1121_WinterFestival_teasing",
+                 "sessionManualTerm":"LMS_1121_WinterFestival_teasingalice123",
+                 "sessions":10,"transactions":1,"purchaseRevenue":65000}
             ],
             "2026":[
                 {"sessionSourceMedium":"kakao / message","sessionCampaignName":"owned_winter",
@@ -46,7 +51,9 @@ GROUP BY 1,2,3
                  "sessionManualTerm":"fall","sessions":2,"transactions":1,"purchaseRevenue":20000}
             ]}
         out=summarize(data)
-        self.assertEqual(out["2025"]["grouped_totals"]["utm_campaign_or_term"]["revenue"],50000)
+        self.assertEqual(out["2025"]["grouped_totals"]["utm_campaign_or_term"]["revenue"],115000)
+        self.assertTrue(any(r["utm_term"]=="(individualized suffix masked)" for r in out["2025"]["rows"]))
+        self.assertFalse(any(r["source_medium"]=="naver / cpc" for r in out["2025"]["rows"]))
         self.assertEqual(out["2025"]["grouped_totals"]["media_context_only"]["revenue"],120000)
         self.assertEqual(out["2026"]["grouped_totals"]["utm_campaign_or_term"]["orders"],3)
         self.assertEqual(out["2026"]["suppressed_small_groups"]["count"],1)
