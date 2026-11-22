@@ -167,9 +167,10 @@
       const grid=el('div',null,'diag-grid');
       for(const p of data.problems){
         const card=el('article',null,'diag-card');
-        const observedStatus=['observed_decomposition','observed_ga4_components','source_error_confirmed'].includes(p.status);
+        const observedStatus=['observed_decomposition','observed_ga4_components','observed_product_divergence','source_error_confirmed'].includes(p.status);
         const label=p.status==='observed_decomposition'?'산술 분해 확인':
           p.status==='observed_ga4_components'?'실측 상품 집계':
+          p.status==='observed_product_divergence'?'관측된 PDP·구매 방향 차이':
           p.status==='source_error_confirmed'?'원천 오류 확인':
           p.status==='coverage_limited'?'수집 범위 제한':'검증 자료 필요';
         const tag=el('span',p.priority+' · '+label,'diag-status'+(observedStatus?' known':''));

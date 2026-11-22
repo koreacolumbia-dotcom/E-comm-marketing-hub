@@ -6,6 +6,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from build_problem_diagnosis import build, crawl_gaps, describe_error
 
+ROOT = Path(__file__).resolve().parents[1]
+DECISION_HTML = (ROOT / "reports/decision_health/index.html").read_text(encoding="utf-8")
+TIMELINE_JS = (ROOT / "reports/decision_health/timeline.js").read_text(encoding="utf-8")
+DIAGNOSIS_JS = (ROOT / "reports/decision_health/diagnosis.js").read_text(encoding="utf-8")
+
 OPS = {
     "report_date": "2026-11-20",
     "weekly": {
@@ -93,6 +98,22 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertEqual(item["status"], "source_required")
         self.assertIn("강약점 비교가 성립하지 않음", item["cause_component"])
         self.assertFalse(item["causal_confirmed"])
+
+    def test_decision_product_priority_and_evidence(self):
+        self.assertIn('d>=15&&s<=-15', DECISION_HTML)
+        self.assertIn('GA4 구매 매칭', DECISION_HTML)
+        self.assertIn('p.sales_admin_reconciled===true', DECISION_HTML)
+        self.assertIn('상품명 기준 GA4 매칭 표본', DECISION_HTML)
+
+    def test_timeline_distinguishes_pdp_from_ga4_sales(self):
+        self.assertIn('s.metric==="sales"', TIMELINE_JS)
+        self.assertIn('s.metric==="pdp"', TIMELINE_JS)
+        self.assertIn('GA4 매칭 판매수량', TIMELINE_JS)
+        self.assertIn('csk-track-bar.sale', TIMELINE_JS)
+        self.assertNotIn('(t.products||[]).slice(0,4).forEach', TIMELINE_JS)
+
+    def test_observed_product_divergence_is_labeled_correctly(self):
+        self.assertIn("p.status==='observed_product_divergence'?'관측된 PDP·구매 방향 차이'", DIAGNOSIS_JS)
 
     def test_error_classification(self):
         self.assertEqual(describe_error("HTTP 429 stop requests")[0], "rate_limited")
