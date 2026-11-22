@@ -143,8 +143,8 @@ async function main(){
    const lastYearSales=festivalDays.reduce((total,d)=>total+Number(d.last_year.revenue),0);
    assert(actualSales>0 && lastYearSales>0,'Observed festival sales must be positive');
    assertContent(overview,['WINTER FESTIVAL · SAME EVENT DAY','2026 vs 2025 본행사 D1–D2 실측',
-     Math.round(actualSales).toLocaleString('ko-KR')+'원',
-     Math.round(lastYearSales).toLocaleString('ko-KR')+'원']);
+     Math.round(actualSales/10000).toLocaleString('ko-KR')+'만 원',
+     Math.round(lastYearSales/10000).toLocaleString('ko-KR')+'만 원']);
  }
 
  const reactHtml=fs.readFileSync(path.join(root,"reports/decision_health/index.html"),"utf8");
