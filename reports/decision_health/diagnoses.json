@@ -8,14 +8,14 @@
     "status": "observed",
     "period": "2026-11-14 ~ 2026-11-20",
     "compare_period": "2026-11-07 ~ 2026-11-13",
-    "revenue": 134038093.0,
+    "revenue": 134038093,
     "revenue_prior": 137770660.02,
     "revenue_pct": -2.71,
-    "orders": 876.0,
-    "orders_prior": 790.0,
+    "orders": 876,
+    "orders_prior": 790,
     "orders_pct": 10.89,
-    "sessions": 134393.0,
-    "sessions_prior": 119936.0,
+    "sessions": 134393,
+    "sessions_prior": 119936,
     "sessions_pct": 12.05,
     "aov": 153011.52,
     "aov_prior": 174393.24,
@@ -50,10 +50,10 @@
     "sales_revenue_bridge": {
       "qty_effect_krw": -2857341.06,
       "realized_unit_revenue_effect_krw": 789456.06,
-      "item_to_purchase_gap_effect_krw": -1664682.0,
-      "prior_item_to_purchase_gap_krw": 16127340.0,
-      "current_item_to_purchase_gap_krw": 17792022.0,
-      "purchase_revenue_delta_krw": -3732567.0,
+      "item_to_purchase_gap_effect_krw": -1664682,
+      "prior_item_to_purchase_gap_krw": 16127340,
+      "current_item_to_purchase_gap_krw": 17792022,
+      "purchase_revenue_delta_krw": -3732567,
       "prior_total_units": 1188,
       "current_total_units": 1166,
       "note": "Accounting identity, not proof of coupon/discount/refund causality."
@@ -116,7 +116,7 @@
           "category": "Acc",
           "share_previous_pct": 6.4,
           "share_current_pct": 7.38,
-          "mix_effect_per_item": 280.0,
+          "mix_effect_per_item": 280,
           "within_category_effect_per_item": 170.55
         },
         {
@@ -128,10 +128,10 @@
         },
         {
           "category": "SET-UP",
-          "share_previous_pct": 0.0,
+          "share_previous_pct": 0,
           "share_current_pct": 0.09,
           "mix_effect_per_item": 42.02,
-          "within_category_effect_per_item": 0.0
+          "within_category_effect_per_item": 0
         }
       ],
       "caveat": "New/retired categories attributed to mix; within-category price contains discount and mix."
@@ -140,12 +140,12 @@
       "comparable": true,
       "periods": {
         "current": {
-          "order_gap_pct": 0.0,
-          "revenue_gap_pct": 0.0
+          "order_gap_pct": 0,
+          "revenue_gap_pct": 0
         },
         "previous": {
-          "order_gap_pct": 0.0,
-          "revenue_gap_pct": 0.0
+          "order_gap_pct": 0,
+          "revenue_gap_pct": 0
         }
       },
       "caveat": "Agreement to existing Daily KPI (GA4 source). Independent MSSQL/ERP revenue still not verified."
@@ -155,19 +155,59 @@
     "order_mart_coupon_column_exists": true,
     "order_mart_last_modified": "2026-06-05T06:07:21.605000+00:00"
   },
-  "weather_source_health": {},
+  "weather_source_health": {
+    "current": "access_denied_403",
+    "previous": "access_denied_403",
+    "observed_days": 0,
+    "previous_observed_days": 0,
+    "source": "KMA ASOS Seoul station 108, observed daily. Confirmed HTTP 403 by GitHub Actions log 44965714388."
+  },
   "ga4_coupon_evidence": {
     "status": "partial_quality",
     "report_date": "2026-11-20",
-    "periods": null,
+    "periods": {
+      "previous": {
+        "orders_with_items": 773,
+        "orders_with_item_coupon": 773,
+        "observed_item_rows": 1025,
+        "item_coupon_rows": 1025,
+        "coupon_units": 1188,
+        "units": 1188,
+        "coupon_item_revenue": 153898000,
+        "item_revenue": 153898000,
+        "missing_values": 0,
+        "order_coupon_presence_pct": 100
+      },
+      "current": {
+        "orders_with_items": 865,
+        "orders_with_item_coupon": 865,
+        "observed_item_rows": 1144,
+        "item_coupon_rows": 1144,
+        "coupon_units": 1166,
+        "units": 1166,
+        "coupon_item_revenue": 151830115,
+        "item_revenue": 151830115,
+        "missing_values": 0,
+        "order_coupon_presence_pct": 100
+      }
+    },
     "delta_pp": null,
-    "source": "GA4 items.coupon presence; not discount amount",
+    "quality_checks": {
+      "purchase_events_without_item_rows": {
+        "previous": 17,
+        "current": 11
+      },
+      "coupon_marker_present_in_all_item_rows": true,
+      "can_interpret_coupon_as_applied_discount": false,
+      "reason": "GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
+    },
     "cost": {
       "estimated_bytes": 251878862,
       "billed_bytes": 252706816,
       "maximum_bytes_billed": 536870912,
       "dry_run_required": true
-    }
+    },
+    "source": "GA4 items.coupon marker cannot be read as verified discount usage"
   },
   "warehouse_source_health": {
     "inspection_status": "metadata_inspected",
@@ -222,7 +262,7 @@
       "revenue_factors": {
         "qty_effect_krw": -2857341.06,
         "realized_price_effect_krw": 789456.06,
-        "unclassified_item_to_checkout_gap_effect_krw": -1664682.0,
+        "unclassified_item_to_checkout_gap_effect_krw": -1664682,
         "source": "GA4 item revenue and purchase revenue"
       },
       "category_mix": {
@@ -279,30 +319,28 @@
       ]
     },
     {
-      "id": "PDP_SALES_JOIN",
+      "id": "PRODUCT_DIVERGENCE_0",
       "priority": "P0",
-      "status": "source_required",
-      "title": "PDP 급등과 실제 판매 전환이 연결되지 않음",
-      "finding": "상품 카드 5개 중 판매량 확인 0개 · PDP 상승 관측 3개",
-      "cause_component": "현재 데이터는 상품 관심의 증가만 관측하며 판매 전환 변화는 판단할 수 없음",
+      "status": "observed_product_divergence",
+      "title": "HAZY JOURNEY II WATERPROOF · PDP와 구매 흐름 재점검",
+      "finding": "PDP 7일 +29.6%, GA4 구매수량 17→11개 (-35.3%)",
+      "cause_component": "동일 상품명에서 PDP 관심 증가와 실제 구매수량 감소가 동시에 관측됨",
       "cause_hypotheses": [
-        "측정 이벤트/상품명 연결 누락",
-        "Top-N 표본으로 인한 판매 데이터 누락",
-        "전환율 변화 또는 재고 제약"
+        "장바구니 단계 전환 변화",
+        "가격·할인 조건 변화",
+        "옵션별 재고·품절",
+        "유입 매체 품질 변화"
       ],
-      "hypothesis_status": "unverified",
+      "hypothesis_status": "observed_pattern_unverified_cause",
       "causal_confirmed": false,
-      "how_to_verify": "GA4 item_id ↔ 관리자 스타일/컬러 매핑 후 view_item→add_to_cart→purchase 14일 전체 모집단 집계",
+      "how_to_verify": "동일 스타일/컬러/사이즈별 view_item→add_to_cart→purchase, 유입 매체·가격·재고를 14일 날짜별 비교",
       "blocked_by": [
-        "상품별 완전한 판매 집계"
-      ],
-      "sample_products": [
-        "M`s Columbia Rock Down Jacket",
-        "M’s Adventure 365 Omni-Tech Down Jacket",
-        "HAZY JOURNEY II WATERPROOF"
+        "상품별 전체 유입/장바구니 데이터",
+        "최신 옵션 재고"
       ],
       "sources": [
-        "reports/daily_intelligence/latest.json"
+        "reports/daily_intelligence/latest.json",
+        "reports/decision_health/ga4_purchase_diagnostics.json"
       ]
     },
     {
@@ -352,22 +390,88 @@
       ]
     },
     {
+      "id": "GA4_COUPON_QUALITY",
+      "priority": "P1",
+      "status": "source_error_confirmed",
+      "title": "쿠폰 사용률을 확정할 수 없는 GA4 상품행 품질 문제",
+      "finding": "상품행 누락 purchase 이벤트 28건 (이전 17, 현재 11) · 쿠폰 마커 전 상품행에 기록",
+      "cause_component": "GA4 구매 이벤트 일부에 item 배열이 없고 items.coupon 필드가 모든 상품행에 채워져 있음. 실제 쿠폰 적용 여부와 할인금액을 판정할 수 없는 데이터 품질 문제",
+      "cause_hypotheses": [],
+      "hypothesis_status": "confirmed_data_quality_limitation",
+      "causal_confirmed": false,
+      "how_to_verify": "GA4 상품 배열 누락 원인을 GTM/GA4 수집 설정에서 확인하고 주문상품마트 재적재 후 쿠폰 금액을 주문 단위로 중복 제거해 검증",
+      "blocked_by": [
+        "GA4 상품행 완전성",
+        "ERP 주문상품마트 최신 데이터"
+      ],
+      "sources": [
+        "reports/decision_health/ga4_coupon_usage.json",
+        "reports/decision_health/source_metadata.json"
+      ]
+    },
+    {
+      "id": "PRODUCT_DIVERGENCE_1",
+      "priority": "P1",
+      "status": "observed_product_divergence",
+      "title": "River Point Down Jacket · PDP와 구매 흐름 재점검",
+      "finding": "PDP 7일 -26.0%, GA4 구매수량 33→22개 (-33.3%)",
+      "cause_component": "PDP 조회와 구매수량의 동반 변동은 확인됐지만 원인은 미확정",
+      "cause_hypotheses": [
+        "장바구니 단계 전환 변화",
+        "가격·할인 조건 변화",
+        "옵션별 재고·품절",
+        "유입 매체 품질 변화"
+      ],
+      "hypothesis_status": "observed_pattern_unverified_cause",
+      "causal_confirmed": false,
+      "how_to_verify": "동일 스타일/컬러/사이즈별 view_item→add_to_cart→purchase, 유입 매체·가격·재고를 14일 날짜별 비교",
+      "blocked_by": [
+        "상품별 전체 유입/장바구니 데이터",
+        "최신 옵션 재고"
+      ],
+      "sources": [
+        "reports/daily_intelligence/latest.json",
+        "reports/decision_health/ga4_purchase_diagnostics.json"
+      ]
+    },
+    {
+      "id": "PRODUCT_DIVERGENCE_2",
+      "priority": "P1",
+      "status": "observed_product_divergence",
+      "title": "Sunrise Cabin Down Jacket · PDP와 구매 흐름 재점검",
+      "finding": "PDP 7일 -29.5%, GA4 구매수량 15→4개 (-73.3%)",
+      "cause_component": "PDP 조회와 구매수량의 동반 변동은 확인됐지만 원인은 미확정",
+      "cause_hypotheses": [
+        "장바구니 단계 전환 변화",
+        "가격·할인 조건 변화",
+        "옵션별 재고·품절",
+        "유입 매체 품질 변화"
+      ],
+      "hypothesis_status": "observed_pattern_unverified_cause",
+      "causal_confirmed": false,
+      "how_to_verify": "동일 스타일/컬러/사이즈별 view_item→add_to_cart→purchase, 유입 매체·가격·재고를 14일 날짜별 비교",
+      "blocked_by": [
+        "상품별 전체 유입/장바구니 데이터",
+        "최신 옵션 재고"
+      ],
+      "sources": [
+        "reports/daily_intelligence/latest.json",
+        "reports/decision_health/ga4_purchase_diagnostics.json"
+      ]
+    },
+    {
       "id": "WEATHER_COVERAGE",
       "priority": "P1",
-      "status": "source_required",
+      "status": "source_error_confirmed",
       "title": "날씨 영향 분석의 실측 기온이 누락됨",
-      "finding": "서울 관측 기온 0 / 14일 확보",
-      "cause_component": "실측 원천 부재로 온도 급변 시점과 PDP·판매 변화 교차 검증 불가",
-      "cause_hypotheses": [
-        "기상청 인증키 미설정",
-        "ASOS 요청/파싱 실패",
-        "관측일 기준·캐시 갱신 오류"
-      ],
-      "hypothesis_status": "unverified",
+      "finding": "최근 14일 실측 0건 · KMA ASOS HTTP 403 확인",
+      "cause_component": "기상청 ASOS 서울 관측 API가 실제 요청에서 HTTP 403 접근 거부를 반환함",
+      "cause_hypotheses": [],
+      "hypothesis_status": "confirmed_source_failure",
       "causal_confirmed": false,
-      "how_to_verify": "기상청 108 관측소의 요청 응답 코드·유효 일수·최종 적재일을 점검하고 관측치만 사용",
+      "how_to_verify": "기상청 API Hub 서비스 구독 승인·권한·인증키 유효성을 확인해야 함. 허가 없는 재요청은 중단",
       "blocked_by": [
-        "14일 실측 기온"
+        "기상청 API 접근 권한"
       ],
       "sources": [
         "reports/daily_intelligence/latest.json"
@@ -423,7 +527,7 @@
         "gap": 100,
         "pending_known_urls": 0,
         "known_urls": 18,
-        "known_url_coverage_pct": 0.0,
+        "known_url_coverage_pct": 0,
         "pages_checked_this_run": 0,
         "run_status": "not_collected",
         "error_types": {
@@ -442,7 +546,7 @@
         "gap": 100,
         "pending_known_urls": 0,
         "known_urls": 58,
-        "known_url_coverage_pct": 0.0,
+        "known_url_coverage_pct": 0,
         "pages_checked_this_run": 0,
         "run_status": "not_scheduled",
         "error_types": {},
@@ -492,7 +596,7 @@
         "gap": 64,
         "pending_known_urls": 0,
         "known_urls": 2,
-        "known_url_coverage_pct": 0.0,
+        "known_url_coverage_pct": 0,
         "pages_checked_this_run": 0,
         "run_status": "not_collected",
         "error_types": {},
@@ -539,7 +643,7 @@
         "gap": 61,
         "pending_known_urls": 27,
         "known_urls": 56,
-        "known_url_coverage_pct": 100.0,
+        "known_url_coverage_pct": 100,
         "pages_checked_this_run": 13,
         "run_status": "candidate",
         "error_types": {},
@@ -569,7 +673,7 @@
         "gap": 65,
         "pending_known_urls": 3,
         "known_urls": 51,
-        "known_url_coverage_pct": 100.0,
+        "known_url_coverage_pct": 100,
         "pages_checked_this_run": 0,
         "run_status": "not_scheduled",
         "error_types": {},
