@@ -125,6 +125,15 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('운영 매출 보고와 기간·정의가 달라', DECISION_HTML)
         self.assertNotIn('window.open(', DECISION_HTML)
 
+    def test_measured_product_cause_uses_same_date_and_units(self):
+        self.assertIn('measuredDetails(p,focus,ga4)', DECISION_HTML)
+        self.assertIn('조회당 구매비', DECISION_HTML)
+        self.assertIn('ga4.period?.current_end!==focus.date', DECISION_HTML)
+        self.assertIn('v.previous_units!==p.sales_previous_7d', DECISION_HTML)
+        self.assertIn('평균 실현매출', DECISION_HTML)
+        self.assertIn('윈터세일 시작일(11/20)', DECISION_HTML)
+        self.assertIn('수량 산술분해·인과효과 아님', DECISION_HTML)
+
     def test_decision_product_priority_and_evidence(self):
         self.assertIn('d>=15&&s<=-15', DECISION_HTML)
         self.assertIn('GA4 구매 매칭', DECISION_HTML)
