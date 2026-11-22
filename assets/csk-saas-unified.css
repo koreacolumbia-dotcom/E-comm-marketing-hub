@@ -297,7 +297,31 @@ body.csk-saas-report:not(.csk-saas-existing) :where(.analysis-workspace,.dark-wo
 
 /* Route-specific adapters for structurally distinct existing reports. */
 body.csk-saas-report[data-csk-route="edm_intelligence"]>aside{
- display:none!important;
+ position:relative!important;inset:auto!important;
+ width:auto!important;max-width:1500px!important;
+ height:auto!important;min-height:0!important;
+ display:flex!important;align-items:center!important;flex-wrap:wrap!important;
+ gap:7px!important;margin:14px auto 0!important;padding:10px 14px!important;
+ border:1px solid #262c48!important;border-radius:22px!important;
+ background:#16192C!important;box-shadow:0 9px 27px rgba(22,25,44,.12)!important;
+}
+body.csk-saas-report[data-csk-route="edm_intelligence"]>aside h2{
+ margin:0 12px 0 0!important;letter-spacing:.04em!important;
+ font-size:14px!important;color:#fff!important;white-space:nowrap!important;
+}
+body.csk-saas-report[data-csk-route="edm_intelligence"]>aside h2 small{
+ color:#aeb3d7!important;letter-spacing:.05em!important;
+}
+body.csk-saas-report[data-csk-route="edm_intelligence"]>aside a{
+ display:inline-flex!important;align-items:center!important;
+ margin:0!important;padding:9px 12px!important;
+ border-radius:999px!important;color:#d4d8ee!important;
+ text-decoration:none!important;font-size:11px!important;font-weight:750!important;
+ white-space:nowrap!important;
+}
+body.csk-saas-report[data-csk-route="edm_intelligence"]>aside a:hover,
+body.csk-saas-report[data-csk-route="edm_intelligence"]>aside a.active{
+ background:linear-gradient(120deg,#0072CE,#5E54F3)!important;color:#fff!important;
 }
 body.csk-saas-report[data-csk-route="edm_intelligence"]>main{
  margin-left:0!important;
