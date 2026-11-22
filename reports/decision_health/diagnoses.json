@@ -161,7 +161,9 @@
     "metadata_query_jobs": 0,
     "order_mart_accessible": true,
     "coupon_column_present": true,
-    "order_mart_last_modified": "2026-06-05T06:07:21.605000+00:00"
+    "order_mart_last_modified": "2026-06-05T06:07:21.605000+00:00",
+    "order_mart_lag_days": 168,
+    "admin_mart_lag_days": 87
   },
   "problems": [
     {
@@ -293,18 +295,14 @@
     {
       "id": "SOURCE_FRESHNESS",
       "priority": "P0",
-      "status": "source_required",
+      "status": "source_error_confirmed",
       "title": "광고비·주문·CRM·재고 원천의 최신성이 부족함",
-      "finding": "paid_cost: stale / order_mart: stale / crm: stale / inventory: connection_error",
-      "cause_component": "데이터 갱신·접근이 제한되어 매출 영향의 근거 검증이 막힘",
-      "cause_hypotheses": [
-        "ETL 적재 지연",
-        "API·계정 연동 장애",
-        "실재고 조회 권한 문제"
-      ],
-      "hypothesis_status": "unverified",
+      "finding": "paid_cost: stale / order_mart: stale / crm: stale / inventory: connection_error · 주문마트 168일, 관리자마트 87일 갱신 지연",
+      "cause_component": "주문상품마트 마지막 수정 2026-06-05T06:07:21.605000+00:00 (168일 지연); 관리자 일별마트 마지막 수정 2026-08-25T01:23:53.290000+00:00 (87일 지연). BigQuery 테이블 메타데이터로 직접 확인함.",
+      "cause_hypotheses": [],
+      "hypothesis_status": "confirmed_metadata_staleness",
       "causal_confirmed": false,
-      "how_to_verify": "각 원천의 마지막 적재 시각·건수·유효 스키마를 직접 조회하고 익일 동일 조건 재검증",
+      "how_to_verify": "MSSQL → BigQuery 적재 작업 실행/오류 로그, 원본 주문상품마트 권한 및 마지막 성공 시각 확인. 재적재 후 행 수·일자·쿠폰 컬럼 중복/정합성 검증",
       "blocked_by": [
         "paid_cost",
         "order_mart",
