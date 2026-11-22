@@ -90,13 +90,21 @@
       return x && x.start && x.end && x.start <= end && x.end >= start;
     }).sort(function (a,b) { return String(b.start).localeCompare(String(a.start)); }) : [];
   }
-  function productRows(di) {
+  function productRows(di,officialImages) {
     var c=di && di.product_focus && di.product_focus.cards || [];
+    var normalizeName=function(v){return String(v||"").replace(/[‘’`]/g,"'").replace(/\s+/g," ").trim().toLowerCase();};
+    var byName=new Map((officialImages&&officialImages.products||[]).filter(function(v){
+      return v&&v.name&&/^https:\/\/assetscdn\d+\.styleship\.com\/assets\/columbia\/data\/productimages\/a\/[12]\/[a-z0-9_-]+\.jpg$/i.test(v.image_url||"") &&
+        /^https:\/\/www\.columbiakorea\.co\.kr\//i.test(v.product_url||"");
+    }).map(function(v){return [normalizeName(v.name),v];}));
     return Array.isArray(c) ? c.filter(function (x) {
       return x && x.name && num(x.pdp_7d) && num(x.pdp_prior_7d) &&
         num(x.sales_7d) && num(x.sales_previous_7d) &&
         x.sales_source === "ga4_purchase_items" && x.sales_match_method === "normalized_exact_item_name";
-    }).sort(function (a,b) {
+    }).map(function(x){var p=byName.get(normalizeName(x.name));return {
+      ...x,image_url:p?p.image_url:null,product_url:p?p.product_url:null,
+      representative_color:p?p.color:null
+    };}).sort(function (a,b) {
       var aDelta=Math.abs(a.sales_7d-a.sales_previous_7d),bDelta=Math.abs(b.sales_7d-b.sales_previous_7d);
       return bDelta-aDelta || Math.abs(b.pdp_change_pct||0)-Math.abs(a.pdp_change_pct||0);
     }) : [];
@@ -295,7 +303,8 @@
         products.length?products.slice(0,props.showAll?products.length:12).map(function(x,i){
           var saleDelta=x.sales_7d-x.sales_previous_7d;
           return h("button",{key:x.name,type:"button",className:cls("workspace-row",selected&&selected.name===x.name&&"selected"),onClick:function(){props.onSelect(x.name);}},
-            h("span",{className:"workspace-row-number"},""+(i+1)),
+            x.image_url ? h("img",{className:"csk-product-thumb",src:x.image_url,alt:x.name+" 대표 색상 "+attr(x.representative_color),loading:"lazy",referrerPolicy:"no-referrer"}):
+              h("span",{className:"workspace-row-number"},""+(i+1)),
             h("span",{className:"workspace-row-copy"},h("strong",null,x.name),h("small",null,"PDP "+delta(x.pdp_change_pct)+" · 구매 "+fmt(x.sales_previous_7d)+" → "+fmt(x.sales_7d)+"개")),
             h("span",{className:cls("row-number",saleDelta<0?"minus":"plus")},(saleDelta>0?"+":"")+fmt(saleDelta)+"개")
           );
@@ -305,8 +314,14 @@
       h("section",{className:"csk-workspace-detail"},
         selected?[
           h("div",{className:"detail-topline",key:"top"},h("span",null,"상품명 기준 분석"),h("span",{className:"detail-badge"},"GA4 매칭 · 인과 미확정")),
-          h("h3",{key:"title"},selected.name),
-          h("strong",{key:"value",className:"detail-large"},delta(selected.pdp_change_pct)),
+          h("div",{key:"product-head",className:"csk-product-head"},
+            selected.image_url?h("img",{src:selected.image_url,alt:selected.name+" "+attr(selected.representative_color)+" 대표 이미지",className:"csk-product-hero-image",loading:"lazy",referrerPolicy:"no-referrer"}):null,
+            h("div",{className:"csk-product-head-info"},
+              h("h3",null,selected.name),
+              h("strong",{className:"detail-large"},delta(selected.pdp_change_pct)),
+              selected.product_url?h("a",{className:"csk-product-official",href:selected.product_url,target:"_blank",rel:"noopener noreferrer"},"공식몰 · 대표 색상 "+attr(selected.representative_color)+" ↗"):null
+            )
+          ),
           h("p",{key:"meta",className:"detail-sub"},"PDP 조회 변화 · 판매는 GA4 상품 구매수량으로 별도 집계"),
           h("div",{key:"stats",className:"csk-detail-stats"},
             h(StatCard,{title:"PDP 조회",value:fmt(selected.pdp_7d),sub:"전주 "+fmt(selected.pdp_prior_7d)}),
@@ -416,7 +431,7 @@
     var [showLegacy,setLegacy]=useState(false);
     var drivers=useMemo(function(){return driverBridge(ops);},[ops]);
     var metrics=useMemo(function(){return metricRows(ops,di);},[ops,di]);
-    var products=useMemo(function(){return productRows(di);},[di]);
+    var products=useMemo(function(){return productRows(di,data.pictures);},[di,data.pictures]);
     var events=useMemo(function(){return officialEvents(dx,ops);},[dx,ops]);
     useEffect(function(){
       document.body.classList.add("csk-react-ready");
@@ -476,7 +491,8 @@
       di:"../daily_intelligence/latest.json",
       dx:"./diagnoses.json",
       source:"./source_medium_weekly.json",
-      funnel:"./product_funnel_evidence.json"
+      funnel:"./product_funnel_evidence.json",
+      pictures:"./official_product_images.json"
     };
     var keys=Object.keys(sources),token=String(Date.now());
     Promise.all(keys.map(function(k){
