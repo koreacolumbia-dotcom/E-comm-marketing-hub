@@ -87,8 +87,53 @@ header{display:flex;justify-content:space-between;gap:16px;align-items:center;bo
 .p-evidence{display:none}
 .p-weather{font-size:11px;color:#3c617d;background:#eef4f8;border-radius:7px;padding:9px 12px;margin:9px 0;line-height:1.5}
 @media(max-width:670px){.p-weather{padding:8px 10px;font-size:10px}}
+
+/* Business-level signal precedes (but does not replace) product drill-down. */
+#macro-health{margin:0 0 12px}
+.macro-heading{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:0 0 12px}
+.macro-heading h2{font-size:23px;letter-spacing:-.025em;margin:3px 0}
+.macro-heading p{margin:2px 0;font-size:12px;color:#6c7d8f}
+.macro-heading small{font-size:10px;color:#6c8091}
+.macro-period{max-width:680px;text-align:right;line-height:1.5}
+.macro-headline{background:#fff;border:1px solid #dce7ef;border-radius:11px;padding:15px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.macro-headline>div:first-child{display:flex;flex-direction:column;gap:2px}
+.macro-headline span{font-size:11px;color:#5e7081}
+.macro-headline strong{font-size:30px;line-height:1.25;font-weight:800;letter-spacing:-.04em}
+.macro-headline strong.loss,.macro-impact.loss{color:#af4239}
+.macro-headline strong.gain{color:#197457}
+.macro-headline small{font-size:11px;color:#64788a}
+.macro-conclusion{max-width:60%;border-left:2px solid #dfe8ef;padding-left:16px}
+.macro-conclusion b{font-size:14px;color:#234966}.macro-conclusion p{font-size:12px;color:#6b7e8e;margin:4px 0}
+.macro-driver-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:10px}
+.macro-driver{padding:13px;background:white;border:1px solid #e0e7ef;border-radius:10px;display:flex;flex-direction:column;min-width:0;gap:5px}
+.macro-driver.loss{border-top:3px solid #b36b62}.macro-driver.gain{border-top:3px solid #367966}
+.macro-driver-top{display:flex;gap:9px;justify-content:space-between;align-items:start;flex-wrap:wrap}
+.macro-driver-top strong{font-size:13px;color:#244a65}
+.macro-driver-top span{font-size:10px;color:#75889a}
+.macro-impact{font-size:25px;font-weight:800;line-height:1.4;letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:#247258}
+.macro-numbers{font-size:11px;color:#506c80;font-variant-numeric:tabular-nums;line-height:1.5}
+.macro-explain{font-size:12px;color:#435c70;margin:4px 0 7px;line-height:1.4}
+.macro-next{border-top:1px solid #edf0f4;padding-top:7px;font-size:10px;color:#708597;margin-top:auto;line-height:1.45}
+.macro-next b{color:#385974}
+.macro-context-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:15px 0 7px}
+.macro-context-title b{font-size:12px;color:#344e66}.macro-context-title small{font-size:10px;color:#788b9c}
+.macro-context-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.macro-context-item{display:flex;flex-direction:column;gap:3px;border:1px solid #e6ecf2;background:#f9fbfd;border-radius:8px;padding:10px;min-width:0}
+.macro-context-item b{font-size:10px;color:#75889a}
+.macro-context-item strong{font-size:13px;color:#315370;line-height:1.35}
+.macro-context-item small{font-size:10px;color:#728697;line-height:1.35}
+.macro-disclaimer{font-size:10px;color:#758697;line-height:1.6;margin:9px 0}
+.macro-unavailable{background:#fff;border:1px solid #e1e8ef;padding:16px;border-radius:9px;font-size:12px;color:#7b6672}
+#product-drilldown{margin:15px 0}
+#product-drilldown>summary{cursor:pointer;border:1px solid #dce6ef;border-radius:9px;background:#fff;padding:13px 15px;color:#285577;font-size:13px}
+#product-drilldown>summary small{margin-left:10px;font-size:10px;color:#8092a3}
+#product-drilldown[open]>summary{margin-bottom:12px}
+@media(max-width:850px){.macro-heading{align-items:start}.macro-heading h2{font-size:21px}.macro-period{text-align:left;max-width:100%}.macro-driver-list,.macro-context-grid{grid-template-columns:1fr}.macro-headline{align-items:start;flex-direction:column;gap:10px}.macro-conclusion{max-width:100%;border-left:0;border-top:1px solid #e7eef3;padding:9px 0 0}.macro-headline strong{font-size:28px}.macro-impact{font-size:22px}#product-drilldown>summary small{display:block;margin:3px 0 0}}
+
 </style></head><body><main><header><div><small>CSK E-COMMERCE · DECISION INTELLIGENCE</small><h1>의사결정 센터</h1><small>관측 데이터와 미검증 가설을 분리합니다. 숫자가 없으면 임의로 채우지 않습니다.</small></div><span class="status" id="overall">원천 확인 중</span></header>
-<section id="priority-products" aria-label="상품별 우선순위 카드"><div class="p-top"><div><small>PRODUCT SIGNALS · ACTION FIRST</small><h2>원인 후보 TOP 3 <small class="p-status-label">원인 확정 전</small></h2><p id="priority-period">관측 데이터 확인 중</p></div><small id="priority-coverage">원천 점검 중</small></div><div class="p-weather" id="priority-weather" aria-label="최근 14일 서울 일평균 기온 출처">서울 관측 기온 확인 중</div><div class="p-board" id="priority-cards" aria-live="polite">실측 근거 정리 중</div><div id="priority-detail" hidden></div></section><div id="loading" role="status">연결된 보고서를 검사하고 있습니다.</div>
+<section id="macro-health" aria-label="이커머스 전체 성과 원인 분석"><div class="macro-unavailable">주간 매출·전환·객단가를 확인하고 있습니다.</div></section>
+<details id="product-drilldown"><summary><b>상품별 하위 원인 사례 보기</b><small>전체 성과를 먼저 확인하고 상품별로 내려갑니다.</small></summary>
+<section id="priority-products" aria-label="상품별 우선순위 카드"><div class="p-top"><div><small>PRODUCT DRILL-DOWN · SECONDARY</small><h2>상품별 하위 원인 TOP 3 <small class="p-status-label">원인 확정 전</small></h2><p id="priority-period">관측 데이터 확인 중</p></div><small id="priority-coverage">원천 점검 중</small></div><div class="p-weather" id="priority-weather" aria-label="최근 14일 서울 일평균 기온 출처">서울 관측 기온 확인 중</div><div class="p-board" id="priority-cards" aria-live="polite">실측 근거 정리 중</div><div id="priority-detail" hidden></div></section></details><div id="loading" role="status">연결된 보고서를 검사하고 있습니다.</div>
 <details id="decision-additional"><summary><span>상세 분석·검증 자료 보기</span><small>검증된 숫자 3개만 보기</small></summary><section id="evidence-short" aria-label="원인별 쿼리 검증 수치">GA4 검증 데이터를 확인하고 있습니다.</section><div class="p-source-links"><span>근거 원본</span><a href="./product_funnel_evidence.json">세션 퍼널</a><a href="./ga4_purchase_diagnostics.json">구매·객단가</a><a href="./diagnoses.json">집계 정의</a></div><div id="raw-evidence" hidden><section class="grid">
 <article class="card two"><h2>01 · 현재 가장 중요한 의사결정</h2><div id="story" class="lead">데이터 확인 중</div><div id="story-note" class="notice" style="margin-top:12px">원천 신선도 확인 후 판단합니다.</div></article>
 <article class="card third"><h2>원천 상태</h2><div id="health"></div></article>
@@ -136,6 +181,8 @@ const load=async path=>{try{const r=await fetch(path+"?v="+Date.now(),{cache:"no
  const safe=w.status==="ready"&&Number.isFinite(aovChange)&&Number.isFinite(orderChange)&&oldDi!==null&&oldDi<=2;
  $("story").textContent=!safe?"최신 매출 구조 또는 데이터 품질을 먼저 검증해야 합니다.":(revenueChange<0&&orderChange>0&&aovChange<0?"주문은 "+pct(orderChange)+" 증가했지만 객단가가 "+pct(aovChange)+" 하락해 매출은 "+pct(revenueChange)+" 변화했습니다.":"주간 매출 "+pct(revenueChange)+" · 주문 "+pct(orderChange)+" · 객단가 "+pct(aovChange));
  $("story-note").textContent=risks.length?"광고비·주문/고객 원천 등 "+risks.length+"개 데이터 상태를 추가로 확인해야 합니다. 할인/날씨/경쟁사 영향은 관측 시점의 일치만으로 단정할 수 없습니다.":"동일 기간의 가격·판매수량·캠페인 데이터를 대조하여 인과 가설을 검증하세요.";
+ window.__cskMacroPayload={operations:op,intelligence:di};
+ window.CSKMacroBoard?.render(op,di);
  const focus=di.product_focus||{},cards=Array.isArray(focus.cards)?focus.cards:[];
  window.__cskPriorityFocus=focus;
  window.__cskCausePayload={focus,diagnoses,ga4Purchase};
@@ -373,4 +420,4 @@ function render(focus,diag,ga4){
 }
 window.CSKCauseBoard={render};
 if(window.__cskCausePayload)render(window.__cskCausePayload.focus,window.__cskCausePayload.diagnoses,window.__cskCausePayload.ga4Purchase);
-})();</script><script defer src="./evidence-cards.js?v=20261122-1"></script><script defer src="./diagnosis.js?v=20261122-4"></script><script src="./timeline.js?v=20261122-2"></script></body></html>
+})();</script><script defer src="./macro-board.js?v=20261122-1"></script><script defer src="./evidence-cards.js?v=20261122-1"></script><script defer src="./diagnosis.js?v=20261122-4"></script><script src="./timeline.js?v=20261122-2"></script></body></html>

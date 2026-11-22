@@ -21,6 +21,8 @@ on:
       - 'tests/test_problem_diagnosis.py'
       - 'reports/decision_health/diagnosis.js'
       - 'reports/decision_health/evidence-cards.js'
+      - 'reports/decision_health/macro-board.js'
+      - 'tests/test_macro_decision_board.cjs'
       - 'reports/decision_health/index.html'
 permissions:
   contents: write
@@ -136,6 +138,8 @@ jobs:
           node --check reports/daily_intelligence/coverage.js
           node --check reports/decision_health/diagnosis.js
           node --check reports/decision_health/evidence-cards.js
+          node --check reports/decision_health/macro-board.js
+          node tests/test_macro_decision_board.cjs
           python - <<'PY'
           from pathlib import Path
           import json
