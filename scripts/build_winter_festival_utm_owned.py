@@ -21,7 +21,11 @@ LOCATION="asia-northeast3"
 PER_QUERY_CAP=3*1024**3
 TOTAL_CAP=6*1024**3
 WINDOWS={"2025":("2025-11-21","2025-11-22"),"2026":("2026-11-20","2026-11-21")}
-OWNED_MARKERS=re.compile(r"owned|on[-_ ]?ed|윈터|winter|festival|페스티벌|wfestival|wfest",re.I)
+OWNED_MARKERS=re.compile(r"owned|on[-_ ]?ed",re.I)
+FESTIVAL_MARKERS=re.compile(r"winter[_ -]?festival|윈터페스티벌",re.I)
+SEASONOFF_MARKERS=re.compile(r"winter[_ -]?seasonoff|윈터시즌오프",re.I)
+OWNED_PREFIX=re.compile(r"^(?:KAKAO_CH|LMS_ECOM|EDM|KAKAO_FridnsTalk|KAKAO_alimtalk)\s*/",re.I)
+SAFE_SUFFIXES={"store","main","coupon","banner","special_price","logo","men","women","product1","product2","shirts","pants","hat","jacket"}
 SOURCE_HINT=re.compile(r"kakao|카카오|lms|sms|edm|e-?mail|friendtalk|alimtalk|newsletter|kakaotalk",re.I)
 UNSAFE=re.compile(r"@|https?://|[?&](?:token|email|uid|user_id|phone)=|(?:\+?\d[\d\s().-]{9,}\d)",re.I)
 
@@ -99,22 +103,33 @@ def summarize(source):
             term=clean_label(r.get("sessionManualTerm"))
             if "(restricted)" in (src,camp,term):
                 continue
-            strong=bool(OWNED_MARKERS.search(camp+" "+term))
             media=bool(SOURCE_HINT.search(src))
+            tagged=camp+" "+term
+            festival=bool(FESTIVAL_MARKERS.search(tagged))
+            seasonoff=bool(SEASONOFF_MARKERS.search(tagged))
+            is_owned=bool(OWNED_MARKERS.search(tagged))
+            # Festival word alone in paid search/DA does not establish an Owned UTM.
+            strong=is_owned or ((festival or seasonoff) and bool(OWNED_PREFIX.search(src)))
             if not strong and not media:continue
             kind="utm_campaign_or_term" if strong else "media_context_only"
-            key=(kind,src,camp,term)
+            family="winter_festival" if festival else "winter_seasonoff" if seasonoff else "other_owned"
+            # Distinct appended sub-ID fragments may be personalized; keep campaign aggregate
+            # and mask that UTM term rather than disclosing per-link suffixes.
+            if (term.lower().startswith(camp.lower()) and len(term)>len(camp)+1 and
+                term[len(camp):].strip("_- ").lower() not in SAFE_SUFFIXES):
+                term="(individualized suffix masked)"
+            key=(kind,family,src,camp,term)
             val=matched.setdefault(key,{"sessions":0.,"orders":0.,"revenue":0.})
             val["sessions"]+=metric(r.get("sessions"))
             val["orders"]+=metric(r.get("transactions"))
             val["revenue"]+=metric(r.get("purchaseRevenue"))
         grouped=[]
         suppressed={"sessions":0.,"orders":0.,"revenue":0.}
-        for (kind,src,camp,term),v in matched.items():
+        for (kind,family,src,camp,term),v in matched.items():
             if v["sessions"]<5:
                 for k in suppressed:suppressed[k]+=v[k]
                 continue
-            grouped.append({"classification":kind,"source_medium":src,
+            grouped.append({"classification":kind,"campaign_family":family,"source_medium":src,
                 "utm_campaign":camp,"utm_term":term,
                 "sessions":int(v["sessions"]),"orders":int(v["orders"]),
                 "revenue":round(v["revenue"]),"cvr_pct":round(100*v["orders"]/v["sessions"],2) if v["sessions"] else None})
