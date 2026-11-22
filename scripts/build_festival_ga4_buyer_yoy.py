@@ -56,8 +56,8 @@ def make_report(api_responses,periods,source=None):
                      "total_purchase_revenue_krw":round(rev,2)}
     # User-supplied GA4 BigQuery purchase totals are reference only: avoid
     # publishing 2025 metrics if dates/aggregation do not reconcile.
-    if source and source.get("status")=="ga4_measured" and
-            source.get("period")==periods:
+    if (source and source.get("status")=="ga4_measured" and
+            source.get("period")==periods):
         for year in ("2025","2026"):
             expected=source.get("years",{}).get(year,{})
             if expected.get("orders") and expected["orders"]!=years[year]["ecommerce_purchases"]:
