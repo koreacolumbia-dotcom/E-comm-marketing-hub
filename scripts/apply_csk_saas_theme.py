@@ -132,12 +132,13 @@ def patch_report(path: Path, key: str, *, check: bool = False) -> str:
                 rf"<!-- {marker}-START -->.*?<!-- {marker}-END -->",
                 "", text, flags=re.S,
             )
-    # Rotate hashed CSS/JS references on generated report pages, including
-    # documents with an existing theme from the previous build.
+    # Only the 18-section dashboard needs a new versioned asset; keep the
+    # other 21 large generated HTML artifacts unchanged to avoid costly writes.
+    version = "20261122-18a" if key == "daily_intelligence" else VERSION
     text = re.sub(r'(csk-saas-unified\.css\?v=)[A-Za-z0-9_.-]+',
-                  lambda m: m.group(1) + VERSION, text)
+                  lambda m: m.group(1) + version, text)
     text = re.sub(r'(csk-saas-standalone\.js\?v=)[A-Za-z0-9_.-]+',
-                  lambda m: m.group(1) + VERSION, text)
+                  lambda m: m.group(1) + version, text)
     match = HEAD_END.search(text)
     if not match or not BODY_OPEN.search(text):
         return "not_html"
@@ -146,12 +147,12 @@ def patch_report(path: Path, key: str, *, check: bool = False) -> str:
     if ASSET_LINK not in text:
         head_bits.append(
             f'<link id="csk-saas-shared-theme" rel="stylesheet" '
-            f'href="{asset_base}{ASSET_LINK}?v={VERSION}">'
+            f'href="{asset_base}{ASSET_LINK}?v={version}">'
         )
     if ASSET_SCRIPT not in text:
         head_bits.append(
             f'<script defer data-csk-route="{key}" '
-            f'src="{asset_base}{ASSET_SCRIPT}?v={VERSION}"></script>'
+            f'src="{asset_base}{ASSET_SCRIPT}?v={version}"></script>'
         )
     original = path.read_text(encoding="utf-8", errors="replace")
     if check and original != text:
