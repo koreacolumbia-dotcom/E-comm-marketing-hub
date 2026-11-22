@@ -62,10 +62,14 @@ async function main(){
  assert(overview.includes(Math.round(ops.weekly.current.total.revenue/ops.weekly.current.total.orders).toLocaleString("ko-KR")+"원"),"AOV must preserve won units");
  assert(!overview.includes("INV-1003")&&!overview.includes("$ 24,850"),"Sample invoice numbers must never appear");
  const acquisition=await render("acquisition");
- assertContent(acquisition,["유입부터 구매전환까지","소스/매체 검색","GA4 세션 귀속"]);
+ assertContent(acquisition,["유입부터 구매전환까지","소스/매체 검색"]);
  if(source.rows.length){
+   assert(acquisition.includes("GA4 세션 귀속"),"Observed source attribution label missing");
    const top=[...source.rows].sort((a,b)=>a.revenue_delta-b.revenue_delta).slice(0,12);
    assert(top.some(x=>acquisition.includes(x.source_medium)),"No observed source present");
+ } else {
+   assert(acquisition.includes("소스/매체 데이터 미확보"),
+     "Blocked or unavailable BigQuery must not fabricate source-medium data");
  }
  const current=source.period&&source.period.current||{},wk=ops.weekly||{};
  if(current.end!==ops.report_date || current.start!==(wk.period||"").split(" ~ ")[0])
