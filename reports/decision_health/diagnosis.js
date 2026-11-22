@@ -138,7 +138,51 @@
         root.append(evidence);
       }
     })
-    .catch(()=>{
-      status.replaceWith(el('div','통합 진단 데이터가 아직 생성되지 않았습니다. 아래 기존 의사결정 및 원천 상태를 참고해 주세요.','error-state'));
+    .catch(async()=>{
+      // First deployment must work even before the scheduled diagnosis JSON exists.
+      // Read live, aggregated source data; no customer-level data or synthetic causes.
+      try {
+        const paths=['../marketing_operations/latest.json','../daily_intelligence/latest.json','../competitor_content/strategy-summary.json'];
+        const [ops,di,content]=await Promise.all(paths.map(async u=>{
+          const res=await fetch(u+'?v='+Date.now(),{cache:'no-store'});
+          if(!res.ok)throw Error('missing source '+u);
+          return res.json();
+        }));
+        const w=ops.weekly||{},c=w.current?.total||{},p=w.previous?.total||{};
+        const n=x=>typeof x==='number'&&Number.isFinite(x)?x:null;
+        const ca=n(c.revenue)&&n(c.orders)>0?c.revenue/c.orders:null;
+        const pa=n(p.revenue)&&n(p.orders)>0?p.revenue/p.orders:null;
+        const change=(a,b)=>a!==null&&b!==null&&b>0?(a/b-1)*100:null;
+        status.textContent='최신 통합 진단 스냅샷 생성 전 · 원본에서 직접 계산한 임시 요약';
+        if(w.status==='ready'&&ca!==null&&pa!==null){
+          const headline=el('p','관측: 매출 '+pct(change(c.revenue,p.revenue))+
+            ' · 주문 '+pct(change(c.orders,p.orders))+' · 객단가 '+pct(change(ca,pa))+
+            '. 매출을 주문수×객단가로 분해한 결과이며, 할인·가격·상품 믹스의 원인은 확인되지 않았습니다.','headline');
+          root.append(headline);
+        }
+        const focus=di.product_focus||{},cards=focus.cards||[];
+        if(cards.length){
+          const card=el('article',null,'diag-card');
+          card.append(el('h3','상품 PDP와 구매 간 검증 필요'),
+            el('p','PDP 분석 카드 '+cards.length+'개 · 판매 확인 '+
+              cards.filter(x=>n(x.sales_day)!==null).length+'개 · 실측 기온 '+
+              (n(focus.weather_days)??'미확보')+'/14일','observed'),
+            el('p','확인할 항목: 상품명·SKU 매핑, 전체 구매 이벤트, 기상청 서울 관측소 실측치. 결측은 판매량 0을 뜻하지 않습니다.'));
+          root.append(card);
+        }
+        const brands=content.brands||[];
+        const shortage=brands.filter(b=>(n(b.retained_unique_count)||0)<30);
+        if(brands.length){
+          const card=el('article',null,'diag-card');
+          card.append(el('h3','경쟁사 콘텐츠 표본 부족'),
+            el('p','수집 대상 '+brands.length+'개 브랜드 · 최근 30일 관측 표본 30건 미만 '+shortage.length+'개 브랜드','observed'),
+            el('p','표본 30건 미만은 수집 범위 부족을 의미할 수 있으며 브랜드의 실제 발행량을 의미하지 않습니다.'));
+          const list=el('p',shortage.slice(0,8).map(x=>x.brand+' '+(x.retained_unique_count??0)+'건').join(' · '));
+          card.append(list);
+          root.append(card);
+        }
+      } catch (_) {
+        status.replaceWith(el('div','통합 진단 원본 연결을 확인하지 못했습니다. 기존 의사결정 지표를 확인하세요.','error-state'));
+      }
     });
 })();
