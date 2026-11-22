@@ -431,3 +431,18 @@ body.festival-motion .kpi strong{font-size:clamp(18px,2.4vw,27px)!important}
  .fm-rank-year>b{font-size:9px}.fm-rank-year>small{font-size:8px}
  .fm-ranked-value{max-width:83px}.fm-ranked-item .fm-product-change{font-size:10px}
 }
+
+/* Reconciled same-name vs observed-in-one-year-only item revenue drivers. */
+.fm-product-cohort-bars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 14px}
+.fm-product-cohort{background:#132832;border:1px solid #31544f;border-radius:10px;padding:11px;min-width:0;display:grid;gap:8px}
+.fm-product-cohort.down{border-color:#653f4b;background:#2a212e}
+.fm-product-cohort>span{font-size:10px;font-weight:750;color:#a4c8c3}
+.fm-product-cohort>strong{font-size:clamp(16px,2vw,21px);font-weight:850;color:#89ebc3;white-space:nowrap}
+.fm-product-cohort.down>strong{color:#ffacb8}
+.fm-product-cohort>.fm-product-bar{height:8px;background:#263d48}
+.fm-product-cohort .fm-product-bar i{display:block;height:100%;background:linear-gradient(90deg,#168f81,#42d8b0);border-radius:4px}
+.fm-product-cohort .fm-product-bar i.down{background:linear-gradient(90deg,#b05069,#e1889f)}
+@media(max-width:650px){.fm-product-cohort-bars{grid-template-columns:1fr;gap:6px}
+.fm-product-cohort{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 10px;padding:9px 11px}
+.fm-product-cohort>.fm-product-bar{grid-column:1/-1}
+.fm-product-cohort>strong{font-size:17px}}
