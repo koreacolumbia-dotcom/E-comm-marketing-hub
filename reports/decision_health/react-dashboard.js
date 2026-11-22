@@ -443,6 +443,17 @@
     var ops=props.ops||{},cal=ops.calendar||{},weekly=ops.weekly||{},yoy=weekly.yoy||{};
     var samePeriod=yoy.status==="ready" && cal.yoy_window && cal.yoy_window===yoy.period;
     var confirmed=samePeriod && Array.isArray(cal.last_year_confirmed) ? cal.last_year_confirmed : [];
+    // Surface the primary owned-sale event and verified CRM sends before auxiliary reference rows.
+    var highlighted=confirmed.slice().sort(function(a,b){
+      function score(x) {
+        var title=String(x.title||"").toLowerCase();
+        if(x.kind==="event" && /winter festival|윈터페스티벌/.test(title))return 0;
+        if(x.origin==="owned_message_2025" && x.sent_confirmed===true)return 1;
+        if(x.kind==="event")return 2;
+        return 3;
+      }
+      return score(a)-score(b) || String(a.date||"").localeCompare(String(b.date||""));
+    });
     var planned=samePeriod && Array.isArray(cal.last_year_planned) ? cal.last_year_planned : [];
     var matched=samePeriod && Array.isArray(yoy.daily_comparison) && yoy.daily_comparison.length===7 ? yoy.daily_comparison : [];
     var dayMap=new Map(matched.filter(function(d){return d && d.ly_date && d.date;}).map(function(d){return [d.ly_date,d];}));
@@ -485,11 +496,11 @@
           h("span",null,"확인된 CRM 발송 "+ownedVerified+"건"),
           h("span",null,"발송 계획 "+planned.length+"건")
         ),
-        confirmed.length ? h("div",{className:"ly-campaign-list"},confirmed.slice(0,3).map(function(e){return row(e,false);})):
+        confirmed.length ? h("div",{className:"ly-campaign-list"},highlighted.slice(0,3).map(function(e){return row(e,false);})):
           h("p",{className:"ly-campaign-empty"},"이 기간 확인된 작년 행사·발송 기록이 없습니다. 행사가 없었다는 뜻은 아닙니다."),
         confirmed.length>3?h("details",{className:"ly-campaign-more"},
           h("summary",null,"확인된 나머지 활동 "+(confirmed.length-3)+"건"),
-          h("div",{className:"ly-campaign-list"},confirmed.slice(3).map(function(e){return row(e,false);}))) : null,
+          h("div",{className:"ly-campaign-list"},highlighted.slice(3).map(function(e){return row(e,false);}))) : null,
         planned.length?h("details",{className:"ly-campaign-more"},
           h("summary",null,"실행 미확인 · 계획 기록 "+planned.length+"건"),
           h("div",{className:"ly-campaign-list"},planned.map(function(e){return row(e,true);}))) : null,
