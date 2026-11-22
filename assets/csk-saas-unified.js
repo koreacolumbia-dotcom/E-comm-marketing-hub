@@ -16,7 +16,7 @@
     /\/reports\/daily_digest\/(?:index\.html|daily\/[^/]+\.html)$/.test(pathname) ||
     false;
   const cssId = "csk-saas-shared-theme";
-  const layoutCssHref=new URL("assets/csk-layout-v2.css?v=20261122-18a",document.baseURI).href;
+  const layoutCssHref=new URL("assets/csk-layout-v2.css?v=20261122-weatherfocus-v1",document.baseURI).href;
   const layoutJsHref=new URL("assets/csk-layout-v2.js?v=20261122-18a",document.baseURI).href;
   function ensureLayout(doc) {
     if(!doc.getElementById("csk-layout-v2-css")){
