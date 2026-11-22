@@ -80,11 +80,11 @@
       if (cards.length && salesCovered < cards.length) missing.push('상품 판매량 원천 연결');
       if (weatherDays !== null && weatherDays < 14) missing.push('서울 기상 실측치 연결');
       if (sourceRequired) missing.push('원본 미연결 분석 ' + sourceRequired + '건 검증');
-      if (pdpNames !== null) missing.push('상품명 PDP 비교 ' + pdpNames + '개 관측');
       bottom.replaceChildren();
       const lead = document.createElement('span');
-      lead.textContent = missing.length ? '확인 우선순위: ' + missing.join(' · ') + '. ' :
-        '원천 상태 확인 완료. ';
+      const covered = pdpNames !== null ? '상품명 PDP 비교 ' + pdpNames + '개 확보. ' : '';
+      lead.textContent = covered + (missing.length ? '복구 우선순위: ' + missing.join(' · ') + '. ' :
+        '현재 확인된 원천 상태를 반영했습니다. ');
       bottom.append(lead);
       if ((cards.length && salesCovered < cards.length) || (weatherDays !== null && weatherDays < 14)) {
         const caution = document.createElement('strong');
