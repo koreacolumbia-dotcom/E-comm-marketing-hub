@@ -59,6 +59,8 @@
     'reports/marketing_operations/latest.json':['운영·매출 원본','../marketing_operations/index.html'],
     'reports/daily_intelligence/latest.json':['18개 분석','../daily_intelligence/index.html'],
     'reports/decision_health/ga4_purchase_diagnostics.json':['실제 GA4 상품 집계','../decision_health/ga4_purchase_diagnostics.json'],
+    'reports/decision_health/ga4_coupon_usage.json':['GA4 쿠폰 사용 여부','../decision_health/ga4_coupon_usage.json'],
+    'reports/decision_health/source_metadata.json':['원천 메타데이터','../decision_health/source_metadata.json'],
     'reports/competitor_content/strategy-summary.json':['경쟁 콘텐츠','../competitor_content/index.html'],
     'reports/competitor_intelligence/latest-quality.json':['경쟁사 수집 품질','../competitor_intel/dashboard.html'],
     'reports/competitor_sale_calendar/latest.json':['경쟁사 행사','../competitor_sale_calendar/index.html']
@@ -80,6 +82,18 @@
         main.textContent=`분석 기준 ${data.report_date} · 주문 ${pct(fin.orders_pct)} / 매출 ${pct(fin.revenue_pct)} / 객단가 ${pct(fin.aov_pct)}. 주문수 효과 ${fmt(fin.order_effect_krw)}원, 객단가 효과 ${fmt(fin.aov_effect_krw)}원 (매출 변화 ${fmt(fin.revenue_delta_krw)}원). 가격·상품 구성의 원인은 아직 검증하지 않았습니다.`;
       }else main.textContent=`기준일 ${data.report_date} · 원천 집계가 부족해 매출 분해를 확정하지 않았습니다.`;
       root.append(main);
+      const wh=data.warehouse_source_health||{};
+      if(wh.inspection_status==='metadata_inspected'&&
+         (typeof wh.order_mart_lag_days==='number'||typeof wh.admin_mart_lag_days==='number')){
+        const delayed=el('div',null,'headline');
+        delayed.textContent=
+          '독립 관리자 검증 장애 확인: 주문상품마트 '+(wh.order_mart_last_modified||'날짜 미확인')+
+          ' (집계 기준 '+(wh.order_mart_lag_days??'?')+'일 지연), '+
+          '관리자 일별마트 '+(wh.admin_mart_last_modified||'날짜 미확인')+
+          ' (집계 기준 '+(wh.admin_mart_lag_days??'?')+'일 지연). '+
+          '쿠폰/프로모션 컬럼은 있으나 최신 집계가 없어 별도 적재 복구가 필요합니다.';
+        root.append(delayed);
+      }
       const g=data.ga4_evidence||{};
       if(g.status==='ga4_measured'&&g.item_aov_bridge){
         const b=g.item_aov_bridge,part=g.category_bridge||{};
@@ -134,6 +148,21 @@
         const source=el('div','GA4 상품 원인 검증: '+g.status+
           ' · 비용 상한 또는 원천 품질 조건을 만족하지 않아 가격/믹스 원인 확정 보류','error-state');
         root.append(source);
+      }
+      const couponEvidence=data.ga4_coupon_evidence||{};
+      if(couponEvidence.status==='measured_coupon_presence'&&
+         typeof couponEvidence.delta_pp==='number'){
+        const current=couponEvidence.periods?.current||{};
+        const previous=couponEvidence.periods?.previous||{};
+        const couponPanel=el('article',null,'diag-card');
+        couponPanel.style.marginBottom='12px';
+        couponPanel.append(el('h3','상품 쿠폰코드 사용 여부 · 실측'));
+        couponPanel.append(el('p',
+          '직전 7일 '+pct(previous.order_coupon_presence_pct)+' → 최근 7일 '+
+          pct(current.order_coupon_presence_pct)+' ('+
+          (couponEvidence.delta_pp>0?'+':'')+couponEvidence.delta_pp.toFixed(1)+'%p)','observed'));
+        couponPanel.append(el('p','GA4 items.coupon 값의 존재 여부만 관측했습니다. 실제 쿠폰 할인액이나 매출 영향은 관리자 주문마트 복구 전까지 확정할 수 없습니다.','hint'));
+        root.append(couponPanel);
       }
       const grid=el('div',null,'diag-grid');
       for(const p of data.problems){
