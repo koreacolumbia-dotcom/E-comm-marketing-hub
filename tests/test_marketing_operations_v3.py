@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from scripts.build_marketing_operations_v3 import (
-    calendar_context, product_triage, weekly_kpis, incrementality,
+    calendar_context, product_triage, weekly_kpis, campaign_impact_diagnostics, incrementality,
     recovery_plan, build, render_html, render_md, write_report, slim
 )
 from scripts.sync_csk_ops_issues import candidates, body, marker, sync
@@ -71,6 +71,43 @@ class CalendarTests(unittest.TestCase):
                 "yoy_start": "2025-11-14"}}, f/"x", f/"y", f/"z")
             self.assertEqual(c["status"], "reference_missing")
             self.assertIsNone(c["yoy_window"])
+
+    def test_current_events_separate_official_site_offline_and_unverified_schedules(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            c25,owned,c26=[folder/n for n in ("c25.json","owned.json","c26.json")]
+            c25.write_text('{"entries":[]}')
+            owned.write_text('{"entries":[]}')
+            c26.write_text(json.dumps({"entries":[
+                {"date":"2026-11-13","kind":"content","status":"observed",
+                 "scope":"official_mall","channel":"onsite_content",
+                 "title":"Site Content","source":"https://www.columbiakorea.co.kr/event/261113/test.asp",
+                 "date_basis":"page_path_only",
+                 "impact_hypothesis":"PDP 관심 증가 가능","impact_metrics":["PDP"]},
+                {"date":"2026-11-14","kind":"event","status":"reported",
+                 "scope":"official_mall","channel":"onsite_teaser",
+                 "title":"Teaser","source":"담당자 일정 공유"},
+                {"date":"2026-11-14","end_date":"2026-11-16",
+                 "kind":"event","status":"confirmed","scope":"offline_partner",
+                 "channel":"retail_store","title":"Store promotion",
+                 "source":"https://example.com/store"},
+                {"date":"2026-11-14","kind":"event","status":"confirmed",
+                 "scope":"official_mall","channel":"onsite_promotion",
+                 "title":"Online promotion","source":"https://example.com/online",
+                 "impact_hypothesis":"주문 증가 가능",
+                 "impact_metrics":["주문수","CVR"]},
+                {"date":"2026-11-14","kind":"event","status":"confirmed",
+                 "title":"Unsourced","source":""}
+            ]}))
+            cal=calendar_context(DAY,daily(DAY),c25,owned,c26)
+            self.assertEqual(cal["current_status"],"records_present")
+            self.assertEqual(len(cal["current"]),4)
+            self.assertEqual(cal["current_source_summary"]["online_confirmed"],1)
+            self.assertEqual(cal["current_source_summary"]["offline_confirmed"],1)
+            self.assertEqual(cal["current_source_summary"]["observed_content"],1)
+            self.assertEqual(cal["current_source_summary"]["unverified_schedule"],1)
+            self.assertEqual(next(x for x in cal["current"] if x["title"]=="Online promotion")["impact_metrics"],["주문수","CVR"])
+            self.assertEqual(next(x for x in cal["current"] if x["title"]=="Store promotion")["end_date"],"2026-11-16")
 
     def test_historical_promotion_and_confirmed_message_context_is_source_backed(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -229,6 +266,44 @@ class WeeklyTests(unittest.TestCase):
             self.assertIsNone(result["yoy"]["reference"]["total"])
             self.assertEqual(result["yoy"]["missing_dates"],[(bad-dt.timedelta(days=364)).isoformat()])
             self.assertEqual(result["yoy"]["daily_comparison"],[])
+
+
+    def test_campaign_impact_is_descriptive_weekday_matched_and_not_offline_attribution(self):
+        current=[
+            {"status":"confirmed","scope":"official_mall","kind":"event",
+             "date":(DAY-dt.timedelta(days=1)).isoformat(),"title":"WINTER FESTIVAL"},
+            {"status":"confirmed","scope":"offline_partner","kind":"event",
+             "date":(DAY-dt.timedelta(days=2)).isoformat(),"title":"Retail Promotion"}
+        ]
+        ly_start=DAY-dt.timedelta(days=7)
+        rows=[]
+        for index in range(7):
+            date=DAY-dt.timedelta(days=6-index)
+            base=1_000_000
+            value=800_000 if index<5 else 1_400_000
+            rows.append({"date":date.isoformat(),
+                         "ly_date":(date-dt.timedelta(days=364)).isoformat(),
+                         "current":{"revenue":value,"orders":8 if index<5 else 14},
+                         "last_year":{"revenue":base,"orders":10}})
+        calendar={"current":current,"last_year_confirmed":[
+            {"date":(DAY-dt.timedelta(days=365)).isoformat(),
+             "kind":"event","status":"confirmed","title":"Winter Festival"}
+        ]}
+        weekly={"yoy":{"status":"ready","daily_comparison":rows}}
+        result=campaign_impact_diagnostics(calendar,weekly)
+        self.assertEqual(result["status"],"descriptive")
+        self.assertEqual(result["pre_days"],5)
+        self.assertEqual(result["active_days"],2)
+        self.assertEqual(result["pre_revenue_yoy_pct"],-20)
+        self.assertEqual(result["active_revenue_yoy_pct"],40)
+        self.assertTrue(result["ly_same_weekday_event"])
+        self.assertFalse(result["causal"])
+        self.assertEqual(
+            campaign_impact_diagnostics({"current":[current[1]]},weekly)["status"],
+            "insufficient")
+        self.assertEqual(
+            campaign_impact_diagnostics(calendar,{"yoy":{"status":"unavailable","daily_comparison":[]}})["status"],
+            "insufficient")
 
 
 class IncrementalityTests(unittest.TestCase):
