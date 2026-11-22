@@ -77,6 +77,29 @@ jobs:
           print('[COST-AUDIT] status',data['status'],'date',data['report_date'],
                 'billed_bytes',data.get('cost',{}).get('billed_bytes','not_run'))
           PY
+      - name: Recheck item basket on matching operational weeks (dry-run, separate 1-GiB ceiling)
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          CSK_GA4_ALIGNED_WEEKLY: "1"
+        run: |
+          python scripts/csk_ga4_cost_guard.py
+          test -s reports/decision_health/weekly_ga4_aligned.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          ops=json.loads(Path('reports/marketing_operations/latest.json').read_text())
+          ga=json.loads(Path('reports/decision_health/weekly_ga4_aligned.json').read_text())
+          assert ga.get('schema')==1
+          assert ga['status'] in ('ga4_measured','partial_quality','blocked_credentials','blocked_budget','blocked_estimate')
+          assert ga.get('report_date')==ops['report_date']
+          if ga['status']=='ga4_measured':
+            assert ga['period']['current_end']==ops['report_date']
+            assert ga['period']['current_start']==ops['weekly']['period'].split(' ~ ')[0]
+            assert ga['period']['previous_end']==ops['weekly']['comparison_period'].split(' ~ ')[1]
+          assert not any(k in str(ga).lower() for k in ('user_pseudo_id','email_address','customer_phone'))
+          print('[WEEKLY ALIGNED ITEM BASKET]',ga['status'],
+                'admin_comparable',ga.get('admin_reconciliation',{}).get('comparable'))
+          PY
       - name: Query 14-day matched-product session funnel with a separate 2-GiB hard cap
         env:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
@@ -128,7 +151,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add reports/decision_health/ga4_purchase_diagnostics.json reports/decision_health/ga4_coupon_usage.json reports/decision_health/product_funnel_evidence.json reports/decision_health/source_metadata.json reports/decision_health/diagnoses.json
+          git add reports/decision_health/ga4_purchase_diagnostics.json reports/decision_health/weekly_ga4_aligned.json reports/decision_health/ga4_coupon_usage.json reports/decision_health/product_funnel_evidence.json reports/decision_health/source_metadata.json reports/decision_health/diagnoses.json
           if git diff --cached --quiet; then echo "[GA4] no changes"; exit 0; fi
           git commit -m "Update budget-capped GA4 product and root-cause evidence"
           for attempt in 1 2 3; do

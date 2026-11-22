@@ -11,7 +11,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
-OUT=ROOT/"reports/decision_health/ga4_purchase_diagnostics.json"
+OUT=ROOT/("reports/decision_health/weekly_ga4_aligned.json" if os.getenv("CSK_GA4_ALIGNED_WEEKLY")=="1" else "reports/decision_health/ga4_purchase_diagnostics.json")
 TABLE="columbia-ga4.analytics_358593394.events_*"
 LOCATION="asia-northeast3"
 CAP=1024**3
@@ -25,6 +25,22 @@ def read(path):
 
 def report_date():
     manual=os.getenv("CSK_GA4_END_DATE","")
+    if os.getenv("CSK_GA4_ALIGNED_WEEKLY")=="1":
+        ops=read(ROOT/"reports/marketing_operations/latest.json")
+        w=ops.get("weekly") or {}
+        period=w.get("period") or ""
+        prior=w.get("comparison_period") or ""
+        try:
+            a,b=[dt.date.fromisoformat(x.strip()) for x in period.split("~")]
+            c,d=[dt.date.fromisoformat(x.strip()) for x in prior.split("~")]
+        except (ValueError,TypeError,AttributeError):
+            raise ValueError("Weekly operations period unavailable")
+        if not (w.get("status")=="ready" and w.get("current",{}).get("status")=="complete"
+                and w.get("previous",{}).get("status")=="complete"
+                and (b-a).days==6 and (d-c).days==6 and (a-d).days==1
+                and ops.get("report_date")==b.isoformat()):
+            raise ValueError("Operational comparison window is invalid")
+        manual=b.isoformat()
     if not manual:
         paths=sorted((ROOT/"reports/daily_digest/data/daily").glob("20??-??-??.json"))
         if not paths:raise ValueError("No available Daily Digest date")
