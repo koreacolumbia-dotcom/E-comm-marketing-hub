@@ -17,6 +17,9 @@ on:
       - "tests/test_pdp_yoy_guard.py"
       - "tests/test_mobile_dashboard.py"
       - "reports/decision_health/index.html"
+      - "reports/decision_health/diagnosis.js"
+      - "scripts/build_problem_diagnosis.py"
+      - "tests/test_problem_diagnosis.py"
       - "scripts/patch_owned_pdp_yoy.py"
       - "scripts/dashboard_security.py"
       - ".github/workflows/reports_build.yml"
@@ -108,6 +111,8 @@ jobs:
           PY
           node --check /tmp/csk-decision-center.js
           node --check reports/decision_health/timeline.js
+          node --check reports/decision_health/diagnosis.js
+          python -m py_compile scripts/build_problem_diagnosis.py
           python -m py_compile scripts/patch_owned_pdp_yoy.py scripts/pdp_yoy_guard.py scripts/dashboard_security.py
       - name: Validate calendar regression tests
         run: python -m unittest discover -s tests -p 'test_competitor_sale_calendar.py' -v
@@ -115,6 +120,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_pdp_yoy_guard.py' -v
           python -m unittest discover -s tests -p 'test_mobile_dashboard.py' -v
+          python -m unittest discover -s tests -p 'test_problem_diagnosis.py' -v
       - name: Check existing public artifact security policy without modifying data
         run: python scripts/dashboard_security.py --root reports --root site
       - name: Record verified candidate
