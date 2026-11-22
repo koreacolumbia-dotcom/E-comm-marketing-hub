@@ -302,8 +302,8 @@ def build(operations: dict, intelligence: dict, content: dict,
             "hypothesis_status": "verified_component_unverified_causal",
             "causal_confirmed": False,
             "how_to_verify": (
-                "GA4 item.discount 필드 유효율을 확인하고 동일 SKU 실결제가/정가와 "
-                "관리자 결제금액을 대조해 할인 효과와 상품 믹스 효과를 독립 검증"
+                "GA4 items 구조에 discount 필드가 없는 것을 확인. 관리자 주문상품마트의 쿠폰·프로모션·실결제가 원천을 "
+                "조회하고 동일 SKU/주문 기준으로 비교하여 할인·상품 믹스를 분리"
             ),
             "blocked_by": ([] if reconciled and independent_admin_ready else
                            ["독립 관리자 주문마트 연결/정합성 검증"]),
