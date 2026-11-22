@@ -1,0 +1,87 @@
+name: CSK Winter Festival Live Report
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["CSK Winter Festival UTM Owned Comparison", "CSK Marketing Operations 3.0"]
+    types: [completed]
+  schedule:
+    # Every day 11:50 KST, after GA4, marketing operations and budgeted UTM.
+    - cron: '50 2 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_festival_report_snapshot.py'
+      - 'tests/test_festival_report_snapshot.py'
+      - '.github/workflows/csk-festival-report-live.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: csk-winter-festival-report-live
+  cancel-in-progress: false
+
+jobs:
+  report:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout report-only aggregate sources, without sensitive files
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          sparse-checkout: |
+            scripts/build_festival_report_snapshot.py
+            tests/test_festival_report_snapshot.py
+            reports/marketing_operations/latest.json
+            reports/decision_health
+            reports/marketing_intelligence_v2/latest.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate definitions, fresh-source handling and D3 event alignment
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_festival_report_snapshot.py' -v
+          python -m py_compile scripts/build_festival_report_snapshot.py
+      - name: Build the dated paid, Meta, CRM and organic report view
+        run: |
+          set -euo pipefail
+          python scripts/build_festival_report_snapshot.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          j=json.loads(Path('reports/decision_health/winter_festival_integrated_latest.json').read_text())
+          assert j['schema']==2 and j['quality']['roas_eligible'] is False or (
+              j['schema']==2 and j['paid_cost']['roas_eligible'] is True
+          )
+          assert j['event']['days'] in (0,2,3)
+          assert j['event']['causal'] is False
+          assert j['weekly_media']['comparison'].endswith('NOT_year_over_year')
+          assert not any(x in str(j).lower() for x in ('user_pseudo_id','phone_number','customer_id'))
+          print('FESTIVAL LIVE',j['report_date'],'D',j['event']['days'],
+                'media',j['event_media']['status'],
+                'paid_cost',j['paid_cost']['status'])
+          PY
+      - name: Commit only public aggregate report evidence
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add reports/decision_health/winter_festival_integrated_latest.json
+          if git diff --cached --quiet; then
+            echo 'No new GA4 evidence available'
+            exit 0
+          fi
+          git commit -m 'Refresh Winter Festival integrated GA4 and media report'
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then
+              echo 'Festival snapshot published'
+              exit 0
+            fi
+            git rebase --abort || true
+          done
+          exit 1
