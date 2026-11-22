@@ -137,8 +137,9 @@
           "revenue_gap_pct": 0.0
         }
       },
-      "caveat": "GA4 event and administrative net revenue/order definitions can differ."
-    }
+      "caveat": "Agreement to existing Daily KPI (GA4 source). Independent MSSQL/ERP revenue still not verified."
+    },
+    "independent_admin_verified": false
   },
   "weather_source_health": {},
   "problems": [
@@ -169,7 +170,7 @@
       "priority": "P0",
       "status": "observed_ga4_components",
       "title": "구매 객단가의 수량·실현단가 기여도 측정",
-      "finding": "GA4 상품기준 주문당 수량 효과 -22,436원, 상품 실현단가 효과 +951원 · GA4와 관리자 주문/매출 합계가 허용오차 내 일치",
+      "finding": "GA4 상품기준 주문당 수량 효과 -22,436원, 상품 실현단가 효과 +951원 · 기존 Daily KPI 합계와 일치, 독립 관리자 주문마트는 미검증",
       "cause_component": "GA4 구매 상품의 주문당 수량 변화와 상품 평균 실현매출 변화는 산술적으로 분해 완료. 실현단가에는 할인, 상품구성, 정가 변화가 함께 포함됨.",
       "cause_hypotheses": [
         "쿠폰/할인 변화",
@@ -179,7 +180,9 @@
       "hypothesis_status": "verified_component_unverified_causal",
       "causal_confirmed": false,
       "how_to_verify": "GA4 item.discount 필드 유효율을 확인하고 동일 SKU 실결제가/정가와 관리자 결제금액을 대조해 할인 효과와 상품 믹스 효과를 독립 검증",
-      "blocked_by": [],
+      "blocked_by": [
+        "독립 관리자 주문마트 연결/정합성 검증"
+      ],
       "category_mix": {
         "mix_effect_per_item": -7014.05,
         "within_category_effect_per_item": 7684.79,
