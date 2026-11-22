@@ -1,0 +1,471 @@
+{
+  "schema": 1,
+  "report_date": "2026-11-20",
+  "period": "2026-11-14 ~ 2026-11-20",
+  "status": "partial",
+  "method": "관측 사실, 산술 분해, 검증 전 가설 구분. 단순 동시 발생을 원인으로 선언하지 않음.",
+  "finance": {
+    "status": "observed",
+    "period": "2026-11-14 ~ 2026-11-20",
+    "compare_period": "2026-11-07 ~ 2026-11-13",
+    "revenue": 134038093.0,
+    "revenue_prior": 137770660.02,
+    "revenue_pct": -2.71,
+    "orders": 876.0,
+    "orders_prior": 790.0,
+    "orders_pct": 10.89,
+    "sessions": 134393.0,
+    "sessions_prior": 119936.0,
+    "sessions_pct": 12.05,
+    "aov": 153011.52,
+    "aov_prior": 174393.24,
+    "aov_pct": -12.26,
+    "order_effect_krw": 14997818.69,
+    "aov_effect_krw": -18730385.71,
+    "revenue_delta_krw": -3732567.02,
+    "source": "reports/marketing_operations/latest.json",
+    "note": "R = 주문수 × 객단가의 정확한 산술 분해. 인과관계나 가격·할인 원인 증명이 아님."
+  },
+  "problems": [
+    {
+      "id": "AOV_COMPOSITION",
+      "priority": "P0",
+      "status": "observed_decomposition",
+      "title": "주문이 증가했는데 매출이 감소함",
+      "finding": "주문 +10.9%, 매출 -2.7%, 객단가 -12.3%",
+      "cause_component": "객단가 하락이 매출 감소를 구성한 사실은 산술적으로 확인됨",
+      "cause_hypotheses": [
+        "저가 상품 구매 비중 증가",
+        "할인율 또는 쿠폰 적용 확대",
+        "주문당 구매수량·제품 믹스 변화"
+      ],
+      "hypothesis_status": "unverified",
+      "causal_confirmed": false,
+      "how_to_verify": "동일 기간 SKU×주문 단위 순매출·판매수량·정가·실결제가·쿠폰 적용률을 비교하고 가격 효과와 믹스 효과를 분리",
+      "blocked_by": [
+        "주문/CRM 원천"
+      ],
+      "sources": [
+        "reports/marketing_operations/latest.json"
+      ]
+    },
+    {
+      "id": "OWNED_CONTENT_BASELINE",
+      "priority": "P0",
+      "status": "source_required",
+      "title": "컬럼비아와 경쟁사의 콘텐츠 강·약점 비교 기준이 부족함",
+      "finding": "현재 분석 표본: 경쟁사 49건 / 자사 0건",
+      "cause_component": "자사 콘텐츠의 직접 관측 표본이 없으므로 경쟁사 대비 열세를 계산할 수 없음",
+      "cause_hypotheses": [
+        "공식몰 콘텐츠 경로 수집 누락",
+        "자사 홈페이지 배너/기획전 연결 미흡",
+        "수집 회차 차이"
+      ],
+      "hypothesis_status": "unverified",
+      "causal_confirmed": false,
+      "how_to_verify": "컬럼비아 공식몰·공식 SNS의 동일 기간/동일 분류 기준 콘텐츠와 원본 URL을 수집한 뒤 표본 편향을 보정",
+      "blocked_by": [
+        "자사 콘텐츠 표본"
+      ],
+      "sources": [
+        "reports/competitor_content/strategy-summary.json"
+      ]
+    },
+    {
+      "id": "PDP_SALES_JOIN",
+      "priority": "P0",
+      "status": "source_required",
+      "title": "PDP 급등과 실제 판매 전환이 연결되지 않음",
+      "finding": "상품 카드 5개 중 판매량 확인 0개 · PDP 상승 관측 3개",
+      "cause_component": "현재 데이터는 상품 관심의 증가만 관측하며 판매 전환 변화는 판단할 수 없음",
+      "cause_hypotheses": [
+        "측정 이벤트/상품명 연결 누락",
+        "Top-N 표본으로 인한 판매 데이터 누락",
+        "전환율 변화 또는 재고 제약"
+      ],
+      "hypothesis_status": "unverified",
+      "causal_confirmed": false,
+      "how_to_verify": "GA4 item_id ↔ 관리자 스타일/컬러 매핑 후 view_item→add_to_cart→purchase 14일 전체 모집단 집계",
+      "blocked_by": [
+        "상품별 완전한 판매 집계"
+      ],
+      "sample_products": [
+        "M`s Columbia Rock Down Jacket",
+        "M’s Adventure 365 Omni-Tech Down Jacket",
+        "HAZY JOURNEY II WATERPROOF"
+      ],
+      "sources": [
+        "reports/daily_intelligence/latest.json"
+      ]
+    },
+    {
+      "id": "SOURCE_FRESHNESS",
+      "priority": "P0",
+      "status": "source_required",
+      "title": "광고비·주문·CRM·재고 원천의 최신성이 부족함",
+      "finding": "paid_cost: stale / order_mart: stale / crm: stale / inventory: connection_error",
+      "cause_component": "데이터 갱신·접근이 제한되어 매출 영향의 근거 검증이 막힘",
+      "cause_hypotheses": [
+        "ETL 적재 지연",
+        "API·계정 연동 장애",
+        "실재고 조회 권한 문제"
+      ],
+      "hypothesis_status": "unverified",
+      "causal_confirmed": false,
+      "how_to_verify": "각 원천의 마지막 적재 시각·건수·유효 스키마를 직접 조회하고 익일 동일 조건 재검증",
+      "blocked_by": [
+        "paid_cost",
+        "order_mart",
+        "crm",
+        "inventory"
+      ],
+      "sources": [
+        "reports/marketing_operations/latest.json"
+      ]
+    },
+    {
+      "id": "COMPETITOR_CRAWL",
+      "priority": "P1",
+      "status": "coverage_limited",
+      "title": "일부 경쟁사 콘텐츠 수집 표본이 부족함",
+      "finding": "경쟁 콘텐츠 비교 24개 브랜드 중 점검 우선 12개",
+      "cause_component": "수집 표본/알려진 공개 URL 접근 범위가 작아 브랜드 간 콘텐츠 비교 신뢰도가 제한됨",
+      "cause_hypotheses": [
+        "미방문 공개 URL 적체",
+        "robots·요청 제한",
+        "동적 네비게이션 추출 실패"
+      ],
+      "hypothesis_status": "unverified",
+      "causal_confirmed": false,
+      "how_to_verify": "브랜드별 관측 고유 수·알려진 URL 커버리지·정책 오류를 분리해 안전하게 수집한 다음 동일 표본 정의로 비교",
+      "blocked_by": [
+        "DISCOVERY",
+        "MILLET",
+        "K2"
+      ],
+      "sources": [
+        "reports/competitor_content/strategy-summary.json",
+        "reports/competitor_intelligence/latest-quality.json"
+      ]
+    },
+    {
+      "id": "WEATHER_COVERAGE",
+      "priority": "P1",
+      "status": "source_required",
+      "title": "날씨 영향 분석의 실측 기온이 누락됨",
+      "finding": "서울 관측 기온 0 / 14일 확보",
+      "cause_component": "실측 원천 부재로 온도 급변 시점과 PDP·판매 변화 교차 검증 불가",
+      "cause_hypotheses": [
+        "기상청 인증키 미설정",
+        "ASOS 요청/파싱 실패",
+        "관측일 기준·캐시 갱신 오류"
+      ],
+      "hypothesis_status": "unverified",
+      "causal_confirmed": false,
+      "how_to_verify": "기상청 108 관측소의 요청 응답 코드·유효 일수·최종 적재일을 점검하고 관측치만 사용",
+      "blocked_by": [
+        "14일 실측 기온"
+      ],
+      "sources": [
+        "reports/daily_intelligence/latest.json"
+      ]
+    }
+  ],
+  "crawl": {
+    "checked_at": "2026-11-22T07:06:28.371969+09:00",
+    "brand_count": 24,
+    "covered_30d": 21,
+    "top_gaps": [
+      {
+        "brand": "TNF",
+        "priority_score": 565,
+        "observed_30d": 24,
+        "sample_target": 200,
+        "gap": 176,
+        "pending_known_urls": 161,
+        "known_urls": 172,
+        "known_url_coverage_pct": 5.2,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {
+          "navigation_race": 15
+        },
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      },
+      {
+        "brand": "DISCOVERY",
+        "priority_score": 344,
+        "observed_30d": 4,
+        "sample_target": 100,
+        "gap": 96,
+        "pending_known_urls": 100,
+        "known_urls": 109,
+        "known_url_coverage_pct": 8.3,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {
+          "rate_limited": 1
+        },
+        "policy_or_access_blockers": [
+          "rate_limited"
+        ],
+        "next_step": "정책/접근 제한: 추가 요청을 강행하지 않고 공식 대체 공개 경로와 수동 증거를 검토"
+      },
+      {
+        "brand": "MILLET",
+        "priority_score": 272,
+        "observed_30d": 0,
+        "sample_target": 100,
+        "gap": 100,
+        "pending_known_urls": 0,
+        "known_urls": 18,
+        "known_url_coverage_pct": 0.0,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {
+          "robots_policy": 5
+        },
+        "policy_or_access_blockers": [
+          "robots_policy"
+        ],
+        "next_step": "정책/접근 제한: 추가 요청을 강행하지 않고 공식 대체 공개 경로와 수동 증거를 검토"
+      },
+      {
+        "brand": "PATAGONIA",
+        "priority_score": 272,
+        "observed_30d": 0,
+        "sample_target": 100,
+        "gap": 100,
+        "pending_known_urls": 0,
+        "known_urls": 58,
+        "known_url_coverage_pct": 0.0,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {},
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      },
+      {
+        "brand": "SALOMON",
+        "priority_score": 240,
+        "observed_30d": 156,
+        "sample_target": 64,
+        "gap": 0,
+        "pending_known_urls": 405,
+        "known_urls": 411,
+        "known_url_coverage_pct": 21.2,
+        "pages_checked_this_run": 5,
+        "run_status": "candidate",
+        "error_types": {},
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      },
+      {
+        "brand": "K2",
+        "priority_score": 189,
+        "observed_30d": 12,
+        "sample_target": 100,
+        "gap": 88,
+        "pending_known_urls": 1,
+        "known_urls": 6,
+        "known_url_coverage_pct": 83.3,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {
+          "robots_policy": 1,
+          "navigation_race": 1
+        },
+        "policy_or_access_blockers": [
+          "robots_policy"
+        ],
+        "next_step": "정책/접근 제한: 추가 요청을 강행하지 않고 공식 대체 공개 경로와 수동 증거를 검토"
+      },
+      {
+        "brand": "HOKA",
+        "priority_score": 188,
+        "observed_30d": 0,
+        "sample_target": 64,
+        "gap": 64,
+        "pending_known_urls": 0,
+        "known_urls": 2,
+        "known_url_coverage_pct": 0.0,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {},
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      },
+      {
+        "brand": "SNOWLINE",
+        "priority_score": 177,
+        "observed_30d": 7,
+        "sample_target": 64,
+        "gap": 57,
+        "pending_known_urls": 23,
+        "known_urls": 29,
+        "known_url_coverage_pct": 6.9,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {},
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      },
+      {
+        "brand": "EIDER",
+        "priority_score": 154,
+        "observed_30d": 30,
+        "sample_target": 100,
+        "gap": 70,
+        "pending_known_urls": 2,
+        "known_urls": 23,
+        "known_url_coverage_pct": 95.7,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {
+          "navigation_race": 1
+        },
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      },
+      {
+        "brand": "BLACK DIAMOND",
+        "priority_score": 140,
+        "observed_30d": 19,
+        "sample_target": 64,
+        "gap": 45,
+        "pending_known_urls": 50,
+        "known_urls": 89,
+        "known_url_coverage_pct": 46.1,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {},
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      },
+      {
+        "brand": "NEPA",
+        "priority_score": 133,
+        "observed_30d": 35,
+        "sample_target": 100,
+        "gap": 65,
+        "pending_known_urls": 3,
+        "known_urls": 51,
+        "known_url_coverage_pct": 100.0,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {},
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      },
+      {
+        "brand": "MERRELL",
+        "priority_score": 128,
+        "observed_30d": 5,
+        "sample_target": 64,
+        "gap": 59,
+        "pending_known_urls": 10,
+        "known_urls": 50,
+        "known_url_coverage_pct": 82.0,
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
+        "error_types": {},
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      }
+    ],
+    "quality_scope": "최근 30일 관측 고유 콘텐츠 / 알려진 URL. 브랜드 전체 발행량이 아님."
+  },
+  "market": {
+    "official_event_overlap": [
+      {
+        "brand": "blackyak",
+        "title": "블랙야크 2026 FW 블랙페스타 특가",
+        "start": "2026-11-09",
+        "end": "2026-11-22",
+        "url": "https://www.byn.kr/_container/exh_list.php?hta_brand=blackyak&st=1",
+        "date_status": "official_period"
+      },
+      {
+        "brand": "blackyak",
+        "title": "블랙야크 블랙페스타 2차",
+        "start": "2026-11-17",
+        "end": "2026-11-30",
+        "url": "https://www.byn.kr/blackyak/_exh/?no=2356",
+        "date_status": "official_period"
+      },
+      {
+        "brand": "discovery",
+        "title": "로그인 7종 쿠폰팩 즉시 발급",
+        "start": "2026-09-23",
+        "end": "2026-12-31",
+        "url": "https://www.discovery-expedition.com/display/promotions/event/1716",
+        "date_status": "official_period"
+      },
+      {
+        "brand": "eider",
+        "title": "아이더 · K.VILLAGE BLACK WEEK",
+        "start": "2026-11-03",
+        "end": "2026-11-16",
+        "url": "https://www.k-village.co.kr/eventDetail?eventNo=1096",
+        "date_status": "official_period"
+      },
+      {
+        "brand": "k2",
+        "title": "K2 · K.VILLAGE BLACK WEEK",
+        "start": "2026-11-03",
+        "end": "2026-11-16",
+        "url": "https://www.k-village.co.kr/eventDetail?eventNo=1096",
+        "date_status": "official_period"
+      },
+      {
+        "brand": "kolonsport",
+        "title": "코오롱몰 블랙프라이데이 스포츠데이",
+        "start": "2026-11-15",
+        "end": "2026-11-18",
+        "url": "https://www.kolonmall.com/View/Special/259544",
+        "date_status": "official_period"
+      },
+      {
+        "brand": "national_geographic",
+        "title": "KIDS OUTER FESTA · 아우터 할인",
+        "start": "2026-11-05",
+        "end": "2026-11-18",
+        "url": "https://www.nstationmall.com/event/planning/1165",
+        "date_status": "official_period"
+      },
+      {
+        "brand": "national_geographic",
+        "title": "BACKPACK EARLY BIRD · 백팩 얼리버드",
+        "start": "2026-11-12",
+        "end": "2026-11-24",
+        "url": "https://www.nstationmall.com/event/planning/1171",
+        "date_status": "official_period"
+      },
+      {
+        "brand": "nepa",
+        "title": "NEPA BLACK FRIDAY",
+        "start": "2026-11-09",
+        "end": "2026-11-22",
+        "url": "https://www.nplus.co.kr/promotion/view.asp?EventNo=856",
+        "date_status": "official_period"
+      },
+      {
+        "brand": "tnf",
+        "title": "노스페이스 26 F/W 블랙프라이데이 추가 할인",
+        "start": "2026-11-12",
+        "end": "2026-12-04",
+        "url": "https://www.ssfshop.com/special/125470/view",
+        "date_status": "official_period"
+      }
+    ],
+    "interpretation": "날짜가 검증된 경쟁사 행사의 동시 발생만 표시. 매출 영향 증거가 아님."
+  },
+  "source_paths": {
+    "operations": "reports/marketing_operations/latest.json",
+    "intelligence": "reports/daily_intelligence/latest.json",
+    "content": "reports/competitor_content/strategy-summary.json",
+    "quality": "reports/competitor_intelligence/latest-quality.json",
+    "calendar": "reports/competitor_sale_calendar/latest.json"
+  }
+}
