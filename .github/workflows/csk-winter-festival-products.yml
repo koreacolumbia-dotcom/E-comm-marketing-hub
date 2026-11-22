@@ -53,14 +53,19 @@ jobs:
           import json
           from pathlib import Path
           j=json.loads(Path('reports/decision_health/winter_festival_products_yoy_2026.json').read_text())
-          assert j['schema']==1 and j['causal'] is False
+          assert j['schema']==2 and j['causal'] is False
           assert j['status'] in ('ga4_measured','blocked_budget','blocked_credentials','query_error','insufficient_data')
           if j['status']=='ga4_measured':
               assert all(x in j['years'] for x in ('2025','2026'))
               assert j['quality']['item_revenue_diff_reconciled'] is True
               assert j['quality']['no_raw_ids_or_users'] is True
               assert j['cost']['total_dry_cap']==6*1024**3
-              assert len(j['products']) <= 120
+              assert len(j['products'])==j['product_count']
+              assert j['quality']['full_product_ranking_verified'] is True
+              assert set(('both','only_2025','only_2026')).issubset(j['presence_counts'])
+              assert set(('top_2025','top_2026','impact_up','impact_down',
+                          'common_growth','common_decline')).issubset(j['rankings'])
+              assert all(len(v)<=5 for v in j['rankings'].values())
           assert not any(x in str(j).lower() for x in ('user_pseudo_id','phone_number','ga_session_id'))
           print('PRODUCT FESTIVAL YOY:', j['status'],j['report_date'])
           PY
