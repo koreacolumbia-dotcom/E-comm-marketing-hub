@@ -80,6 +80,24 @@ function renderLiveAggregate(){
      '. 아래 기존 D1–D2 표는 최초 검증 기준을 보존합니다.</p>';
 }
 
+function renderPaidTotal(){
+ var slot=$("#fm-paid-total");if(!slot)return;
+ var source=(app.data||{}).event_media||{},years=source.years||{},cur=years["2026"],prev=years["2025"];
+ if(source.status!=="ga4_measured"||!cur||!prev){slot.innerHTML="<b>Paid 태그 기준 매출</b> · 동일 행사일 전년 매체 집계 대기. 최근 7일 수치와 섞지 않습니다.";return;}
+ var selected=new Set(["naver_brand_search","naver_search_other","google_paid","meta_conversion_tagged",
+                       "instagram_paid_tagged","meta_bd_tagged","criteo","other_display"]);
+ function totals(a){return (a.groups||[]).reduce(function(t,r){
+  if(selected.has(r.id)){t.revenue+=num(r.revenue);t.orders+=num(r.orders);t.sessions+=num(r.sessions)}return t;
+ },{revenue:0,orders:0,sessions:0})}
+ var a=totals(prev),b=totals(cur),q=percent(a.revenue,b.revenue,"revenue");
+ slot.innerHTML='<div class="fm-paid-summary"><div><span>식별된 Paid 소스/매체 · 행사 D1~D'+
+  (source.period?.["2026"]?.[1]==="2026-11-22"?"3":"2")+
+  '</span><strong>'+esc(fmt(b.revenue,"revenue"))+'</strong>'+
+  '<small>2025 '+esc(fmt(a.revenue,"revenue"))+' → 2026 · '+esc(fmt(b.orders,"orders"))+' 구매</small></div>'+
+  '<em class="'+(q.down?"down":"")+'">'+esc(q.value)+'</em></div>'+
+  '<p class="fm-note">GA4 식별 가능한 Paid 소스만 합산. 기타/미분류는 제외하며 Meta 광고관리자 비용·전환가치·ROAS와는 별개입니다.</p>';
+}
+
 function renderReasons(){
  var d=app.data||{},area=$("#fm-reasons");if(!area)return;
  var em=d.event_media||{},ys=em.years||{},a=((ys["2025"]||{}).groups)||[],b=((ys["2026"]||{}).groups)||[];
@@ -130,6 +148,7 @@ function render(){
   windowEl.textContent="2026 "+((period["2026"]||[]).join("~"))+" · 2025 "+((period["2025"]||[]).join("~"));
  }else windowEl.textContent="확정 기간 없음";
  renderLiveAggregate();
+ renderPaidTotal();
  renderReasons();
  var rows=selectedRows();$("#fm-count").textContent=rows.length+"개 유입 그룹";
  $("#fm-items").innerHTML=rows.length?rows.map(function(r,i){
