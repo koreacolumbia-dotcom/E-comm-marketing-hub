@@ -99,6 +99,16 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn("강약점 비교가 성립하지 않음", item["cause_component"])
         self.assertFalse(item["causal_confirmed"])
 
+    def test_source_medium_sits_between_business_causes_and_product_drilldown(self):
+        self.assertIn('id="source-medium-health"', DECISION_HTML)
+        self.assertIn('href="./source-medium.css?v=', DECISION_HTML)
+        self.assertIn('src="./source-medium.js?v=', DECISION_HTML)
+        self.assertIn('window.CSKSourceMedium?.render(sourceMedium)', DECISION_HTML)
+        self.assertLess(DECISION_HTML.index('id="macro-health"'),
+                        DECISION_HTML.index('id="source-medium-health"'))
+        self.assertLess(DECISION_HTML.index('id="source-medium-health"'),
+                        DECISION_HTML.index('id="product-drilldown"'))
+
     def test_editorial_design_loaded_on_same_page(self):
         self.assertIn('href="./editorial.css?v=', DECISION_HTML)
         self.assertIn('id="macro-health"', DECISION_HTML)

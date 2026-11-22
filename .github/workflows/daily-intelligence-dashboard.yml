@@ -25,6 +25,9 @@ on:
       - 'reports/decision_health/evidence-cards.js'
       - 'reports/decision_health/macro-board.js'
       - 'reports/decision_health/editorial.css'
+      - 'reports/decision_health/source-medium.js'
+      - 'reports/decision_health/source-medium.css'
+      - 'tests/test_source_medium_board.cjs'
       - 'tests/test_macro_decision_board.cjs'
       - 'reports/decision_health/index.html'
 permissions:
@@ -154,6 +157,8 @@ jobs:
           node --check reports/decision_health/diagnosis.js
           node --check reports/decision_health/evidence-cards.js
           node --check reports/decision_health/macro-board.js
+          node --check reports/decision_health/source-medium.js
+          node tests/test_source_medium_board.cjs
           node tests/test_macro_decision_board.cjs
           python - <<'PY'
           from pathlib import Path
