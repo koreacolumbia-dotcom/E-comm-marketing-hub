@@ -20,8 +20,8 @@ ROUTE = re.compile(r'^\s*\["([a-z0-9_]+)","[^"]+","([^"]+)","fa-[^"]+"\]', re.M)
 class StandaloneThemeTests(unittest.TestCase):
     def test_target_list_is_menu_less_daily(self) -> None:
         routes = dict(ROUTE.findall(HUB))
-        self.assertEqual(len(routes), 23)
-        self.assertEqual(set(THEME.TARGETS), set(routes) - {"daily"})
+        self.assertEqual(len(routes), 24)
+        self.assertEqual(set(THEME.TARGETS), set(routes) - {"daily","winter_festival"})
         for key, route in THEME.TARGETS.items():
             self.assertEqual(route, routes[key].split("?", 1)[0], key)
         self.assertNotIn("reports/daily_digest/index.html", THEME.TARGETS.values())
