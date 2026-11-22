@@ -66,8 +66,8 @@ def sqls(date):
       SUM(SAFE_CAST(i.item_revenue AS FLOAT64)) AS revenue,
       COUNTIF(i.item_revenue IS NULL) AS missing_revenue,
       COUNTIF(i.quantity IS NULL OR i.quantity<0) AS bad_quantity,
-      COUNTIF(i.discount IS NULL) AS missing_discount,
-      SUM(SAFE_CAST(i.discount AS FLOAT64)*SAFE_CAST(i.quantity AS FLOAT64)) AS reported_discount
+      COUNT(*) AS missing_discount,
+      CAST(NULL AS FLOAT64) AS reported_discount
     FROM p CROSS JOIN UNNEST(p.items) AS i
     WHERE (txn IS NULL OR rn=1) AND (i.item_id IS NOT NULL OR i.item_name IS NOT NULL)
     GROUP BY 1,2,3
