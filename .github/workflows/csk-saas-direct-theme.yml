@@ -46,7 +46,15 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A -- reports edm-intelligence.html
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          from scripts.apply_csk_saas_theme import TARGETS
+          targets = list(TARGETS.values())
+          if Path("reports/utm_channel/legacy.html").exists():
+              targets.append("reports/utm_channel/legacy.html")
+          subprocess.run(["git", "add", "-A", "--", *targets], check=True)
+          PY
           if git diff --cached --quiet; then
             echo 'Every generated report already matches the common theme.'
             exit 0
