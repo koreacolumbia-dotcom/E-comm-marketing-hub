@@ -883,6 +883,11 @@ async def main():
         fixed_order,selected,plans,frontier,counts,checked,
         maximum=max(0,min(2,int(os.getenv("CONTENT_EXTRA_CATCHUP_BRANDS","1")))))
     selected.extend(extra)
+    # A recent 30-day Columbia archive does not imply the current crawl observed
+    # Columbia. Recover an actual same-run owned sample before comparing tone.
+    current_owned=int((audit.get("quality") or {}).get("owned_count") or 0) if "audit" in locals() else 0
+    if current_owned==0 and "COLUMBIA" not in selected:
+        selected.append("COLUMBIA")
     origin_locks={}
     def group(brand): return ALTERNATE.get(brand) or host(ROOTS[brand])
     async with aiohttp.ClientSession(headers={"User-Agent":UA},timeout=aiohttp.ClientTimeout(total=15)) as session:
