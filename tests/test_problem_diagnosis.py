@@ -99,6 +99,20 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn("강약점 비교가 성립하지 않음", item["cause_component"])
         self.assertFalse(item["causal_confirmed"])
 
+    def test_priority_cards_on_existing_home(self):
+        self.assertIn('id="priority-products"', DECISION_HTML)
+        self.assertIn('id="priority-cards"', DECISION_HTML)
+        self.assertIn('id="priority-detail"', DECISION_HTML)
+        self.assertIn('1순위', DECISION_HTML)
+        self.assertIn('2순위', DECISION_HTML)
+        self.assertIn('3순위', DECISION_HTML)
+        self.assertIn('기회 상품', DECISION_HTML)
+        self.assertIn('scrollIntoView', DECISION_HTML)
+        self.assertIn('p.sales_source==="ga4_purchase_items"', DECISION_HTML)
+        self.assertIn('p.sales_previous_7d>0', DECISION_HTML)
+        self.assertIn('전체 상품 순위 아님', DECISION_HTML)
+        self.assertNotIn('window.open(', DECISION_HTML)
+
     def test_decision_product_priority_and_evidence(self):
         self.assertIn('d>=15&&s<=-15', DECISION_HTML)
         self.assertIn('GA4 구매 매칭', DECISION_HTML)

@@ -18,8 +18,35 @@ header{display:flex;justify-content:space-between;gap:16px;align-items:center;bo
 .footer{margin:20px 0 4px;font-size:12px;color:var(--muted)}
 .product-row{padding:13px 0;border-top:1px solid var(--line);min-width:0}.product-row:first-child{border-top:0}.product-row h3{overflow-wrap:anywhere}.product-evidence{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.product-evidence span{display:inline-block;padding:4px 7px;border-radius:6px;background:#f2f6fa;color:#294c6a;font-size:11px;font-variant-numeric:tabular-nums}.product-action{font-size:12px;color:#526a80;line-height:1.6}.product-source{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6}.product-empty{padding:16px 0;color:var(--muted);font-size:12px}#loading{font-size:13px;color:var(--muted)}
 @media(max-width:850px){main{padding:12px}h1{font-size:21px}.card{padding:14px}.half,.third,.two{grid-column:span 12}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.metric strong{font-size:19px}header{align-items:flex-start;flex-direction:column}.lead{font-size:17px}}
+
+/* Priority cards live inside the existing decision center, never a new tab. */
+#priority-products{margin:0 0 18px}
+.p-top{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:12px}
+.p-top h2{font-size:23px;margin:3px 0}.p-top p,.p-top>small{font-size:11px;color:#60778d}
+.p-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.p-card{min-width:0;display:flex;flex-direction:column;gap:10px;text-align:left;border:1px solid #d9e4ed;border-radius:12px;padding:15px;background:#fff;color:#14283d;font:inherit;cursor:pointer}
+.p-card:hover,.p-card:focus-visible,.p-card.active{border-color:#397da9;outline:2px solid #cce0ed;outline-offset:0}
+.p-card.growth{border-top:3px solid #258065}.p-card.empty{background:#f8fafc;cursor:default;border-style:dashed}
+.p-card .p-rank{font-size:12px;font-weight:850;color:#1d4f72;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.p-card .p-rank small{font-size:10px;color:#6e8394;font-weight:500}.p-card .p-name{font-size:15px;line-height:1.35;min-height:42px;overflow-wrap:anywhere}
+.p-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.p-value{background:#f4f7f9;border-radius:8px;padding:9px 7px;min-width:0}
+.p-value label{display:block;font-size:10px;color:#617587}.p-value strong{display:block;font-size:22px;line-height:1.35;font-variant-numeric:tabular-nums;letter-spacing:-.04em;white-space:nowrap}
+.p-value strong.up{color:#14735a}.p-value strong.down{color:#b34139}.p-value small{font-size:10px;color:#6b7f91;white-space:nowrap}
+.p-card .p-explain{font-size:12px;line-height:1.45;font-weight:700}.p-card .p-action{font-size:11px;line-height:1.5;color:#527087}
+.p-card .p-foot{font-size:10px;line-height:1.5;color:#7e8e9b;margin-top:auto}
+#priority-detail{margin-top:12px;background:#fff;border:1px solid #b9cfdf;border-radius:10px;padding:17px}
+#priority-detail[hidden]{display:none}.p-detail-head{display:flex;justify-content:space-between;gap:12px;align-items:start}
+.p-detail-head h3{font-size:17px;margin:0}.p-detail-head p{font-size:12px;color:#5a7489}.p-detail-head button{background:#fff;border:1px solid #c9d8e3;border-radius:7px;padding:6px 9px;cursor:pointer}
+.p-trends,.p-notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:13px}
+.p-trend{min-width:0;padding:11px;border:1px solid #e1e9ef;border-radius:8px}
+.p-trend h4,.p-notes h4{font-size:12px;margin:0 0 5px}.p-trend svg{display:block;width:100%;height:86px}
+.p-notes p,.p-notes li,#priority-detail>.p-caveat{font-size:11px;color:#617588;line-height:1.55}.p-notes ul{padding-left:18px;margin:5px 0}
+#priority-detail>.p-caveat{border-top:1px solid #e5ebf0;padding-top:10px;margin:12px 0 0}
+@media(max-width:1140px){.p-board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:670px){.p-top{align-items:start;flex-direction:column}.p-top h2{font-size:20px}.p-board{grid-template-columns:1fr;gap:8px}.p-card{padding:12px;gap:9px;border-radius:9px}.p-card .p-name{min-height:0}.p-trends,.p-notes{grid-template-columns:1fr}}
 </style></head><body><main><header><div><small>CSK E-COMMERCE · DECISION INTELLIGENCE</small><h1>의사결정 센터</h1><small>관측 데이터와 미검증 가설을 분리합니다. 숫자가 없으면 임의로 채우지 않습니다.</small></div><span class="status" id="overall">원천 확인 중</span></header>
-<div id="loading" role="status">연결된 보고서를 검사하고 있습니다.</div>
+<section id="priority-products" aria-label="상품별 우선순위 카드"><div class="p-top"><div><small>PRODUCT SIGNALS · ACTION FIRST</small><h2>지금 확인할 상품 TOP 3</h2><p id="priority-period">관측 데이터 확인 중</p></div><small id="priority-coverage">원천 점검 중</small></div><div class="p-board" id="priority-cards" aria-live="polite">상품별 순위 계산 중</div><div id="priority-detail" hidden></div></section><div id="loading" role="status">연결된 보고서를 검사하고 있습니다.</div>
 <section class="grid">
 <article class="card two"><h2>01 · 현재 가장 중요한 의사결정</h2><div id="story" class="lead">데이터 확인 중</div><div id="story-note" class="notice" style="margin-top:12px">원천 신선도 확인 후 판단합니다.</div></article>
 <article class="card third"><h2>원천 상태</h2><div id="health"></div></article>
@@ -68,6 +95,7 @@ const load=async path=>{try{const r=await fetch(path+"?v="+Date.now(),{cache:"no
  $("story").textContent=!safe?"최신 매출 구조 또는 데이터 품질을 먼저 검증해야 합니다.":(revenueChange<0&&orderChange>0&&aovChange<0?"주문은 "+pct(orderChange)+" 증가했지만 객단가가 "+pct(aovChange)+" 하락해 매출은 "+pct(revenueChange)+" 변화했습니다.":"주간 매출 "+pct(revenueChange)+" · 주문 "+pct(orderChange)+" · 객단가 "+pct(aovChange));
  $("story-note").textContent=risks.length?"광고비·재고·고객 원천 등 "+risks.length+"개 데이터 상태를 추가로 확인해야 합니다. 할인/날씨/경쟁사 영향은 관측 시점의 일치만으로 단정할 수 없습니다.":"동일 기간의 가격·판매수량·캠페인 데이터를 대조하여 인과 가설을 검증하세요.";
  const focus=di.product_focus||{},cards=Array.isArray(focus.cards)?focus.cards:[];
+ window.CSKPriorityBoard?.render(focus);
  const observed=n=>typeof n==="number"&&Number.isFinite(n);
  const comparable=p=>observed(p.pdp_change_pct)&&observed(p.sales_7d)&&observed(p.sales_previous_7d)&&p.sales_source==="ga4_purchase_items"&&Boolean(p.sales_match_method);
  const salesChange=p=>comparable(p)&&p.sales_previous_7d>0?(p.sales_7d/p.sales_previous_7d-1)*100:null;
@@ -95,4 +123,56 @@ const load=async path=>{try{const r=await fetch(path+"?v="+Date.now(),{cache:"no
  const prioritized=[...a].sort((x,y)=>({"P0":0,"P1":1,"P2":2}[x.priority]??3)-({"P0":0,"P1":1,"P2":2}[y.priority]??3)).slice(0,8);
  $("actions").innerHTML=prioritized.length?prioritized.map(x=>'<div class="row"><strong>'+pill(x.priority==="P0"?"bad":"warn",x.priority||"점검")+' '+esc(x.title)+'</strong><p class="muted">담당: '+esc(x.owner||"미지정")+' · 상태: '+esc(x.status||"확인 필요")+'</p></div>').join(""):'<p class="muted">등록된 과제가 없습니다.</p>';
 })().catch(e=>{$("loading").textContent="데이터 렌더링에 실패했습니다. 원천 보고서를 확인해 주세요.";console.error(e)});
-</script><script defer src="./diagnosis.js?v=20261122-3"></script><script src="./timeline.js?v=20261122-2"></script></body></html>
+</script><script>
+/* Product ranking, using only matching GA4 purchases and measured PDPs. */
+(()=>{"use strict";
+const root=document.getElementById("priority-products");if(!root)return;
+const el=id=>document.getElementById(id),isNum=n=>typeof n==="number"&&Number.isFinite(n);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=n=>isNum(n)?Math.round(n).toLocaleString("ko-KR"):"미확보";
+const pct=n=>isNum(n)?(n>0?"+":"")+n.toFixed(1)+"%":"미확보";
+const salesPct=p=>p.sales_previous_7d>0?(p.sales_7d/p.sales_previous_7d-1)*100:null;
+const eligible=p=>p&&isNum(p.pdp_change_pct)&&isNum(p.pdp_7d)&&isNum(p.pdp_prior_7d)&&isNum(p.sales_7d)&&isNum(p.sales_previous_7d)&&p.sales_previous_7d>0&&p.sales_source==="ga4_purchase_items"&&!!p.sales_match_method;
+function category(p){const a=p.pdp_change_pct,b=salesPct(p);if(a>=15&&b<=-15)return 0;if(a<=-15&&b<=-15)return 1;if(a<=-15&&b>=15)return 2;if(a>=15&&b>=0)return 3;return 4;}
+function insight(p){
+const k=category(p);
+if(k===0)return ["전환 점검","조회는 늘었지만 판매가 감소했습니다.","PDP 이탈·장바구니·옵션 재고 확인"];
+if(k===1)return ["유입·판매 동반 하락","조회와 판매가 함께 줄었습니다.","유입 채널·노출·가격·프로모션 확인"];
+if(k===2)return ["효율 변화","조회는 감소했지만 판매가 증가했습니다.","유입 경로와 구매 고객 구성 확인"];
+if(k===3)return ["성장 추적","조회와 판매가 함께 증가했습니다.","판매 증가 지속 여부·캠페인 영향 확인"];
+return ["변화 관찰","조회와 판매의 변화를 추가 관찰해야 합니다.","상품명 매칭과 유입 구성 확인"];}
+function metric(label,prev,now,delta){return '<span class="p-value"><label>'+label+'</label><strong class="'+(delta<0?"down":"up")+'">'+(delta>0?"↑":delta<0?"↓":"–")+' '+pct(delta)+'</strong><small>'+fmt(prev)+' → '+fmt(now)+'</small></span>';}
+function card(p,label,index,growth){
+const x=insight(p);
+return '<button type="button" class="p-card'+(growth?' growth':'')+'" data-card="'+index+'" aria-controls="priority-detail" aria-expanded="false"><span class="p-rank">'+label+'<small>'+esc(x[0])+'</small></span><strong class="p-name">'+esc(p.name)+'</strong><span class="p-pair">'+metric("PDP 조회",p.pdp_prior_7d,p.pdp_7d,p.pdp_change_pct)+metric("GA4 판매수량",p.sales_previous_7d,p.sales_7d,salesPct(p))+'</span><span class="p-explain">'+esc(x[1])+'</span><span class="p-action"><b>다음 확인</b> '+esc(x[2])+'</span><span class="p-foot">GA4 상품명 매칭 · '+(p.sales_admin_reconciled?"관리자 대사 확인":"관리자 주문 미대사")+(p.sales_previous_7d<5?' · 소표본 주의':'')+' · 터치하여 상세</span></button>';}
+function empty(label){return '<div class="p-card empty"><span class="p-rank">'+label+'</span><strong class="p-name">비교 가능한 상품 부족</strong><span class="p-foot">수집된 자료 외에는 순위를 만들지 않습니다.</span></div>';}
+function trend(p,focus,metric){
+const m=(focus.timeline?.products||[]).find(v=>v.name===p.name&&v.metric===metric&&Array.isArray(v.values)&&v.values.length===14);
+const label=metric==="pdp"?"PDP 조회":"GA4 매칭 판매수량";
+if(!m||(metric==="sales"&&(m.source&&m.source!=="ga4_purchase_items"||m.coverage&&m.coverage!=="complete_14days")))return '<div class="p-trend"><h4>'+label+'</h4>14일 추이 원천 미확보</div>';
+const values=m.values,denom=Math.max(1,...values.filter(isNum)),segments=[];let points=[];
+values.forEach((v,i)=>{if(!isNum(v)){if(points.length)segments.push(points);points=[];return;}points.push((8+i*21)+","+(69-54*v/denom).toFixed(1));});if(points.length)segments.push(points);
+const color=metric==="pdp"?"#2d719f":"#217b66";
+return '<div class="p-trend"><h4>'+label+' · 최근 14일</h4><svg viewBox="0 0 290 78" preserveAspectRatio="none" role="img" aria-label="'+esc(p.name+" "+label+" 14일 추이")+'"><path d="M8 69 H282" stroke="#dde5ed"/>'+segments.map(p=>'<polyline fill="none" stroke="'+color+'" stroke-width="2.7" stroke-linejoin="round" points="'+p.join(" ")+'"/>').join("")+'</svg></div>';}
+function showDetail(p,focus,idx){
+const x=insight(p),events=(p.competitor_events||[]).filter(e=>["official_period","first_party_landing_text"].includes(e.date_status)&&e.start&&e.end).slice(0,3);
+const eventsHtml=events.length?events.map(e=>'<li>'+esc(e.brand+' · '+e.title+' ('+e.start+' ~ '+e.end+')')+'</li>').join(""):'<li>기간 확인된 경쟁 행사 자료 미확보</li>';
+const target=el("priority-detail");target.hidden=false;
+target.innerHTML='<div class="p-detail-head"><div><h3>'+esc(p.name)+'</h3><p>'+esc(x[1])+'</p></div><button type="button" id="priority-close">닫기 ×</button></div><div class="p-trends">'+trend(p,focus,"pdp")+trend(p,focus,"sales")+'</div><div class="p-notes"><div><h4>우선 점검</h4><p>'+esc(x[2])+'</p><p>조회 '+fmt(p.pdp_prior_7d)+' → '+fmt(p.pdp_7d)+' · 판매 '+fmt(p.sales_previous_7d)+' → '+fmt(p.sales_7d)+'</p></div><div><h4>경쟁사·날씨</h4><ul>'+eventsHtml+'</ul><p>실측 기온: '+(isNum(p.temperature_change_c)?p.temperature_change_c.toFixed(1)+'°C 변화':'미확보')+'</p></div></div><p class="p-caveat">원인 확정 아님 · 최근 7일 vs 직전 7일 · GA4 상품명 매칭 관측 표본 · 관리자 주문/환불·재고 미대사 · 행사 동시 발생은 인과관계 증거가 아닙니다.</p>';
+root.querySelectorAll("[data-card]").forEach(b=>{const on=Number(b.dataset.card)===idx;b.classList.toggle("active",on);b.setAttribute("aria-expanded",String(on));});
+el("priority-close").addEventListener("click",()=>{target.hidden=true;root.querySelectorAll("[data-card]").forEach(b=>{b.classList.remove("active");b.setAttribute("aria-expanded","false");});});
+target.scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+function render(focus){
+const valid=(Array.isArray(focus?.cards)?focus.cards:[]).filter(eligible);
+const opportunity=valid.filter(p=>category(p)===3).sort((a,b)=>(b.sales_7d-b.sales_previous_7d)-(a.sales_7d-a.sales_previous_7d)||b.sales_7d-a.sales_7d)[0]||null;
+const ranked=valid.filter(p=>p!==opportunity).sort((a,b)=>category(a)-category(b)||(b.sales_previous_7d-b.sales_7d)-(a.sales_previous_7d-a.sales_7d)||Math.abs(b.pdp_7d-b.pdp_prior_7d)-Math.abs(a.pdp_7d-a.pdp_prior_7d)).slice(0,3);
+const chosen=[...ranked,...(opportunity?[opportunity]:[])];
+el("priority-period").textContent=(focus?.date||"기준일 미확보")+' 기준 · PDP 조회 / GA4 판매 최근 7일 vs 직전 7일 · '+(focus?.status==="ready"?"관측":"부분 관측")+' · 원인 확정 아님';
+el("priority-coverage").textContent="수집된 비교 가능 상품 "+valid.length+"개 · 전체 상품 순위 아님";
+el("priority-cards").innerHTML=[1,2,3].map(i=>ranked[i-1]?card(ranked[i-1],i+"순위",i-1,false):empty(i+"순위")).join("")+(opportunity?card(opportunity,"기회 상품",ranked.length,true):empty("기회 상품"));
+el("priority-detail").hidden=true;
+root.querySelectorAll("[data-card]").forEach(b=>b.addEventListener("click",()=>showDetail(chosen[Number(b.dataset.card)],focus,Number(b.dataset.card))));
+}
+window.CSKPriorityBoard={render};
+})();</script><script defer src="./diagnosis.js?v=20261122-3"></script><script src="./timeline.js?v=20261122-2"></script></body></html>
