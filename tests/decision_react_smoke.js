@@ -74,7 +74,8 @@ async function main(){
  }
  const thisYear=ops.calendar||{},actual=thisYear.impact_diagnostics||{};
  if(Array.isArray(thisYear.current) && thisYear.current.length) {
-   assertContent(overview,["올해 행사 · 예상 여파","2026 CAMPAIGN CONTEXT"]);
+   assertContent(overview,["올해 행사 · 예상 여파","2026 CAMPAIGN CONTEXT",
+     "2025 vs 2026 윈터페스티벌 임시 비교 리포트 열기"]);
    const sample=thisYear.current.find(x=>x.impact_hypothesis);
    if(sample)assert(overview.includes(sample.title) && overview.includes(sample.impact_hypothesis),
      "Current-year source event and forecast effect must be visible");
@@ -128,6 +129,10 @@ async function main(){
  if(focus.some(x=>x.sales_source==="ga4_purchase_items"&&x.sales_match_method==="normalized_exact_item_name"))assert(products.includes("상품명 기준 분석"),"Observed product missing");
  const market=await render("market");
  assertContent(market,["경쟁사 공식 행사","공식 기간","경쟁사 비교 · 검증 상태"]);
+ const festivalReport=fs.readFileSync(path.join(root,
+   "reports/decision_health/winter_festival_comparison_2026.html"),"utf8");
+ assertContent(festivalReport,["본행사 D1–D2","동일 경과일","2025 WINTER FESTIVAL",
+   "2026 WINTER FESTIVAL","매출 증가","Shapley","2026.11.21"]);
  const reactHtml=fs.readFileSync(path.join(root,"reports/decision_health/index.html"),"utf8");
  assert(reactHtml.includes("react-dashboard.js?v=")&&reactHtml.includes("react-dashboard.css?v="));
  assert(reactHtml.includes('id="macro-health"'),"Legacy evidence view must remain");
