@@ -191,9 +191,13 @@ def patch(end_date: dt.date) -> None:
     data = load_payload(data_path)
     index_path = REPORT_DIR.parent / "index.html"
 
-    if is_current_report(text, data):
+    existing_legacy_yoy = (
+        "Current 7D vs prior-year comparable 7D" in text
+        and bool((data.get("pdp_series_yoy") or {}).get("rows"))
+    )
+    if is_current_report(text, data) or existing_legacy_yoy:
         synced = sync_latest_index(report, index_path, text)
-        print(f"[OK] Preserved Daily Digest built-in PDP 7D YoY; stable index synced={synced}")
+        print(f"[OK] Preserved existing PDP 7D YoY; stable index synced={synced}")
         return
 
     # The report's own category measurements take precedence. The BigQuery fallback
