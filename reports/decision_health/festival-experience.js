@@ -149,6 +149,23 @@ function renderDiagnosis(){
 
 
 /* Product metrics: verified 7D vs preceding 7D ONLY. Never label product data YoY. */
+
+function renderProductBridge(first,second,description,labels){
+ var panel=document.getElementById("fm-product-item-bridge");if(!panel)return;
+ var x=Number(first),y=Number(second);
+ if(!Number.isFinite(x)||!Number.isFinite(y)){panel.hidden=true;return;}
+ panel.hidden=false;
+ var maximum=Math.max(1,Math.abs(x),Math.abs(y));
+ function row(label,n){
+  return '<div class="fm-item-effect '+(n<0?"negative":"")+'"><span>'+esc(label)+'</span>'+
+    '<b>'+esc(fmSigned(n))+'</b><div class="fm-product-bar"><i class="'+(n<0?"down":"")+
+    '" style="width:'+(Math.abs(n)/maximum*100).toFixed(1)+'%"></i></div></div>';
+ }
+ panel.innerHTML='<div class="fm-item-bridge-head"><strong>'+esc(description)+'</strong>'+
+   '<small>서로 다른 축의 산술 분해 · 인과 미확정</small></div><div class="fm-item-bridge-grid">'+
+   row(labels?.[0]||"수량 변화",x)+row(labels?.[1]||"실현매출 변화",y)+'</div>';
+}
+
 function renderProductSignals(data,images){
  var section=document.getElementById("fm-product-cause");if(!section)return;
  function get(id){return document.getElementById(id)}
@@ -182,6 +199,7 @@ function renderProductSignals(data,images){
  get("fm-product-kpis").innerHTML=kpis.map(function(k){
   return '<div class="fm-mini-metric"><small>'+esc(k[0])+'</small><b>'+esc(k[1])+'</b><span>'+esc(k[2])+'</span></div>';
  }).join("");
+ renderProductBridge(a.items_per_order_effect,a.realized_item_revenue_effect,"주문당 아이템 매출 차이 (전주 비교)",["주문당 상품수 변화","상품당 실현매출 변화"]);
  var mixes=categories.filter(function(x){
   return x && Number.isFinite(x.share_previous_pct) && Number.isFinite(x.share_current_pct);
  }).sort(function(a,b){return b.share_current_pct-a.share_current_pct}).slice(0,6);
@@ -257,6 +275,12 @@ function renderEventProduct(source,images){
  get("fm-product-kpis").innerHTML=kpis.map(function(x){
   return '<div class="fm-mini-metric"><small>'+esc(x[0])+'</small><b>'+esc(x[1])+'</b><span>'+esc(x[2])+'</span></div>';
  }).join("");
+ var p0=a.item_revenue/a.units,p1=b.item_revenue/b.units;
+ var unitImpact=(b.units-a.units)*(p0+p1)/2;
+ var priceImpact=(p1-p0)*(a.units+b.units)/2;
+ if(Math.abs(unitImpact+priceImpact-(b.item_revenue-a.item_revenue))<=1){
+  renderProductBridge(unitImpact,priceImpact,"전년 동일 행사일 아이템 매출 변화",["판매수량 변화","상품당 실현매출 변화"]);
+ }
  var chart=get("fm-product-category");if(chart)chart.hidden=true;
  var matchName=function(n){return String(n||"").toLowerCase().replace(/[‘’\x60]/g,"'").replace(/\s+/g," ").trim()};
  var imagesByName=new Map(((images||{}).products||[]).filter(function(x){
