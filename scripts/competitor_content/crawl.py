@@ -793,17 +793,17 @@ def self_test():
     assert coverage_plan("TNF",17,0,13)["focus_brand"]
     assert coverage_plan("TNF",17,0,13)["sample_target"]==200
     assert coverage_plan("TNF",17,0,13)["seconds"]<=CRAWL_SLICE_SECONDS
-    now="2026-11-22T08:30:00+09:00"
-    assert retry_cooldown({"state":"policy_denied","at":now},now)
-    assert not retry_cooldown({"state":"observed","at":now},now)
-    assert not retry_cooldown({"state":"not_found","at":"2026-10-01T00:00:00+09:00"},now)
+    test_now="2026-11-22T08:30:00+09:00"
+    assert retry_cooldown({"state":"policy_denied","at":test_now},test_now)
+    assert not retry_cooldown({"state":"observed","at":test_now},test_now)
+    assert not retry_cooldown({"state":"not_found","at":"2026-10-01T00:00:00+09:00"},test_now)
     example={b:coverage_plan(b,0,10,25) for b in ROOTS}
     frontier_example={b:{"pending":["https://example.test"]*10} for b in ROOTS}
-    extra=choose_extra_catchup(list(ROOTS)[:12],list(ROOTS)[:3],example,frontier_example,{b:0 for b in ROOTS},now,1)
+    extra=choose_extra_catchup(list(ROOTS)[:12],list(ROOTS)[:3],example,frontier_example,{b:0 for b in ROOTS},test_now,1)
     assert len(extra)==1 and extra[0] not in list(ROOTS)[:3]
     blocked_root=canonical(ROOTS[extra[0]])
-    frontier_example[extra[0]]["url_ledger"]={blocked_root:{"state":"policy_denied","at":now}}
-    assert extra[0] not in choose_extra_catchup(list(ROOTS)[:12],list(ROOTS)[:3],example,frontier_example,{b:0 for b in ROOTS},now,2)
+    frontier_example[extra[0]]["url_ledger"]={blocked_root:{"state":"policy_denied","at":test_now}}
+    assert extra[0] not in choose_extra_catchup(list(ROOTS)[:12],list(ROOTS)[:3],example,frontier_example,{b:0 for b in ROOTS},test_now,2)
     assert coverage_plan("PATAGONIA",0,0,13)["requested_deep_seconds"]>=BRAND_SECONDS
     assert all(coverage_plan(b,0)["sample_target"]==100 for b in ("BLACKYAK","PATAGONIA","DISCOVERY","K2","EIDER","MILLET","NEPA"))
     assert len(retain_archive_entries(styles,styles,"2026-11-01"))==1
