@@ -49,6 +49,54 @@ class ProductYoYTests(unittest.TestCase):
         self.assertEqual(result["products"][0]["name"],"New Down")
         self.assertTrue(result["quality"]["item_revenue_diff_reconciled"])
         self.assertFalse(result["causal"])
+    def test_same_name_year_presence_and_complete_rankings(self):
+        previous=parse_year([
+            {"kind":"order","order_count":5,"purchase_revenue":700},
+            {"kind":"item","name":"  Same  Coat ","sku":"C1","category":"OUTER",
+             "units":2,"item_revenue":300,"missing_item_revenue":0},
+            {"kind":"item","name":"2025 Only","sku":"X2","category":"OUTER",
+             "units":2,"item_revenue":400,"missing_item_revenue":0}])
+        current=parse_year([
+            {"kind":"order","order_count":6,"purchase_revenue":1050},
+            {"kind":"item","name":"same coat","sku":"C2","category":"OUTER",
+             "units":3,"item_revenue":450,"missing_item_revenue":0},
+            {"kind":"item","name":"2026 Only","sku":"Z3","category":"OUTER",
+             "units":3,"item_revenue":600,"missing_item_revenue":0}])
+        result=compare(DEFAULT,{"2025":previous,"2026":current})
+        self.assertEqual(result["schema"],2)
+        self.assertEqual(result["product_count"],len(result["products"]))
+        self.assertEqual(result["presence_counts"]["both"],1)
+        self.assertEqual(result["presence_counts"]["only_2025"],1)
+        self.assertEqual(result["presence_counts"]["only_2026"],1)
+        self.assertEqual(result["rankings"]["top_2025"][0],"2025 Only")
+        self.assertEqual(result["rankings"]["top_2026"][0],"2026 Only")
+        overlap=next(x for x in result["products"] if x["presence"]=="both")
+        self.assertEqual(overlap["delta_revenue"],150)
+        self.assertEqual(overlap["previous"]["units"],2)
+        self.assertEqual(overlap["current"]["units"],3)
+        self.assertEqual(overlap["previous"]["realized_item_revenue"],150)
+        self.assertTrue(result["quality"]["full_product_ranking_verified"])
+    def test_top_sellers_not_lost_when_yoy_delta_is_small(self):
+        old={"kind":"order","order_count":100,"purchase_revenue":20000}
+        now={"kind":"order","order_count":100,"purchase_revenue":20000}
+        prev_rows=[old,{"kind":"item","name":"Steady Hero","sku":"S",
+                      "category":"SALE","units":20,"item_revenue":12000,
+                      "missing_item_revenue":0}]
+        now_rows=[now,{"kind":"item","name":"Steady Hero","sku":"S",
+                      "category":"SALE","units":20,"item_revenue":12000,
+                      "missing_item_revenue":0}]
+        for i in range(130):
+            prev_rows.append({"kind":"item","name":f"Old {i}","sku":f"O{i}",
+                "category":"SALE","units":1,"item_revenue":99,"missing_item_revenue":0})
+            now_rows.append({"kind":"item","name":f"New {i}","sku":f"N{i}",
+                "category":"SALE","units":1,"item_revenue":98,"missing_item_revenue":0})
+        result=compare(DEFAULT,{"2025":parse_year(prev_rows),"2026":parse_year(now_rows)})
+        self.assertEqual(len(result["products"]),261)
+        self.assertEqual(result["rankings"]["top_2025"][0],"Steady Hero")
+        self.assertEqual(result["rankings"]["top_2026"][0],"Steady Hero")
+        self.assertEqual(result["presence_counts"]["both"],1)
+        self.assertTrue(result["quality"]["item_revenue_diff_reconciled"])
+
     def test_style_dedup_and_privacy(self):
         self.assertEqual(style_key(" A   B’C "),"a b'c")
         self.assertEqual(safe_name("test@example.com"),"(restricted)")
