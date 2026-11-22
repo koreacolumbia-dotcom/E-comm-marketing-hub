@@ -24,6 +24,11 @@ on:
       - "tests/test_mobile_dashboard.py"
       - "reports/decision_health/index.html"
       - "reports/decision_health/react-dashboard.js"
+      - "reports/decision_health/official_product_images.json"
+      - "scripts/csk_ga4_cost_guard.py"
+      - "scripts/personal_intelligence/product_signal_hub.py"
+      - "tests/test_csk_shared_ga4_images.py"
+      - ".github/workflows/csk-ga4-budgeted-diagnostics.yml"
       - "reports/decision_health/react-dashboard.css"
       - "tests/decision_react_smoke.js"
       - "reports/decision_health/diagnosis.js"
@@ -129,6 +134,7 @@ jobs:
           node --check reports/decision_health/diagnosis.js
           node --check reports/decision_health/react-dashboard.js
           node tests/decision_react_smoke.js
+          python -m unittest discover -s tests -p "test_csk_shared_ga4_images.py" -v
           python -m py_compile scripts/build_problem_diagnosis.py
           python -m py_compile scripts/patch_owned_pdp_yoy.py scripts/pdp_yoy_guard.py scripts/dashboard_security.py
       - name: Validate calendar regression tests
