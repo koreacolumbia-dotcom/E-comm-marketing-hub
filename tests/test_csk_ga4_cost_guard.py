@@ -71,17 +71,22 @@ class GA4CappedDiagnosticsTests(unittest.TestCase):
             result["purchase_revenue_delta_krw"],delta=0.02)
         self.assertIn("not proof",result["note"])
 
-    def test_one_item_vs_multi_item_basket_distribution(self):
+    def test_one_vs_two_vs_three_plus_item_orders(self):
         previous={"orders":100,"single_item_orders":60,"multi_item_orders":40,"unknown_basket_orders":0,
+                  "two_item_orders":20,"three_plus_item_orders":20,"multi_item_units":130,
                   "single_item_revenue":6000000,"multi_item_revenue":10000000}
         current={"orders":120,"single_item_orders":90,"multi_item_orders":30,"unknown_basket_orders":0,
+                 "two_item_orders":20,"three_plus_item_orders":10,"multi_item_units":80,
                  "single_item_revenue":9000000,"multi_item_revenue":7000000}
         out=basket_distribution(current,previous)
         self.assertEqual(out["previous"]["single_item_pct"],60)
         self.assertEqual(out["current"]["single_item_pct"],75)
         self.assertEqual(out["single_item_change_pp"],15)
-        self.assertEqual(out["single_item_order_delta"],30)
-        self.assertIsNone(basket_distribution({**current,"unknown_basket_orders":1},previous))
+        self.assertEqual(out["previous"]["multi_item_avg_units"],3.25)
+        self.assertEqual(out["current"]["multi_item_avg_units"],2.667)
+        self.assertEqual(out["three_plus_change_pp"],-11.67)
+        self.assertIsNone(basket_distribution({**current,"unknown_basket_orders":20,
+                                               "single_item_orders":70},previous))
 
     def test_missing_items_cannot_be_verified(self):
         incomplete=[dict(ITEMS[0]),dict(ITEMS[1])]

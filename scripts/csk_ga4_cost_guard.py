@@ -75,6 +75,9 @@ def sqls(date):
       SUM(IF(txn IS NULL OR rn=1,SAFE_CAST(purchase_revenue AS FLOAT64),NULL)) AS revenue,
       COUNTIF((txn IS NULL OR rn=1) AND order_units=1) AS single_item_orders,
       COUNTIF((txn IS NULL OR rn=1) AND order_units>=2) AS multi_item_orders,
+      COUNTIF((txn IS NULL OR rn=1) AND order_units=2) AS two_item_orders,
+      COUNTIF((txn IS NULL OR rn=1) AND order_units>=3) AS three_plus_item_orders,
+      SUM(IF((txn IS NULL OR rn=1) AND order_units>=2,order_units,0)) AS multi_item_units,
       COUNTIF((txn IS NULL OR rn=1) AND (order_units IS NULL OR (order_units!=1 AND order_units<2))) AS unknown_basket_orders,
       SUM(IF((txn IS NULL OR rn=1) AND order_units=1,
         SAFE_CAST(purchase_revenue AS FLOAT64),0)) AS single_item_revenue,
@@ -99,25 +102,32 @@ def sqls(date):
     return [orders,products]
 
 def basket_distribution(current,previous):
-    """Order-level one-item vs multi-item distribution, distinct from SKU-level averages."""
-    for obj in (current,previous):
-        if not obj["orders"] or obj["unknown_basket_orders"] or (
-            obj["single_item_orders"] + obj["multi_item_orders"] != obj["orders"]):
-            return None
+    """One vs two vs three+ items, among orders with known integer item quantities."""
     out={}
     for name,obj in (("previous",previous),("current",current)):
         total=obj["orders"]
-        one=obj["single_item_orders"]
+        known=obj["single_item_orders"]+obj["multi_item_orders"]
+        unknown=obj["unknown_basket_orders"]
         multi=obj["multi_item_orders"]
-        out[name]=dict(total_orders=total,single_item_orders=one,multi_item_orders=multi,
-            single_item_pct=round(100*one/total,2),multi_item_pct=round(100*multi/total,2),
+        if (total<=0 or known<=0 or known+unknown!=total or known/total<0.95
+                or obj["two_item_orders"]+obj["three_plus_item_orders"]!=multi):
+            return None
+        out[name]=dict(total_orders=total,classified_orders=known,
+            classified_share_pct=round(100*known/total,2),
+            single_item_orders=obj["single_item_orders"],multi_item_orders=multi,
+            single_item_pct=round(100*obj["single_item_orders"]/known,2),
+            multi_item_pct=round(100*multi/known,2),
+            two_item_orders=obj["two_item_orders"],three_plus_item_orders=obj["three_plus_item_orders"],
+            three_plus_pct=round(100*obj["three_plus_item_orders"]/known,2),
+            multi_item_avg_units=round(obj["multi_item_units"]/multi,3) if multi else None,
             single_item_revenue=round(obj["single_item_revenue"],2),
             multi_item_revenue=round(obj["multi_item_revenue"],2))
-    p0=out["previous"]["single_item_pct"]
-    p1=out["current"]["single_item_pct"]
-    out["single_item_change_pp"]=round(p1-p0,2)
-    out["single_item_order_delta"]=out["current"]["single_item_orders"]-out["previous"]["single_item_orders"]
-    out["interpretation"]="Observed GA4 purchase-event basket size; item quantity not distinct SKU count."
+    out["single_item_change_pp"]=round(out["current"]["single_item_pct"]-out["previous"]["single_item_pct"],2)
+    out["three_plus_change_pp"]=round(out["current"]["three_plus_pct"]-out["previous"]["three_plus_pct"],2)
+    p0=out["previous"]["multi_item_avg_units"]
+    p1=out["current"]["multi_item_avg_units"]
+    out["multi_item_avg_units_change"]=round(p1-p0,3) if p0 is not None and p1 is not None else None
+    out["interpretation"]="GA4 transaction item quantities; percentages among classifiable orders, not all orders."
     return out
 
 
@@ -202,6 +212,7 @@ def analyze(orders,items,end,admin,focus):
     total={p:dict(orders=0,missing_tx=0,duplicates=0,missing_revenue=0,
                   purchase_revenue=None,units=0.,item_revenue=0.,missing_item_revenue=0,
                   single_item_orders=0,multi_item_orders=0,unknown_basket_orders=0,
+                  two_item_orders=0,three_plus_item_orders=0,multi_item_units=0.,
                   single_item_revenue=0.,multi_item_revenue=0.,
                   bad_quantity=0,discount_null=0,reported_discount=0.)
            for p in ("previous","current")}
@@ -210,9 +221,10 @@ def analyze(orders,items,end,admin,focus):
         if period not in total:continue
         t=total[period]
         for f in ("orders","missing_tx","duplicates","missing_revenue",
-                  "single_item_orders","multi_item_orders","unknown_basket_orders"):
+                  "single_item_orders","multi_item_orders","unknown_basket_orders",
+                  "two_item_orders","three_plus_item_orders"):
             t[f]=int(row.get(f) or 0)
-        for f in ("single_item_revenue","multi_item_revenue"):t[f]=num(row.get(f)) or 0.
+        for f in ("single_item_revenue","multi_item_revenue","multi_item_units"):t[f]=num(row.get(f)) or 0.
         t["purchase_revenue"]=num(row.get("revenue"))
     categories={}
     by_name={}
@@ -298,7 +310,8 @@ def run():
     end=report_date()
     previous=read(OUT)
     needs_aligned_basket=(os.getenv("CSK_GA4_ALIGNED_WEEKLY")=="1" and
-                          "basket_distribution" not in previous)
+                          (not isinstance(previous.get("basket_distribution"),dict) or
+                           "three_plus_change_pp" not in previous["basket_distribution"]))
     if (previous.get("report_date")==end.isoformat() and
             previous.get("status") in ("ga4_measured","partial_quality") and
             os.getenv("CSK_GA4_FORCE","")!="1" and not needs_aligned_basket):
