@@ -7,11 +7,12 @@
 <div class="metrics" id="metrics"></div>
 <section class="panel"><h2>01 / 브랜드별 CRM 시나리오 매트릭스</h2><p class="muted">셀을 클릭하면 브랜드 고객 여정과 실제 발견된 소스 근거를 볼 수 있습니다.</p><div class="legend"><span class="pill clue">공개 문구 단서</span><span class="pill tech">기술 이벤트 단서</span><span class="pill unknown">미관측 / 미검증</span><span class="pill unknown">발송 확인: 별도 행동 테스트 필요</span></div><div class="scroll"><table id="matrix"></table></div></section>
 <section class="panel"><h2>02 / 브랜드별 고객 여정</h2><div class="brandbar" id="brands"></div><div id="brandinfo" class="notice"></div><div class="scroll"><div class="journey" id="journey" style="margin-top:15px"></div></div><div class="details" id="detail"></div></section>
+<section class="panel"><h2>직접 방문 검증</h2><p class="muted">상품 탐색과 주문 진입에서 본 화면만 기록합니다. 자동 메시지 수신 여부는 별도로 표시합니다.</p><div id="manual"></div></section>
 <section class="panel grid2"><div><h2>03 / 솔루션 지문</h2><div id="vendors"></div></div><div><h2>04 / 수집 커버리지 및 장애</h2><div id="coverage"></div></div></section>
 <section class="panel"><h2>05 / 컬럼비아 비교: 검증 후보</h2><div id="gap"></div><p class="muted">경쟁사 공개 단서가 있고 컬럼비아 스캔에서 단서가 없는 항목. 실제 미운영을 의미하지 않습니다.</p></section>
 <section class="panel"><h2>06 / 검증 프로토콜</h2><div class="notice">가입 후 무행동 대조군 / 상품 조회 / 찜 / 장바구니 / 쿠폰 만료를 분리 관찰합니다. 거래·결제·계정 자동 생성은 하지 않으며 본인 계정에서 허용되는 행동만 수행합니다. 발송 시간, 채널, 조건은 수신 증거 없이는 미확인입니다. 개인 계정·메시지 원문은 공개 저장소에 적재하지 않습니다.</div></section>
 </main><script>
-const names={"TNF":"노스페이스","KOLON SPORT":"코오롱스포츠","DISCOVERY":"디스커버리","SALOMON":"살로몬","BLACKYAK":"블랙야크","K2":"K2","EIDER":"아이더","NEPA":"네파","ARC'TERYX":"아크테릭스","SNOW PEAK":"스노우피크","MILLET":"밀레","NATIONAL GEOGRAPHIC":"내셔널지오그래픽","COLUMBIA":"컬럼비아"};
+const names={"TNF":"노스페이스","KOLON SPORT":"코오롱스포츠","DISCOVERY":"디스커버리","SALOMON":"살로몬","BLACKYAK":"블랙야크","K2":"K2","EIDER":"아이더","NEPA":"네파","ARC'TERYX":"아크테릭스","SNOW PEAK":"스노우피크","MILLET":"밀레","NATIONAL GEOGRAPHIC":"내셔널지오그래픽","COLUMBIA":"컬럼비아","MONTBELL":"몽벨"};
 const stageNames=[["welcome","가입·웰컴"],["first_order","첫 구매"],["browse","상품 탐색"],["wishlist","찜·재입고"],["cart","장바구니 이탈"],["checkout","결제 이탈"],["coupon","쿠폰 만료"],["review","구매 후·리뷰"],["recommend","상품 추천"],["repeat","재구매"],["winback","장기 미구매"],["loyalty","등급·생일"],["community","앱·커뮤니티"]];
 const stages=stageNames.map(([id,name])=>({id,name}));
 const phases=[["01 유입·가입","welcome","first_order"],["02 탐색","browse","wishlist","recommend"],["03 구매 전환","cart","checkout","coupon"],["04 구매 후","review","repeat"],["05 유지·활성화","winback","loyalty","community"]];
@@ -42,4 +43,5 @@ function renderBrand(){
  const co=el("coverage");co.replaceChildren();add(co,"p","성공 페이지 "+b.pages.length+" · JS "+b.scripts.length+" · 실패 "+b.failures.length);for(const f of b.failures){let d=add(co,"div",f.reason,"ev");link(d,f.source)}
 }
 render();fetch("./scenario-data.json",{cache:"no-store"}).then(r=>{if(!r.ok)throw Error("not available");return r.json()}).then(x=>{if(!Array.isArray(x.brands))throw Error("invalid");data=x;render()}).catch(()=>{});
+fetch("./manual-observations.json",{cache:"no-store"}).then(r=>{if(!r.ok)throw Error("not available");return r.json()}).then(x=>{const box=el("manual");for(const o of x.observations||[]){const row=add(box,"div",null,"ev");add(row,"strong",(names[o.brand]||o.brand)+" · "+(stageNames.find(s=>s[0]===o.scenario)?.[1]||o.scenario)+" · "+o.observed_at);add(row,"div",o.summary);add(row,"div",o.message_verified?"메시지 수신 확인":"메시지 수신 미확인","muted");link(row,o.source)}}).catch(()=>add(el("manual"),"p","직접 방문 기록을 불러오지 못했습니다."));
 </script></body></html>
