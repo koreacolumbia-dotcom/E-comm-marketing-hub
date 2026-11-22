@@ -87,7 +87,7 @@
   function alignedSource(source,ops) {
     var w=ops && ops.weekly || {},p=source && source.period || {},a=p.current || {},b=p.previous || {};
     var wc=dateRange(w.period),wp=dateRange(w.comparison_period);
-    return source && source.status === "ga4_measured" && source.report_date === ops.report_date &&
+    return source && ["ga4_measured","ga4_subchannel_aggregated"].includes(source.status) && source.report_date === ops.report_date &&
       wc.length === 2 && wp.length === 2 && a.start === wc[0] && a.end === wc[1] &&
       b.start === wp[0] && b.end === wp[1];
   }
@@ -251,7 +251,15 @@
     });
     var selected=list.find(function (x) { return x.source_medium===props.selected; }) || list[0];
     var current=raw && raw.period && raw.period.current || {},prior=raw && raw.period && raw.period.previous || {};
+    var aggregated=raw && raw.status==="ga4_subchannel_aggregated";
+    var label=aggregated?"세부채널(기존 Daily 집계)":"소스/매체";
     return h("div",null,
+      aggregated?h("div",{className:"csk-data-provenance",role:"status"},
+        h("strong",null,"기존 집계 재활용 · 추가 BigQuery 조회 0회"),
+        h("span",null,"원본 source/medium 대신 데일리 세부채널 자료를 표시합니다. "+
+          "전주 일부 날짜는 측정 방식 표시가 없고, 미분류 항목은 별도로 보존했습니다. 채널 기여 인과효과는 아닙니다.")):null,
+      raw && raw.status==="blocked_budget" && !rows.length ?
+        h("p",{className:"csk-data-provenance"},"개별 BigQuery 쿼리가 비용 상한으로 차단됐습니다. 대체 세부채널 집계도 현재 미확보입니다."):null,
       h("div",{className:"csk-workspace-controls"},
         h(SourcePills,{value:props.group,onChange:props.onGroup}),
         h("div",{className:"csk-filter-right"},
@@ -264,7 +272,7 @@
       !alignedSource(raw,props.ops) ? h(PeriodWarning,{current:attr(current.start)+" ~ "+attr(current.end),operation:props.ops && props.ops.weekly && props.ops.weekly.period || "미확보"}) : null,
       h("div",{className:"csk-workspace-grid"},
         h("aside",{className:"csk-workspace-list"},
-          h("p",{className:"list-meta"},props.sort==="loss"?"매출 감소순":props.sort==="sessions"?"세션순":props.sort==="revenue"?"매출순":"CVR순"," · ",fmt(list.length),"개 소스/매체"),
+          h("p",{className:"list-meta"},props.sort==="loss"?"매출 감소순":props.sort==="sessions"?"세션순":props.sort==="revenue"?"매출순":"CVR순"," · ",fmt(list.length),"개 ",label),
           list.length ? list.slice(0,props.showAll?list.length:12).map(function(x,i) {
             var chosen=selected && selected.source_medium===x.source_medium;
             return h("button",{key:x.source_medium,type:"button",className:cls("workspace-row",chosen&&"selected"),onClick:function(){props.onSelect(x.source_medium);}},
@@ -277,7 +285,7 @@
         ),
         h("section",{className:"csk-workspace-detail"},
           selected?[
-            h("div",{className:"detail-topline",key:"top"},h("span",null,"소스/매체 상세"),h("span",{className:"detail-badge"},"GA4 세션 귀속")),
+            h("div",{className:"detail-topline",key:"top"},h("span",null,aggregated?"세부채널 상세 · 원본 아님":"소스/매체 상세"),h("span",{className:"detail-badge"},aggregated?"Daily 재사용 집계":"GA4 세션 귀속")),
             h("h3",{key:"title"},selected.source_medium),
             h("strong",{key:"value",className:"detail-large"},krw(selected.current && selected.current.revenue)),
             h("p",{key:"period",className:"detail-sub"},"관측 기간 "+attr(current.start)+" ~ "+attr(current.end)+" · 전주 "+attr(prior.start)+" ~ "+attr(prior.end)),
@@ -422,8 +430,10 @@
     var data=props.source||{},rows=Array.isArray(data.rows)?data.rows:[];
     var selected=rows.filter(function(x){return x&&x.previous&&x.current&&num(x.revenue_delta);})
       .sort(function(a,b){return a.revenue_delta-b.revenue_delta;}).slice(0,4);
+    var fallback=data.status==="ga4_subchannel_aggregated";
     return h("section",{className:"csk-bottom-records"},
-      h("div",{className:"csk-section-head"},h("h2",null,"소스/매체별 매출 감소 상위"),h("button",{type:"button",onClick:function(){props.onTab("acquisition");}},"전체 소스·매체 보기 →")),
+      h("div",{className:"csk-section-head"},h("h2",null,fallback?"데일리 세부채널 매출 감소 상위":"소스/매체별 매출 감소 상위"),
+        h("button",{type:"button",onClick:function(){props.onTab("acquisition");}},"유입·전환 상세 보기 →")),
       selected.length?h("div",{className:"csk-records-list"},
         selected.map(function(x){
           return h("div",{key:x.source_medium,className:"csk-record-row"},
@@ -619,7 +629,7 @@
       };
     },[showLegacy]);
     var title=tab==="overview"?"매출 변화의 핵심 원인":tab==="acquisition"?"유입부터 구매전환까지":tab==="products"?"상품별 PDP·구매 흐름":"경쟁사 공식 행사";
-    var subtitle=tab==="overview"?"매출 영향액 기준 · 전주 대비 산술분해":tab==="acquisition"?"실제 GA4 소스/매체 집계 · 기간 분리":tab==="products"?"상품명 기준 조회·판매 변화": "공식 기간이 확인된 프로모션만 표시";
+    var subtitle=tab==="overview"?"매출 영향액 기준 · 전주 대비 산술분해":tab==="acquisition"?(source.status==="ga4_subchannel_aggregated"?"기존 Daily 세부채널 집계 · 원본 source/medium 아님":"실제 GA4 소스/매체 집계 · 기간 분리"):tab==="products"?"상품명 기준 조회·판매 변화": "공식 기간이 확인된 프로모션만 표시";
     var count=tab==="overview"?drivers.length:tab==="acquisition"?(source.rows||[]).length:tab==="products"?products.length:events.length;
     return h("div",{className:"csk-react-dashboard w-full mx-auto"},
       h("div",{className:"csk-appbar items-center gap-4"},
