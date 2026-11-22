@@ -6,6 +6,8 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import urlopen
 API="https://apihub.kma.go.kr/api/typ01/url/kma_sfcdd3.php"
+LAST_STATUS="not_requested"
+BLOCKED_HTTP=None
 def parse(raw,start,end):
     fields=None;result={}
     for line in raw.splitlines():
@@ -28,34 +30,52 @@ def parse(raw,start,end):
         except (ValueError,KeyError):continue
     return result
 def _request(api,params,key,start,end):
+    global BLOCKED_HTTP,LAST_STATUS
+    if BLOCKED_HTTP in (403,429):return {}
     query=urlencode({**params,"stn":"108","help":"1","authKey":key})
     try:
         with urlopen(api+"?"+query,timeout=8) as r:
             raw=r.read(500000).decode("utf-8-sig",errors="replace")
         result=parse(raw,start,end)
+        if result:LAST_STATUS="observed"
+        elif LAST_STATUS!="observed":LAST_STATUS="empty_response"
         if not result:print("KMA ASOS: no valid observation rows")
         return result
     except HTTPError as exc:
+        if exc.code in (403,429):
+            BLOCKED_HTTP=exc.code
+            LAST_STATUS="access_denied_403" if exc.code==403 else "rate_limited_429"
         print("KMA ASOS HTTP status:",exc.code)
     except Exception as exc:
+        if LAST_STATUS not in ("observed","access_denied_403","rate_limited_429"):
+            LAST_STATUS="request_error_"+type(exc).__name__
         print("KMA ASOS request error:",type(exc).__name__)
     return {}
 
 def fetch(start,end):
+    global LAST_STATUS,BLOCKED_HTTP
+    LAST_STATUS="not_requested"
+    BLOCKED_HTTP=None
     key=os.environ.get("DAILY_DIGEST_KMA_SERVICE_KEY","").strip()
     if not key:
+        LAST_STATUS="credential_missing"
         print("KMA ASOS: credential not configured")
         return {}
     if end<start:return {}
     result=_request(API,{"tm1":start.strftime("%Y%m%d"),"tm2":end.strftime("%Y%m%d"),"obs":"TA","mode":"0"},key,start,end)
     # Official single-day endpoint is a separate API product; only fill missing days.
+    if BLOCKED_HTTP in (403,429):
+        print("KMA ASOS: access denied; stopped per-day retries")
+        return result
     day=start
     while day<=end:
+        if BLOCKED_HTTP in (403,429):break
         if day.isoformat() not in result:
             fallback=_request(API.replace("kma_sfcdd3.php","kma_sfcdd.php"),{"tm":day.strftime("%Y%m%d")},key,day,day)
             result.update(fallback)
         day+=timedelta(days=1)
-    print("KMA ASOS observed coverage:",len(result),"/",(end-start).days+1)
+    if not result and LAST_STATUS=="not_requested":LAST_STATUS="no_data"
+    print("KMA ASOS observed coverage:",len(result),"/",(end-start).days+1,"status",LAST_STATUS)
     return result
 
 def main():
