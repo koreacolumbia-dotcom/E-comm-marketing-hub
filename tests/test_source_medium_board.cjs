@@ -5,6 +5,7 @@ const ctx={window:{},document:{getElementById:()=>root}};
 vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../reports/decision_health/source-medium.js'),'utf8'),ctx);
 const board=ctx.window.CSKSourceMedium;
 assert.equal(board.group('naver / cpc'),'paid');
+assert.equal(board.group('META_BD / META_BD'),'paid');
 assert.equal(board.group('google / organic'),'organic');
 assert.equal(board.group('kakao / lms'),'owned');
 assert.equal(board.group('unknown / unknown'),'other');
@@ -33,7 +34,19 @@ assert.match(root.innerHTML,/매출 하락순/);
 assert.match(root.innerHTML,/2026-11-14 ~ 2026-11-20/);
 assert.match(root.innerHTML,/naver \/ cpc/);
 assert.match(root.innerHTML,/구매 건수 ÷ 세션 수/);
+assert.doesNotMatch(root.innerHTML,/데이터 품질 확인/);
 assert.equal(board.currentRows().length,2);
+const rich={...sample,rows:[
+ {...sample.rows[0],source_medium:'(direct) / (none)',previous:{sessions:9500,transactions:80,cvr_pct:.84,revenue:18000000},
+  current:{sessions:10000,transactions:90,cvr_pct:.9,revenue:11000000},cvr_change_pp:.06,revenue_delta:-7000000},
+ {...sample.rows[1],source_medium:'criteo / banner',previous:{sessions:2400,transactions:21,cvr_pct:.875,revenue:3000000},
+  current:{sessions:2700,transactions:8,cvr_pct:.296,revenue:1200000},cvr_change_pp:-.579,revenue_delta:-1800000}]};
+board.render(rich);
+assert.match(root.innerHTML,/sm-signal-grid/);
+assert.match(root.innerHTML,/매출 감소 상위/);
+assert.match(root.innerHTML,/세션↑ · 구매전환↓/);
+assert.match(root.innerHTML,/criteo \/ banner/);
+
 board.render({...sample,rows:[{...sample.rows[0],source_medium:'<script>alert(1)</script>'}]});
 assert.doesNotMatch(results.innerHTML,/<script>alert\(1\)<\/script>/);
 assert.match(results.innerHTML,/&lt;script&gt;/);

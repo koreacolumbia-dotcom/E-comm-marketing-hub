@@ -89,3 +89,12 @@
 .sm-share-track{height:3px;width:100%;max-width:170px;background:#eaf0f4;display:block;border-radius:10px;overflow:hidden;margin-top:4px}
 .sm-share-track>span{display:block;height:100%;background:#779ab5;border-radius:10px}
 .sm-searchbox:focus-within,.sm-sortbox:focus-within{outline:2px solid #92bedc;outline-offset:2px;border-color:#92bedc}
+
+/* Two decision signals: shrinking revenue and weakening conversion with rising visits. */
+.sm-signal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:13px}
+.sm-signal{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;align-content:start;padding:14px 16px;border:1px solid #e4ebf1;background:#f8fafc;border-radius:12px;min-width:0}
+.sm-signal small{grid-column:1/-1;font-size:10px;color:#8095a5;font-weight:670}
+.sm-signal strong{font-size:12px;color:#2b4a62;font-weight:750;overflow-wrap:anywhere}
+.sm-signal b{font-size:16px;color:#b85d53;white-space:nowrap;letter-spacing:-.025em;text-align:right;font-variant-numeric:tabular-nums}
+.sm-signal>span{grid-column:1/-1;font-size:11px;color:#74899b;line-height:1.4}
+@media(max-width:800px){.sm-signal-grid{grid-template-columns:1fr;gap:8px}.sm-signal{padding:12px 14px}}

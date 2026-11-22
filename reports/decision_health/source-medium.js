@@ -12,7 +12,7 @@ const difference=(a,b)=>finite(a)&&finite(b)&&b>0?(a/b-1)*100:null;
 const colors=(x)=>finite(x)?x>0?"up":x<0?"down":"flat":"flat";
 const group=(raw)=>{
  const text=String(raw||"").toLowerCase(),medium=text.includes(" / ")?text.split(" / ").pop().trim():"";
- if(/(^|[^a-z])(cpc|ppc|cpm|paid|display|banner|retarget|pmax)([^a-z]|$)|shopping_ad|gfa/.test(medium))return "paid";
+ if(/(^|[^a-z])(cpc|ppc|cpm|paid|display|banner|retarget|pmax)([^a-z]|$)|shopping_ad|gfa|meta_bd|mkt_bd/.test(medium))return "paid";
  if(/email|edm|lms|sms|push|friendstalk|alimtalk|kakao_ch|crm|owned/.test(medium))return "owned";
  if(/organic|referral|direct|none|social/.test(medium))return "organic";
  return "other";
@@ -87,13 +87,23 @@ function render(data){
  const a=data.totals.current,b=data.totals.previous;
  const dates=data.period||{},current=dates.current||{},previous=dates.previous||{};
  const cvrChange=finite(a.cvr_pct)&&finite(b.cvr_pct)?a.cvr_pct-b.cvr_pct:null;
- const loss=data.rows.filter(r=>r.previous.sessions>=100&&r.current.sessions>=100&&
-    finite(r.cvr_change_pp)&&r.cvr_change_pp<=-.3&&r.current.sessions>r.previous.sessions)
-    .sort((x,y)=>x.cvr_change_pp-y.cvr_change_pp)[0];
- const message=loss?
-  '<div class="sm-insight"><span>확인할 변화</span><strong>'+safe(loss.source_medium)+
-  '</strong><small>세션 '+signed(difference(loss.current.sessions,loss.previous.sessions))+
-  ' · CVR '+pp(loss.cvr_change_pp)+'</small></div>':"";
+ const biggestLoss=data.rows.filter(r=>r.previous.sessions>=500&&r.current.sessions>=500&&
+   r.previous.revenue>0&&r.revenue_delta<0).sort((a,b)=>a.revenue_delta-b.revenue_delta)[0];
+ const weakening=data.rows.filter(r=>r.previous.sessions>=500&&r.current.sessions>=500&&
+    r.previous.transactions>=8&&r.current.sessions>r.previous.sessions&&r.revenue_delta<0&&
+    finite(r.cvr_change_pp)&&r.cvr_change_pp<=-.3)
+   .sort((a,b)=>a.revenue_delta-b.revenue_delta)[0];
+ const signal=(label,row,metric,sub)=>
+   '<div class="sm-signal"><small>'+safe(label)+'</small><strong>'+safe(row.source_medium)+
+   '</strong><b>'+safe(metric)+'</b><span>'+safe(sub)+'</span></div>';
+ const message=biggestLoss||weakening?
+   '<div class="sm-signal-grid">'+
+   (biggestLoss?signal("매출 감소 상위",biggestLoss,won(biggestLoss.revenue_delta),
+      "세션 "+signed(difference(biggestLoss.current.sessions,biggestLoss.previous.sessions))+
+      " · CVR "+pp(biggestLoss.cvr_change_pp)):"")+
+   (weakening?signal("세션↑ · 구매전환↓",weakening,pp(weakening.cvr_change_pp),
+      "CVR "+weakening.previous.cvr_pct.toFixed(2)+"% → "+weakening.current.cvr_pct.toFixed(2)+
+      "% · 매출 "+won(weakening.revenue_delta)):"")+'</div>':"";
  root.innerHTML='<div class="sm-section-head"><div><small>ACQUISITION ANALYTICS · SOURCE / MEDIUM</small>'+
    '<h2>유입부터 구매전환까지</h2><p>소스/매체별 세션 · 주문 · CVR · 매출을 연결해 확인합니다.</p></div>'+
    '<small class="sm-period">'+safe(current.start)+" ~ "+safe(current.end)+"<span>vs "+safe(previous.start)+" ~ "+safe(previous.end)+'</span></small></div>'+
