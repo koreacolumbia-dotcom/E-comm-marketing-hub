@@ -182,6 +182,22 @@ function renderProductSignals(data,images){
  get("fm-product-kpis").innerHTML=kpis.map(function(k){
   return '<div class="fm-mini-metric"><small>'+esc(k[0])+'</small><b>'+esc(k[1])+'</b><span>'+esc(k[2])+'</span></div>';
  }).join("");
+ var mixes=categories.filter(function(x){
+  return x && Number.isFinite(x.share_previous_pct) && Number.isFinite(x.share_current_pct);
+ }).sort(function(a,b){return b.share_current_pct-a.share_current_pct}).slice(0,6);
+ var chart=document.getElementById("fm-category-bars");
+ if(chart){
+  chart.innerHTML=mixes.length?mixes.map(function(row){
+   var max=100,prev=Math.max(0,Math.min(max,Number(row.share_previous_pct))),
+       curr=Math.max(0,Math.min(max,Number(row.share_current_pct))),
+       delta=curr-prev;
+   return '<div class="fm-category-row"><b>'+esc(row.category)+'</b>'+
+      '<div class="fm-category-pair">'+
+      '<div class="fm-category-track"><i class="prior" style="width:'+prev+'%"></i></div>'+
+      '<div class="fm-category-track"><i class="now" style="width:'+curr+'%"></i></div>'+
+      '</div><strong class="'+(delta<0?"down":"")+'">'+(delta>0?"+":"")+delta.toFixed(1)+'%p</strong></div>';
+  }).join(""):'<span class="fm-note">상품군 분류 데이터 확인 중</span>';
+ }
  var lookup=new Map(((images||{}).products||[]).filter(function(x){
   return /^https:\/\/assetscdn\d+\.styleship\.com\/assets\/columbia\/data\/productimages\/a\/[124]\/[a-z0-9_-]+\.jpg$/i.test(x.image_url||"");
  }).map(function(x){return [String(x.name).toLowerCase().replace(/[‘’\x60]/g,"'").replace(/\s+/g," ").trim(),x]}));
