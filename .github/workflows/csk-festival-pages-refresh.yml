@@ -1,0 +1,47 @@
+name: CSK Winter Festival Pages Refresh
+on:
+  workflow_dispatch:
+  schedule:
+    # Once daily 12:30 KST, after 10:20 marketing ops, 11:05 UTM, 11:50 report.
+    - cron: '30 3 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/csk-festival-pages-refresh.yml'
+
+permissions:
+  contents: read
+  pages: write
+
+concurrency:
+  group: csk-winter-festival-pages-refresh
+  cancel-in-progress: false
+
+jobs:
+  request-pages-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Check verified report evidence in default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' \
+            "repos/$GITHUB_REPOSITORY/contents/reports/decision_health/winter_festival_comparison_2026.html" \
+            --jq '.path' >/dev/null
+          gh api -H 'Accept: application/vnd.github+json' \
+            "repos/$GITHUB_REPOSITORY/contents/reports/decision_health/winter_festival_integrated_latest.json" \
+            --jq '.path' >/dev/null
+      - name: Request one GitHub Pages rebuild from configured repository source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Requesting GitHub Pages rebuild after the latest report data and assets'
+          gh api -X POST -H 'Accept: application/vnd.github+json' \
+            "repos/$GITHUB_REPOSITORY/pages/builds" \
+            --jq '{status: .status, url: .url}'
+          echo 'Check Pages build workflow for actual deployment result.'
