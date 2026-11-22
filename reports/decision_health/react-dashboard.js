@@ -724,7 +724,7 @@
       ):null,
       h("a",{className:"cy-compare-report-link",href:"./winter_festival_comparison_2026.html",
         target:"_blank",rel:"noopener noreferrer"},
-        "전년 대비 상세 성과·채널·상품 검증 차트 열기 ↗"),
+        "전년 대비 매출·CVR·Owned UTM 시각화 열기 ↗"),
       diagnostic.status==="descriptive" && num(diagnostic.pre_revenue_yoy_pct) && num(diagnostic.active_revenue_yoy_pct)?
         h("div",{className:"cy-campaign-measured","aria-label":"행사 전후 실측 매출 성장률"},
           h("div",null,h("span",null,"본행사 전 "+diagnostic.pre_days+"일 · 매출 YoY"),
