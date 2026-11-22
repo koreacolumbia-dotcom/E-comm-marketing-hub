@@ -438,6 +438,68 @@
     );
   }
 
+  // Last-year marketing context is evidence for comparison, not a causal attribution.
+  function PriorYearCampaignContext(props) {
+    var ops=props.ops||{},cal=ops.calendar||{},weekly=ops.weekly||{},yoy=weekly.yoy||{};
+    var samePeriod=yoy.status==="ready" && cal.yoy_window && cal.yoy_window===yoy.period;
+    var confirmed=samePeriod && Array.isArray(cal.last_year_confirmed) ? cal.last_year_confirmed : [];
+    var planned=samePeriod && Array.isArray(cal.last_year_planned) ? cal.last_year_planned : [];
+    var matched=samePeriod && Array.isArray(yoy.daily_comparison) && yoy.daily_comparison.length===7 ? yoy.daily_comparison : [];
+    var dayMap=new Map(matched.filter(function(d){return d && d.ly_date && d.date;}).map(function(d){return [d.ly_date,d];}));
+    var totalKnown=confirmed.length;
+    var yearEvents=confirmed.filter(function(e){return e.kind==="event";}).length;
+    var ownedVerified=confirmed.filter(function(e){return e.origin==="owned_message_2025" && e.sent_confirmed===true;}).length;
+    function shortDate(date){return String(date||"—").slice(5).replace("-",".");}
+    function row(item,plannedOnly) {
+      var m=dayMap.get(item.date),actual=!!m && num(m.revenue_yoy_pct);
+      var kind=item.kind==="event" ? "행사 확인" :
+        item.origin==="owned_message_2025" && item.sent_confirmed===true ? "발송 확인" :
+        plannedOnly ? "계획만 확인" : "보고서 기록";
+      var d=(item.end_date && item.end_date!==item.date) ? shortDate(item.date)+"–"+shortDate(item.end_date) : shortDate(item.date);
+      return h("article",{key:[item.origin,item.date,item.title,plannedOnly].join("|"),className:"ly-campaign-row"},
+        h("div",{className:"ly-campaign-date"},h("strong",null,d),h("span",null,kind)),
+        h("div",{className:"ly-campaign-copy"},
+          h("strong",{title:item.title},item.title),
+          h("small",null,
+            item.channel ? item.channel+" · " : "",
+            num(item.sent_count) && item.sent_count>0 ? "발송 "+fmt(item.sent_count)+"건 · " : "",
+            item.source||"출처 미등록")
+        ),
+        h("div",{className:cls("ly-campaign-variance",actual && m.revenue_yoy_pct>=0?"positive":actual?"negative":"unknown")},
+          h("strong",null,actual?delta(m.revenue_yoy_pct):"—"),
+          h("small",null,actual ? "당일 매출 YoY · 올해 "+shortDate(m.date) : "해당일 비교 미확보")
+        )
+      );
+    }
+    return h("section",{className:"ly-campaign-context","aria-label":"전년 행사 및 프로모션 비교"},
+      h("div",{className:"ly-campaign-head"},
+        h("div",null,h("span",{className:"ly-campaign-eyebrow"},"YOY CONTEXT"),
+          h("h2",null,"작년 행사 · 매출 비교"),
+          h("p",null,weekly.period+" ↔ "+(yoy.period||"전년 기간 미확보")," · 동일 요일 기준")),
+        h("span",{className:"ly-campaign-count"},totalKnown+"건 확인")
+      ),
+      !samePeriod ? h("p",{className:"ly-campaign-empty"},"전년 동요일 행사와 매출 기간이 일치하지 않아 비교를 보류했습니다.") :
+      h("div",null,
+        h("div",{className:"ly-campaign-highlights"},
+          h("span",null,"지난해 행사 "+yearEvents+"건"),
+          h("span",null,"확인된 CRM 발송 "+ownedVerified+"건"),
+          h("span",null,"발송 계획 "+planned.length+"건")
+        ),
+        confirmed.length ? h("div",{className:"ly-campaign-list"},confirmed.slice(0,3).map(function(e){return row(e,false);})):
+          h("p",{className:"ly-campaign-empty"},"이 기간 확인된 작년 행사·발송 기록이 없습니다. 행사가 없었다는 뜻은 아닙니다."),
+        confirmed.length>3?h("details",{className:"ly-campaign-more"},
+          h("summary",null,"확인된 나머지 활동 "+(confirmed.length-3)+"건"),
+          h("div",{className:"ly-campaign-list"},confirmed.slice(3).map(function(e){return row(e,false);}))) : null,
+        planned.length?h("details",{className:"ly-campaign-more"},
+          h("summary",null,"실행 미확인 · 계획 기록 "+planned.length+"건"),
+          h("div",{className:"ly-campaign-list"},planned.map(function(e){return row(e,true);}))) : null,
+        h("p",{className:"ly-campaign-warning"},
+          (cal.current_status==="not_connected" ? "올해 행사 캘린더 미등록(행사가 없다는 의미 아님). " : ""),
+          "작년 캠페인과 매출의 날짜 일치는 인과 효과를 증명하지 않습니다. 행사 혜택·재고·광고비·전환율을 함께 확인해야 합니다.")
+      )
+    );
+  }
+
   function Dashboard(props) {
     var data=props.data,ops=data.ops,di=data.di||{},dx=data.dx||{},source=data.source||{},funnel=data.funnel||{};
     var [tab,setTab]=useState("overview");
@@ -494,6 +556,7 @@
         metrics.length?metrics.map(function(m){return h(KpiCard,{key:m.key,item:m});}):
           h(EmptyState,{title:"운영 KPI 근거 없음",note:"완전한 주간 세션·주문·매출 합계를 확인할 수 없습니다."})
       ),
+      tab==="overview"?h(PriorYearCampaignContext,{ops:ops}):null,
       h("div",{className:"csk-workspace-heading"},
         h("div",null,h("span",null,"EXECUTIVE WORKSPACE"),h("h2",null,title),h("p",null,subtitle)),
         h("span",{className:"csk-workspace-count"},fmt(count)+"개 항목")
