@@ -1,16 +1,16 @@
 {
-  "source_checked_at": "2026-11-22T21:01:22.033380+09:00",
+  "source_checked_at": "2026-11-22T21:15:10.013451+09:00",
   "schema_version": 1,
   "notes": "Observed content candidates, not publication or performance. Multi-label inferred signals. 27SS ideas are hypotheses; uncollected is not zero.",
   "quality": {
-    "raw_count": 57,
-    "unique_count": 54,
+    "raw_count": 63,
+    "unique_count": 60,
     "retained_unique_count": 720,
-    "visual_signature_count": 57,
-    "visual_review_pairs": 0,
+    "visual_signature_count": 59,
+    "visual_review_pairs": 1,
     "rejected_count": 1,
     "merged_count": 2,
-    "market_count": 41,
+    "market_count": 47,
     "owned_count": 13
   },
   "signals": [
@@ -40,14 +40,14 @@
     }
   ],
   "purpose_confidence": {
-    "evidence_based": 34,
-    "inferred": 9,
+    "evidence_based": 35,
+    "inferred": 14,
     "insufficient": 11
   },
   "purpose_counts": {
-    "COMMERCIAL": 25,
+    "COMMERCIAL": 30,
     "PROMOTION": 1,
-    "EDITORIAL": 7,
+    "EDITORIAL": 8,
     "HYBRID": 10,
     "COMMUNITY": 0,
     "UNCLASSIFIED": 11
@@ -134,9 +134,9 @@
       "UNCLASSIFIED": 0
     },
     "NEW BALANCE": {
-      "COMMERCIAL": 0,
+      "COMMERCIAL": 5,
       "PROMOTION": 0,
-      "EDITORIAL": 0,
+      "EDITORIAL": 1,
       "HYBRID": 0,
       "COMMUNITY": 0,
       "UNCLASSIFIED": 0
@@ -369,9 +369,9 @@
         "unobserved_urls": 3,
         "observed_pct": 80,
         "states": {
+          "error": 2,
           "observed": 10,
           "partial_observed": 2,
-          "error": 2,
           "not_found": 1
         },
         "window_days": 30,
@@ -595,8 +595,8 @@
         "observed_pct": 24.2,
         "states": {
           "unobserved": 313,
-          "observed": 73,
-          "partial_observed": 27
+          "observed": 72,
+          "partial_observed": 28
         },
         "window_days": 30,
         "ledger_truncated": 0
@@ -803,30 +803,31 @@
     },
     {
       "brand": "NEW BALANCE",
-      "pages_checked": 0,
-      "raw_count": 0,
-      "unique_count": 0,
+      "pages_checked": 6,
+      "raw_count": 6,
+      "unique_count": 6,
       "retained_unique_count": 39,
       "retained_scope": "recent_30d_observations",
-      "pending_urls": 32,
+      "pending_urls": 27,
       "sitemap_urls": 0,
       "url_coverage": {
         "scope": "known_scoped_urls_30d",
         "known_urls": 40,
-        "observed_urls": 19,
-        "unobserved_urls": 21,
-        "observed_pct": 47.5,
+        "observed_urls": 20,
+        "unobserved_urls": 20,
+        "observed_pct": 50,
         "states": {
           "observed": 19,
+          "error": 1,
           "unobserved": 18,
-          "policy_denied": 2,
-          "error": 1
+          "policy_denied": 1,
+          "partial_observed": 1
         },
         "window_days": 30,
         "ledger_truncated": 0
       },
       "archive_entries_retained": 0,
-      "recent_skip_count": 2,
+      "recent_skip_count": 1,
       "coverage_plan": {
         "sample_target": 76,
         "prior_sample": 39,
@@ -841,18 +842,36 @@
         "crawl_mode": "incremental_deep_crawl",
         "sample_basis": "retained_30d_observations"
       },
-      "collection_status": "not_collected",
+      "collection_status": "candidate",
       "signals": {
-        "TPO": null,
-        "TECH": null,
-        "PEOPLE": null,
-        "HERITAGE": null,
-        "COMMUNITY": null,
-        "SHOPPABLE": null
+        "TPO": 3,
+        "TECH": 1,
+        "PEOPLE": 0,
+        "HERITAGE": 0,
+        "COMMUNITY": 0,
+        "SHOPPABLE": 3
       },
-      "dominant_signals": [],
-      "sample_status": "thin_sample",
-      "examples": []
+      "dominant_signals": [
+        "TPO·스타일링",
+        "상품 연결형 콘텐츠"
+      ],
+      "sample_status": "observed_sample",
+      "examples": [
+        {
+          "brand": "NEW BALANCE",
+          "title": "뉴발란스 공식 온라인스토어",
+          "url": "https://www.nbkorea.com/collection/NBRunningGuide.action",
+          "thumbnail": "https://image.nbkorea.com/NBRB_Site/20261007/NB20261007074400544001.jpg",
+          "evidence": "observed"
+        },
+        {
+          "brand": "NEW BALANCE",
+          "title": "Soft Comfort, Feel Cozy with YUNA",
+          "url": "https://www.nbkorea.com/etc/collection.action?collectionIdx=8495",
+          "thumbnail": "https://image.nbkorea.com/NBRB_Collection/20261014/NB20261014085247944001.jpg",
+          "evidence": "observed"
+        }
+      ]
     },
     {
       "brand": "HOKA",
@@ -1024,8 +1043,8 @@
         "observed_pct": 83.3,
         "states": {
           "observed": 4,
-          "policy_denied": 1,
-          "partial_observed": 1
+          "partial_observed": 1,
+          "policy_denied": 1
         },
         "window_days": 30,
         "ledger_truncated": 0
@@ -1144,8 +1163,8 @@
         "observed_pct": 41.5,
         "states": {
           "unobserved": 92,
-          "partial_observed": 6,
           "observed": 60,
+          "partial_observed": 6,
           "timeout": 1
         },
         "window_days": 30,
@@ -1604,12 +1623,12 @@
       "label": "TPO·스타일링",
       "action": "도심·트레일·여행 상황별 착장과 제품 CTA 연결",
       "kpi": "콘텐츠→PDP 클릭률",
-      "competitor_count": 12,
-      "competitor_total": 41,
-      "competitor_brands": 4,
+      "competitor_count": 15,
+      "competitor_total": 47,
+      "competitor_brands": 5,
       "owned_count": 3,
       "owned_total": 13,
-      "gap_pp": 6.2,
+      "gap_pp": 8.8,
       "priority": "review",
       "references": [
         {
@@ -1627,11 +1646,47 @@
           "evidence": "러닝"
         },
         {
-          "brand": "MAMMUT",
-          "title": "Fast and Light : 트레일 러닝화■러닝화를 똑똑하게 고르는 방법■■ STORIES - 마무트",
-          "url": "https://mammut.kr/board/promotion/read.html?board_no=8&no=9",
-          "thumbnail": "https://ecimg.cafe24img.com/pg1062b31634320028/mammutofficial/web/upload/NNEditor/20240822/STORIES20EAB28CEC8B9CEAB88020EC9DB4EBAFB8ECA780ED8AB8EBA088EC9DBCEB9FACEB8B9D1.jpg",
+          "brand": "NEW BALANCE",
+          "title": "뉴발란스 공식 온라인스토어",
+          "url": "https://www.nbkorea.com/collection/NBRunningGuide.action",
+          "thumbnail": "https://image.nbkorea.com/NBRB_Site/20261007/NB20261007074400544001.jpg",
           "evidence": "러닝"
+        }
+      ]
+    },
+    {
+      "signal": "SHOPPABLE",
+      "label": "상품 연결형 콘텐츠",
+      "action": "룩북·스토리 본문에 관련 제품 카드와 CTA 배치",
+      "kpi": "콘텐츠→PDP 클릭률",
+      "competitor_count": 15,
+      "competitor_total": 47,
+      "competitor_brands": 4,
+      "owned_count": 4,
+      "owned_total": 13,
+      "gap_pp": 1.1,
+      "priority": "review",
+      "references": [
+        {
+          "brand": "ARC'TERYX",
+          "title": "THE SIDEWINDER JACKET ARCHIVE",
+          "url": "https://arcteryx.co.kr/products/view/686969",
+          "thumbnail": "https://public.arcteryx.co.kr/images/banner/mv5TykzWD4U6NqUwqbL0ebE57RKEqY0oWeBKTqUZ.jpg",
+          "evidence": "분류 태그 또는 연결 근거"
+        },
+        {
+          "brand": "SALOMON",
+          "title": "러닝 | 살로몬 공식 온라인스토어",
+          "url": "https://salomon.co.kr/collections/sal-running?page=13",
+          "thumbnail": null,
+          "evidence": "분류 태그 또는 연결 근거"
+        },
+        {
+          "brand": "NEW BALANCE",
+          "title": "뉴발란스 공식 온라인스토어",
+          "url": "https://www.nbkorea.com/collection/NBRunningGuide.action",
+          "thumbnail": "https://image.nbkorea.com/NBRB_Site/20261007/NB20261007074400544001.jpg",
+          "evidence": "컬렉션"
         }
       ]
     },
@@ -1641,11 +1696,11 @@
       "action": "검증 가능한 브랜드 역사와 기술을 27SS 상품에 연결",
       "kpi": "콘텐츠 참여율",
       "competitor_count": 3,
-      "competitor_total": 41,
+      "competitor_total": 47,
       "competitor_brands": 2,
       "owned_count": 0,
       "owned_total": 13,
-      "gap_pp": 7.3,
+      "gap_pp": 6.4,
       "priority": "review",
       "references": [
         {
@@ -1670,11 +1725,11 @@
       "action": "트레킹·러닝 활동 후기를 제품 연계형 콘텐츠로 발행",
       "kpi": "신규회원 전환율",
       "competitor_count": 2,
-      "competitor_total": 41,
+      "competitor_total": 47,
       "competitor_brands": 2,
       "owned_count": 0,
       "owned_total": 13,
-      "gap_pp": 4.9,
+      "gap_pp": 4.3,
       "priority": "review",
       "references": [
         {
@@ -1694,52 +1749,16 @@
       ]
     },
     {
-      "signal": "SHOPPABLE",
-      "label": "상품 연결형 콘텐츠",
-      "action": "룩북·스토리 본문에 관련 제품 카드와 CTA 배치",
-      "kpi": "콘텐츠→PDP 클릭률",
-      "competitor_count": 12,
-      "competitor_total": 41,
-      "competitor_brands": 3,
-      "owned_count": 4,
-      "owned_total": 13,
-      "gap_pp": -1.5,
-      "priority": "reference",
-      "references": [
-        {
-          "brand": "ARC'TERYX",
-          "title": "THE SIDEWINDER JACKET ARCHIVE",
-          "url": "https://arcteryx.co.kr/products/view/686969",
-          "thumbnail": "https://public.arcteryx.co.kr/images/banner/mv5TykzWD4U6NqUwqbL0ebE57RKEqY0oWeBKTqUZ.jpg",
-          "evidence": "분류 태그 또는 연결 근거"
-        },
-        {
-          "brand": "SALOMON",
-          "title": "러닝 | 살로몬 공식 온라인스토어",
-          "url": "https://salomon.co.kr/collections/sal-running?page=13",
-          "thumbnail": null,
-          "evidence": "분류 태그 또는 연결 근거"
-        },
-        {
-          "brand": "GREGORY",
-          "title": "TEXTURE PLAY",
-          "url": "https://www.gregorypacks.co.kr/2026texture/",
-          "thumbnail": "https://www.gregorypacks.co.kr/on/demandware.static/-/Sites-GregoryKR-Library/ko_KR/dw7d11210a/images/homepage/banner/261105_gre_TEXTUREPLAY_PC.jpg",
-          "evidence": "SHOP NOW"
-        }
-      ]
-    },
-    {
       "signal": "TECH",
       "label": "제품 기능·기술",
       "action": "27SS 제품 스펙을 실제 사용 테스트와 짧은 비주얼로 증명",
       "kpi": "PDP→Cart",
-      "competitor_count": 11,
-      "competitor_total": 41,
-      "competitor_brands": 3,
+      "competitor_count": 12,
+      "competitor_total": 47,
+      "competitor_brands": 4,
       "owned_count": 4,
       "owned_total": 13,
-      "gap_pp": -3.9,
+      "gap_pp": -5.2,
       "priority": "reference",
       "references": [
         {
@@ -1750,18 +1769,18 @@
           "evidence": "분류 태그 또는 연결 근거"
         },
         {
+          "brand": "NEW BALANCE",
+          "title": "뉴발란스 공식 온라인스토어",
+          "url": "https://www.nbkorea.com/collection/NBRunningGuide.action",
+          "thumbnail": "https://image.nbkorea.com/NBRB_Site/20261007/NB20261007074400544001.jpg",
+          "evidence": "기능성"
+        },
+        {
           "brand": "NATIONAL GEOGRAPHIC",
           "title": "인기 상품 랭킹",
           "url": "https://www.nstationmall.com/goods/detail/26802",
           "thumbnail": "https://img.nstationmall.com/mall//goods/000/000/026/802/1.jpg?resize=800",
           "evidence": "경량"
-        },
-        {
-          "brand": "GREGORY",
-          "title": "Welcome to Gregory",
-          "url": "https://www.gregorypacks.co.kr/welcome-to-gregory/",
-          "thumbnail": "https://www.gregorypacks.co.kr/on/demandware.static/-/Sites-GregoryKR-Library/ko_KR/dw12f87790/images/content/welcome-to-gregory/messaging-background.jpg",
-          "evidence": "기술력"
         }
       ]
     },
@@ -1771,11 +1790,11 @@
       "action": "크리에이터 크루의 실제 착용 스토리를 상품 CTA와 연결",
       "kpi": "콘텐츠→PDP 클릭률",
       "competitor_count": 1,
-      "competitor_total": 41,
+      "competitor_total": 47,
       "competitor_brands": 1,
       "owned_count": 0,
       "owned_total": 13,
-      "gap_pp": 2.4,
+      "gap_pp": 2.1,
       "priority": "reference",
       "references": [
         {
@@ -1788,7 +1807,19 @@
       ]
     }
   ],
-  "visual_review": [],
+  "visual_review": [
+    {
+      "brand": "GREGORY",
+      "a_id": "393aa9bdc1a9a15e100b393d",
+      "b_id": "4cbc650b26b734c0463d663b",
+      "a_title": "TEXTURE PLAY",
+      "b_title": "READY FOR WINTER",
+      "a_url": "https://www.gregorypacks.co.kr/home/",
+      "b_url": "https://www.gregorypacks.co.kr/home/",
+      "distance": 0,
+      "kind": "same_rendered_image"
+    }
+  ],
   "dedup_audit": {
     "rejected": [
       {
