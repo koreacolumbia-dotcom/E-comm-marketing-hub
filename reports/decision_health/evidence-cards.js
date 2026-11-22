@@ -58,14 +58,24 @@
     const funnel=el("div","ev-funnel");
     if(valid&&matched&&matched.coverage_reliable===true&&finite(matched.previous?.view_to_cart_pct)&&finite(matched.current?.view_to_cart_pct)){
       const prev=matched.previous.view_to_cart_pct,cur=matched.current.view_to_cart_pct;
-      funnel.append(el("b",null,"동일 세션 PDP→장바구니 "+prev.toFixed(2)+"% → "+cur.toFixed(2)+"% ("+pp(matched.view_to_cart_delta_pp)+")"));
-      const follow=el("p","ev-explain",cur<prev?
-        "관측: 조회 후 장바구니 진입률이 약화됐어. 구매 원인은 아니며 유입 경로·상품 메시지는 별도 검증 대상.":
-        "관측: 장바구니 진입률 하락은 확인되지 않았어. 결제 단계·유입 구성을 추가 확인.");
-      card.append(funnel,follow);
+      const b0=matched.previous.cart_after_view_sessions>0?
+        100*matched.previous.purchase_after_cart_sessions/matched.previous.cart_after_view_sessions:null;
+      const b1=matched.current.cart_after_view_sessions>0?
+        100*matched.current.purchase_after_cart_sessions/matched.current.cart_after_view_sessions:null;
+      const cartDrop=finite(b0)&&finite(b1)?b1-b0:null;
+      const stage=finite(cartDrop)&&cartDrop<=-5 && cur>=prev?
+        "장바구니→구매완료 "+b0.toFixed(1)+"% → "+b1.toFixed(1)+"% ("+pp(cartDrop)+")":
+        "조회→장바구니 "+prev.toFixed(2)+"% → "+cur.toFixed(2)+"% ("+pp(matched.view_to_cart_delta_pp)+")";
+      funnel.append(el("b",null,"실측: "+stage));
+      const secondary=finite(cartDrop)&&cartDrop<=-5&&cur>=prev?
+        "조회→장바구니는 "+prev.toFixed(2)+"% → "+cur.toFixed(2)+"%로 개선. 실제 문제 지점은 그 다음 구매완료 단계.":
+        "조회 세션 "+fmt(matched.previous.view_sessions)+" → "+fmt(matched.current.view_sessions)+
+        " / 장바구니 진입 "+prev.toFixed(2)+"% → "+cur.toFixed(2)+"%."+
+        (finite(cartDrop)?" 장바구니→구매 "+b0.toFixed(1)+"% → "+b1.toFixed(1)+"%.":"");
+      card.append(funnel,el("p","ev-explain",secondary));
       const src=matched.first_touch_sources||[];
       if(src.length&&src[0].source!=="(not set)"){
-        card.append(el("p","ev-explain","최초 유입 출처 상위: "+src.slice(0,2).map(s=>s.source+" "+s.previous_view_sessions+"→"+s.current_view_sessions).join(" / ")+" (현재 캠페인 귀속 아님)"));
+        card.append(el("p","ev-explain","최초 유입 출처: "+src.slice(0,2).map(x=>x.source+" "+x.previous_view_sessions+"→"+x.current_view_sessions).join(" · ")+" (현재 캠페인 성과 아님)"));
       }
     }else{
       funnel.append(el("b",null,"장바구니·구매 단계: "+errorStatus));
@@ -121,6 +131,8 @@
     .then(r=>{if(!r.ok)throw Error("HTTP");return r.json();})
     .then(j=>{
       observed=j;
+      window.__cskSessionFunnel=j;
+      if(payload)window.CSKCauseBoard?.render(payload.focus,payload.diagnoses,payload.ga4Purchase);
       errorStatus=j.status==="blocked_budget"?"쿼리 비용 상한 초과":j.status==="query_error"?"쿼리 실행 오류":
         j.status==="source_not_aligned"?"비교 기간 불일치":j.status==="blocked_credentials"?"GA4 인증 미연결":
         j.status==="no_matching_events"?"일치하는 상품 세션 없음":"동일 세션 자료 미확보";
