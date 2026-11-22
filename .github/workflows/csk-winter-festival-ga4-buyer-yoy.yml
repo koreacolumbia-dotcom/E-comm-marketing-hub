@@ -1,0 +1,80 @@
+name: CSK Winter Festival GA4 Buyer Historical YoY
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_festival_ga4_buyer_yoy.py'
+      - 'tests/test_festival_ga4_buyer_yoy.py'
+      - '.github/workflows/csk-winter-festival-ga4-buyer-yoy.yml'
+  schedule:
+    # 12:10 KST; same-day validated event compare after product evidence
+    - cron: '10 3 * * *'
+permissions:
+  contents: write
+concurrency:
+  group: csk-winter-festival-ga4-buyer-yoy
+  cancel-in-progress: false
+jobs:
+  ga4-buyers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          sparse-checkout: |
+            scripts/build_festival_ga4_buyer_yoy.py
+            tests/test_festival_ga4_buyer_yoy.py
+            reports/decision_health
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Static source and cohort aggregation tests
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/build_festival_ga4_buyer_yoy.py
+          python -m unittest discover -s tests -p 'test_festival_ga4_buyer_yoy.py' -v
+      - name: Install Google authentication client
+        run: python -m pip install --disable-pip-version-check google-auth requests
+      - name: Fetch GA4 property historical first purchase buyers for both event years
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+        run: |
+          set -euo pipefail
+          python scripts/build_festival_ga4_buyer_yoy.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('reports/decision_health/winter_festival_ga4_buyer_yoy_2026.json')
+          j=json.loads(p.read_text(encoding='utf-8'))
+          assert j['schema']==1 and j['causal'] is False
+          assert j['status'] in ('ga4_measured_yoy','blocked_credentials',
+                  'blocked_analytics_data_api','query_error')
+          if j['status']=='ga4_measured_yoy':
+              assert j['quality']['user_level_data_published'] is False
+              for year in ('2025','2026'):
+                  y=j['years'][year]
+                  assert y['first_time_purchasers']+y['repeat_purchasers_derived']==y['total_purchasers']
+                  assert y['ecommerce_purchases']>=y['total_purchasers']
+              assert all(j['years']['2026'][k]-j['years']['2025'][k]==v
+                  for k,v in j['deltas'].items())
+          assert not any(x in str(j).lower() for x in
+              ('user_pseudo_id','memberid','phone_number','transaction_id','email_address'))
+          print('FESTIVAL GA4 BUYER HISTORICAL:',j['status'])
+          PY
+      - name: Commit only aggregated GA4 first-purchase historical statistics
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add reports/decision_health/winter_festival_ga4_buyer_yoy_2026.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Refresh GA4 first-time vs repeat buyer 2025/2026 event YoY'
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then exit 0; fi
+            git rebase --abort || true
+          done
+          exit 1
