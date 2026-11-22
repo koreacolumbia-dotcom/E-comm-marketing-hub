@@ -1,0 +1,295 @@
+/* CSK Design System · Unified SaaS · 2026-11-22
+   FINNOVA-style presentation with Columbia blue (#0072CE) and indigo (#5E54F3).
+   Scoped ONLY to the hub and its non-daily embedded report pages.
+   Never rewrites metrics, chart values, DOM data rows, or programmatic attributes. */
+:root{
+ --csk-saas-bg:#F8F9FC;
+ --csk-saas-deep:#16192C;
+ --csk-saas-ink:#20253B;
+ --csk-saas-muted:#798397;
+ --csk-saas-blue:#0072CE;
+ --csk-saas-indigo:#5E54F3;
+ --csk-saas-line:#E7EAF2;
+ --csk-saas-shadow:0 10px 30px rgba(22,25,44,.05);
+ --csk-saas-gradient:linear-gradient(120deg,#0072CE 0%,#5E54F3 100%);
+}
+/* Primary hub nav — retain one source of truth and mobile behavior. */
+body.csk-saas-hub{
+ background:#F8F9FC!important;color:#20253B;
+ --brand:#0072CE;--bg0:#F8F9FC;--bg1:#F8F9FC;
+}
+body.csk-saas-hub .sidebar{
+ background:#fff!important;
+ border-right:1px solid #e8eaf3!important;
+ box-shadow:8px 0 27px rgba(24,31,71,.025)!important;
+ backdrop-filter:none!important;
+}
+body.csk-saas-hub .sidebar > div:first-child{
+ padding-bottom:11px;border-bottom:1px solid #eceef6;
+}
+body.csk-saas-hub .sidebar-nav-scroll{
+ scrollbar-color:#c7cbe0 transparent;
+}
+body.csk-saas-hub .csk-menu-search{
+ border:1px solid #e0e4ef!important;
+ border-radius:999px!important;
+ padding:11px 16px!important;
+ background:#f8f9fc!important;
+ min-height:42px;color:#29324d!important;
+ font-size:12px!important;
+ box-shadow:inset 0 1px 2px rgba(23,25,55,.025)!important;
+}
+body.csk-saas-hub .csk-menu-search:focus{
+ outline:2px solid #c9c8fa!important;border-color:#aaa7f6!important;
+}
+body.csk-saas-hub .csk-group-head{
+ padding:12px 10px!important;
+ font-weight:800!important;
+ font-size:12px!important;
+ color:#768098!important;
+ border-radius:12px!important;
+}
+body.csk-saas-hub .csk-group-head:hover,
+body.csk-saas-hub .csk-group.open .csk-group-head{
+ background:#f0f1fd!important;color:#4646b5!important;
+}
+body.csk-saas-hub .csk-group .nav-item{
+ border-radius:11px!important;
+ padding:10px 10px!important;
+ min-height:41px!important;
+ color:#67718b!important;
+ font-weight:710!important;
+ letter-spacing:-.02em;
+}
+body.csk-saas-hub .csk-group .nav-item:hover:not(.active){
+ background:#f5f6fc!important;color:#394361!important;
+}
+body.csk-saas-hub .csk-group .nav-item.active,
+body.csk-saas-hub .csk-drawer-link.active{
+ background:linear-gradient(107deg,#e8f3ff,#efecff)!important;
+ color:#4947c8!important;
+ border:1px solid #e2dffd!important;
+ box-shadow:0 2px 8px rgba(88,81,219,.045)!important;
+ transform:none!important;
+}
+body.csk-saas-hub .nav-item.active::before{
+ background:linear-gradient(180deg,#0072CE,#5E54F3)!important;
+ width:3px!important;left:0;
+}
+body.csk-saas-hub .nav-item.active::after{display:none!important}
+body.csk-saas-hub .sidebar .glass-card{
+ background:#f8f9fc!important;
+ border:1px solid #eceef6!important;
+ border-radius:16px!important;
+ box-shadow:none!important;
+}
+body.csk-saas-hub>main{background:#F8F9FC!important}
+body.csk-saas-hub>main>section{
+ background:transparent!important;border:none!important;
+ box-shadow:none!important;backdrop-filter:none!important;
+ padding:0!important;border-radius:0!important;
+}
+body.csk-saas-hub #frame{
+ background:#F8F9FC!important;
+ border:0!important;
+ border-radius:0!important;
+ box-shadow:none!important;
+ min-width:0;
+}
+/* The performance view lives inline in the hub, not in the iframe. */
+body.csk-saas-hub #performanceInline{
+ --bg:#F8F9FC!important;--panel:#fff!important;--panel2:#fff!important;
+ --line:#e6e9f3!important;--text:#232943!important;--muted:#7b8599!important;
+ --accent:#5E54F3!important;--ly:#a5abc2!important;
+ background:#F8F9FC!important;color:#232943!important;
+}
+body.csk-saas-hub #performanceInline>.wrap{
+ max-width:1500px!important;padding:22px clamp(12px,2vw,30px)!important;
+}
+body.csk-saas-hub #performanceInline .toolbar,
+body.csk-saas-hub #performanceInline .card,
+body.csk-saas-hub #performanceInline .panel,
+body.csk-saas-hub #performanceInline .paid-card{
+ background:#fff!important;border:1px solid #e7eaf2!important;
+ border-radius:19px!important;box-shadow:var(--csk-saas-shadow)!important;
+ color:#242b42!important;
+}
+body.csk-saas-hub #performanceInline :is(.v,.stats b,.head h2,.paid-row b){
+ color:#242b42!important;
+}
+body.csk-saas-hub #performanceInline :is(.k,.yoy,.sub,.mini,.paid-row){
+ color:#7a849a!important;
+}
+body.csk-saas-hub #performanceInline :is(.toolbar input,.toolbar select,.toolbar button){
+ background:#f8f9fc!important;border:1px solid #e2e6f1!important;
+ color:#2a314a!important;border-radius:999px!important;
+}
+body.csk-saas-hub #performanceInline :is(.toolbar button.active,.preset button.active,.pager button.active){
+ background:var(--csk-saas-gradient)!important;border-color:#5E54F3!important;color:#fff!important;
+}
+body.csk-saas-hub #performanceInline .chartbox{
+ background:#16192C!important;border-radius:14px!important;
+}
+body.csk-saas-hub #performanceInline .chart-tip{background:#16192C!important;color:#f5f6ff!important}
+body.csk-saas-hub #performanceInline .no-roas{
+ background:#f8f9fc!important;color:#78849a!important;
+}
+/* The user's existing React executive screen has an authored design system.
+   Preserve its layout and typography; only its enclosing hub is unified. */
+body.csk-saas-report.csk-saas-existing{background:#F8F9FC}
+/* Report-page design tokens: use same palette without forcing legacy charts
+   into a different color scheme or changing the meaning of red/green values. */
+body.csk-saas-report:not(.csk-saas-existing){
+ --brand:#0072CE;--accent:#5E54F3;--primary:#0072CE;
+ --blue:#0072CE;--blue-2:#5E54F3;
+ --bg:#F8F9FC;--background:#F8F9FC;--bg0:#F8F9FC;
+ --surface:#fff;--card:#fff;--panel:#fff;--line:#e7eaf2;
+ --muted:#778198;--text:#222942;--ink:#21283f;
+ background:#F8F9FC!important;
+ color:#222942;
+ font-family:"Pretendard Variable","Pretendard",-apple-system,BlinkMacSystemFont,"Noto Sans KR",system-ui,sans-serif;
+ -webkit-font-smoothing:antialiased;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(main,.main,.wrap,.container,.page,.dashboard,.report-shell,.shell,.layout,.content){
+ min-width:0;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(h1,.page-title,.hero-title){
+ letter-spacing:-.05em;
+ font-weight:830;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(h2,h3){
+ letter-spacing:-.035em;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(button,a,input,select,textarea){
+ -webkit-tap-highlight-color:transparent;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(button,a,input,select,textarea):focus-visible{
+ outline:3px solid rgba(94,84,243,.28)!important;
+ outline-offset:2px!important;
+}
+/* Cohesive cards and KPI containers. Nested chart/legend semantics remain intact. */
+body.csk-saas-report:not(.csk-saas-existing) :where(.card,.kpi,.kpi-card,.metric-card,.stat-card,.summary-card,.summary-tile,.tile,.glass,.glass-card,.panel,.chart-card,.data-card,.insight-card,.feature-card,.report-card){
+ border:1px solid #e7eaf2;
+ border-radius:19px;
+ box-shadow:var(--csk-saas-shadow);
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.kpi,.kpi-card,.metric-card,.stat-card,.summary-card,.summary-tile,.tile){
+ background:#fff;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.kpi,.kpi-card,.metric-card,.stat-card,.summary-card) :where(.value,.val,.number,.amount,.metric-value,.kpi-value,.big){
+ font-size:clamp(22px,2.4vw,33px);
+ font-weight:850;
+ letter-spacing:-.05em;
+ font-variant-numeric:tabular-nums;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.kpi,.kpi-card,.metric-card,.stat-card,.summary-card) :where(.label,.metric-label,.kpi-label){
+ font-size:12px;
+ color:#7c8398;
+ font-weight:710;
+}
+/* Existing report cards remain source-owned; decorate only the surface. */
+body.csk-saas-report:not(.csk-saas-existing) :where(.panel,.chart-card,.data-card,.report-card){
+ border-color:#e7eaf2;
+ border-radius:18px;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.pill,.badge,.chip,.tag,.filter-chip,.tab,.segment,.segmented button,.tabs button,.tab-btn){
+ border-radius:999px;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.filters,.filter-bar,.toolbar,.controls,.control-bar,.actionbar){
+ border-radius:17px;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.tabs,.tabbar,.view-tabs,.segments,.segmented,.tab-list){
+ display:flex;gap:5px;flex-wrap:wrap;align-items:center;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.tabs,.tabbar,.view-tabs,.segments,.segmented,.tab-list)
+  :where(button,.tab,.tab-btn,[role="tab"]){
+ border-radius:999px;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.tabs,.tabbar,.view-tabs,.segments,.segmented,.tab-list)
+  :where(button.active,.tab.active,.tab-btn.active,[aria-selected="true"]){
+ color:#fff!important;
+ background:var(--csk-saas-gradient)!important;
+ border-color:#5E54F3!important;
+ box-shadow:0 4px 14px rgba(91,83,231,.13);
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(button.primary,.btn-primary,.primary-btn,.action-primary,[data-variant="primary"]){
+ color:#fff!important;background:var(--csk-saas-gradient)!important;
+ border:1px solid #5E54F3!important;border-radius:999px!important;
+ box-shadow:0 5px 16px rgba(91,83,231,.12);
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(input[type="search"],input[type="date"],input[type="text"],select,.filter-select){
+ border-radius:11px;
+ max-width:100%;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.table-wrap,.table-responsive,.scroll,.scroll-table,.table-container){
+ max-width:100%;overflow-x:auto;
+ scrollbar-color:#d4d9e7 transparent;
+}
+/* Dark modules already have intentional contrast. Preserve text and chart
+   color when data panels are dark; only normalize outside borders/radii. */
+body.csk-saas-report:not(.csk-saas-existing) :where(.hero,.hero-card,.main-hero,.summary-hero){
+ border-radius:22px;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.grid,.kpis,.kpi-grid,.metrics,.metric-grid,.stats-grid,.cards,.card-grid){
+ min-width:0;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.grid,.kpis,.kpi-grid,.metrics,.metric-grid,.stats-grid,.cards,.card-grid)>*{
+ min-width:0;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(canvas,svg){
+ max-width:100%;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.legend,.caption,.source-note,.meta,.muted){
+ line-height:1.5;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.date,.timestamp,.value,.number,.amount,.metric-value){
+ font-variant-numeric:tabular-nums;
+}
+/* Intentional dark-and-indigo analysis blocks for modular workspaces. */
+body.csk-saas-report:not(.csk-saas-existing) :where(.analysis-workspace,.dark-workspace,.decision-workspace){
+ border-radius:24px;
+ background:#16192C;
+ color:#fff;
+}
+body.csk-saas-report:not(.csk-saas-existing) :where(.analysis-workspace,.dark-workspace,.decision-workspace) :where(.selected,.detail-pane,.focus-pane){
+ background:linear-gradient(135deg,#777bd0,#5E54F3);
+ color:#fff;
+ border-radius:17px;
+}
+@media(max-width:1023px){
+ body.csk-saas-hub #hub-mobile-root{
+  background:rgba(22,25,44,.97)!important;
+  border-top:1px solid rgba(255,255,255,.09)!important;
+  border-radius:18px 18px 0 0!important;
+  box-shadow:0 -8px 25px rgba(22,25,44,.13)!important;
+ }
+ body.csk-saas-hub .csk-mobile-inner .mo-tab,
+ body.csk-saas-hub .csk-mobile-inner .csk-more{
+  color:#b5bbd7!important;font-size:10px!important;
+ }
+ body.csk-saas-hub .csk-mobile-inner .mo-tab.active{
+  background:linear-gradient(125deg,#0072CE,#5E54F3)!important;
+  color:#fff!important;border-radius:12px!important;
+ }
+ body.csk-saas-report:not(.csk-saas-existing) :where(.card,.kpi,.kpi-card,.metric-card,.stat-card,.summary-card,.summary-tile,.tile,.glass,.glass-card,.panel,.chart-card,.data-card,.insight-card,.feature-card,.report-card){
+  border-radius:15px;
+ }
+}
+@media(max-width:620px){
+ body.csk-saas-hub #performanceInline>.wrap{padding:12px 9px!important}
+ body.csk-saas-hub #performanceInline .cards{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+ }
+ body.csk-saas-hub #performanceInline .grid,
+ body.csk-saas-hub #performanceInline .paid-grid{
+  grid-template-columns:minmax(0,1fr)!important;
+ }
+ body.csk-saas-report:not(.csk-saas-existing) :where(.kpi,.kpi-card,.metric-card,.stat-card,.summary-card) :where(.value,.val,.number,.amount,.metric-value,.kpi-value,.big){
+  font-size:clamp(21px,5vw,27px);
+ }
+}
+@media(prefers-reduced-motion:reduce){
+ body.csk-saas-hub .nav-item,body.csk-saas-report :where(button,a){
+  transition:none!important;
+ }
+}
