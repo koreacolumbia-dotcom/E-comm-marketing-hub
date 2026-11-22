@@ -7,6 +7,7 @@ INDEX = (ROOT / "index.html").read_text(encoding="utf-8")
 CSS = (ROOT / "assets/mobile-edge-to-edge.css").read_text(encoding="utf-8")
 JS = (ROOT / "assets/mobile-edge-to-edge.js").read_text(encoding="utf-8")
 BUNDLE = (ROOT / "scripts/prepare_cloudflare_bundle.py").read_text(encoding="utf-8")
+HUB = (ROOT / "assets/csk-unified-hub.js").read_text(encoding="utf-8")
 
 
 class MobileDashboardTests(unittest.TestCase):
@@ -31,6 +32,24 @@ class MobileDashboardTests(unittest.TestCase):
         self.assertIn("csk-mobile-scroll-table", JS)
         self.assertIn("overflow-x: auto !important", CSS)
         self.assertIn("if (mobile.matches) install()", JS)
+
+    def test_mobile_height_is_measured_from_flow_not_stale_viewport(self):
+        self.assertIn("child.getBoundingClientRect()", JS)
+        self.assertIn("contentBottom > 0 ? contentBottom", JS)
+        self.assertNotIn("html.scrollHeight || 0", JS)
+        self.assertEqual(JS.count("observer.observe(doc.body)"), 1)
+        self.assertNotIn("observer.observe(doc.documentElement)", JS)
+        self.assertIn("sole iframe height owner", HUB)
+
+    def test_unverified_metadata_is_not_mislabeled_current(self):
+        self.assertIn('elUpdated.textContent = "메타데이터 미확보"', HUB)
+        self.assertNotIn("elUpdated.textContent = fmtKST(now)", HUB)
+
+    def test_report_messages_are_same_origin_and_cache_busted(self):
+        self.assertIn("event.source !== frame.contentWindow", HUB)
+        self.assertIn("event.origin !== window.location.origin", HUB)
+        self.assertIn('csk-unified-hub.js?v=20261122-2', INDEX)
+        self.assertIn('mobile-edge-to-edge.js?v=20261122-2', INDEX)
 
 
 if __name__ == "__main__":

@@ -38,14 +38,21 @@
   function fitFrame(doc) {
     if (!mobile.matches || attachedDoc !== doc || doc !== frame.contentDocument || !doc.body) return;
     var body = doc.body;
-    var html = doc.documentElement;
-    var measured = Math.max(
-      body.scrollHeight || 0,
-      body.offsetHeight || 0,
-      html.scrollHeight || 0,
-      html.offsetHeight || 0
-    );
-    var height = Math.max(320, Math.ceil(measured));
+    // Document scrollHeight can be pinned to the iframe's previous viewport,
+    // preventing shorter reports from ever shrinking. Measure visible flow content.
+    var bodyTop = body.getBoundingClientRect().top;
+    var contentBottom = 0;
+    Array.prototype.forEach.call(body.children, function (child) {
+      if (/^(SCRIPT|STYLE|LINK|TEMPLATE)$/.test(child.tagName)) return;
+      var style = doc.defaultView.getComputedStyle(child);
+      if (style.display === 'none' || style.position === 'fixed') return;
+      var rect = child.getBoundingClientRect();
+      if (Number.isFinite(rect.bottom)) {
+        contentBottom = Math.max(contentBottom, rect.bottom - bodyTop + (parseFloat(style.marginBottom) || 0));
+      }
+    });
+    var measured = contentBottom > 0 ? contentBottom : (body.scrollHeight || 0);
+    var height = Math.max(320, Math.ceil(measured) + 12);
     var current = parseFloat(frame.style.height) || 0;
     if (Math.abs(current - height) > 8) frame.style.height = height + 'px';
   }
@@ -88,7 +95,6 @@
     if ('ResizeObserver' in window) {
       observer = new ResizeObserver(function () { fitFrame(doc); });
       observer.observe(doc.body);
-      observer.observe(doc.documentElement);
     }
     // Content dashboards render asynchronously after the iframe load event.
     scheduleFit(doc, 80);

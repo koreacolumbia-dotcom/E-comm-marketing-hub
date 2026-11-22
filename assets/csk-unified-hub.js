@@ -222,18 +222,15 @@ document.body.classList.add("csk-unified-hub");document.body.dataset.unifiedHub=
         elUpdated.textContent = meta.updated_at_kst || meta.generated_at_kst || meta.generated_at || (key === "competitor_content" ? meta.checked_at_kst : null) || "-";
         elPeriod.textContent  = meta.period_text || meta.period_label || meta.date_range || (key === "competitor_content" ? "최근 수집 / 30일 관측" : "-");
       } catch (e) {
-        const now = new Date();
-        elUpdated.textContent = fmtKST(now);
-
-        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-        const kst = new Date(utc + (9 * 60 * 60000));
-        const end = new Date(kst);
-        const start = new Date(kst); start.setDate(start.getDate()-6);
-        elPeriod.textContent = `최근 7일 (${fmtD(start)} ~ ${fmtD(end)})`;
+        // Never substitute the current time for a missing source update timestamp.
+        elUpdated.textContent = "메타데이터 미확보";
+        elPeriod.textContent = "기준 기간 확인 필요";
       }
     }
 
     function resizeIframeToContent() {
+      // The mobile edge-to-edge controller is the sole iframe height owner on narrow screens.
+      if (window.matchMedia && window.matchMedia("(max-width: 1023px)").matches) return;
       try {
         const doc = frame.contentDocument || frame.contentWindow.document;
         if (!doc) return;
@@ -433,7 +430,9 @@ document.body.classList.add("csk-unified-hub");document.body.dataset.unifiedHub=
     window.addEventListener("message", (event) => {
       try {
         const data = event && event.data ? event.data : null;
-        if (data && data.type === "contentMonitorResize") {
+        // Accept height hints only from the active, same-origin report.
+        if (!data || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
+        if (data.type === "contentMonitorResize") {
           if (event.origin !== window.location.origin || event.source !== frame.contentWindow || window.location.hash !== "#competitor_content") return;
           const nextHeight=Number(data.height);
           if(Number.isFinite(nextHeight)&&nextHeight>200) frame.style.height=(Math.ceil(nextHeight)+12)+"px";
@@ -442,7 +441,7 @@ document.body.classList.add("csk-unified-hub");document.body.dataset.unifiedHub=
         if (!data || data.type !== "dailyDigestResize") return;
         const nextHeight = Number(data.height || 0);
         const currentKey = (window.location.hash || "").replace("#", "");
-        if (currentKey !== "performance" && Number.isFinite(nextHeight) && nextHeight > 200) {
+        if (currentKey !== "performance" && !(window.matchMedia && window.matchMedia("(max-width: 1023px)").matches) && Number.isFinite(nextHeight) && nextHeight > 200) {
           frame.style.height = (nextHeight + 16) + "px";
           setTimeout(resizeIframeToContent, 80);
         }
