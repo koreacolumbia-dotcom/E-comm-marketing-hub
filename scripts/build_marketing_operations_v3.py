@@ -359,6 +359,57 @@ def weekly_kpis(day: dt.date, root: Path = DAILY) -> dict[str, Any]:
     }
 
 
+def campaign_impact_diagnostics(calendar: dict[str, Any], weekly: dict[str, Any]) -> dict[str, Any]:
+    """Descriptive start-date split, not incrementality or incremental revenue.
+
+    Source requirements: complete same-weekday BigQuery daily pairs and a
+    source-verified official-mall campaign. Never use an offline date to label
+    official-mall revenue or fill missing LY matches with zeros.
+    """
+    result: dict[str, Any] = {
+        "status": "insufficient", "start_date": None, "campaign": None,
+        "pre_days": 0, "active_days": 0,
+        "pre_revenue_yoy_pct": None, "active_revenue_yoy_pct": None,
+        "pre_orders_yoy_pct": None, "active_orders_yoy_pct": None,
+        "ly_same_weekday_event": False, "causal": False,
+        "note": "행사 전후 동일 요일 YoY 흐름만 표시하며 행사 순증분 효과나 예측 매출을 산정하지 않습니다."
+    }
+    yoy = weekly.get("yoy") or {}
+    pairs = yoy.get("daily_comparison") or []
+    if yoy.get("status") != "ready" or len(pairs) != 7:
+        return result
+    events = [e for e in calendar.get("current", []) if e.get("status") == "confirmed"
+              and e.get("scope") == "official_mall" and e.get("kind") == "event"]
+    if not events:
+        return result
+    event = sorted(events, key=lambda x: x["date"])[-1]
+    started = event["date"]
+    before = [row for row in pairs if row["date"] < started]
+    after = [row for row in pairs if row["date"] >= started]
+    if len(before) < 2 or len(after) < 2:
+        return result
+    def growth(part: list[dict[str, Any]], field: str) -> float | None:
+        current = sum(finite(row.get("current", {}).get(field)) or 0 for row in part)
+        previous = sum(finite(row.get("last_year", {}).get(field)) or 0 for row in part)
+        return round((current / previous - 1) * 100, 2) if previous > 0 else None
+    result.update(
+        status="descriptive", start_date=started, campaign=event["title"],
+        pre_days=len(before), active_days=len(after),
+        pre_revenue_yoy_pct=growth(before, "revenue"),
+        active_revenue_yoy_pct=growth(after, "revenue"),
+        pre_orders_yoy_pct=growth(before, "orders"),
+        active_orders_yoy_pct=growth(after, "orders"),
+        ly_same_weekday_event=any(
+            e.get("kind") == "event" and e.get("status") == "confirmed"
+            and ("Festival" in str(e.get("title")) or "페스티벌" in str(e.get("title")))
+            and e.get("date") == after[0].get("ly_date")
+            for e in calendar.get("last_year_confirmed", [])),
+        note=("행사 전후의 매출 성장률 변화는 관측 사실이며 순증분 효과가 아닙니다. "
+              "전년에도 대응 요일에 윈터페스티벌이 있어 할인 강도·상품 구성·매체·기온의 영향을 분리할 수 없습니다.")
+    )
+    return result
+
+
 def incrementality(day: dt.date, path: Path = PRIVATE_INCREMENTAL) -> dict[str, Any]:
     """Aggregate randomized experiment diagnostics; minimum groups 100, never PII."""
     data = read_json(path)
@@ -458,6 +509,7 @@ def build(report_day: dt.date, v2: dict[str, Any], daily_root: Path = DAILY,
         raise ValueError("Missing authoritative Daily Digest for report date")
     calendar = calendar_context(report_day, daily, cal25, owned25, cal26)
     weekly = weekly_kpis(report_day, daily_root)
+    calendar["impact_diagnostics"] = campaign_impact_diagnostics(calendar, weekly)
     triage = product_triage(v2)
     recovery = recovery_plan(v2)
     experiments = incrementality(report_day, incremental)
