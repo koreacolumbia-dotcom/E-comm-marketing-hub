@@ -109,6 +109,10 @@ jobs:
           node --check assets/csk-unified-hub.js
           node --check assets/csk-saas-unified.js
           node tests/csk_saas_theme_smoke.js
+          node --check assets/csk-saas-standalone.js
+          python -m py_compile scripts/apply_csk_saas_theme.py
+          python -m unittest discover -s tests -p "test_csk_standalone_theme.py" -v
+          python scripts/apply_csk_saas_theme.py --check --quiet
           node --check assets/mobile-edge-to-edge.js
           python -m unittest discover -s tests -p 'test_unified_hub.py' -v
           python - <<'PY'
