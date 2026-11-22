@@ -162,10 +162,10 @@
     "order_mart_last_modified": "2026-06-05T06:07:21.605000+00:00"
   },
   "weather_source_health": {
-    "current": "access_denied_403",
-    "previous": "access_denied_403",
-    "observed_days": 0,
-    "previous_observed_days": 0,
+    "current": "kma_public_fallback",
+    "previous": "kma_public_fallback",
+    "observed_days": 14,
+    "previous_observed_days": 14,
     "source": "KMA ASOS Seoul 108 first; NOAA GSOD Seoul 47108099999 secondary; observations only, never forecast"
   },
   "ga4_coupon_evidence": {
@@ -438,24 +438,6 @@
       "sources": [
         "reports/daily_intelligence/latest.json",
         "reports/decision_health/ga4_purchase_diagnostics.json"
-      ]
-    },
-    {
-      "id": "WEATHER_COVERAGE",
-      "priority": "P1",
-      "status": "source_error_confirmed",
-      "title": "날씨 영향 분석의 실측 기온이 누락됨",
-      "finding": "서울 관측 기온 0 / 14일 확보 · 기상청 원천 응답 access_denied_403",
-      "cause_component": "기상청 API 접근 거부(HTTP 403) 확인",
-      "cause_hypotheses": [],
-      "hypothesis_status": "confirmed_source_failure",
-      "causal_confirmed": false,
-      "how_to_verify": "공식 API Hub 키의 서비스 사용 승인·유효기간·허용 IP/권한 점검. 재발급 전 추가 요청 중단",
-      "blocked_by": [
-        "기상청 API 인증/접근 권한"
-      ],
-      "sources": [
-        "reports/daily_intelligence/latest.json"
       ]
     }
   ],
