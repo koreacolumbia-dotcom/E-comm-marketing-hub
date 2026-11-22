@@ -1,6 +1,6 @@
 import unittest
 from datetime import date,timedelta
-from product_signal_hub import build_signals, assess_weather_association
+from product_signal_hub import build_signals, assess_weather_association, assess_weather_business
 from observed_weather import parse
 class ProductTests(unittest.TestCase):
     def fixture(self):
@@ -51,6 +51,20 @@ class ProductTests(unittest.TestCase):
         self.assertEqual(assess_weather_association(temperatures,river,"ga4_purchase_items")["status"],"weak")
         self.assertEqual(assess_weather_association(temperatures,adventure,"ga4_purchase_items")["status"],"insufficient")
         self.assertEqual(assess_weather_association([None]*14,river,"ga4_purchase_items")["status"],"insufficient")
+
+    def test_weather_business_outlier_sensitive_not_causal(self):
+        dates=[(date(2026,10,23)+timedelta(days=i)).isoformat() for i in range(30)]
+        temperatures=[10+i%7 for i in range(28)]+[-3,-4]
+        revenue=[100+(i*11)%19 for i in range(28)]+[1000,800]
+        sessions=[50+(i*7)%11 for i in range(28)]+[300,250]
+        out=assess_weather_business(dates,temperatures,revenue,sessions)
+        self.assertEqual(out["status"],"confounded")
+        self.assertEqual(out["n_days"],30)
+        self.assertLess(out["raw_revenue_r"],-.5)
+        self.assertLess(abs(out["trimmed_revenue_r"]),.35)
+        self.assertFalse(out["causal"])
+        self.assertEqual(len(out["excluded_dates"]),2)
+        self.assertEqual(assess_weather_business(dates[:10],temperatures[:10],revenue[:10],sessions[:10])["status"],"insufficient")
 
     def test_parse_station_date_and_invalid(self):
         raw="# TM STN TA_AVG TA_MAX TA_MIN RN_DAY\n20261117 108 2.2 8 -1 0\n20261116 109 3 8 -1 0\n20261116 108 -99 8 -1 0\n"
