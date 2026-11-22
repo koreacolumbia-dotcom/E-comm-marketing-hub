@@ -103,7 +103,7 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('id="source-medium-health"', DECISION_HTML)
         self.assertIn('href="./source-medium.css?v=', DECISION_HTML)
         self.assertIn('src="./source-medium.js?v=', DECISION_HTML)
-        self.assertIn('window.CSKSourceMedium?.render(sourceMedium)', DECISION_HTML)
+        self.assertIn('window.CSKSourceMedium?.render(sourceMedium,op)', DECISION_HTML)
         self.assertLess(DECISION_HTML.index('id="macro-health"'),
                         DECISION_HTML.index('id="source-medium-health"'))
         self.assertLess(DECISION_HTML.index('id="source-medium-health"'),
@@ -119,10 +119,21 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('id="macro-health"', DECISION_HTML)
         self.assertIn('id="product-drilldown"', DECISION_HTML)
         self.assertLess(DECISION_HTML.index('id="macro-health"'), DECISION_HTML.index('id="priority-products"'))
-        self.assertIn('window.CSKMacroBoard?.render(op,di,weeklyEvidence,alignedBasket)', DECISION_HTML)
+        self.assertIn('window.CSKMacroBoard?.render(op,di,weeklyEvidence,alignedBasket,diagnoses)', DECISION_HTML)
         self.assertIn('src="./macro-board.js?v=', DECISION_HTML)
         self.assertIn('상품별 하위 원인 TOP 3', DECISION_HTML)
         self.assertIn('전체 성과를 먼저 확인하고 상품별로 내려갑니다', DECISION_HTML)
+
+    def test_context_strip_and_period_integrity_loaded(self):
+        self.assertIn('id="market-context"', DECISION_HTML)
+        self.assertIn('id="market-context-cards"', DECISION_HTML)
+        self.assertIn('src="./market-context.js?v=', DECISION_HTML)
+        self.assertIn('href="./decision-refinement.css?v=', DECISION_HTML)
+        self.assertIn('window.CSKMarketContext?.render(di,op,diagnoses)', DECISION_HTML)
+        self.assertLess(DECISION_HTML.index('id="macro-health"'),
+                        DECISION_HTML.index('id="market-context"'))
+        self.assertLess(DECISION_HTML.index('id="market-context"'),
+                        DECISION_HTML.index('id="source-medium-health"'))
 
     def test_priority_cards_on_existing_home(self):
         self.assertIn('id="priority-products"', DECISION_HTML)
