@@ -77,7 +77,10 @@ jobs:
           for brand,entry in frontier['brands'].items():
               pending=entry.get('pending',[])
               assert len(pending)==len(set(pending)), f'duplicate frontier URLs for {brand}'
-              assert all(u.startswith(('https://','http://')) for u in pending), f'invalid URL in frontier: {brand}'
+              assert all(u.startswith('https://') for u in pending), f'non-HTTPS URL in frontier: {brand}'
+              from urllib.parse import urlsplit
+              assert all(urlsplit(u).hostname and not urlsplit(u).username and not urlsplit(u).password for u in pending), f'unsafe URL authority: {brand}'
+              assert all(not urlsplit(u).fragment for u in pending), f'fragment in crawl frontier: {brand}'
           print('Dashboard DOM, navigation, strategy order, coverage, and frontier contracts verified')
           PY
       - name: Test interactive drilldowns in Chromium
