@@ -145,6 +145,8 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertNotIn('["재고",null,block.inventory', DECISION_HTML)
         self.assertIn('main #decision-additional > section.grid', DIAGNOSIS_JS)
         self.assertIn('const withoutStock=', DIAGNOSIS_JS)
+        self.assertIn('filter(x=>!/(재고|품절|inventory|stock)/i.test', DECISION_HTML)
+        self.assertIn("p.id==='SOURCE_FRESHNESS'?'광고비·주문·CRM 원천 최신성 확인'", DIAGNOSIS_JS)
 
     def test_decision_product_priority_and_evidence(self):
         self.assertIn('d>=15&&s<=-15', DECISION_HTML)

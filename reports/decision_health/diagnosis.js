@@ -203,7 +203,7 @@
           p.status==='source_error_confirmed'?'원천 오류 확인':
           p.status==='coverage_limited'?'수집 범위 제한':'검증 자료 필요';
         const tag=el('span',p.priority+' · '+label,'diag-status'+(observedStatus?' known':''));
-        card.append(tag,el('h3',p.title),el('p',withoutStock(p.finding),'observed'));
+        card.append(tag,el('h3',p.id==='SOURCE_FRESHNESS'?'광고비·주문·CRM 원천 최신성 확인':p.title),el('p',p.id==='SOURCE_FRESHNESS'?'광고비·주문·CRM 최신 적재 여부 점검 (재고 추적은 이번 의사결정 범위에서 제외)':withoutStock(p.finding),'observed'));
         const fact=el('p',null);
         fact.append(el('strong','확인된 사실: '),document.createTextNode(withoutStock(p.cause_component)||'미확보'));
         card.append(fact);
@@ -216,7 +216,7 @@
           card.append(hypo);
         }
         const test=el('p',null);
-        test.append(el('strong','다음 검증: '),document.createTextNode(withoutStock(p.how_to_verify)||'원천 확인'));
+        test.append(el('strong','다음 검증: '),document.createTextNode(p.id==='SOURCE_FRESHNESS'?'주문·CRM 적재일 및 광고비 데이터 최신성 확인':(withoutStock(p.how_to_verify)||'원천 확인')));
         card.append(test);
         const blockers=(p.blocked_by||[]).filter(v=>!/(재고|품절|stock|inventory)/i.test(v));
         if(blockers.length)card.append(el('p','현재 장애 요인: '+blockers.join(', '),'blocked'));
