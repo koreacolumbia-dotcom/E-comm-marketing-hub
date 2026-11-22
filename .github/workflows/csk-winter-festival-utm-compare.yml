@@ -1,6 +1,12 @@
 name: CSK Winter Festival UTM Owned Comparison
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["CSK Marketing Operations 3.0"]
+    types: [completed]
+  schedule:
+    # Every day at 11:05 KST, only refresh when a new event-day GA4 snapshot is ready.
+    - cron: '5 2 * * *'
   push:
     branches: [main]
     paths:
@@ -14,6 +20,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   attribution:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 17
     steps:
@@ -25,6 +32,7 @@ jobs:
             scripts/build_winter_festival_utm_owned.py
             tests/test_winter_festival_utm_owned.py
             reports/decision_health
+            reports/marketing_operations/latest.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
