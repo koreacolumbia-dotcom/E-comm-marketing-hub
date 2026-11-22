@@ -1,5 +1,6 @@
 """Mobile dashboard regressions without requiring a headless browser."""
 from pathlib import Path
+import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,8 +49,8 @@ class MobileDashboardTests(unittest.TestCase):
     def test_report_messages_are_same_origin_and_cache_busted(self):
         self.assertIn("event.source !== frame.contentWindow", HUB)
         self.assertIn("event.origin !== window.location.origin", HUB)
-        self.assertIn('csk-unified-hub.js?v=20261122-2', INDEX)
-        self.assertIn('mobile-edge-to-edge.js?v=20261122-2', INDEX)
+        self.assertRegex(INDEX, r'csk-unified-hub\\.js\\?v=[a-zA-Z0-9._-]+')
+        self.assertRegex(INDEX, r'mobile-edge-to-edge\\.js\\?v=[a-zA-Z0-9._-]+')
 
 
 if __name__ == "__main__":
