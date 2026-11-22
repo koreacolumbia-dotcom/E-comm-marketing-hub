@@ -136,9 +136,14 @@ def calendar_context(report_day: dt.date, current_daily: dict[str, Any] | None,
             events.append({
                 "date": start.isoformat(), "end_date": end.isoformat() if end else None,
                 "kind": slim(entry.get("kind") or entry.get("channel") or "event", 30),
+                "channel": slim(entry.get("channel"), 16) if entry.get("channel") else None,
                 "title": slim(entry.get("title")),
+                "detail": slim(entry.get("detail"), 180) if entry.get("detail") else None,
                 "source": slim(entry.get("source") or source.get("source_file") or origin, 110),
                 "origin": origin, "status": status, "year": 2025,
+                "sent_count": round(finite(entry.get("sent_count"))) if (
+                    origin == "owned_message_2025" and status == "confirmed" and
+                    (finite(entry.get("sent_count")) or 0) > 0) else None,
                 "sent_confirmed": (finite(entry.get("sent_count")) or 0) > 0
                 if origin == "owned_message_2025" else None
             })
@@ -219,6 +224,7 @@ def weekly_yoy(day: dt.date, current_week: dict[str, Any],
         "source": None,
         "reference": {"status": "incomplete", "total": None},
         "yoy_pct": {},
+        "daily_comparison": [],
         "missing_dates": [],
         "note": "전년 동요일 7일의 동일 GA4 BigQuery 지표 검증 후에만 YoY를 표시합니다."
     }
@@ -226,6 +232,7 @@ def weekly_yoy(day: dt.date, current_week: dict[str, Any],
         return result
     totals = {"sessions": 0., "orders": 0., "revenue": 0.}
     seen_sources: set[str] = set()
+    daily_rows: list[dict[str, Any]] = []
     for i in range(6, -1, -1):
         date = day - dt.timedelta(days=i)
         reference_date = date - dt.timedelta(days=364)
@@ -259,6 +266,14 @@ def weekly_yoy(day: dt.date, current_week: dict[str, Any],
             result["missing_dates"].append(reference_date.isoformat())
             continue
         seen_sources.add(source)
+        daily_rows.append({
+            "date": date.isoformat(), "ly_date": reference_date.isoformat(),
+            "current": {key: round(val, 2) for key, val in current_check.items()},
+            "last_year": {key: round(val, 2) for key, val in previous.items()},
+            "revenue_yoy_pct": (
+                round((current_check["revenue"]/previous["revenue"] - 1)*100, 2)
+                if previous["revenue"] > 0 else None)
+        })
         for key in totals:
             totals[key] += previous[key]
     if result["missing_dates"] or seen_sources != {"ga4_bigquery_session_key_v1"}:
@@ -277,7 +292,7 @@ def weekly_yoy(day: dt.date, current_week: dict[str, Any],
     result.update(
         status="ready", source="ga4_bigquery_session_key_v1",
         reference={"status": "complete", "total": ref},
-        yoy_pct=yoy_pct,
+        yoy_pct=yoy_pct, daily_comparison=daily_rows,
         note="전년 동일 요일 7일, 364일 오프셋. 동일 BigQuery 세션 정의·상품매출 합계가 아닌 구매매출 기준. 인과 관계는 해석하지 않습니다."
     )
     return result
