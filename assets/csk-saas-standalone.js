@@ -27,13 +27,13 @@ const layoutCssId="csk-layout-v2-css",layoutJsId="csk-layout-v2-script";
 if(!document.getElementById(layoutCssId)){
   const link=document.createElement("link");
   link.id=layoutCssId;link.rel="stylesheet";
-  link.href=new URL("./csk-layout-v2.css?v=20261122-1",entry.src).href;
+  link.href=new URL("./csk-layout-v2.css?v=20261122-18a",entry.src).href;
   document.head.appendChild(link);
 }
 if(!document.getElementById(layoutJsId)){
   const script=document.createElement("script");
   script.id=layoutJsId;script.defer=true;
-  script.src=new URL("./csk-layout-v2.js?v=20261122-1",entry.src).href;
+  script.src=new URL("./csk-layout-v2.js?v=20261122-18a",entry.src).href;
   document.body.appendChild(script);
 }
 })();
