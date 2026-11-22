@@ -16,8 +16,8 @@
     /\/reports\/daily_digest\/(?:index\.html|daily\/[^/]+\.html)$/.test(pathname) ||
     false;
   const cssId = "csk-saas-shared-theme";
-  const layoutCssHref=new URL("assets/csk-layout-v2.css?v=20261122-1",document.baseURI).href;
-  const layoutJsHref=new URL("assets/csk-layout-v2.js?v=20261122-1",document.baseURI).href;
+  const layoutCssHref=new URL("assets/csk-layout-v2.css?v=20261122-18a",document.baseURI).href;
+  const layoutJsHref=new URL("assets/csk-layout-v2.js?v=20261122-18a",document.baseURI).href;
   function ensureLayout(doc) {
     if(!doc.getElementById("csk-layout-v2-css")){
       const css=doc.createElement("link");
@@ -72,6 +72,6 @@
   window.addEventListener("pageshow",decorate);
   window.CSKSaaSTheme = Object.freeze({
     excluded:["daily"],
-    version:"20261122-layout-v2"
+    version:"20261122-18a"
   });
 })();
