@@ -485,6 +485,14 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     backlog.sort(key=lambda u: (0 if u not in prior_ledger else
                                 1 if prior_ledger[u].get("state") in ("error","timeout","not_found") else
                                 2 if prior_ledger[u].get("state") in ("observed","partial_observed") else 3))
+    # Prioritize real editorial details over feedback/action endpoints and already-seen hubs.
+    # Preserve a bounded hub discovery budget through take_next_url().
+    backlog=[u for u in backlog if scoped(brand,u)]
+    backlog.sort(key=lambda u: (
+        0 if editorial_route(brand,u) and u not in prior_ledger else
+        1 if editorial_route(brand,u) and prior_ledger.get(u,{}).get("state") in ("error","timeout") else
+        2 if u not in prior_ledger else
+        3 if brand_listing(brand,u) else 4))
     # One homepage and one main hub per slice; use the rest to clear prior frontier.
     queue=unique_urls(seeds[:2]+backlog+seeds[2:],same)
     ledger_cutoff=(datetime.fromisoformat(checked)-timedelta(days=LEDGER_WINDOW_DAYS)).date().isoformat()
@@ -715,7 +723,10 @@ def self_test():
     assert scoped("DECATHLON","https://www.decathlon.co.kr/s/running-campaign")
     assert not scoped("DECATHLON","https://www.decathlon.co.kr/p/test.html")
     assert not scoped("DECATHLON","https://www.decathlon.co.kr/c/test.html")
-    assert not scoped("TNF","https://www.thenorthfacekorea.co.kr/lookbook/feedback?lookbookId=12002")\n    assert scoped("TNF","https://www.thenorthfacekorea.co.kr/lookbook/12002")\n    assert brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/all_films")
+    assert not scoped("TNF","https://www.thenorthfacekorea.co.kr/lookbook/feedback?lookbookId=12002")
+    assert not scoped("TNF","https://www.thenorthfacekorea.co.kr/lookbook/feedback/")
+    assert editorial_route("TNF","https://www.thenorthfacekorea.co.kr/lookbook/12002")
+    assert scoped("TNF","https://www.thenorthfacekorea.co.kr/lookbook/12002")\n    assert brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/all_films")
     assert not brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/filmDetail/275")
     assert not scoped("NEW BALANCE","https://devapm-m.nbkorea.com/event/test.action")
     assert not scoped("BLACKYAK","https://www.byn.kr/other")
