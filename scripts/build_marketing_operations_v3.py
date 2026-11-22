@@ -89,20 +89,37 @@ def calendar_context(report_day: dt.date, current_daily: dict[str, Any] | None,
                 continue
             start = parse_day(entry.get("date"))
             end = parse_day(entry.get("end_date"))
+            status = entry.get("status")
+            source = str(entry.get("source") or "").strip()
             if (start and date_span(week_start, report_day, start, end)
-                    and entry.get("status") in ("confirmed", "planned")
-                    and (entry.get("status") != "confirmed" or
-                         str(entry.get("source") or "").strip())):
+                    and status in ("confirmed", "observed", "reported", "planned")
+                    and source):
                 found.append({
-                    "date": start.isoformat(), "status": entry["status"],
-                    "kind": slim(entry.get("kind"), 24),
+                    "date": start.isoformat(), "end_date": end.isoformat() if end else None,
+                    "status": status, "kind": slim(entry.get("kind"), 24),
                     "title": slim(entry.get("title")),
-                    "source": slim(entry.get("source"), 110),
+                    "detail": slim(entry.get("detail"), 200),
+                    "source": slim(source, 260),
+                    "scope": slim(entry.get("scope"), 32),
+                    "channel": slim(entry.get("channel"), 32),
+                    "date_basis": slim(entry.get("date_basis"), 48),
+                    "impact_hypothesis": slim(entry.get("impact_hypothesis"), 200),
+                    "impact_metrics": [slim(v, 48) for v in (entry.get("impact_metrics") or [])
+                                       if isinstance(v, str)][:5],
                     "year": 2026
                 })
         result["current"] = sorted(found, key=lambda x: x["date"])
         if result["current"]:
             result["current_status"] = "records_present"
+        result["current_source_summary"] = {
+            "verified_campaigns": sum(x["status"] == "confirmed" for x in found),
+            "observed_content": sum(x["status"] == "observed" for x in found),
+            "unverified_schedule": sum(x["status"] in ("reported", "planned") for x in found),
+            "online_confirmed": sum(x["status"] == "confirmed" and x["scope"] == "official_mall"
+                                    for x in found),
+            "offline_confirmed": sum(x["status"] == "confirmed" and x["scope"] == "offline_partner"
+                                     for x in found)
+        }
         # An empty 2026 plan does not indicate zero campaigns.
     meta = (current_daily or {}).get("meta") or {}
     anchor = parse_day(meta.get("yoy_start"))
