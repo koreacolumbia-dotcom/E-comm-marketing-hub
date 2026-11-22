@@ -134,7 +134,7 @@ def patch_report(path: Path, key: str, *, check: bool = False) -> str:
             )
     # Only the 18-section dashboard needs a new versioned asset; keep the
     # other 21 large generated HTML artifacts unchanged to avoid costly writes.
-    version = "20261122-18a" if key == "daily_intelligence" else VERSION
+    version = "20261122-weatherfocus-v1" if key == "daily_intelligence" else VERSION
     text = re.sub(r'(csk-saas-unified\.css\?v=)[A-Za-z0-9_.-]+',
                   lambda m: m.group(1) + version, text)
     text = re.sub(r'(csk-saas-standalone\.js\?v=)[A-Za-z0-9_.-]+',
