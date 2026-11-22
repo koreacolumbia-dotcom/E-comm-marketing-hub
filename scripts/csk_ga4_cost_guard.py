@@ -306,8 +306,53 @@ def save(doc):
         if prior.get("status")=="ga4_measured":return
     OUT.write_text(json.dumps(doc,ensure_ascii=False,indent=2,allow_nan=False)+"\n",encoding="utf-8")
 
+def matching_shared_evidence(candidate, end):
+    """Reuse only the identical 14-day purchase aggregate, never a different query/grain."""
+    if candidate.get("status") not in ("ga4_measured", "partial_quality"):
+        return False
+    if candidate.get("report_date") != end.isoformat():
+        return False
+    period=candidate.get("period") or {}
+    expected=dict(
+        previous_start=(end-dt.timedelta(days=13)).isoformat(),
+        previous_end=(end-dt.timedelta(days=7)).isoformat(),
+        current_start=(end-dt.timedelta(days=6)).isoformat(),
+        current_end=end.isoformat())
+    if any(period.get(k)!=date for k,date in expected.items()):
+        return False
+    basket=candidate.get("basket_distribution")
+    return (isinstance(basket,dict) and "three_plus_change_pp" in basket
+            and isinstance(candidate.get("product_sales"),list)
+            and isinstance(candidate.get("totals"),dict)
+            and isinstance(candidate.get("admin_reconciliation"),dict))
+
 def run():
     end=report_date()
+    # Two reports previously executed the identical 14-day purchase SQL twice.
+    # One measured aggregate is now the canonical source; downstream outputs are
+    # replicated only after strict report date and period/grain verification.
+    counterpart=ROOT/("reports/decision_health/ga4_purchase_diagnostics.json" if
+        os.getenv("CSK_GA4_ALIGNED_WEEKLY")=="1" else
+        "reports/decision_health/weekly_ga4_aligned.json")
+    shared=read(counterpart)
+    if os.getenv("CSK_GA4_FORCE","")!="1" and matching_shared_evidence(shared,end):
+        prior=read(OUT)
+        if not matching_shared_evidence(prior,end):
+            derived={**shared}
+            origin_cost=shared.get("cost") or {}
+            derived["cost"]={**origin_cost,
+                "source_query_billed_bytes":origin_cost.get("source_query_billed_bytes",
+                    origin_cost.get("billed_bytes",0)),
+                "billed_bytes":0,
+                "reused_aggregate":True,
+                "read_from":counterpart.name}
+            derived["evidence_reuse"]="identical_14_day_ga4_purchase_aggregate"
+            save(derived)
+            print("[GA4] Derived",OUT.name,"from",counterpart.name,
+                  "without BigQuery; period and basket verified")
+        else:
+            print("[GA4] Existing shared purchase aggregate matches; zero query")
+        return
     previous=read(OUT)
     needs_aligned_basket=(os.getenv("CSK_GA4_ALIGNED_WEEKLY")=="1" and
                           (not isinstance(previous.get("basket_distribution"),dict) or
