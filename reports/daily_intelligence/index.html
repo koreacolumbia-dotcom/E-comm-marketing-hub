@@ -209,7 +209,26 @@ function pctTemp(v){return (v>0?'+':'')+fmt(v,1)+' °C'}
 function render(m){renderFocus(m.product_focus);const host=document.getElementById('sections');host.replaceChildren();const by=new Map((m.sections||[]).map(x=>[x.number,x]));for(let n=1;n<=18;n++){const d=by.get(n)||{},p=section(n,d);if(n===1){tiles(p,[['매출 증감',krw(d.revenue_change)]]);bars(p,(d.drivers||[]).map(x=>[x.label,x.observed_revenue_contribution]));for(const a of d.actions||[])note(p,a.priority+' · '+ko(a.check))}
 if(n===2){tiles(p,(d.cards||[]).map(x=>[x.metric.toUpperCase(),x.metric==='cvr'?rate(x.current==null?null:x.current*100):['revenue','aov'].includes(x.metric)?krw(x.current):fmt(x.current), '전년비 '+(x.delta_unit==='pp'?fmt(x.yoy,2)+'%p':pct(x.yoy))+' / 전주비 '+(x.delta_unit==='pp'?fmt(x.wow,2)+'%p':pct(x.wow))]))}
 if(n===3){tiles(p,[['Revenue delta',krw(d.delta)],['Bridge validation',d.reconciled?'PASS':'REVIEW']]);bars(p,Object.entries(d.effects||{}));table(p,['Channel','Revenue','YoY','Delta (est.)'],(d.channels||[]).map(x=>[x.channel,krw(x.current),pct(x.revenue_yoy_pct),krw(x.delta_estimate)]))}
-if(n===4){table(p,['Forecast date','Min °C','Max °C','Rain %'],(d.forecast||[]).map(x=>[x.date,fmt(x.min_temp,1),fmt(x.max_temp,1),fmt(x.pop??x.precipitation_probability)]));table(p,['Metric','30D trend'],[['Revenue',spark(d.revenue)],['Sessions',spark(d.sessions)],['Observed temp.',spark(d.temperature)]]);note(p,(d.missing||[]).map(ko).join(' / '))}
+if(n===4){
+ const impact=d.weather_impact||{},screen=el('div',null,'business-weather-box');
+ const head=el('div',null,'business-weather-head');
+ add(head,el('span','기온과 전체 매출','business-weather-kicker'),el('strong',impact.label||'날씨 영향 판단 불가','business-weather-result'));
+ screen.append(head);
+ if(impact.reason)screen.append(el('p',impact.reason,'business-weather-caption'));
+ const stats=el('div',null,'business-weather-stats');
+ if(Number.isFinite(impact.raw_revenue_r))focusMetric(stats,'전체 '+fmt(impact.n_days)+'일','r '+fmt(impact.raw_revenue_r,2),'매출·기온 상관');
+ if(Number.isFinite(impact.trimmed_revenue_r))focusMetric(stats,'매출 급등 2일 제외','r '+fmt(impact.trimmed_revenue_r,2),'민감도 비교');
+ if(stats.children.length)screen.append(stats);
+ screen.append(el('p','상관계수는 날씨가 매출을 발생시켰다는 증거가 아닙니다. 행사·가격·재고 영향은 통제되지 않았습니다.','business-weather-caption'));
+ p.append(screen);
+ const detail=el('details',null,'focus-more weather-section-more');
+ detail.append(el('summary','날씨 원본·전망 확인'));
+ const wrap=el('div',null,'focus-more-body');
+ table(wrap,['날짜','매출','세션','실측 평균기온'],(d.dates||[]).map((dt,i)=>[dt,krw(d.revenue?.[i]),fmt(d.sessions?.[i]),d.temperature?.[i]==null?'—':fmt(d.temperature[i],1)+'°C']).filter(row=>row[1]!=='—'||row[3]!=='—').slice(-30));
+ if(d.forecast?.length)table(wrap,['예보 날짜','최저 °C','최고 °C','강수 %'],d.forecast.map(x=>[x.date,fmt(x.min_temp,1),fmt(x.max_temp,1),fmt(x.pop??x.precipitation_probability)]));
+ if(impact.excluded_dates?.length)wrap.append(el('p','매출 급등일 제외 비교: '+impact.excluded_dates.join(', '),'focus-detail-caption'));
+ detail.append(wrap);p.append(detail);
+}
 if(n===5){table(p,['Category','PDP D1','YoY','7D YoY','CY / LY'],(d.categories||[]).map(x=>[x.itemCategory,fmt(x.views_d1),pct(x.day_yoy_pct),pct(x.week_yoy_pct),spark(x.ys,x.has_yoy?x.ys_yoy:null)]));table(p,['Best seller (SKU)','Qty','PDP','Revenue'],(d.best_sellers||[]).map(x=>[x.itemName||x.itemId,fmt(x.qty),fmt(x.views),krw(x.revenue)]))}
 if(n===6){note(p,d.style_status);table(p,['SKU sample','Change','Qty delta','CY / LY'],(d.rising||[]).map(x=>[x.name,pct(x.daily_change_pct),fmt(x.delta_units),spark(x.series,x.prior_series)]));table(p,['PDP decline category','Views','YoY'],(d.declines||[]).map(x=>[x.itemCategory,fmt(x.views_d1),pct(x.day_yoy_pct)]))}
 if(n===7){note(p,'수집일: '+(d.checked_at||'—')+' / 캘린더 기준일: '+(d.calendar_date||'—'));table(p,['Brand','Status','Pages','Active events','Observed'],(d.brands||[]).map(x=>[x.brand,x.status,fmt(x.pages_checked),fmt(x.active_count),fmt(x.observed_count)]));table(p,['Event','Brand','Start','End','Date quality'],(d.events||[]).map(x=>[x.source_url||x.url?link(x.title,x.source_url||x.url):x.title,x.brand_name,x.start_date,x.end_date,x.date_status]));p.append(link('경쟁사 세일 캘린더 전체 보기','../competitor_sale_calendar/index.html'))}
