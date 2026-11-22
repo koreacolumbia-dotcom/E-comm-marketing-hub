@@ -102,6 +102,16 @@ def source_row(raw):
         components[leading]=round(components[leading]+cent_residual,2)
         if abs(sum(components.values())-delta)>0.011:
             raise ValueError("Unreconciled row decomposition")
+    primary=max(FACTORS,key=lambda key:abs(components[key])) if components else None
+    rules={
+        "sessions":"집행/노출·소스 귀속·랜딩 유입 변화부터 대조",
+        "cvr":"유입 키워드·랜딩별 장바구니→결제 퍼널과 프로모션 조건 대조",
+        "aov":"주문당 SKU 수·상품 믹스·실결제 할인 변화를 동일 소스로 비교"
+    }
+    sample_status=verdict({"previous":prev,"current":cur})
+    next_validation=("양 기간 각각 세션 100건·구매 5건 이상 확보 후 재판단"
+                     if sample_status!="reviewable_descriptive" else
+                     rules.get(primary,"전환수·귀속 설정과 구매 이벤트 확인"))
     result={"source_medium":name,"previous":prev,"current":cur,
             "revenue_delta":round(delta,2),
             "sessions_delta":round(b[0]-a[0]),
@@ -110,8 +120,9 @@ def source_row(raw):
             "aov_change_pct":round(100*(b[2]/b[1]/(a[2]/a[1])-1),2)
                 if a[1] and b[1] and a[2]>0 else None,
             "components":components,
-            "primary_component":max(FACTORS,key=lambda key:abs(components[key])) if components else None,
-            "quality":verdict({"previous":prev,"current":cur}),
+            "primary_component":primary,
+            "quality":sample_status,
+            "next_validation":next_validation,
             "method":"shapley_6_permutations" if valid else "observed_delta_only",
             "causal":False}
     return result
