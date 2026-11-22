@@ -22,12 +22,15 @@ def validate(root=ROOT):
     quality = summary.get("quality", {})
     assert quality.get("retained_unique_count", 0) >= quality.get("unique_count", 0), "retained archive smaller than current unique sample"
     assert quality.get("unique_count", 0) <= quality.get("raw_count", 0), "deduplication increased current item count"
+    seen_urls = set()
     for brand, state in frontier_brands.items():
         assert isinstance(state.get("pending", []), list), f"{brand}: invalid queue"
         assert isinstance(state.get("url_ledger", {}), dict), f"{brand}: invalid ledger"
         pending = state.get("pending", [])
         assert len(pending) == len(set(pending)), f"{brand}: duplicate pending URLs"
         for url in pending:
+            assert url not in seen_urls, f"cross-brand duplicate pending URL: {brand}: {url}"
+            seen_urls.add(url)
             parsed = urlsplit(url)
             assert parsed.scheme == "https" and parsed.hostname, f"{brand}: unsafe pending URL"
             assert not parsed.username and not parsed.password and not parsed.fragment, f"{brand}: unsafe URL authority or fragment"
@@ -37,6 +40,10 @@ def validate(root=ROOT):
         observed = coverage.get("observed_urls", 0)
         assert 0 <= observed <= known, f"{item['brand']}: invalid URL coverage"
         assert 0 <= coverage.get("observed_pct", 0) <= 100, f"{item['brand']}: invalid percent"
+        if known:
+            expected = round(100 * observed / known, 1)
+            assert abs(coverage.get("observed_pct", 0) - expected) <= 0.11, f"{item['brand']}: coverage percentage mismatch"
+        assert coverage.get("unobserved_urls", 0) <= known, f"{item['brand']}: invalid unobserved count"
     print(f"snapshot OK: {len(brands)} brands, {summary['quality']['retained_unique_count']} retained items")
     return True
 
