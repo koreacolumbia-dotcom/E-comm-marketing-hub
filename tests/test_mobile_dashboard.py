@@ -49,8 +49,8 @@ class MobileDashboardTests(unittest.TestCase):
     def test_report_messages_are_same_origin_and_cache_busted(self):
         self.assertIn("event.source !== frame.contentWindow", HUB)
         self.assertIn("event.origin !== window.location.origin", HUB)
-        self.assertRegex(INDEX, r'csk-unified-hub\\.js\\?v=[a-zA-Z0-9._-]+')
-        self.assertRegex(INDEX, r'mobile-edge-to-edge\\.js\\?v=[a-zA-Z0-9._-]+')
+        self.assertRegex(INDEX, r'csk-unified-hub\.js\?v=[a-zA-Z0-9._-]+')
+        self.assertRegex(INDEX, r'mobile-edge-to-edge\.js\?v=[a-zA-Z0-9._-]+')
 
 
 if __name__ == "__main__":
