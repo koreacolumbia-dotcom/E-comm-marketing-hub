@@ -18,6 +18,8 @@ on:
       - 'scripts/personal_intelligence/test_product_signal_hub.py'
       - 'scripts/personal_intelligence/test_observed_weather_fallback.py'
       - 'scripts/build_problem_diagnosis.py'
+      - 'scripts/csk_weekly_business_evidence.py'
+      - 'tests/test_csk_weekly_business_evidence.py'
       - 'tests/test_problem_diagnosis.py'
       - 'reports/decision_health/diagnosis.js'
       - 'reports/decision_health/evidence-cards.js'
@@ -82,6 +84,18 @@ jobs:
           print('ASOS parser fixtures passed')
           PY
           python scripts/personal_intelligence/build_dashboard.py --out reports/daily_intelligence/latest.json
+      - name: Reconcile weekly channel shifts from existing GA4 daily aggregates (zero queries)
+        run: |
+          python -m unittest discover -s tests -p 'test_csk_weekly_business_evidence.py' -v
+          python scripts/csk_weekly_business_evidence.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path('reports/decision_health/weekly_business_evidence.json').read_text())
+          assert x['schema']==1 and x['status'] in ('reconciled','reconciled_with_taxonomy_warning','source_incomplete','weekly_total_mismatch','channel_unreconciled')
+          assert 'user_pseudo_id' not in str(x)
+          print('[WEEKLY BUSINESS] quality',x['quality'])
+          PY
       - name: Build evidence-based problem diagnosis from aggregate snapshots
         run: |
           python -m unittest discover -s tests -p 'test_problem_diagnosis.py' -v
@@ -157,7 +171,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add reports/daily_intelligence/latest.json reports/decision_health/diagnoses.json
+          git add reports/daily_intelligence/latest.json reports/decision_health/diagnoses.json reports/decision_health/weekly_business_evidence.json
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "Refresh daily intelligence aggregate snapshot"
           for attempt in 1 2 3; do
