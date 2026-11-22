@@ -20,6 +20,7 @@ INPUTS = {
     "quality": "reports/competitor_intelligence/latest-quality.json",
     "calendar": "reports/competitor_sale_calendar/latest.json",
     "ga4_purchase": "reports/decision_health/ga4_purchase_diagnostics.json",
+    "warehouse_metadata": "reports/decision_health/source_metadata.json",
 }
 TARGET = ROOT / "reports/decision_health/diagnoses.json"
 
@@ -118,7 +119,8 @@ def crawl_gaps(content: dict, quality: dict, limit: int = 8) -> list[dict]:
 
 
 def build(operations: dict, intelligence: dict, content: dict,
-          quality: dict, calendar: dict, ga4_purchase: dict | None = None) -> dict:
+          quality: dict, calendar: dict, ga4_purchase: dict | None = None,
+          warehouse_metadata: dict | None = None) -> dict:
     report_day = day(intelligence.get("report_date") or operations.get("report_date"))
     weekly = operations.get("weekly") or {}
     current = (weekly.get("current") or {}).get("total") or {}
@@ -270,6 +272,9 @@ def build(operations: dict, intelligence: dict, content: dict,
             weather_problem["how_to_verify"] = "공식 API Hub 키의 서비스 사용 승인·유효기간·허용 IP/권한 점검. 재발급 전 추가 요청 중단"
             weather_problem["blocked_by"] = ["기상청 API 인증/접근 권한"]
     ga4 = ga4_purchase or {}
+    metadata = warehouse_metadata or {}
+    order_schema = metadata.get("order_product_mart") or {}
+    coupon_column = (order_schema.get("required_fields") or {}).get("order_use_coupon_price")
     matched = ga4.get("report_date") == (report_day.isoformat() if report_day else None)
     if matched and ga4.get("status") == "ga4_measured" and ga4.get("item_aov_bridge"):
         bridge = ga4["item_aov_bridge"]
@@ -345,9 +350,19 @@ def build(operations: dict, intelligence: dict, content: dict,
             "sales_revenue_bridge": ga4.get("sales_revenue_bridge") if matched else None,
             "category_bridge": ga4.get("category_bridge") if matched else None,
             "admin_reconciliation": ga4.get("admin_reconciliation") if matched else None,
-            "independent_admin_verified": matched and readiness.get("order_mart")=="ready"
+            "independent_admin_verified": matched and readiness.get("order_mart")=="ready",
+            "order_mart_metadata_accessible": order_schema.get("accessible"),
+            "order_mart_coupon_column_exists": coupon_column,
+            "order_mart_last_modified": order_schema.get("last_modified")
         },
         "weather_source_health": weather_health,
+        "warehouse_source_health": {
+            "inspection_status": metadata.get("status","not_inspected"),
+            "metadata_query_jobs": metadata.get("query_jobs_executed"),
+            "order_mart_accessible": order_schema.get("accessible"),
+            "coupon_column_present": coupon_column,
+            "order_mart_last_modified": order_schema.get("last_modified"),
+        },
         "problems": sorted(problems,key=lambda p: ({"P0":0,"P1":1,"P2":2}.get(p["priority"],3),p["id"])),
         "crawl": {
             "checked_at": content.get("source_checked_at") or quality.get("checked_at_kst"),
@@ -367,7 +382,7 @@ def build(operations: dict, intelligence: dict, content: dict,
 def main() -> None:
     inputs = {k: read(ROOT / p) for k,p in INPUTS.items()}
     data = build(inputs["operations"],inputs["intelligence"],inputs["content"],
-                 inputs["quality"],inputs["calendar"],inputs["ga4_purchase"])
+                 inputs["quality"],inputs["calendar"],inputs["ga4_purchase"],inputs["warehouse_metadata"])
     if not data["report_date"]:
         raise SystemExit("[ERROR] no consistent report date")
     TARGET.parent.mkdir(parents=True, exist_ok=True)
