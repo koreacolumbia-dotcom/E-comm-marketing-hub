@@ -246,7 +246,124 @@ function renderProductSignals(data,images){
   " · 전주 비교 / GA4 스타일 집계 "+items.length+"개 중 증감 상위 4개 표시. 상품 원인과 할인·재고 영향은 미확정.";
 }
 
-var productState={event:null,weekly:null,images:null,mode:"event"};
+var productState={event:null,weekly:null,images:null,mode:"event",rankMode:"impact"};
+
+/* Full 2025/2026 event-day style rankings. Same-name means normalized GA4 item_name
+   appears with SOLD units in both periods; SKU/year/color can differ.
+   Exact name matching never implies equivalent stock or campaign causality. */
+function renderEventRankings(source,images){
+ var panel=document.getElementById("fm-product-cause");
+ if(!panel)return;
+ var winners=panel.querySelector("#fm-product-winners"),losers=panel.querySelector("#fm-product-losers");
+ var list=panel.querySelector(".fm-product-columns");
+ var sections=list?.querySelectorAll(".fm-product-movers")||[];
+ var headings=list?.querySelectorAll("h3")||[];
+ var tabs=panel.querySelectorAll("[data-fm-product-rank]");
+ var rows=Array.isArray(source?.products)?source.products:[];
+ var counts=source?.presence_counts||{};
+ var full=source?.schema>=2&&source?.quality?.full_product_ranking_verified===true
+   &&rows.length===source?.product_count;
+ var rankMode=productState.rankMode||"impact";
+ var count=panel.querySelector("#fm-product-match-count");
+ var hint=panel.querySelector("#fm-product-rank-scope");
+ if(count)count.textContent=full?
+    "동일 이름 "+String(counts.both||0)+"개 · 2025만 "+String(counts.only_2025||0)+
+    "개 · 2026만 "+String(counts.only_2026||0)+"개":"전체 상품 순위 검증 대기";
+ if(hint)hint.textContent=full?"전체 "+String(rows.length)+"개 스타일 기준 · 상품명 매칭":
+    "기존 120개 부분집계 · 전체 TOP5 재검증 대기";
+ if(!full){
+  tabs.forEach(function(t){t.disabled=t.getAttribute("data-fm-product-rank")!=="impact";t.title=t.disabled?"전체 스타일 검증 후 활성화":"";});
+  return;
+ }
+ tabs.forEach(function(t){
+   t.disabled=false;t.title="";
+   t.setAttribute("aria-selected",String(t.getAttribute("data-fm-product-rank")===rankMode));
+ });
+ var sorted=rows.slice(),up=[],down=[],single=false;
+ if(rankMode==="common"){
+   var common=sorted.filter(function(x){return x.presence==="both"});
+   up=common.filter(function(x){return x.delta_revenue>0})
+     .sort(function(a,b){return b.delta_revenue-a.delta_revenue||a.name.localeCompare(b.name)}).slice(0,5);
+   down=common.filter(function(x){return x.delta_revenue<0})
+     .sort(function(a,b){return a.delta_revenue-b.delta_revenue||a.name.localeCompare(b.name)}).slice(0,5);
+ }else if(rankMode==="2025"){
+   up=sorted.filter(function(x){return (x.previous?.units||0)>0})
+     .sort(function(a,b){return b.previous.revenue-a.previous.revenue||a.name.localeCompare(b.name)}).slice(0,5);
+   single=true;
+ }else if(rankMode==="2026"){
+   up=sorted.filter(function(x){return (x.current?.units||0)>0})
+     .sort(function(a,b){return b.current.revenue-a.current.revenue||a.name.localeCompare(b.name)}).slice(0,5);
+   single=true;
+ }else{
+   up=sorted.filter(function(x){return x.delta_revenue>0})
+     .sort(function(a,b){return b.delta_revenue-a.delta_revenue||a.name.localeCompare(b.name)}).slice(0,5);
+   down=sorted.filter(function(x){return x.delta_revenue<0})
+     .sort(function(a,b){return a.delta_revenue-b.delta_revenue||a.name.localeCompare(b.name)}).slice(0,5);
+ }
+ var headers=rankMode==="common"?["양년 판매 · 성장 TOP 5","양년 판매 · 하락 TOP 5"]:
+             rankMode==="2025"?["2025 매출 TOP 5",""]:
+             rankMode==="2026"?["2026 매출 TOP 5",""]:
+             ["매출 증가 영향 TOP 5","매출 감소 영향 TOP 5"];
+ headings.forEach(function(h,i){
+  h.textContent=headers[i]||"";
+  if(i===0&&single){var label=document.createElement("small");label.textContent=
+     "25·26년 동일 기간 매출·판매수량 비교";h.appendChild(label);}
+ });
+ list.classList.toggle("fm-ranking-single",single);
+ if(sections[1])sections[1].hidden=single;
+ var all=up.concat(down);
+ var ceiling=Math.max(1,...all.map(function(x){return Math.abs(Number(x.delta_revenue||0))}));
+ var maxYear=Math.max(1,...all.map(function(x){return Math.max(x.previous?.revenue||0,x.current?.revenue||0)}));
+ var normalize=function(n){return String(n||"").toLowerCase().replace(/[‘’\x60]/g,"'")
+   .replace(/\s+/g," ").trim()};
+ var imageLookup=new Map(((images||{}).products||[]).filter(function(x){
+  return /^https:\/\/assetscdn\d+\.styleship\.com\/assets\/columbia\/data\/productimages\/a\/[124]\/[a-z0-9_-]+\.jpg$/i.test(x.image_url||"") &&
+     /^https:\/\/www\.columbiakorea\.co\.kr\//i.test(x.product_url||"");
+ }).map(function(x){return [normalize(x.name),x]}));
+ function makeRow(item,i){
+  var prior=item.previous||{},current=item.current||{};
+  var pNum=Number(prior.revenue)||0,cNum=Number(current.revenue)||0;
+  var difference=Number(item.delta_revenue)||0;
+  var x=imageLookup.get(normalize(item.name));
+  var photo=x?'<img class="fm-product-photo" alt="" loading="lazy" src="'+esc(x.image_url)+'">':
+          '<span class="fm-product-photo fm-no-photo" aria-hidden="true">▣</span>';
+  var presence=item.presence==="both"?"동일 이름·양년 판매":
+    item.presence==="only_2025"?"2025 행사만 관측":
+    item.presence==="only_2026"?"2026 행사만 관측":"판매수량 확인 필요";
+  var label=single?(rankMode==="2025"?pNum:cNum):difference;
+  var mainValue=single?fmt(label,"revenue"):fmSigned(label);
+  var compareMeta=single?"증감 "+fmSigned(difference):"";
+  var max=maxYear;
+  function yearRow(tag,rev,units,kind){
+   return '<div class="fm-rank-year"><span>'+tag+'</span>'+
+      '<div class="fm-rank-track"><i class="'+kind+'" style="width:'+
+        (Math.max(0,rev)/max*100).toFixed(1)+'%"></i></div>'+
+      '<b>'+esc(fmt(rev,"revenue"))+'</b><small>'+esc(String(units))+'개</small></div>';
+  }
+  return '<div class="fm-product-item fm-ranked-item">'+
+    '<div class="fm-ranked-photo">'+photo+'<span class="fm-rank-number">'+String(i+1).padStart(2,"0")+'</span></div>'+
+    '<div class="fm-product-info"><span class="fm-product-name" title="'+esc(item.name)+'">'+esc(item.name)+'</span>'+
+    '<div class="fm-rank-badge">'+esc(presence)+'</div>'+
+    '<div class="fm-rank-comparison" role="img" aria-label="'+esc(item.name)+
+      ' 2025 '+esc(fmt(pNum,"revenue"))+' '+esc(String(prior.units??0))+
+      '개, 2026 '+esc(fmt(cNum,"revenue"))+' '+esc(String(current.units??0))+'개">'+
+      yearRow("25",pNum,prior.units??0,"prior")+yearRow("26",cNum,current.units??0,"current")+'</div>'+
+    '</div><div class="fm-ranked-value"><strong class="fm-product-change '+(label<0?"down":"")+'">'+
+    esc(mainValue)+'</strong>'+(compareMeta?'<small>'+esc(compareMeta)+'</small>':"")+
+    '</div></div>';
+ }
+ function buildList(items){
+  return items.length?items.map(makeRow).join(""):
+    '<div class="fm-state">해당 조건의 상품이 없습니다</div>';
+ }
+ winners.innerHTML=buildList(up);
+ if(!single)losers.innerHTML=buildList(down);
+ var scope=panel.querySelector("#fm-product-scope");
+ if(scope)scope.textContent="동일 이름=띄어쓰기·대소문자·아포스트로피 정규화한 item_name. "+
+   "SKU/컬러를 통합하며 판매 여부는 행사 기간 판매수량>0 기준. "+
+   "한 해만 관측된 상품은 신규 출시나 단종으로 단정하지 않습니다.";
+}
+
 function renderEventProduct(source,images){
  var section=document.getElementById("fm-product-cause");
  if(!section||!source||source.status!=="ga4_measured")return false;
@@ -286,28 +403,7 @@ function renderEventProduct(source,images){
  var imagesByName=new Map(((images||{}).products||[]).filter(function(x){
   return /^https:\/\/assetscdn\d+\.styleship\.com\/assets\/columbia\/data\/productimages\/a\/[124]\/[a-z0-9_-]+\.jpg$/i.test(x.image_url||"");
  }).map(function(x){return [matchName(x.name),x]}));
- var winners=items.filter(function(x){return x&&x.delta_revenue>0})
-   .sort(function(x,y){return y.delta_revenue-x.delta_revenue}).slice(0,4);
- var losers=items.filter(function(x){return x&&x.delta_revenue<0})
-   .sort(function(x,y){return x.delta_revenue-y.delta_revenue}).slice(0,4);
- var maximum=Math.max(1,...winners.concat(losers).map(function(x){return Math.abs(x.delta_revenue)}));
- function rowsText(rows){
-  if(!rows.length)return '<span class="fm-note">비교 가능한 상품 없음</span>';
-  return rows.map(function(x){
-   var p=imagesByName.get(matchName(x.name));
-   var image=p?'<img class="fm-product-photo" alt="" loading="lazy" src="'+esc(p.image_url)+'">':
-       '<span class="fm-product-photo fm-no-photo" aria-hidden="true">▣</span>';
-   var oldUnits=x.previous?.units??0,nowUnits=x.current?.units??0;
-   return '<div class="fm-product-item">'+image+
-     '<div class="fm-product-info"><span class="fm-product-name" title="'+esc(x.name)+'">'+esc(x.name)+'</span>'+
-     '<div class="fm-product-bar"><i class="'+(x.delta_revenue<0?"down":"")+'" style="width:'+
-       (100*Math.abs(x.delta_revenue)/maximum).toFixed(1)+'%"></i></div>'+
-     '<small>'+esc(String(oldUnits))+' → '+esc(String(nowUnits))+'개</small></div>'+
-     '<strong class="fm-product-change '+(x.delta_revenue<0?"down":"")+'">'+esc(signed(x.delta_revenue))+'</strong></div>';
-  }).join("");
- }
- get("fm-product-winners").innerHTML=rowsText(winners);
- get("fm-product-losers").innerHTML=rowsText(losers);
+ renderEventRankings(source,images);
  var compareLabel="2025 "+(source.period?.["2025"]||[]).join("~")+" / 2026 "+(source.period?.["2026"]||[]).join("~");
  var label=get("fm-product-window-note");if(label)label.textContent=compareLabel;
  get("fm-product-scope").textContent="GA4 상품 아이템 귀속 기준 · SKU 색상 통합 스타일 "+String(source.product_count||items.length)+
@@ -319,6 +415,13 @@ function drawProductWindow(){
   Array.isArray(productState.event.products)&&productState.event.years?.["2025"]&&productState.event.years?.["2026"];
  if(productState.mode==="event"&&!eventReady)productState.mode="weekly";
  var showEvent=productState.mode==="event"&&eventReady;
+ var rankings=document.querySelector(".fm-ranking-tabs");
+ var rankHead=document.querySelector(".fm-ranking-head");
+ if(rankings)rankings.hidden=!showEvent;
+ if(rankHead)rankHead.hidden=!showEvent;
+ var grid=document.querySelector("#fm-product-cause .fm-product-columns");
+ if(!showEvent&&grid)grid.classList.remove("fm-ranking-single");
+ if(!showEvent&&grid){var movers=grid.querySelectorAll(".fm-product-movers");if(movers[1])movers[1].hidden=false;}
  if(showEvent)renderEventProduct(productState.event,productState.images);
  else renderProductSignals(productState.weekly,productState.images);
  var section=document.getElementById("fm-product-cause");
@@ -334,7 +437,14 @@ function drawProductWindow(){
    label.textContent=p.current_start+"~"+p.current_end+" vs "+p.previous_start+"~"+p.previous_end;
   }
  }
- document.querySelectorAll("[data-fm-product-window]").forEach(function(button){
+ document.querySelectorAll("[data-fm-product-rank]").forEach(function(button){
+ button.addEventListener("click",function(){
+  if(button.disabled||productState.mode!=="event")return;
+  productState.rankMode=button.getAttribute("data-fm-product-rank");
+  renderEventRankings(productState.event,productState.images);
+ });
+});
+document.querySelectorAll("[data-fm-product-window]").forEach(function(button){
   var mode=button.getAttribute("data-fm-product-window");
   button.setAttribute("aria-pressed",String((mode==="event")===showEvent));
   button.disabled=mode==="event"&&!eventReady;
