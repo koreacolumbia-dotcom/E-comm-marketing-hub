@@ -27,138 +27,19 @@
     "note": "R = 주문수 × 객단가의 정확한 산술 분해. 인과관계나 가격·할인 원인 증명이 아님."
   },
   "ga4_evidence": {
-    "report_date": "2026-11-21",
-    "period": {
-      "previous_start": "2026-11-08",
-      "previous_end": "2026-11-14",
-      "current_start": "2026-11-15",
-      "current_end": "2026-11-21"
-    },
+    "report_date": "2026-11-22",
+    "period": null,
     "status": "ga4_measured",
     "cost": {
-      "dry_run_bytes": 677429602,
-      "billed_bytes": 0,
+      "dry_run_bytes": 618721139,
+      "billed_bytes": 619708416,
       "maximum_bytes_billed_total": 1073741824,
-      "dry_run_required": true,
-      "source_query_billed_bytes": 678428672,
-      "reused_aggregate": true,
-      "read_from": "weekly_ga4_aligned.json"
+      "dry_run_required": true
     },
-    "item_aov_bridge": {
-      "items_per_order_previous": 1.514,
-      "items_per_order_current": 1.338,
-      "realized_item_price_previous": 129654.1,
-      "realized_item_price_current": 129868.91,
-      "item_aov_previous": 196279.52,
-      "item_aov_current": 173740.18,
-      "item_aov_delta": -22539.35,
-      "items_per_order_effect": -22845.63,
-      "realized_item_revenue_effect": 306.29,
-      "interpretation": "Arithmetic only: realized item revenue includes discount and SKU mix."
-    },
-    "sales_revenue_bridge": {
-      "qty_effect_krw": 32180853.79,
-      "realized_unit_revenue_effect_krw": 272811.21,
-      "item_to_purchase_gap_effect_krw": -5971289.0,
-      "prior_item_to_purchase_gap_krw": 15305570.0,
-      "current_item_to_purchase_gap_krw": 21276859.0,
-      "purchase_revenue_delta_krw": 26482376.0,
-      "prior_total_units": 1146,
-      "current_total_units": 1394,
-      "note": "Accounting identity, not proof of coupon/discount/refund causality."
-    },
-    "category_bridge": {
-      "category_mix_effect_per_item": -5501.29,
-      "within_category_effect_per_item": 5716.1,
-      "realized_item_price_delta": 214.81,
-      "rows": [
-        {
-          "category": "OUTER",
-          "share_previous_pct": 9.51,
-          "share_current_pct": 5.16,
-          "mix_effect_per_item": -15753.92,
-          "within_category_effect_per_item": 1246.38
-        },
-        {
-          "category": "SALE",
-          "share_previous_pct": 42.84,
-          "share_current_pct": 51.94,
-          "mix_effect_per_item": 12043.33,
-          "within_category_effect_per_item": 7928.32
-        },
-        {
-          "category": "FLEECE",
-          "share_previous_pct": 23.04,
-          "share_current_pct": 17.43,
-          "mix_effect_per_item": -5102.19,
-          "within_category_effect_per_item": -3097.25
-        },
-        {
-          "category": "FOOTWEAR",
-          "share_previous_pct": 3.84,
-          "share_current_pct": 5.67,
-          "mix_effect_per_item": 3437.35,
-          "within_category_effect_per_item": -953.15
-        },
-        {
-          "category": "CAP",
-          "share_previous_pct": 3.93,
-          "share_current_pct": 5.6,
-          "mix_effect_per_item": 799.74,
-          "within_category_effect_per_item": -90.0
-        },
-        {
-          "category": "PANTS",
-          "share_previous_pct": 1.66,
-          "share_current_pct": 2.3,
-          "mix_effect_per_item": 798.32,
-          "within_category_effect_per_item": 152.05
-        },
-        {
-          "category": "BAG",
-          "share_previous_pct": 3.49,
-          "share_current_pct": 2.58,
-          "mix_effect_per_item": -771.62,
-          "within_category_effect_per_item": -73.55
-        },
-        {
-          "category": "Acc",
-          "share_previous_pct": 7.42,
-          "share_current_pct": 5.45,
-          "mix_effect_per_item": -577.62,
-          "within_category_effect_per_item": 421.51
-        },
-        {
-          "category": "TOPS",
-          "share_previous_pct": 4.28,
-          "share_current_pct": 3.8,
-          "mix_effect_per_item": -409.83,
-          "within_category_effect_per_item": 181.79
-        },
-        {
-          "category": "SET-UP",
-          "share_previous_pct": 0.0,
-          "share_current_pct": 0.07,
-          "mix_effect_per_item": 35.15,
-          "within_category_effect_per_item": 0.0
-        }
-      ],
-      "caveat": "New/retired categories attributed to mix; within-category price contains discount and mix."
-    },
-    "admin_reconciliation": {
-      "comparable": true,
-      "periods": {
-        "current": {
-          "order_gap_pct": 0.0,
-          "revenue_gap_pct": 0.0
-        },
-        "previous": {
-          "order_gap_pct": 0.0,
-          "revenue_gap_pct": 0.0
-        }
-      },
-      "caveat": "GA4 event and administrative net revenue/order definitions can differ."
-    },
+    "item_aov_bridge": null,
+    "sales_revenue_bridge": null,
+    "category_bridge": null,
+    "admin_reconciliation": null,
     "independent_admin_verified": false,
     "order_mart_metadata_accessible": true,
     "order_mart_coupon_column_exists": true,
@@ -172,23 +53,13 @@
     "source": "KMA Seoul ASOS 108 API, weather.go.kr public daily table fallback; NOAA GSOD secondary only when available; observations never forecasts"
   },
   "ga4_coupon_evidence": {
-    "status": "partial_quality",
-    "report_date": "2026-11-21",
+    "status": "blocked_metadata",
+    "report_date": "2026-11-22",
     "periods": null,
     "delta_pp": null,
-    "quality_checks": {
-      "purchase_events_without_item_rows": {
-        "previous": 17,
-        "current": 10
-      },
-      "coupon_marker_present_in_all_item_rows": true,
-      "can_interpret_coupon_as_applied_discount": false,
-      "reason": "GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
-    },
+    "quality_checks": null,
     "source": "GA4 items.coupon presence; not discount amount",
     "cost": {
-      "estimated_bytes": 261446592,
-      "billed_bytes": 262144000,
       "maximum_bytes_billed": 536870912,
       "dry_run_required": true
     }
@@ -204,88 +75,11 @@
   },
   "problems": [
     {
-      "id": "GA4_PURCHASE_COMPONENTS",
-      "priority": "P0",
-      "status": "observed_ga4_components",
-      "title": "구매 객단가의 수량·실현단가 기여도 측정",
-      "finding": "GA4 상품기준 주문당 수량 효과 -22,846원, 상품 실현단가 효과 +306원 · 기존 Daily KPI 합계와 일치, 독립 관리자 주문마트는 미검증",
-      "cause_component": "GA4 구매 상품의 주문당 수량 변화와 상품 평균 실현매출 변화는 산술적으로 분해 완료. 실현단가에는 할인, 상품구성, 정가 변화가 함께 포함됨.",
-      "cause_hypotheses": [
-        "쿠폰/할인 변화",
-        "SKU별 가격 변화",
-        "상품 구성 및 저가 상품 비중 변화"
-      ],
-      "hypothesis_status": "verified_component_unverified_causal",
-      "causal_confirmed": false,
-      "how_to_verify": "GA4 items 구조에 discount 필드가 없는 것을 확인. 관리자 주문상품마트의 쿠폰·프로모션·실결제가 원천을 조회하고 동일 SKU/주문 기준으로 비교하여 할인·상품 믹스를 분리",
-      "blocked_by": [
-        "독립 관리자 주문마트 연결/정합성 검증"
-      ],
-      "revenue_factors": {
-        "qty_effect_krw": 32180853.79,
-        "realized_price_effect_krw": 272811.21,
-        "unclassified_item_to_checkout_gap_effect_krw": -5971289.0,
-        "source": "GA4 item revenue and purchase revenue"
-      },
-      "category_mix": {
-        "mix_effect_per_item": -5501.29,
-        "within_category_effect_per_item": 5716.1,
-        "rows": [
-          {
-            "category": "OUTER",
-            "share_previous_pct": 9.51,
-            "share_current_pct": 5.16,
-            "mix_effect_per_item": -15753.92,
-            "within_category_effect_per_item": 1246.38
-          },
-          {
-            "category": "SALE",
-            "share_previous_pct": 42.84,
-            "share_current_pct": 51.94,
-            "mix_effect_per_item": 12043.33,
-            "within_category_effect_per_item": 7928.32
-          },
-          {
-            "category": "FLEECE",
-            "share_previous_pct": 23.04,
-            "share_current_pct": 17.43,
-            "mix_effect_per_item": -5102.19,
-            "within_category_effect_per_item": -3097.25
-          },
-          {
-            "category": "FOOTWEAR",
-            "share_previous_pct": 3.84,
-            "share_current_pct": 5.67,
-            "mix_effect_per_item": 3437.35,
-            "within_category_effect_per_item": -953.15
-          },
-          {
-            "category": "CAP",
-            "share_previous_pct": 3.93,
-            "share_current_pct": 5.6,
-            "mix_effect_per_item": 799.74,
-            "within_category_effect_per_item": -90.0
-          },
-          {
-            "category": "PANTS",
-            "share_previous_pct": 1.66,
-            "share_current_pct": 2.3,
-            "mix_effect_per_item": 798.32,
-            "within_category_effect_per_item": 152.05
-          }
-        ]
-      },
-      "sources": [
-        "reports/decision_health/ga4_purchase_diagnostics.json",
-        "reports/marketing_operations/latest.json"
-      ]
-    },
-    {
       "id": "OWNED_CONTENT_BASELINE",
       "priority": "P0",
       "status": "source_required",
       "title": "컬럼비아와 경쟁사의 콘텐츠 강·약점 비교 기준이 부족함",
-      "finding": "이번 회차 경쟁사 23건 / 자사 0건 · 자사 최근 30일 기존 관측 80건",
+      "finding": "이번 회차 경쟁사 14건 / 자사 0건 · 자사 최근 30일 기존 관측 80건",
       "cause_component": "이번 수집 회차 자사 관측 0건. 30일 보유 표본과 별개이며 동일 회차/기준의 강약점 비교가 성립하지 않음",
       "cause_hypotheses": [
         "크롤링 샤드에서 해당 회차 자사가 미선택됨",
@@ -346,26 +140,6 @@
       "sources": [
         "reports/competitor_content/strategy-summary.json",
         "reports/competitor_intelligence/latest-quality.json"
-      ]
-    },
-    {
-      "id": "GA4_COUPON_QUALITY",
-      "priority": "P1",
-      "status": "source_error_confirmed",
-      "title": "GA4 쿠폰코드 지표의 모집단/적용 여부 검증 실패",
-      "finding": "상품행 없는 purchase 이벤트 27건 · 모든 상품행에 coupon 필드 값 존재",
-      "cause_component": "구매 이벤트 중 일부에 상품행이 없고 쿠폰 필드가 일률적으로 채워져 실제 쿠폰 사용률/할인금액을 확정할 수 없음. 결측·스키마 범위 문제는 실측으로 확인.",
-      "cause_hypotheses": [],
-      "hypothesis_status": "confirmed_data_quality_limitation",
-      "causal_confirmed": false,
-      "how_to_verify": "누락된 item 배열의 원인과 coupon 필드 매핑을 GTM/GA4 이벤트 스키마에서 확인. 쿠폰 금액은 최신 관리자 주문마트 적재 이후 별도 재계산",
-      "blocked_by": [
-        "GA4 상품행 완전성",
-        "관리자 주문상품마트 장기 지연"
-      ],
-      "sources": [
-        "reports/decision_health/ga4_coupon_usage.json",
-        "reports/decision_health/source_metadata.json"
       ]
     },
     {
@@ -445,21 +219,21 @@
     }
   ],
   "crawl": {
-    "checked_at": "2026-11-22T23:41:32.287001+09:00",
+    "checked_at": "2026-11-23T00:59:13.925700+09:00",
     "brand_count": 24,
     "covered_30d": 21,
     "top_gaps": [
       {
         "brand": "TNF",
-        "priority_score": 585,
+        "priority_score": 593,
         "observed_30d": 25,
         "sample_target": 200,
         "gap": 175,
-        "pending_known_urls": 183,
+        "pending_known_urls": 191,
         "known_urls": 193,
-        "known_url_coverage_pct": 6.2,
+        "known_url_coverage_pct": 5.7,
         "pages_checked_this_run": 0,
-        "run_status": "not_scheduled",
+        "run_status": "not_collected",
         "error_types": {
           "navigation_race": 13
         },
@@ -468,13 +242,13 @@
       },
       {
         "brand": "DISCOVERY",
-        "priority_score": 340,
+        "priority_score": 347,
         "observed_30d": 6,
         "sample_target": 100,
         "gap": 94,
-        "pending_known_urls": 100,
-        "known_urls": 109,
-        "known_url_coverage_pct": 8.3,
+        "pending_known_urls": 107,
+        "known_urls": 120,
+        "known_url_coverage_pct": 10.8,
         "pages_checked_this_run": 0,
         "run_status": "not_scheduled",
         "error_types": {
@@ -495,7 +269,7 @@
         "known_urls": 18,
         "known_url_coverage_pct": 0.0,
         "pages_checked_this_run": 0,
-        "run_status": "not_collected",
+        "run_status": "not_scheduled",
         "error_types": {
           "robots_policy": 5
         },
@@ -511,10 +285,10 @@
         "sample_target": 100,
         "gap": 100,
         "pending_known_urls": 0,
-        "known_urls": 58,
+        "known_urls": 59,
         "known_url_coverage_pct": 0.0,
         "pages_checked_this_run": 0,
-        "run_status": "not_scheduled",
+        "run_status": "not_collected",
         "error_types": {},
         "policy_or_access_blockers": [],
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
@@ -523,9 +297,9 @@
         "brand": "SALOMON",
         "priority_score": 240,
         "observed_30d": 172,
-        "sample_target": 77,
+        "sample_target": 80,
         "gap": 0,
-        "pending_known_urls": 340,
+        "pending_known_urls": 339,
         "known_urls": 413,
         "known_url_coverage_pct": 24.2,
         "pages_checked_this_run": 0,
@@ -536,30 +310,30 @@
       },
       {
         "brand": "HOKA",
-        "priority_score": 214,
+        "priority_score": 220,
         "observed_30d": 0,
-        "sample_target": 77,
-        "gap": 77,
+        "sample_target": 80,
+        "gap": 80,
         "pending_known_urls": 0,
         "known_urls": 2,
         "known_url_coverage_pct": 0.0,
         "pages_checked_this_run": 0,
-        "run_status": "not_collected",
+        "run_status": "not_scheduled",
         "error_types": {},
         "policy_or_access_blockers": [],
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
       },
       {
         "brand": "SNOWLINE",
-        "priority_score": 195,
+        "priority_score": 211,
         "observed_30d": 7,
-        "sample_target": 77,
-        "gap": 70,
-        "pending_known_urls": 15,
+        "sample_target": 80,
+        "gap": 73,
+        "pending_known_urls": 25,
         "known_urls": 29,
         "known_url_coverage_pct": 6.9,
-        "pages_checked_this_run": 1,
-        "run_status": "candidate",
+        "pages_checked_this_run": 0,
+        "run_status": "not_scheduled",
         "error_types": {},
         "policy_or_access_blockers": [],
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
@@ -586,43 +360,43 @@
       },
       {
         "brand": "MONTBELL",
-        "priority_score": 163,
+        "priority_score": 175,
         "observed_30d": 30,
-        "sample_target": 77,
-        "gap": 47,
-        "pending_known_urls": 57,
+        "sample_target": 80,
+        "gap": 50,
+        "pending_known_urls": 63,
         "known_urls": 154,
-        "known_url_coverage_pct": 63.0,
-        "pages_checked_this_run": 0,
-        "run_status": "not_scheduled",
-        "error_types": {},
-        "policy_or_access_blockers": [],
-        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
-      },
-      {
-        "brand": "BLACK DIAMOND",
-        "priority_score": 162,
-        "observed_30d": 19,
-        "sample_target": 77,
-        "gap": 58,
-        "pending_known_urls": 46,
-        "known_urls": 89,
-        "known_url_coverage_pct": 50.6,
-        "pages_checked_this_run": 0,
-        "run_status": "not_scheduled",
+        "known_url_coverage_pct": 63.6,
+        "pages_checked_this_run": 3,
+        "run_status": "candidate",
         "error_types": {},
         "policy_or_access_blockers": [],
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
       },
       {
         "brand": "MERRELL",
-        "priority_score": 157,
+        "priority_score": 172,
         "observed_30d": 5,
-        "sample_target": 77,
-        "gap": 72,
-        "pending_known_urls": 13,
-        "known_urls": 50,
-        "known_url_coverage_pct": 74.0,
+        "sample_target": 80,
+        "gap": 75,
+        "pending_known_urls": 22,
+        "known_urls": 53,
+        "known_url_coverage_pct": 75.5,
+        "pages_checked_this_run": 5,
+        "run_status": "no_candidate",
+        "error_types": {},
+        "policy_or_access_blockers": [],
+        "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
+      },
+      {
+        "brand": "BLACK DIAMOND",
+        "priority_score": 164,
+        "observed_30d": 19,
+        "sample_target": 80,
+        "gap": 61,
+        "pending_known_urls": 42,
+        "known_urls": 89,
+        "known_url_coverage_pct": 56.2,
         "pages_checked_this_run": 0,
         "run_status": "not_scheduled",
         "error_types": {},
@@ -630,19 +404,17 @@
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
       },
       {
-        "brand": "BLACKYAK",
-        "priority_score": 154,
-        "observed_30d": 39,
+        "brand": "NEPA",
+        "priority_score": 160,
+        "observed_30d": 37,
         "sample_target": 100,
-        "gap": 61,
-        "pending_known_urls": 32,
-        "known_urls": 56,
+        "gap": 63,
+        "pending_known_urls": 34,
+        "known_urls": 53,
         "known_url_coverage_pct": 100.0,
-        "pages_checked_this_run": 9,
-        "run_status": "no_candidate",
-        "error_types": {
-          "timeout": 7
-        },
+        "pages_checked_this_run": 5,
+        "run_status": "candidate",
+        "error_types": {},
         "policy_or_access_blockers": [],
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
       }
