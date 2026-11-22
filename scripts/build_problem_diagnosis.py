@@ -221,6 +221,20 @@ def build(operations: dict, intelligence: dict, content: dict,
             "how_to_verify": "각 원천의 마지막 적재 시각·건수·유효 스키마를 직접 조회하고 익일 동일 조건 재검증",
             "blocked_by": list(stale), "sources": [INPUTS["operations"]],
         })
+    content_quality = content.get("quality") or {}
+    observed_market = int(num(content_quality.get("market_count")) or 0)
+    observed_owned = int(num(content_quality.get("owned_count")) or 0)
+    if observed_market > 0 and observed_owned == 0:
+        problems.append({
+            "id": "OWNED_CONTENT_BASELINE", "priority": "P0", "status": "source_required",
+            "title": "컬럼비아와 경쟁사의 콘텐츠 강·약점 비교 기준이 부족함",
+            "finding": f"현재 분석 표본: 경쟁사 {observed_market}건 / 자사 0건",
+            "cause_component": "자사 콘텐츠의 직접 관측 표본이 없으므로 경쟁사 대비 열세를 계산할 수 없음",
+            "cause_hypotheses": ["공식몰 콘텐츠 경로 수집 누락", "자사 홈페이지 배너/기획전 연결 미흡", "수집 회차 차이"],
+            "hypothesis_status": "unverified", "causal_confirmed": False,
+            "how_to_verify": "컬럼비아 공식몰·공식 SNS의 동일 기간/동일 분류 기준 콘텐츠와 원본 URL을 수집한 뒤 표본 편향을 보정",
+            "blocked_by": ["자사 콘텐츠 표본"], "sources": [INPUTS["content"]],
+        })
     gaps = crawl_gaps(content, quality, limit=12)
     if gaps:
         problems.append({
