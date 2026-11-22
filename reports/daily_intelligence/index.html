@@ -53,4 +53,4 @@ if(n===18){tiles(p,[['P1 우선 검토',fmt((d.actions||[]).filter(a=>a.priority
 note(p,d.note);host.append(p)}}
 const nav=document.getElementById('navigation');const primary=el('a','핵심 상품 분석');primary.href='#product-priority';primary.style.fontWeight='700';nav.append(primary);for(let i=0;i<18;i++){const a=el('a',String(i+1).padStart(2,'0')+' '+ko(short[i]));a.href='#s'+String(i+1).padStart(2,'0');nav.append(a)}
 render({sections:[]});fetch('./latest.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('snapshot not ready');return r.json()}).then(m=>{if(m.schema!==1||![13,14,18].includes(m.sections?.length))throw Error('invalid snapshot');document.getElementById('date').textContent='분석 기준일 '+m.report_date+' · 01–18 · 기존 공개 집계 원본';document.getElementById('load').textContent=m.report_date===m.target_date?'최신 기준일: '+m.report_date+' · 미수집 값은 — 로 표시':'최신 원본 지연: '+m.report_date+' (목표 '+m.target_date+')';render(m)}).catch(()=>{document.getElementById('load').textContent='최초 집계 배포 전입니다. 18개 섹션은 연결되어 있으며 최신 스냅샷이 생성되면 표시됩니다.'});
-</script></body></html>
+</script><script defer src="./coverage.js?v=20261122-1"></script></body></html>
