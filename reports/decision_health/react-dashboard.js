@@ -256,6 +256,8 @@
     var current=raw && raw.period && raw.period.current || {},prior=raw && raw.period && raw.period.previous || {};
     var aggregated=raw && raw.status==="ga4_subchannel_aggregated";
     var label=aggregated?"세부채널(기존 Daily 집계)":"소스/매체";
+    var sourceQuality=raw && raw.quality||{},alignedGap=sourceQuality.weekly_reconciliation||{};
+    var sessionGap=alignedGap.current && alignedGap.current.sessions && alignedGap.current.sessions.difference;
     return h("div",null,
       aggregated?h("div",{className:"csk-data-provenance",role:"status"},
         h("strong",null,"기존 집계 재활용 · 추가 BigQuery 조회 0회"),
@@ -263,6 +265,11 @@
           "전주 일부 날짜는 측정 방식 표시가 없고, 미분류 항목은 별도로 보존했습니다. 채널 기여 인과효과는 아닙니다.")):null,
       raw && raw.status==="blocked_budget" && !rows.length ?
         h("p",{className:"csk-data-provenance"},"개별 BigQuery 쿼리가 비용 상한으로 차단됐습니다. 대체 세부채널 집계도 현재 미확보입니다."):null,
+      raw && raw.status==="ga4_measured" ?
+        h("p",{className:"csk-data-provenance"},
+          "실측 GA4 원본 소스/매체 · "+fmt(rows.length)+"개 조합. ",
+          num(sessionGap)&&sessionGap!==0?"전체 KPI와 최근주 세션 "+(sessionGap>0?"+":"")+fmt(sessionGap)+"건 미세 차이. ":"",
+          "소스/매체별 YoY는 전년 동일 소스 원본 미집계로 표시하지 않습니다."):null,
       h("div",{className:"csk-workspace-controls"},
         h(SourcePills,{value:props.group,onChange:props.onGroup}),
         h("div",{className:"csk-filter-right"},
