@@ -12,7 +12,7 @@
    "crm_intelligence","sale_calendar","competitor_content","competitor","price","hero",
    "ops3","ai_agent","voc","crema"]);
  const cfg={
-  daily_intelligence:{shell:"main",kpi:".tiles",chart:".trend,.spark,.barrow",header:"header",full:"#product-focus,#sections"},
+  daily_intelligence:{shell:"main",kpi:".tiles",chart:".trend",header:"header",full:"#product-focus,#sections"},
   summary:{shell:"body > div:first-of-type",kpi:".summary-kpi-grid",chart:".summary-chart,.trend-svg,.chart-container,canvas,svg[role='img']",header:"header.hero-shell",full:".summary-section"},
   performance:{shell:".hubmain > .wrap",kpi:".cards",chart:".chartbox,.trend-svg,.source-panel,.trend-grid",header:"h1",full:".toolbar,.source-panel"},
   pdp_priority:{shell:"main.shell",kpi:"#kpis",chart:"#trendGrid,.trend-grid,.trend-panel,canvas",header:"header.hero",full:".trend-panel"},
@@ -88,7 +88,7 @@
  }
  function annotateCharts(root,conf){
    mark(root,conf.chart,"csk-v2-chart");
-   mark(root,"canvas, svg[role='img'], svg[data-chart], [class*='chart-'], .chart svg, .trend-svg","csk-v2-plot",130);
+   mark(root,"canvas, svg[role='img'], svg[data-chart], [class*='chart-'], .chart svg, .trend-svg, svg.spark","csk-v2-plot",130);
    mark(root,"table","csk-v2-table",130);
    mark(root,".tabbar,.tabs,.section-nav,.intel-tabs,.view-tabs,.brandbar,.csk-filter-pills","csk-v2-tabs",45);
    mark(root,".toolbar,.controls,.filters,.filter-bar,.control-bar","csk-v2-toolbar",45);
@@ -121,8 +121,8 @@
    const map={"#0055a5":"#0072ce","#0066cc":"#0072ce",
        "#2563eb":"#0072ce","#3b82f6":"#0072ce",
        "#4f46e5":"#5e54f3","#6366f1":"#5e54f3",
-       "#8b5cf6":"#5e54f3","#93c5fd":"#87b5df"};
-   const diagrams=root.querySelectorAll(".csk-v2-chart svg,.csk-v2-plot[role='img']");
+       "#8b5cf6":"#5e54f3","#93c5fd":"#87b5df","#28557e":"#0072ce","#919aa3":"#9ca6c0"};
+   const diagrams=root.querySelectorAll(".csk-v2-chart svg,svg.csk-v2-plot");
    let n=0;
    for(const svg of diagrams){
      if(n++>100)break;
