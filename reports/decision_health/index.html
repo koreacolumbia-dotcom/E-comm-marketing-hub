@@ -71,7 +71,7 @@ header{display:flex;justify-content:space-between;gap:16px;align-items:center;bo
 #decision-additional{margin:16px 0 0}
 #decision-additional>summary{cursor:pointer;padding:14px 16px;background:#fff;border:1px solid #dfe7ef;border-radius:10px;color:#2b536e;font-size:13px;font-weight:700}
 #decision-additional>summary small{color:#798a9b;font-weight:400;font-size:10px;margin-left:8px}
-#decision-additional>section{padding-top:14px}
+#raw-evidence>section{padding-top:14px}
 .p-trend{padding:10px}.p-trend small{font-size:11px;color:#708092}
 .p-extra-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:11px}
 .p-extra-row>div{background:#f7fafc;padding:10px;border-radius:7px;min-width:0}
@@ -82,14 +82,14 @@ header{display:flex;justify-content:space-between;gap:16px;align-items:center;bo
 
 </style></head><body><main><header><div><small>CSK E-COMMERCE · DECISION INTELLIGENCE</small><h1>의사결정 센터</h1><small>관측 데이터와 미검증 가설을 분리합니다. 숫자가 없으면 임의로 채우지 않습니다.</small></div><span class="status" id="overall">원천 확인 중</span></header>
 <section id="priority-products" aria-label="상품별 우선순위 카드"><div class="p-top"><div><small>PRODUCT SIGNALS · ACTION FIRST</small><h2>원인 후보 TOP 3 <small class="p-status-label">원인 확정 전</small></h2><p id="priority-period">관측 데이터 확인 중</p></div><small id="priority-coverage">원천 점검 중</small></div><div class="p-board" id="priority-cards" aria-live="polite">실측 근거 정리 중</div><div id="priority-detail" hidden></div></section><div id="loading" role="status">연결된 보고서를 검사하고 있습니다.</div>
-<details id="decision-additional"><summary><span>상세 분석·검증 자료 보기</span><small>매출 분해 · 원천 품질 · 경쟁사 · 14일 추이</small></summary><section class="grid">
+<details id="decision-additional"><summary><span>상세 분석·검증 자료 보기</span><small>원인 1·2·3의 실측 증거만 먼저 표시</small></summary><section id="evidence-short" aria-label="원인별 쿼리 검증 수치">GA4 검증 데이터를 확인하고 있습니다.</section><details id="raw-evidence"><summary>원천 로그·기술 진단 더 보기</summary><section class="grid">
 <article class="card two"><h2>01 · 현재 가장 중요한 의사결정</h2><div id="story" class="lead">데이터 확인 중</div><div id="story-note" class="notice" style="margin-top:12px">원천 신선도 확인 후 판단합니다.</div></article>
 <article class="card third"><h2>원천 상태</h2><div id="health"></div></article>
 <article class="card"><h2>02 · 직전 7일 매출 분해</h2><div class="metrics" id="metrics"></div><div id="decomposition" class="muted" style="margin-top:12px"></div></article>
 <article class="card half"><h2>03 · 상품 이상징후 우선순위</h2><p class="muted" id="product-period">상품명 기준 최근 7일과 직전 7일 비교 · GA4 구매수량은 관리자 주문과 별도입니다.</p><div id="products"></div></article>
 <article class="card half"><h2>04 · 경쟁사·콘텐츠 검증</h2><div id="competition"></div></article>
 <article class="card"><h2>05 · 우선 실행할 검증 과제</h2><div id="actions" class="actions"></div></article>
-</section></details>
+</section></details></details>
 <div class="links"><a href="../daily_intelligence/index.html">18개 상세 분석</a><a href="../marketing_operations/index.html">운영·실행 추적</a><a href="../competitor_content/index.html">경쟁 콘텐츠</a><a href="../competitor_sale_calendar/index.html">세일 캘린더</a><a href="../daily_digest/index.html">Owned.com Report</a></div>
 <p class="footer">매출 변동의 산술적 분해는 원인 증명이 아닙니다. 광고비·매체 성과는 원천과 기간이 일치할 때만 의사결정 근거로 사용합니다.</p>
 </main><script>
@@ -133,6 +133,7 @@ const load=async path=>{try{const r=await fetch(path+"?v="+Date.now(),{cache:"no
  window.__cskPriorityFocus=focus;
  window.__cskCausePayload={focus,diagnoses,ga4Purchase};
  window.CSKCauseBoard?.render(focus,diagnoses,ga4Purchase);
+ window.CSKDetailEvidence?.render(window.__cskCausePayload);
  const observed=n=>typeof n==="number"&&Number.isFinite(n);
  const comparable=p=>observed(p.pdp_change_pct)&&observed(p.sales_7d)&&observed(p.sales_previous_7d)&&p.sales_source==="ga4_purchase_items"&&Boolean(p.sales_match_method);
  const salesChange=p=>comparable(p)&&p.sales_previous_7d>0?(p.sales_7d/p.sales_previous_7d-1)*100:null;
@@ -326,4 +327,4 @@ function render(focus,diag,ga4){
 }
 window.CSKCauseBoard={render};
 if(window.__cskCausePayload)render(window.__cskCausePayload.focus,window.__cskCausePayload.diagnoses,window.__cskCausePayload.ga4Purchase);
-})();</script><script defer src="./diagnosis.js?v=20261122-3"></script><script src="./timeline.js?v=20261122-2"></script></body></html>
+})();</script><script defer src="./evidence-cards.js?v=20261122-1"></script><script defer src="./diagnosis.js?v=20261122-4"></script><script src="./timeline.js?v=20261122-2"></script></body></html>

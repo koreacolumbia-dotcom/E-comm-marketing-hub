@@ -1,7 +1,7 @@
 /* CSK integrated decision hypotheses: observed facts != causal attribution. */
 (() => {
   'use strict';
-  const anchor = document.querySelector('main #decision-additional > section.grid, main > section.grid');
+  const anchor = document.querySelector('main #decision-additional #raw-evidence > section.grid, main > section.grid');
   if (!anchor || document.getElementById('csk-root-diagnosis')) return;
   const css = document.createElement('style');
   css.textContent = `

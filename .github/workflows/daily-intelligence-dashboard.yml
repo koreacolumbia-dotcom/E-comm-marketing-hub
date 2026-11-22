@@ -13,6 +13,7 @@ on:
       - 'scripts/build_problem_diagnosis.py'
       - 'tests/test_problem_diagnosis.py'
       - 'reports/decision_health/diagnosis.js'
+      - 'reports/decision_health/evidence-cards.js'
       - 'reports/decision_health/index.html'
 permissions:
   contents: write
@@ -126,6 +127,7 @@ jobs:
           node --check reports/daily_intelligence/timeline.js
           node --check reports/daily_intelligence/coverage.js
           node --check reports/decision_health/diagnosis.js
+          node --check reports/decision_health/evidence-cards.js
           python - <<'PY'
           from pathlib import Path
           import json

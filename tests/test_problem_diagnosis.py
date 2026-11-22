@@ -143,10 +143,17 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('장바구니율 · 유입매체 · 평균 실현매출', cause_html)
         self.assertIn('③ 평균 실현매출·상품구성', cause_html)
         self.assertNotIn('["재고",null,block.inventory', DECISION_HTML)
-        self.assertIn('main #decision-additional > section.grid', DIAGNOSIS_JS)
+        self.assertIn('main #decision-additional #raw-evidence > section.grid', DIAGNOSIS_JS)
         self.assertIn('const withoutStock=', DIAGNOSIS_JS)
         self.assertIn('filter(x=>!/(재고|품절|inventory|stock)/i.test', DECISION_HTML)
         self.assertIn("p.id==='SOURCE_FRESHNESS'?'광고비·주문·CRM 원천 최신성 확인'", DIAGNOSIS_JS)
+
+    def test_compact_verification_hides_text_heavy_technical_details(self):
+        self.assertIn('id="evidence-short"', DECISION_HTML)
+        self.assertIn('id="raw-evidence"', DECISION_HTML)
+        self.assertIn('src="./evidence-cards.js?v=', DECISION_HTML)
+        self.assertIn('원인 1·2·3의 실측 증거만 먼저 표시', DECISION_HTML)
+        self.assertIn('CSKDetailEvidence?.render(window.__cskCausePayload)', DECISION_HTML)
 
     def test_decision_product_priority_and_evidence(self):
         self.assertIn('d>=15&&s<=-15', DECISION_HTML)
