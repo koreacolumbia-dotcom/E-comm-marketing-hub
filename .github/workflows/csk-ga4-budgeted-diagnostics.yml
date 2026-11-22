@@ -11,6 +11,8 @@ on:
     paths:
       - 'scripts/csk_ga4_cost_guard.py'
       - 'scripts/csk_source_medium_weekly.py'
+      - 'scripts/build_source_driver_bridge.py'
+      - 'tests/test_source_driver_bridge.py'
       - 'tests/test_csk_source_medium_weekly.py'
       - 'daily_digest_session_source.py'
       - 'scripts/csk_warehouse_metadata.py'
@@ -40,6 +42,7 @@ jobs:
             daily_digest_session_source.py
             scripts/csk_ga4_cost_guard.py
             scripts/csk_source_medium_weekly.py
+            scripts/build_source_driver_bridge.py
             scripts/csk_warehouse_metadata.py
             scripts/csk_ga4_coupon_probe.py
             scripts/csk_ga4_product_funnel.py
@@ -58,7 +61,8 @@ jobs:
       - name: Validate budget, accounting algebra and privacy fixtures offline
         run: |
           python -m unittest discover -s tests -p 'test_csk_source_medium_weekly.py' -v
-          python -m py_compile scripts/csk_source_medium_weekly.py scripts/csk_ga4_cost_guard.py scripts/csk_warehouse_metadata.py scripts/csk_ga4_coupon_probe.py scripts/build_problem_diagnosis.py
+          python -m unittest discover -s tests -p 'test_source_driver_bridge.py' -v
+          python -m py_compile scripts/csk_source_medium_weekly.py scripts/build_source_driver_bridge.py scripts/csk_ga4_cost_guard.py scripts/csk_warehouse_metadata.py scripts/csk_ga4_coupon_probe.py scripts/build_problem_diagnosis.py
           python -m unittest discover -s tests -p 'test_csk_ga4_cost_guard.py' -v
           python -m unittest discover -s tests -p 'test_csk_warehouse_metadata.py' -v
           python -m unittest discover -s tests -p 'test_csk_ga4_coupon_probe.py' -v
@@ -84,6 +88,22 @@ jobs:
             assert j["row_count"]==len(j["rows"]) and j["row_count"]>0
           assert not any(k in str(j).lower() for k in ("user_pseudo_id","ga_session_id","email_address"))
           print("[SOURCE MEDIUM]",j["status"],len(j["rows"]),"grouped rows")
+          PY
+      - name: Attribute observed source-level revenue changes with no new query
+        run: |
+          python scripts/build_source_driver_bridge.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          b=json.loads(Path("reports/decision_health/source_driver_bridge.json").read_text())
+          assert b["schema"]==1
+          assert b["status"] in ("measured_descriptive","unavailable")
+          assert b["causal"] is False
+          if b["status"]=="measured_descriptive":
+            assert b["quality"]["no_additional_bigquery_jobs"] is True
+            assert b["row_count"]==len(b["rows"])>0
+            assert abs(sum(b["driver_totals"].values())-b["headline"]["revenue_delta"])<1
+          print("SOURCE DRIVER BRIDGE",b["status"],len(b["rows"]))
           PY
       - name: Query canonical GA4 purchase aggregation once (1-GiB cap)
         env:
@@ -177,7 +197,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add reports/decision_health/source_medium_weekly.json reports/decision_health/ga4_purchase_diagnostics.json reports/decision_health/weekly_ga4_aligned.json reports/decision_health/ga4_coupon_usage.json reports/decision_health/product_funnel_evidence.json reports/decision_health/source_metadata.json reports/decision_health/diagnoses.json
+          git add reports/decision_health/source_medium_weekly.json reports/decision_health/source_driver_bridge.json reports/decision_health/ga4_purchase_diagnostics.json reports/decision_health/weekly_ga4_aligned.json reports/decision_health/ga4_coupon_usage.json reports/decision_health/product_funnel_evidence.json reports/decision_health/source_metadata.json reports/decision_health/diagnoses.json
           if git diff --cached --quiet; then echo "[GA4] no changes"; exit 0; fi
           git commit -m "Update budget-capped GA4 product and root-cause evidence"
           for attempt in 1 2 3; do
