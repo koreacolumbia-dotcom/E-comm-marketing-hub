@@ -162,8 +162,8 @@
     "order_mart_last_modified": "2026-06-05T06:07:21.605000+00:00"
   },
   "weather_source_health": {
-    "current": "access_denied_403",
-    "previous": "access_denied_403",
+    "current": "request_error_URLError",
+    "previous": "request_error_URLError",
     "observed_days": 0,
     "previous_observed_days": 0,
     "source": "KMA ASOS Seoul station 108; observation, never forecast"
@@ -443,16 +443,20 @@
     {
       "id": "WEATHER_COVERAGE",
       "priority": "P1",
-      "status": "source_error_confirmed",
+      "status": "source_required",
       "title": "날씨 영향 분석의 실측 기온이 누락됨",
-      "finding": "서울 관측 기온 0 / 14일 확보 · 기상청 원천 응답 access_denied_403",
-      "cause_component": "기상청 API 접근 거부(HTTP 403) 확인",
-      "cause_hypotheses": [],
-      "hypothesis_status": "confirmed_source_failure",
+      "finding": "서울 관측 기온 0 / 14일 확보",
+      "cause_component": "실측 원천 부재로 온도 급변 시점과 PDP·판매 변화 교차 검증 불가",
+      "cause_hypotheses": [
+        "기상청 인증키 미설정",
+        "ASOS 요청/파싱 실패",
+        "관측일 기준·캐시 갱신 오류"
+      ],
+      "hypothesis_status": "unverified",
       "causal_confirmed": false,
-      "how_to_verify": "공식 API Hub 키의 서비스 사용 승인·유효기간·허용 IP/권한 점검. 재발급 전 추가 요청 중단",
+      "how_to_verify": "기상청 108 관측소의 요청 응답 코드·유효 일수·최종 적재일을 점검하고 관측치만 사용",
       "blocked_by": [
-        "기상청 API 인증/접근 권한"
+        "14일 실측 기온"
       ],
       "sources": [
         "reports/daily_intelligence/latest.json"
