@@ -10,6 +10,11 @@ on:
       - 'reports/daily_intelligence/index.html'
       - 'reports/daily_intelligence/coverage.js'
       - 'scripts/personal_intelligence/build_dashboard.py'
+      - 'scripts/personal_intelligence/observed_weather.py'
+      - 'scripts/personal_intelligence/product_signal_hub.py'
+      - 'scripts/personal_intelligence/product_timeline.py'
+      - 'scripts/personal_intelligence/report_model.py'
+      - 'scripts/personal_intelligence/test_product_signal_hub.py'
       - 'scripts/build_problem_diagnosis.py'
       - 'tests/test_problem_diagnosis.py'
       - 'reports/decision_health/diagnosis.js'
@@ -61,6 +66,7 @@ jobs:
           python -m unittest discover -s scripts/personal_intelligence -p 'test_product_signal_hub.py' -v
           test -s scripts/personal_intelligence/test_product_timeline.py
           python -m unittest discover -s scripts/personal_intelligence -p 'test_product_timeline.py' -v
+          python -m unittest discover -s scripts/personal_intelligence -p 'test_observed_weather_fallback.py' -v
           PYTHONPATH=scripts/personal_intelligence python - <<'PY'
           from datetime import date
           from observed_weather import parse
@@ -90,7 +96,7 @@ jobs:
           assert len(focus['temperature'])==14
           tl=focus['timeline']
           assert tl['dates']==focus['dates'] and len(tl['weather'])==14 and len(tl['weather_prior'])==14
-          print('Observed weather coverage current/prior:',sum(v is not None for v in tl['weather']),sum(v is not None for v in tl['weather_prior']))
+          print('Observed weather coverage current/prior:',sum(v is not None for v in tl['weather']),sum(v is not None for v in tl['weather_prior']), 'source',x['weather_source_health'])
           assert all(len(r[k])==14 for r in tl['products'] for k in ('values','baseline','delta'))
           assert all(set(e['dates'])<=set(tl['dates']) for b in tl['brands'] for e in b['events'])
           assert 'id="product-focus"' in Path('reports/daily_intelligence/index.html').read_text()

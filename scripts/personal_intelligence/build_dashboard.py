@@ -176,10 +176,11 @@ def build(root=ROOT,day=None):
     focus['timeline']=build_timeline(d,recent,calendar,observed,focus)
     from product_signal_hub import valid_temp
     focus['timeline']['weather_prior']=[valid_temp(prior_observed.get((date.fromisoformat(t)-timedelta(days=364)).isoformat())) for t in focus['dates']]
+    focus['timeline']['weather_prior_sources']=[(prior_observed.get((date.fromisoformat(t)-timedelta(days=364)).isoformat()) or {}).get("source") if valid_temp(prior_observed.get((date.fromisoformat(t)-timedelta(days=364)).isoformat())) is not None else None for t in focus['dates']]
     return {"product_focus":focus,"schema":1,"report_date":d["end_date"],"target_date":target,
             "weather_source_health":{"current":observed_status,"previous":prior_status,
                 "observed_days":len(observed),"previous_observed_days":len(prior_observed),
-                "source":"KMA ASOS Seoul station 108; observation, never forecast"},
+                "source":"KMA ASOS Seoul 108 first; NOAA GSOD Seoul 47108099999 secondary; observations only, never forecast"},
             "source_scope":"existing public aggregate caches only; private journey files not included","sections":results}
 def main():
     p=argparse.ArgumentParser();p.add_argument("--out",required=True);a=p.parse_args()

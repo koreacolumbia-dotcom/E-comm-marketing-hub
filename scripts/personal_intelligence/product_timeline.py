@@ -94,5 +94,7 @@ def build_timeline(d,history,calendar,weather,focus):
         seen.add(key)
         event_rows[k].append({"title":title,"status":status,"dates":active,"start":e.get("start_date"),"end":e.get("end_date"),"url":e.get("source_url"),"benefit":e.get("benefit")})
     branded=[{"brand":BRANDS.get(k,k),"events":event_rows.get(k,[])} for k in list(BRANDS)+[k for k in event_rows if k not in BRANDS]]
-    return {"dates":dates,"weather":[valid_temp((weather or {}).get(t)) for t in dates],"products":rows,"brands":branded,
+    return {"dates":dates,"weather":[valid_temp((weather or {}).get(t)) for t in dates],
+            "weather_sources":[((weather or {}).get(t) or {}).get("source") if valid_temp((weather or {}).get(t)) is not None else None for t in dates],
+            "products":rows,"brands":branded,
             "note":"상품명 단위 일별 값은 원본 그래프의 정확한 데이터 라벨과 합계가 일치한 상위 표본입니다. 막대 증감은 7일 전 같은 상품과 비교한 수량입니다. 미수집은 빈칸. 행사 관측일과 공식 기간을 구분하며 동시 발생은 인과관계를 의미하지 않습니다."}

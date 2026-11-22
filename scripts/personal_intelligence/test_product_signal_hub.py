@@ -21,6 +21,13 @@ class ProductTests(unittest.TestCase):
         self.assertEqual(len(r["competitor_events"]),1)
         self.assertEqual(r["competitor_events"][0]["overlap_days"],3)
         self.assertFalse(r["causal"])
+    def test_noaa_official_daily_observation_is_accepted_but_not_forecast(self):
+        from product_signal_hub import valid_temp
+        src={"mean_temp":3.4,"station":"47108099999","kind":"observed","verified":True,"source":"NOAA GSOD Seoul WMO 47108"}
+        self.assertEqual(valid_temp(src),3.4)
+        self.assertIsNone(valid_temp({**src,"source":"unverified"}))
+        self.assertIsNone(valid_temp({**src,"kind":"forecast"}))
+
     def test_weather_no_forecast(self):
         d=self.fixture()
         self.assertEqual(build_signals(d,weather={"2026-11-17":{"mean_temp":1,"station":"108","kind":"forecast","verified":True}})["weather_days"],0)

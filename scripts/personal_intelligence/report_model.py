@@ -49,10 +49,8 @@ def weather_business(d,events=None):
     prior=[(date.fromisoformat(x)-timedelta(days=364)).isoformat() for x in axis]
     observed=d.get("weather_observed") or {}
     if not isinstance(observed,dict): observed={}
-    def temp(day):
-        x=observed.get(day) or {}
-        v=x.get("mean_temp")
-        return v if x.get("verified") is True and x.get("kind")=="observed" and str(x.get("station"))=="108" and isinstance(v,(int,float)) and isfinite(v) else None
+    from product_signal_hub import valid_temp
+    def temp(day): return valid_temp(observed.get(day))
     def aligned(dates,values):
         lookup=dict(zip(dates,values or []))
         return [lookup.get(x) for x in axis]
@@ -60,6 +58,8 @@ def weather_business(d,events=None):
     result={"dates":axis,"prior_dates":prior,"actual_through":end.isoformat(),
         "temperature_current":[temp(x) for x in axis],
         "temperature_prior":[temp(x) for x in prior],
+        "temperature_source_current":[(observed.get(x) or {}).get("source") if temp(x) is not None else None for x in axis],
+        "temperature_source_prior":[(observed.get(x) or {}).get("source") if temp(x) is not None else None for x in prior],
         "forecast":d.get("weather_forecast"),"events":events or [],
         "overall":{k:aligned(trend.get("dates",[]),trend.get(k)) for k in ("sessions","revenue","cvr")},
         "overall_source":"GA4 trend series (not BQ headline KPI)","categories":[]}
@@ -81,7 +81,7 @@ def weather_business(d,events=None):
             "matched_days":len(pairs),"sales_current":None,"sales_prior":None})
     result["missing"]=["category daily sales","prior overall trend"]
     if any(v is None for v in result["temperature_current"][:30]+result["temperature_prior"][:30]):result["missing"].append("complete verified historical ASOS 108 observations")
-    result["interpretation"]="Date-aligned observations; no causal weather or promotion attribution. Missing is null, not zero."
+    result["interpretation"]="Date-aligned Seoul daily observations, KMA priority and NOAA GSOD fallback. NOAA daily aggregation may differ from KMA local-day; no causal attribution. Missing remains null."
     return result
 
 

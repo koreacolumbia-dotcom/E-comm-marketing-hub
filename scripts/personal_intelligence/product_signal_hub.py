@@ -21,7 +21,8 @@ def family(s):
     return "기타"
 def change(a,b):return round((a/b-1)*100,1) if a is not None and b is not None and b>0 else None
 def valid_temp(r):
-    if not isinstance(r,dict) or r.get("verified") is not True or str(r.get("station"))!="108" or r.get("kind")!="observed":return None
+    if not isinstance(r,dict) or r.get("verified") is not True or r.get("kind")!="observed":return None
+    if str(r.get("station"))!="108" and not (str(r.get("station"))=="47108099999" and r.get("source")=="NOAA GSOD Seoul WMO 47108"):return None
     v=r.get("mean_temp");return float(v) if isinstance(v,(int,float)) and isfinite(v) and -60<=v<=60 else None
 
 def build_signals(d,history=(),events=None,discounts=None,weather=None,limit=3):
@@ -61,6 +62,8 @@ def build_signals(d,history=(),events=None,discounts=None,weather=None,limit=3):
             card(k,r);selected[k]=["review_only"]
     w=weather or {};temp=[valid_temp(w.get(dt)) for dt in dates]
     ct=temp[-7:];pt=temp[:7]
+    sources=sorted({str(w[dt].get("source","KMA ASOS")) for dt in dates if valid_temp(w.get(dt)) is not None})
+    weather_label=" / ".join(sources) if sources else "미확보"
     shift=round(sum(ct)/7-sum(pt)/7,1) if all(v is not None for v in temp) else None
     efeed=events or {};event_rows=efeed.get("events") or []
     df=discounts or {};prices=df.get("styles") or [];checked=df.get("checked_at")
@@ -113,4 +116,4 @@ def build_signals(d,history=(),events=None,discounts=None,weather=None,limit=3):
         if abs(delta)>=2 and (b==0 or abs(delta)/b>=.3):
             skus.append({"name":r.get("itemName"),"sku":r.get("itemId"),"qty":qty,"baseline":b,"delta":delta,"series":a,"scope":"개별 SKU 상위 판매 표본"})
     skus.sort(key=lambda x:-abs(x["delta"]))
-    return {"date":day,"status":"partial","cards":out,"daily_sku_alerts":skus[:6],"dates":dates,"temperature":temp,"temperature_change_c":shift,"weather_days":sum(v is not None for v in temp),"matched_pdp_names":len(set(current)&set(previous)),"calendar_as_of":efeed.get("as_of"),"note":"상품명 PDP는 최근 7일 대 직전 7일 상위 표본 비교입니다. 판매는 동일 상품명이 두 기간에 실제 등장한 날만 사용하며, 미등장=0이 아닙니다. 할인 후보는 수집일 가격으로 과거 적용 여부 미확인. 행사 동시 발생과 기온 변화만으로 인과관계를 확정하지 않습니다."}
+    return {"date":day,"status":"partial","cards":out,"daily_sku_alerts":skus[:6],"dates":dates,"temperature":temp,"weather_source":weather_label,"temperature_change_c":shift,"weather_days":sum(v is not None for v in temp),"matched_pdp_names":len(set(current)&set(previous)),"calendar_as_of":efeed.get("as_of"),"note":"상품명 PDP는 최근 7일 대 직전 7일 상위 표본 비교입니다. 판매는 동일 상품명이 두 기간에 실제 등장한 날만 사용하며, 미등장=0이 아닙니다. 할인 후보는 수집일 가격으로 과거 적용 여부 미확인. 행사 동시 발생과 기온 변화만으로 인과관계를 확정하지 않습니다."}
