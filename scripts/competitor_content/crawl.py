@@ -385,6 +385,20 @@ def recent_success(entry,checked):
         return timedelta(0)<=delta<timedelta(hours=DETAIL_REVISIT_HOURS)
     except (TypeError,ValueError): return False
 
+def retry_cooldown(entry,checked):
+    """Respect policy blocks and avoid hammering failed official URLs.
+
+    This is not a bypass: blocked destinations stay blocked until revalidation.
+    """
+    hours={"policy_denied":24,"access_blocked":12,"not_found":168,"timeout":2,"error":1}
+    state=entry.get("state");allowed_hours=hours.get(state)
+    if not allowed_hours or not entry.get("at"): return False
+    try:
+        age=datetime.fromisoformat(checked)-datetime.fromisoformat(entry["at"])
+        return timedelta(0)<=age<timedelta(hours=allowed_hours)
+    except (TypeError,ValueError): return False
+
+
 def coverage_audit(ledger,known,checked):
     # Denominator is known in-scope URLs, never a claim of full-site recall.
     cutoff=(datetime.fromisoformat(checked)-timedelta(days=LEDGER_WINDOW_DAYS)).date().isoformat()
@@ -464,16 +478,19 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     # Reserve most of the next run for unfinished discovery, rather than repeating the same first pages.
     seeds=unique_urls(queue,same)
     backlog=unique_urls((frontier or {}).get("pending",[]),same)
-    queue=unique_urls(seeds[:4]+backlog+seeds[4:],same)
+    # One homepage and one main hub per slice; use the rest to clear prior frontier.
+    queue=unique_urls(seeds[:2]+backlog+seeds[2:],same)
     ledger_cutoff=(datetime.fromisoformat(checked)-timedelta(days=LEDGER_WINDOW_DAYS)).date().isoformat()
     ledger={u:v for u,v in (frontier or {}).get("url_ledger",{}).items() if same(u) and isinstance(v,dict) and str(v.get("at",""))[:10]>=ledger_cutoff}
     known=set(queue)|set(ledger)
-    refresh=set(seeds[:4])
+    refresh=set(seeds[:2])
     row["recent_skip_count"]=0
     def note(u,state):
         ledger[u]={"state":state,"at":checked};known.add(u)
     def skip_recent(u):
-        return u not in refresh and editorial_route(brand,u) and recent_success(ledger.get(u,{}),checked)
+        if u in refresh: return False
+        entry=ledger.get(u,{})
+        return retry_cooldown(entry,checked) or (editorial_route(brand,u) and recent_success(entry,checked))
     previous=sorted((x for x in old.values() if x.get("brand")==brand),key=lambda x:x.get("last_seen_at",""),reverse=True)
     prior_urls={canonical(v) for x in previous for v in (x.get("url"),x.get("source_url")) if isinstance(v,str) and same(v)}
     for x in previous:
@@ -776,6 +793,17 @@ def self_test():
     assert coverage_plan("TNF",17,0,13)["focus_brand"]
     assert coverage_plan("TNF",17,0,13)["sample_target"]==200
     assert coverage_plan("TNF",17,0,13)["seconds"]<=CRAWL_SLICE_SECONDS
+    now="2026-11-22T08:30:00+09:00"
+    assert retry_cooldown({"state":"policy_denied","at":now},now)
+    assert not retry_cooldown({"state":"observed","at":now},now)
+    assert not retry_cooldown({"state":"not_found","at":"2026-10-01T00:00:00+09:00"},now)
+    example={b:coverage_plan(b,0,10,25) for b in ROOTS}
+    frontier_example={b:{"pending":["https://example.test"]*10} for b in ROOTS}
+    extra=choose_extra_catchup(list(ROOTS)[:12],list(ROOTS)[:3],example,frontier_example,{b:0 for b in ROOTS},now,1)
+    assert len(extra)==1 and extra[0] not in list(ROOTS)[:3]
+    blocked_root=canonical(ROOTS[extra[0]])
+    frontier_example[extra[0]]["url_ledger"]={blocked_root:{"state":"policy_denied","at":now}}
+    assert extra[0] not in choose_extra_catchup(list(ROOTS)[:12],list(ROOTS)[:3],example,frontier_example,{b:0 for b in ROOTS},now,2)
     assert coverage_plan("PATAGONIA",0,0,13)["requested_deep_seconds"]>=BRAND_SECONDS
     assert all(coverage_plan(b,0)["sample_target"]==100 for b in ("BLACKYAK","PATAGONIA","DISCOVERY","K2","EIDER","MILLET","NEPA"))
     assert len(retain_archive_entries(styles,styles,"2026-11-01"))==1
@@ -797,6 +825,32 @@ def shard_selection(brand_order,checked,shards):
     now=datetime.fromisoformat(checked)
     slot=(now.hour*2+now.minute//30)%shards
     return brand_order[slot::shards],slot
+
+def choose_extra_catchup(brand_order,selected,plans,frontier,counts,checked,maximum=1):
+    """Rotate one extra undercovered, policy-allowed official brand per run.
+
+    Base four-shard coverage remains unchanged. Never retry a blocked root or
+    ignore an access restriction simply to increase counts.
+    """
+    candidates=[]
+    now=datetime.fromisoformat(checked)
+    for brand in brand_order:
+        if brand in selected or not plans[brand].get("undercovered"):continue
+        pending=len(frontier.get(brand,{}).get("pending",[]))
+        if pending<8:continue
+        ledger=frontier.get(brand,{}).get("url_ledger",{})
+        root_entry=ledger.get(canonical(ROOTS[brand]),{})
+        if retry_cooldown(root_entry,checked) and root_entry.get("state") in ("policy_denied","access_blocked"):
+            continue
+        gap=max(0,plans[brand]["sample_target"]-counts.get(brand,0))
+        candidates.append((brand,gap,pending))
+    if not candidates or maximum<=0:return []
+    candidates.sort(key=lambda x:(-x[1],-x[2],x[0]))
+    # Rotate across the highest-priority backlog rather than repeatedly
+    # hammering the same undercovered site every 30 minutes.
+    pool=candidates[:min(8,len(candidates))]
+    slot=(now.hour*2+now.minute//30)%len(pool)
+    return [pool[(slot+i)%len(pool)][0] for i in range(min(maximum,len(pool)))]
 
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
@@ -825,6 +879,10 @@ async def main():
     selected,shard_slot=shard_selection(fixed_order,checked,os.getenv("CONTENT_CRAWL_SHARDS","1"))
     priority_rank={brand:index for index,brand in enumerate(order)}
     selected.sort(key=lambda brand:priority_rank[brand])
+    extra=choose_extra_catchup(
+        fixed_order,selected,plans,frontier,counts,checked,
+        maximum=max(0,min(2,int(os.getenv("CONTENT_EXTRA_CATCHUP_BRANDS","1")))))
+    selected.extend(extra)
     origin_locks={}
     def group(brand): return ALTERNATE.get(brand) or host(ROOTS[brand])
     async with aiohttp.ClientSession(headers={"User-Agent":UA},timeout=aiohttp.ClientTimeout(total=15)) as session:
@@ -844,7 +902,8 @@ async def main():
                 return result
             print(json.dumps({"crawl_start":checked,"target_brands":len(order),
                 "shard":shard_slot,"shards":max(1,int(os.getenv("CONTENT_CRAWL_SHARDS","1"))),
-                "selected_brands":selected,"slice_seconds":CRAWL_SLICE_SECONDS},ensure_ascii=False),flush=True)
+                "selected_brands":selected,"extra_catchup":extra,
+                "slice_seconds":CRAWL_SLICE_SECONDS},ensure_ascii=False),flush=True)
             scanned_rows=await asyncio.gather(*(task(b) for b in selected))
             await browser.close()
     scanned={b["brand"]:b for b in scanned_rows}
