@@ -58,7 +58,7 @@
   const sources={
     'reports/marketing_operations/latest.json':['운영·매출 원본','../marketing_operations/index.html'],
     'reports/daily_intelligence/latest.json':['18개 분석','../daily_intelligence/index.html'],
-    'reports/decision_health/ga4_purchase_diagnostics.json':['실제 GA4 상품 집계','./ga4_purchase_diagnostics.json'],
+    'reports/decision_health/ga4_purchase_diagnostics.json':['실제 GA4 상품 집계','../decision_health/ga4_purchase_diagnostics.json'],
     'reports/competitor_content/strategy-summary.json':['경쟁 콘텐츠','../competitor_content/index.html'],
     'reports/competitor_intelligence/latest-quality.json':['경쟁사 수집 품질','../competitor_intel/dashboard.html'],
     'reports/competitor_sale_calendar/latest.json':['경쟁사 행사','../competitor_sale_calendar/index.html']
