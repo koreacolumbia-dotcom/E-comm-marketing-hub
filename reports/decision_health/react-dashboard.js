@@ -69,12 +69,20 @@
   function metricRows(ops,di) {
     var w=ops && ops.weekly, a=w && w.current && w.current.total, b=w && w.previous && w.previous.total;
     if (!w || w.status !== "ready" || !finiteTotal(a) || !finiteTotal(b)) return [];
-    return [
+    var yoy=w.yoy && w.yoy.status==="ready" && w.yoy.reference && w.yoy.reference.status==="complete" ? w.yoy.reference.total : null;
+    var lyValid=yoy && finiteTotal(yoy);
+    var metrics=[
       {key:"revenue",label:"매출",value:a.revenue,prior:b.revenue,display:krw(a.revenue),before:krw(b.revenue),icon:"₩",series:dailySeries(ops,di,"revenue"),trend:"bar"},
       {key:"orders",label:"주문",value:a.orders,prior:b.orders,display:fmt(a.orders)+"건",before:fmt(b.orders)+"건",icon:"□"},
       {key:"sessions",label:"세션",value:a.sessions,prior:b.sessions,display:fmt(a.sessions),before:fmt(b.sessions),icon:"↗",series:dailySeries(ops,di,"sessions"),trend:"line"},
       {key:"aov",label:"객단가",value:a.revenue/a.orders,prior:b.revenue/b.orders,display:fmt(a.revenue/a.orders)+"원",before:fmt(b.revenue/b.orders)+"원",icon:"◇"}
     ];
+    return metrics.map(function(m){
+      var lyValue=lyValid ? (m.key==="aov" ? yoy.revenue/yoy.orders : yoy[m.key]) : null;
+      var lyDisplay=lyValue==null ? "미확보" : m.key==="revenue" ? krw(lyValue) : m.key==="orders" ? fmt(lyValue)+"건" : m.key==="aov" ? fmt(lyValue)+"원" : fmt(lyValue);
+      return {...m,lyPrior:lyValue,lyBefore:lyDisplay,
+        lyPeriod:lyValid ? w.yoy.period : null};
+    });
   }
   function alignedSource(source,ops) {
     var w=ops && ops.weekly || {},p=source && source.period || {},a=p.current || {},b=p.previous || {};
@@ -147,13 +155,23 @@
     );
   }
   function KpiCard(props) {
-    var m=props.item,p=percent(m.value,m.prior);
+    var m=props.item,p=percent(m.value,m.prior),ly=percent(m.value,m.lyPrior);
+    var showLy=num(m.lyPrior) && m.lyPrior>0 && num(ly);
     return h("article",{className:"csk-kpi-card rounded-2xl shadow-sm min-w-0"},
       h("div",{className:"kpi-label-row"},h("span",{className:"kpi-label"},m.label),h("span",{className:"kpi-icon","aria-hidden":"true"},m.icon)),
       h("strong",{className:"kpi-big-number",title:fmt(m.value)+(m.key==="revenue" || m.key==="aov"?"원":"")},m.display),
-      h("div",{className:"kpi-change"},h("span",{className:cls("delta-pill",p>0?"up":p<0?"down":"flat")},delta(p)),h("span",null,"전주 대비")),
+      h("div",{className:"kpi-deltas","aria-label":m.label+" 전주·전년 비교"},
+        h("div",{className:"kpi-change"},
+          h("span",{className:"kpi-period-label"},"WoW"),
+          h("span",{className:cls("delta-pill",p>0?"up":p<0?"down":"flat")},delta(p))
+        ),
+        h("div",{className:"kpi-change"},
+          h("span",{className:"kpi-period-label",title:m.lyPeriod||"비교 기간 미확보"},"YoY"),
+          h("span",{className:cls("delta-pill",!showLy?"flat":ly>0?"up":ly<0?"down":"flat")},showLy?delta(ly):"미확보")
+        )
+      ),
       m.series?h(DailyMiniChart,{values:m.series,type:m.trend,label:m.label}):h(ComparisonTrack,{prior:m.prior,now:m.value}),
-      h("p",{className:"kpi-previous"},"전주 ",m.before)
+      h("p",{className:"kpi-previous"},"전주 ",m.before," · 전년 ",m.lyBefore)
     );
   }
   function StatCard(props) {
