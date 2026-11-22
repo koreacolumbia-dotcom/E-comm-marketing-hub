@@ -460,6 +460,23 @@
     );
   }
 
+  function DataReadiness(props) {
+    var v=props.ops && props.ops.executive && props.ops.executive.data_readiness||{};
+    var blocked=[
+      ["광고비",v.paid_cost],["주문마트",v.order_mart],["CRM",v.crm],["재고",v.inventory]
+    ].filter(function(x){return x[1] && x[1]!=="fresh" && x[1]!=="ready";});
+    return blocked.length?h("details",{className:"csk-readiness"},
+      h("summary",null,
+        "원인 검증 제약 · "+blocked.map(function(x){return x[0];}).join(" / "),
+        h("span",null,"근거 상태 보기")),
+      h("div",null,
+        blocked.map(function(x){return h("div",{key:x[0]},h("strong",null,x[0]),h("span",null,
+          x[1]==="connection_error"?"연결 오류":x[1]==="stale"?"원천 최신성 부족":"상태 확인 필요"));}),
+        h("p",null,"상단 매출·주문 KPI와 독립적인 광고비·CRM 기여/재고 진단의 신뢰도는 다릅니다. 원천 복구 전 예산 재배분 효과를 확정하지 않습니다.")
+      )
+    ):null;
+  }
+
   function ExecutionProgress(props) {
     var tracker=props.outcomes||{},ops=props.ops||{},ready=tracker.status==="ready" &&
       tracker.report_date===ops.report_date && Array.isArray(tracker.actions);
@@ -727,6 +744,7 @@
         metrics.length?metrics.map(function(m){return h(KpiCard,{key:m.key,item:m});}):
           h(EmptyState,{title:"운영 KPI 근거 없음",note:"완전한 주간 세션·주문·매출 합계를 확인할 수 없습니다."})
       ),
+      tab==="overview"?h(DataReadiness,{ops:ops}):null,
       tab==="market"?h(CompetitorEvidenceCoverage,{quality:data.competitiveQuality,content:data.contentStrategy}):null,
       tab==="overview"?h(CurrentYearCampaignContext,{ops:ops}):null,
       tab==="overview"?h(PriorYearCampaignContext,{ops:ops}):null,
