@@ -43,10 +43,9 @@ def validate(root=ROOT):
     # A blocked or timed-out page must never be counted as a successfully observed page.
     for brand, state in frontier_brands.items():
         ledger = state.get("url_ledger", {})
-        observed_states = {"observed", "partial_observed"}
         for url, record in ledger.items():
             status = record.get("state")
-            assert status in {"observed", "partial_observed", "unobserved", "timeout", "error", "blocked", "policy_blocked", "skipped", "restricted"}, f"{brand}: unknown ledger state {status!r}"
+            assert status in {"observed", "partial_observed", "unobserved", "timeout", "error", "not_found", "access_blocked", "policy_denied", "blocked", "policy_blocked", "skipped", "restricted"}, f"{brand}: unknown ledger state {status!r}"
     # Coverage is observational, not proof that the source has no content.
     for item in summary_brands:
         coverage = item.get("url_coverage") or {}
