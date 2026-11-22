@@ -105,7 +105,7 @@
   }
   function KpiCard(props) {
     var m=props.item,p=percent(m.value,m.prior);
-    return h("article",{className:"csk-kpi-card"},
+    return h("article",{className:"csk-kpi-card rounded-2xl shadow-sm min-w-0"},
       h("div",{className:"kpi-label-row"},h("span",{className:"kpi-label"},m.label),h("span",{className:"kpi-icon","aria-hidden":"true"},m.icon)),
       h("strong",{className:"kpi-big-number",title:fmt(m.value)+(m.key==="revenue" || m.key==="aov"?"원":"")},m.display),
       h("div",{className:"kpi-change"},h("span",{className:cls("delta-pill",p>0?"up":p<0?"down":"flat")},delta(p)),h("span",null,"전주 대비")),
@@ -258,13 +258,14 @@
   }
   function EventWorkspace(props) {
     var events=props.events;
-    var selected=events.find(function(x){return x.brand===props.selected;})||events[0];
+    var eventKey=function(x){return x.brand+"|"+x.start+"|"+x.title;};
+    var selected=events.find(function(x){return eventKey(x)===props.selected;})||events[0];
     var w=props.ops && props.ops.weekly || {};
     return h("div",{className:"csk-workspace-grid"},
       h("aside",{className:"csk-workspace-list"},
         h("p",{className:"list-meta"},"공식 기간 확인된 행사 · "+attr(w.period)),
         events.length?events.slice(0,12).map(function(x,i){
-          return h("button",{key:x.brand+"-"+x.start+"-"+i,type:"button",className:cls("workspace-row",selected===x&&"selected"),onClick:function(){props.onSelect(x.brand);}},
+          return h("button",{key:x.brand+"-"+x.start+"-"+i,type:"button",className:cls("workspace-row",selected===x&&"selected"),onClick:function(){props.onSelect(eventKey(x));}},
             h("span",{className:"workspace-row-number"},""+(i+1)),
             h("span",{className:"workspace-row-copy"},h("strong",null,x.brand),h("small",null,x.title)),
             h("span",{className:"row-number"},"행사")
@@ -289,7 +290,7 @@
   }
 
   function ContextCard(props) {
-    return h("article",{className:"csk-context-card"},
+    return h("article",{className:"csk-context-card rounded-2xl"},
       h("span",{className:"context-eyebrow"},props.eyebrow),
       h("strong",null,props.title),
       h("p",null,props.note),
@@ -306,7 +307,7 @@
     var sale=products[0],saleText=sale?sale.name+" · PDP "+delta(sale.pdp_change_pct):"상품명 기준 비교 대상 미확보";
     return h("section",{className:"csk-context-section"},
       h("div",{className:"csk-section-head"},h("h2",null,"관련 신호"),h("span",null,"관측 근거 · 인과관계 별도 검증")),
-      h("div",{className:"csk-context-grid"},
+      h("div",{className:"csk-context-grid grid"},
         h(ContextCard,{eyebrow:"WEATHER",title:"서울 기온",note:forecast,link:"../daily_intelligence/index.html",linkLabel:"기온 상세"}),
         h(ContextCard,{eyebrow:"PDP · SALES",title:"주요 상품 동향",note:saleText,link:"../daily_intelligence/index.html",linkLabel:"상품 상세"}),
         h(ContextCard,{eyebrow:"COLUMBIA",title:"브랜드 일정",note:cal.length?cal[0].title:"공식 일정 데이터 미연동",link:"../marketing_operations/index.html",linkLabel:"운영 정보"}),
@@ -360,13 +361,13 @@
     var title=tab==="overview"?"매출 변화의 핵심 원인":tab==="acquisition"?"유입부터 구매전환까지":tab==="products"?"상품별 PDP·구매 흐름":"경쟁사 공식 행사";
     var subtitle=tab==="overview"?"매출 영향액 기준 · 전주 대비 산술분해":tab==="acquisition"?"실제 GA4 소스/매체 집계 · 기간 분리":tab==="products"?"상품명 기준 조회·판매 변화": "공식 기간이 확인된 프로모션만 표시";
     var count=tab==="overview"?drivers.length:tab==="acquisition"?(source.rows||[]).length:tab==="products"?products.length:events.length;
-    return h("div",{className:"csk-react-dashboard"},
-      h("div",{className:"csk-appbar"},
+    return h("div",{className:"csk-react-dashboard w-full mx-auto"},
+      h("div",{className:"csk-appbar items-center gap-4"},
         h("div",{className:"csk-appbrand"},
           h("span",{className:"csk-brand-mark","aria-hidden":"true"},"◆"),
           h("div",null,h("strong",null,"COLUMBIA"),h("small",null,"E-COMM INTELLIGENCE"))
         ),
-        h("nav",{className:"csk-top-tabs","aria-label":"분석 분류"},
+        h("nav",{className:"csk-top-tabs flex items-center","aria-label":"분석 분류"},
           tabs.map(function(t){return h("button",{key:t.id,type:"button",className:cls("csk-top-tab",tab===t.id&&"active"),
             "aria-current":tab===t.id?"page":undefined,onClick:function(){setTab(t.id);}},t.label);})
         ),
@@ -377,7 +378,7 @@
           h("p",null,attr(ops.weekly && ops.weekly.period)," · 직전 7일 ",attr(ops.weekly && ops.weekly.comparison_period))),
         h("a",{className:"csk-header-link",href:"../daily_intelligence/index.html"},"전체 리포트 보기 ↗")
       ),
-      h("section",{className:"csk-kpi-grid","aria-label":"실제 운영 주간 KPI"},
+      h("section",{className:"csk-kpi-grid grid","aria-label":"실제 운영 주간 KPI"},
         metrics.length?metrics.map(function(m){return h(KpiCard,{key:m.key,item:m});}):
           h(EmptyState,{title:"운영 KPI 근거 없음",note:"완전한 주간 세션·주문·매출 합계를 확인할 수 없습니다."})
       ),
@@ -385,7 +386,7 @@
         h("div",null,h("span",null,"EXECUTIVE WORKSPACE"),h("h2",null,title),h("p",null,subtitle)),
         h("span",{className:"csk-workspace-count"},fmt(count)+"개 항목")
       ),
-      h("section",{className:"csk-workspace","aria-label":"선택한 의사결정 분석"},
+      h("section",{className:"csk-workspace rounded-2xl","aria-label":"선택한 의사결정 분석"},
         h("div",{className:"csk-workspace-toolbar"},h("strong",null,title),h("span",null,attr(ops.report_date)," 기준")),
         tab==="overview"?h(CauseWorkspace,{causes:drivers,selected:causeId,onSelect:setCause,onTab:setTab}):
         tab==="acquisition"?h(SourceWorkspace,{source:source,ops:ops,group:group,onGroup:setGroup,search:search,onSearch:setSearch,selected:selectedSource,onSelect:setSource,showAll:showAll,onToggleAll:function(){setShowAll(!showAll);}}):
