@@ -494,6 +494,87 @@ async function loadProductSignals(){
  drawProductWindow();
 }
 
+
+/* Customer order cohort: admin/member purchase history. NEVER GA4 new users.
+   No client-side member identifiers; source JSON only contains aggregates. */
+function renderCustomerComparison(data){
+ var panel=document.getElementById("fm-customer");if(!panel)return;
+ var status=panel.querySelector("#fm-customer-status"),
+     cards=panel.querySelector("#fm-customer-cards"),
+     bridge=panel.querySelector("#fm-customer-bridge"),
+     quality=panel.querySelector("#fm-customer-quality"),
+     period=panel.querySelector("#fm-customer-period");
+ if(!data||data.status!=="measured_observed_first_purchase"){
+  var why={blocked_credentials:"주문 이력 접근 권한 확인 필요",
+           unavailable_source:"주문 원본·과거 구매 이력 미확보",
+           stale_source:"주문 데이터가 행사 종료일까지 갱신되지 않음",
+           insufficient_history:"과거 구매 이력이 부족해 첫 구매를 확정할 수 없음",
+           low_member_coverage:"회원 미분류 주문이 많아 비교 불가",
+           query_error:"집계 실패 — 최신 검증 자료 확인 필요"};
+  if(status)status.textContent=why[data?.status]||"고객별 구매 이력 검증 대기 — 임의의 신규·기존 수치 미표시";
+  if(cards)cards.innerHTML='<div class="fm-customer-card"><small>신규 구매자</small><strong>검증 대기</strong></div>'+
+    '<div class="fm-customer-card"><small>기존 구매자</small><strong>검증 대기</strong></div>';
+  if(bridge)bridge.innerHTML="";
+  if(quality)quality.textContent="구매이력이 검증되기 전에는 GA4 신규 방문자를 첫 구매 고객으로 대체하지 않습니다.";
+  return;
+ }
+ var yrs=data.years||{},prior=yrs["2025"],current=yrs["2026"];
+ if(!prior||!current||!prior.total||!current.total)return;
+ var sum=function(x,k){return ["new","existing","unknown"].reduce(function(n,c){return n+(Number(x[c]?.[k])||0)},0)};
+ var valid=["2025","2026"].every(function(y){
+    var obj=yrs[y];return sum(obj,"revenue")===obj.total.revenue && sum(obj,"orders")===obj.total.orders;
+ });
+ if(!valid){
+  if(status)status.textContent="매출·주문 합계 대사 불일치 — 고객군 결과 표시 보류";
+  if(cards)cards.innerHTML="";if(bridge)bridge.innerHTML="";
+  return;
+ }
+ var span=data.period||{};
+ if(period)period.textContent=(span["2026"]||[]).join("~")+" vs "+(span["2025"]||[]).join("~");
+ if(status)status.textContent="확인된 과거 구매 이력 기준 · 주문 원천 실측 · GA4 주문매출과 별도";
+ function card(key,title){
+  var a=prior[key]||{},b=current[key]||{},pre=Number(a.revenue||0),now=Number(b.revenue||0);
+  var change=now-pre,maximum=Math.max(1,pre,now),changePct=pre>0?
+    ((now/pre-1)*100):null;
+  var amount=changePct===null?(now>0?"전년 0원":"0.0%"):
+     (changePct>0?"+":"")+changePct.toFixed(1)+"%";
+  return '<article class="fm-customer-card '+(key==="new"?"new":"existing")+'">'+
+    '<div class="fm-customer-card-head"><span>'+esc(title)+'</span><strong class="'+(change<0?"negative":"")+'">'+
+      esc(fmSigned(change))+'</strong></div>'+
+    '<div class="fm-customer-row"><small>매출 YoY</small><b class="'+(change<0?"negative":"")+'">'+esc(amount)+'</b></div>'+
+    '<div class="fm-customer-chart" role="img" aria-label="'+esc(title)+
+      ' 2025 '+esc(fmt(pre,"revenue"))+' 2026 '+esc(fmt(now,"revenue"))+'">'+
+    '<div><small>25</small><span><i class="prev" style="width:'+Math.max(0,pre/maximum*100).toFixed(1)+'%"></i></span><b>'+esc(fmt(pre,"revenue"))+'</b></div>'+
+    '<div><small>26</small><span><i class="current" style="width:'+Math.max(0,now/maximum*100).toFixed(1)+'%"></i></span><b>'+esc(fmt(now,"revenue"))+'</b></div></div>'+
+    '<div class="fm-customer-stats"><div><small>구매자 수</small><b>'+esc(String(a.buyers||0))+' → '+esc(String(b.buyers||0))+'명</b></div>'+
+    '<div><small>주문 수</small><b>'+esc(String(a.orders||0))+' → '+esc(String(b.orders||0))+'건</b></div>'+
+    '<div><small>객단가</small><b>'+esc(fmt(a.aov,"revenue"))+' → '+esc(fmt(b.aov,"revenue"))+'</b></div>'+
+    '<div><small>매출 비중</small><b>'+esc(String(a.revenue_share_pct||0))+' → '+esc(String(b.revenue_share_pct||0))+'%</b></div></div>'+
+    '</article>';
+ }
+ if(cards)cards.innerHTML=card("new","첫 구매 고객 (관측 이력)")+
+                        card("existing","재구매 고객 (기존 이력)");
+ var totalDelta=Number(data.total_revenue_delta),groups=[
+  ["new","첫 구매"],["existing","재구매"],["unknown","미분류"]];
+ var m=Math.max(1,...groups.map(function(x){return Math.abs(Number(data.deltas?.[x[0]]?.revenue)||0)}));
+ var segmentBars=groups.map(function(x){
+  var d=Number(data.deltas?.[x[0]]?.revenue)||0;
+  return '<div class="fm-customer-bridge-row '+(d<0?"negative":"")+'">'+
+   '<span>'+esc(x[1])+'</span><div class="fm-customer-track"><i style="width:'+(Math.abs(d)/m*100).toFixed(1)+'%"></i></div>'+
+   '<strong>'+esc(fmSigned(d))+'</strong></div>';
+ }).join("");
+ if(bridge)bridge.innerHTML='<div class="fm-customer-bridge-title"><strong>매출 증감에 대한 고객군 기여</strong>'+
+   '<small>관측된 관리자 주문매출 · 합산 검증</small></div>'+segmentBars+
+   '<div class="fm-customer-bridge-total"><span>고객군 합계</span><b>'+
+   esc(fmSigned(totalDelta))+'</b></div>';
+ if(quality)quality.textContent="관측 구매이력 "+esc(data.history_coverage?.min_order_date||"")+"부터 "+
+    "· 회원 식별 불가 주문 별도 표시 · 회원가입 기준 신규/기존과 다름 · GA4 매출과 합산 금지";
+}
+async function loadCustomerCohorts(){
+ try{renderCustomerComparison(await getJSON("./winter_festival_customer_yoy_2026.json"))}
+ catch(e){renderCustomerComparison(null)}
+}
+
 function renderLiveAggregate(){
  var rootEl=$("#fm-live-aggregate"),d=app.data||{},e=d.event||{};
  if(!rootEl)return;
@@ -721,7 +802,7 @@ async function load(interactive){
 root.querySelectorAll("[data-fm-view]").forEach(function(el){el.addEventListener("click",function(){app.view=el.getAttribute("data-fm-view");render()})});
 root.querySelectorAll("[data-fm-filter]").forEach(function(el){el.addEventListener("click",function(){app.filter=el.getAttribute("data-fm-filter");render()})});
 $("#fm-metric").addEventListener("change",function(e){app.metric=e.target.value;render()});
-$("#fm-refresh").addEventListener("click",function(){load(true);loadProductSignals()});
+$("#fm-refresh").addEventListener("click",function(){load(true);loadProductSignals();loadCustomerCohorts()});
 $("#fm-method").addEventListener("click",function(){openMethod()});
 var drawer=document.getElementById("fm-drawer");
 if(drawer){
@@ -758,4 +839,5 @@ if(!reduce && "IntersectionObserver" in window){
 }
 load(false);
 loadProductSignals();
+loadCustomerCohorts();
 })();
