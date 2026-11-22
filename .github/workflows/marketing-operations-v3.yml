@@ -13,6 +13,9 @@ on:
     paths:
       - ".github/workflows/marketing-operations-v3.yml"
       - "scripts/build_marketing_operations_v3.py"
+      - "scripts/build_action_outcome_tracker.py"
+      - "config/marketing_action_log.json"
+      - "tests/test_action_outcome_tracker.py"
       - "scripts/csk_marketing_extensions.py"
       - "scripts/sync_csk_ops_issues.py"
       - "tests/test_marketing_operations_v3.py"
@@ -46,6 +49,7 @@ jobs:
             reports/daily_digest/data
             reports/marketing_intelligence_v2
             reports/marketing_operations
+            reports/decision_health
       - name: Materialize slim competitor source snapshots
         shell: bash
         run: |
@@ -66,7 +70,8 @@ jobs:
           set -euo pipefail
           python -m unittest discover -s tests -p 'test_marketing_operations_v3.py' -v
           python -m unittest discover -s tests -p 'test_csk_marketing_extensions.py' -v
-          python -m py_compile scripts/build_marketing_operations_v3.py scripts/sync_csk_ops_issues.py scripts/csk_marketing_extensions.py
+          python -m unittest discover -s tests -p 'test_action_outcome_tracker.py' -v
+          python -m py_compile scripts/build_marketing_operations_v3.py scripts/build_action_outcome_tracker.py scripts/sync_csk_ops_issues.py scripts/csk_marketing_extensions.py
       - name: Produce source-backed executive, calendar and recovery reports
         if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_run'
         shell: bash
@@ -74,6 +79,8 @@ jobs:
           set -euo pipefail
           test -s reports/marketing_intelligence_v2/latest.json
           python scripts/build_marketing_operations_v3.py
+          python scripts/build_action_outcome_tracker.py
+          test -s reports/decision_health/action_outcomes.json
           python - <<'PY'
           import json
           from pathlib import Path
@@ -96,7 +103,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A reports/marketing_operations/
+          git add -A reports/marketing_operations/ reports/decision_health/action_outcomes.json
           if git diff --cached --name-only | grep -Eq '(private_data|crm_exports|user_id)'; then
             echo "[BLOCKED] Sensitive file staged"; exit 1
           fi
