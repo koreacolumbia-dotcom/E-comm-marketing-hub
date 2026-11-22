@@ -32,6 +32,55 @@ def valid_temp(r):
     if str(r.get("station"))!="108" and not (str(r.get("station"))=="47108099999" and r.get("source")=="NOAA GSOD Seoul WMO 47108"):return None
     v=r.get("mean_temp");return float(v) if isinstance(v,(int,float)) and isfinite(v) and -60<=v<=60 else None
 
+
+def assess_weather_association(temperatures, quantities, source=None):
+    """Conservative 14-day descriptive weather/sales screen, never a causal estimate.
+
+    Requires complete, actual GA4 item units on the same calendar dates as observed
+    temperatures. A missing bestseller entry is NOT a zero-sale observation.
+    Cold/warm buckets are descriptive, not an experimental control group.
+    """
+    result={"status":"insufficient","label":"판단 불가","correlation":None,
+            "paired_days":0,"cold_days":0,"warm_days":0,"cold_avg_units":None,
+            "warm_avg_units":None,"total_units":None,"sales_source":source,
+            "method":"14일 실측 기온과 GA4 상품 일별 판매수량의 피어슨 상관관계",
+            "causal":False,"reason":"기온·일별 판매 원본이 충분하지 않음"}
+    if source!="ga4_purchase_items" or not isinstance(temperatures,list) or not isinstance(quantities,list) or len(temperatures)!=14 or len(quantities)!=14:
+        return result
+    pairs=[(float(t),float(q)) for t,q in zip(temperatures,quantities)
+           if isinstance(t,(int,float)) and not isinstance(t,bool) and isfinite(t)
+           and isinstance(q,(int,float)) and not isinstance(q,bool) and isfinite(q) and q>=0]
+    result["paired_days"]=len(pairs)
+    result["total_units"]=round(sum(q for _,q in pairs),1)
+    cold=[q for t,q in pairs if t<=5]
+    warm=[q for t,q in pairs if t>5]
+    result["cold_days"]=len(cold);result["warm_days"]=len(warm)
+    result["cold_avg_units"]=round(sum(cold)/len(cold),2) if cold else None
+    result["warm_avg_units"]=round(sum(warm)/len(warm),2) if warm else None
+    if len(pairs)<12 or len(cold)<3 or len(warm)<5 or (max(t for t,_ in pairs)-min(t for t,_ in pairs))<6:
+        result["reason"]="관측일·저온/비저온 비교일 부족"
+        return result
+    if sum(q>0 for _,q in pairs)<6 or result["total_units"]<10:
+        result["reason"]="일별 판매 표본 부족 (14일 판매 10개 미만 또는 판매 발생일 6일 미만)"
+        return result
+    mt=sum(t for t,_ in pairs)/len(pairs);mq=sum(q for _,q in pairs)/len(pairs)
+    cov=sum((t-mt)*(q-mq) for t,q in pairs)
+    tt=sum((t-mt)**2 for t,_ in pairs)
+    qq=sum((q-mq)**2 for _,q in pairs)
+    if tt<=0 or qq<=0:
+        result["reason"]="기온 또는 판매량 변동이 없어 상관 비교 불가"
+        return result
+    corr=cov/(tt*qq)**0.5
+    result["correlation"]=round(corr,2)
+    cold_avg=result["cold_avg_units"];warm_avg=result["warm_avg_units"]
+    if corr<=-0.6 and cold_avg>=1.35*warm_avg and cold_avg-warm_avg>=0.5:
+        result.update(status="signal",label="날씨 연관 신호 있음",
+                      reason="추운 날 판매가 높은 패턴 관측 · 행사/재고 등 다른 요인 통제 전")
+    else:
+        result.update(status="weak",label="뚜렷한 연관 신호 없음",
+                      reason="최근 14일에 설정된 강한 역상관·저온 판매 증가 기준 미충족")
+    return result
+
 def build_signals(d,history=(),events=None,discounts=None,weather=None,limit=3):
     end=date.fromisoformat(d["end_date"]); day=end.isoformat()
     dates=[(end-timedelta(days=i)).isoformat() for i in range(13,-1,-1)]
