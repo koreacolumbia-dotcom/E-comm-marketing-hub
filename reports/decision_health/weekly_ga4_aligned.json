@@ -20,7 +20,42 @@
     "realized_item_revenue_effect": 950.72,
     "interpretation": "Arithmetic only: realized item revenue includes discount and SKU mix."
   },
-  "basket_distribution": null,
+  "basket_distribution": {
+    "previous": {
+      "total_orders": 790,
+      "classified_orders": 773,
+      "classified_share_pct": 97.85,
+      "single_item_orders": 618,
+      "multi_item_orders": 155,
+      "single_item_pct": 79.95,
+      "multi_item_pct": 20.05,
+      "two_item_orders": 92,
+      "three_plus_item_orders": 63,
+      "three_plus_pct": 8.15,
+      "multi_item_avg_units": 3.677,
+      "single_item_revenue": 78401960.0,
+      "multi_item_revenue": 55697160.0
+    },
+    "current": {
+      "total_orders": 876,
+      "classified_orders": 865,
+      "classified_share_pct": 98.74,
+      "single_item_orders": 682,
+      "multi_item_orders": 183,
+      "single_item_pct": 78.84,
+      "multi_item_pct": 21.16,
+      "two_item_orders": 125,
+      "three_plus_item_orders": 58,
+      "three_plus_pct": 6.71,
+      "multi_item_avg_units": 2.645,
+      "single_item_revenue": 89967804.0,
+      "multi_item_revenue": 42039829.0
+    },
+    "single_item_change_pp": -1.11,
+    "three_plus_change_pp": -1.44,
+    "multi_item_avg_units_change": -1.032,
+    "interpretation": "GA4 transaction item quantities; percentages among classifiable orders, not all orders."
+  },
   "sales_revenue_bridge": {
     "qty_effect_krw": -2857341.06,
     "realized_unit_revenue_effect_krw": 789456.06,
@@ -33,30 +68,23 @@
     "note": "Accounting identity, not proof of coupon/discount/refund causality."
   },
   "category_bridge": {
-    "category_mix_effect_per_item": -5591.31,
-    "within_category_effect_per_item": 6262.05,
+    "category_mix_effect_per_item": -6409.08,
+    "within_category_effect_per_item": 7079.82,
     "realized_item_price_delta": 670.74,
     "rows": [
       {
         "category": "OUTER",
         "share_previous_pct": 9.18,
-        "share_current_pct": 6.43,
-        "mix_effect_per_item": -10003.74,
-        "within_category_effect_per_item": 690.08
+        "share_current_pct": 6.09,
+        "mix_effect_per_item": -11089.73,
+        "within_category_effect_per_item": -142.29
       },
       {
         "category": "SALE",
         "share_previous_pct": 44.36,
-        "share_current_pct": 47.86,
-        "mix_effect_per_item": 4553.92,
-        "within_category_effect_per_item": 6082.17
-      },
-      {
-        "category": "FLEECE",
-        "share_previous_pct": 22.39,
-        "share_current_pct": 17.92,
-        "mix_effect_per_item": -4159.53,
-        "within_category_effect_per_item": -1268.91
+        "share_current_pct": 47.51,
+        "mix_effect_per_item": 4170.02,
+        "within_category_effect_per_item": 7895.91
       },
       {
         "category": "FOOTWEAR",
@@ -64,6 +92,13 @@
         "share_current_pct": 5.92,
         "mix_effect_per_item": 3907.24,
         "within_category_effect_per_item": -923.93
+      },
+      {
+        "category": "FLEECE",
+        "share_previous_pct": 22.39,
+        "share_current_pct": 18.61,
+        "mix_effect_per_item": -3507.42,
+        "within_category_effect_per_item": -1432.52
       },
       {
         "category": "CAP",
@@ -2246,6 +2281,32 @@
       ]
     },
     {
+      "name": "M’s Eagle Bay Hybrid Insulation Straight Pants",
+      "codes": [
+        "C74YM8678010"
+      ],
+      "current_units": 2,
+      "previous_units": 0,
+      "current_revenue": 498000.0,
+      "previous_revenue": 0.0,
+      "daily_units": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1
+      ]
+    },
+    {
       "name": "TELLURIX TITANIUM OUTDRY MID WIDE",
       "codes": [
         "C76BI9380010",
@@ -2270,32 +2331,6 @@
         0,
         0,
         0
-      ]
-    },
-    {
-      "name": "M’s Eagle Bay Hybrid Insulation Straight Pants",
-      "codes": [
-        "C74YM8678010"
-      ],
-      "current_units": 2,
-      "previous_units": 0,
-      "current_revenue": 498000.0,
-      "previous_revenue": 0.0,
-      "daily_units": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        1
       ]
     },
     {
@@ -2782,33 +2817,6 @@
       ]
     },
     {
-      "name": "Sauvie Sky Fleece Jacket",
-      "codes": [
-        "C74AE5715010",
-        "C74AE5715235"
-      ],
-      "current_units": 2,
-      "previous_units": 0,
-      "current_revenue": 398000.0,
-      "previous_revenue": 0.0,
-      "daily_units": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        1
-      ]
-    },
-    {
       "name": "Arctic Crest II Hooded Full Zip",
       "codes": [
         "C73AE9364010",
@@ -2833,6 +2841,33 @@
         1,
         0,
         0
+      ]
+    },
+    {
+      "name": "Sauvie Sky Fleece Jacket",
+      "codes": [
+        "C74AE5715010",
+        "C74AE5715235"
+      ],
+      "current_units": 2,
+      "previous_units": 0,
+      "current_revenue": 398000.0,
+      "previous_revenue": 0.0,
+      "daily_units": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1
       ]
     },
     {
@@ -2875,6 +2910,9 @@
       "single_item_orders": 618,
       "multi_item_orders": 155,
       "unknown_basket_orders": 17,
+      "two_item_orders": 92,
+      "three_plus_item_orders": 63,
+      "multi_item_units": 570.0,
       "single_item_revenue": 78401960.0,
       "multi_item_revenue": 55697160.0,
       "bad_quantity": 0,
@@ -2893,6 +2931,9 @@
       "single_item_orders": 682,
       "multi_item_orders": 183,
       "unknown_basket_orders": 11,
+      "two_item_orders": 125,
+      "three_plus_item_orders": 58,
+      "multi_item_units": 484.0,
       "single_item_revenue": 89967804.0,
       "multi_item_revenue": 42039829.0,
       "bad_quantity": 0,
