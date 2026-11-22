@@ -213,6 +213,14 @@ def build(operations: dict, intelligence: dict, content: dict,
             "how_to_verify": "기상청 108 관측소의 요청 응답 코드·유효 일수·최종 적재일을 점검하고 관측치만 사용",
             "blocked_by": ["14일 실측 기온"], "sources": [INPUTS["intelligence"]],
         })
+    metadata = warehouse_metadata or {}
+    order_schema = metadata.get("order_product_mart") or {}
+    admin_schema = metadata.get("admin_mart") or {}
+    def age_days(source):
+        m = day(source.get("last_modified"))
+        return (report_day - m).days if m is not None and report_day is not None else None
+    order_mart_lag = age_days(order_schema)
+    admin_mart_lag = age_days(admin_schema)
     stale = {k:v for k,v in readiness.items() if v not in ("ready", "available", "fresh")}
     if stale:
         problems.append({
@@ -225,6 +233,28 @@ def build(operations: dict, intelligence: dict, content: dict,
             "how_to_verify": "각 원천의 마지막 적재 시각·건수·유효 스키마를 직접 조회하고 익일 동일 조건 재검증",
             "blocked_by": list(stale), "sources": [INPUTS["operations"]],
         })
+    if metadata.get("status")=="metadata_inspected" and (
+        (order_mart_lag is not None and order_mart_lag > 7) or
+        (admin_mart_lag is not None and admin_mart_lag > 7)
+    ):
+        source_problem=next((p for p in problems if p["id"]=="SOURCE_FRESHNESS"),None)
+        if source_problem:
+            source_problem["status"]="source_error_confirmed"
+            source_problem["hypothesis_status"]="confirmed_metadata_staleness"
+            source_problem["cause_component"]=(
+                f"주문상품마트 마지막 수정 {order_schema.get('last_modified','미확인')} "
+                f"({order_mart_lag}일 지연); 관리자 일별마트 마지막 수정 "
+                f"{admin_schema.get('last_modified','미확인')} ({admin_mart_lag}일 지연). "
+                "BigQuery 테이블 메타데이터로 직접 확인함."
+            )
+            source_problem["finding"] += (
+                f" · 주문마트 {order_mart_lag}일, 관리자마트 {admin_mart_lag}일 갱신 지연"
+            )
+            source_problem["cause_hypotheses"]=[]
+            source_problem["how_to_verify"]=(
+                "MSSQL → BigQuery 적재 작업 실행/오류 로그, 원본 주문상품마트 권한 및 마지막 성공 시각 확인. "
+                "재적재 후 행 수·일자·쿠폰 컬럼 중복/정합성 검증"
+            )
     content_quality = content.get("quality") or {}
     observed_market = int(num(content_quality.get("market_count")) or 0)
     observed_owned = int(num(content_quality.get("owned_count")) or 0)
@@ -272,8 +302,6 @@ def build(operations: dict, intelligence: dict, content: dict,
             weather_problem["how_to_verify"] = "공식 API Hub 키의 서비스 사용 승인·유효기간·허용 IP/권한 점검. 재발급 전 추가 요청 중단"
             weather_problem["blocked_by"] = ["기상청 API 인증/접근 권한"]
     ga4 = ga4_purchase or {}
-    metadata = warehouse_metadata or {}
-    order_schema = metadata.get("order_product_mart") or {}
     coupon_column = (order_schema.get("required_fields") or {}).get("order_use_coupon_price")
     matched = ga4.get("report_date") == (report_day.isoformat() if report_day else None)
     if matched and ga4.get("status") == "ga4_measured" and ga4.get("item_aov_bridge"):
@@ -362,6 +390,8 @@ def build(operations: dict, intelligence: dict, content: dict,
             "order_mart_accessible": order_schema.get("accessible"),
             "coupon_column_present": coupon_column,
             "order_mart_last_modified": order_schema.get("last_modified"),
+            "order_mart_lag_days": order_mart_lag,
+            "admin_mart_lag_days": admin_mart_lag,
         },
         "problems": sorted(problems,key=lambda p: ({"P0":0,"P1":1,"P2":2}.get(p["priority"],3),p["id"])),
         "crawl": {
