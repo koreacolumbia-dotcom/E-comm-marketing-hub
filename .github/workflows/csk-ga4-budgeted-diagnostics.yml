@@ -12,6 +12,8 @@ on:
       - 'scripts/csk_ga4_cost_guard.py'
       - 'scripts/csk_warehouse_metadata.py'
       - 'scripts/csk_ga4_coupon_probe.py'
+      - 'scripts/csk_ga4_product_funnel.py'
+      - 'tests/test_csk_ga4_product_funnel.py'
       - 'tests/test_csk_ga4_coupon_probe.py'
       - 'tests/test_csk_warehouse_metadata.py'
       - 'tests/test_csk_ga4_cost_guard.py'
@@ -35,6 +37,7 @@ jobs:
             scripts/csk_ga4_cost_guard.py
             scripts/csk_warehouse_metadata.py
             scripts/csk_ga4_coupon_probe.py
+            scripts/csk_ga4_product_funnel.py
             scripts/build_problem_diagnosis.py
             tests
             reports/daily_digest/data/daily
@@ -74,6 +77,21 @@ jobs:
           print('[COST-AUDIT] status',data['status'],'date',data['report_date'],
                 'billed_bytes',data.get('cost',{}).get('billed_bytes','not_run'))
           PY
+      - name: Query 14-day matched-product session funnel with a separate 1-GiB hard cap
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+        run: |
+          python -m unittest discover -s tests -p 'test_csk_ga4_product_funnel.py' -v
+          python scripts/csk_ga4_product_funnel.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          out=json.loads(Path('reports/decision_health/product_funnel_evidence.json').read_text())
+          assert out['schema']==1 and out['cost']['maximum_bytes_billed']==1073741824
+          assert out['status'] in {'source_not_aligned','blocked_credentials','blocked_estimate','blocked_budget','query_error','no_matching_events','ga4_measured'}
+          assert not any(k in str(out).lower() for k in ('user_pseudo_id','ga_session_id','email_address'))
+          print('[PRODUCT FUNNEL] status',out['status'],'products',len(out.get('products',[])))
+          PY
       - name: Inspect official GA4 and order mart metadata with zero scanned bytes
         env:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
@@ -110,7 +128,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add reports/decision_health/ga4_purchase_diagnostics.json reports/decision_health/ga4_coupon_usage.json reports/decision_health/source_metadata.json reports/decision_health/diagnoses.json
+          git add reports/decision_health/ga4_purchase_diagnostics.json reports/decision_health/ga4_coupon_usage.json reports/decision_health/product_funnel_evidence.json reports/decision_health/source_metadata.json reports/decision_health/diagnoses.json
           if git diff --cached --quiet; then echo "[GA4] no changes"; exit 0; fi
           git commit -m "Update budget-capped GA4 product and root-cause evidence"
           for attempt in 1 2 3; do
