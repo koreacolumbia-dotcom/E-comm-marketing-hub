@@ -429,6 +429,37 @@
       )
     );
   }
+  function CompetitorEvidenceCoverage(props) {
+    var quality=props.quality||{},content=props.content||{},
+      c=content.quality||{},n=content.purpose_confidence||{},
+      target=num(quality.denominator)?quality.denominator:0,
+      verified=num(quality.structured_evidence_brands)?quality.structured_evidence_brands:null,
+      candidates=num(quality.discount_pair_brands)?quality.discount_pair_brands:null,
+      samples=num(c.market_count)?c.market_count:null,
+      insufficient=num(n.insufficient)?n.insufficient:null;
+    return h("section",{className:"csk-competition-coverage","aria-label":"경쟁사 근거 품질"},
+      h("div",{className:"csk-competition-head"},
+        h("div",null,h("span",null,"COMPETITOR EVIDENCE"),
+          h("h2",null,"경쟁사 비교 · 검증 상태")),
+        h("span",{className:"csk-competition-pending"},verified===0?"할인율 비교 판단 보류":"근거 확인 필요")),
+      h("div",{className:"csk-competition-metrics"},
+        h("div",null,h("span",null,"할인 가격 후보 브랜드"),
+          h("strong",null,candidates==null?"—":candidates+" / "+target)),
+        h("div",null,h("span",null,"구조화 가격 검증"),
+          h("strong",null,verified==null?"—":verified+" / "+target)),
+        h("div",null,h("span",null,"콘텐츠 최근 관측"),
+          h("strong",null,samples==null?"—":samples+"건")),
+        h("div",null,h("span",null,"목적 분류 불충분"),
+          h("strong",null,insufficient==null?"—":insufficient+"건"))
+      ),
+      h("p",{className:"csk-competition-note"},
+        "수집 후보를 검증된 가격 근거로 취급하지 않습니다. 미수집 브랜드는 할인 없음 또는 콘텐츠 없음이 아닙니다."),
+      h("div",{className:"csk-competition-links"},
+        h("a",{href:"../competitor_intelligence/latest-quality.json",target:"_blank",rel:"noopener noreferrer"},"가격 품질 근거"),
+        h("a",{href:"../competitor_content/strategy-summary.json",target:"_blank",rel:"noopener noreferrer"},"콘텐츠 분류 근거"))
+    );
+  }
+
   function ExecutionProgress(props) {
     var tracker=props.outcomes||{},ops=props.ops||{},ready=tracker.status==="ready" &&
       tracker.report_date===ops.report_date && Array.isArray(tracker.actions);
@@ -696,6 +727,7 @@
         metrics.length?metrics.map(function(m){return h(KpiCard,{key:m.key,item:m});}):
           h(EmptyState,{title:"운영 KPI 근거 없음",note:"완전한 주간 세션·주문·매출 합계를 확인할 수 없습니다."})
       ),
+      tab==="market"?h(CompetitorEvidenceCoverage,{quality:data.competitiveQuality,content:data.contentStrategy}):null,
       tab==="overview"?h(CurrentYearCampaignContext,{ops:ops}):null,
       tab==="overview"?h(PriorYearCampaignContext,{ops:ops}):null,
       h("div",{className:"csk-workspace-heading"},
@@ -727,7 +759,9 @@
       source:"./source_medium_weekly.json",
       funnel:"./product_funnel_evidence.json",
       pictures:"./official_product_images.json",
-      outcomes:"./action_outcomes.json"
+      outcomes:"./action_outcomes.json",
+      competitiveQuality:"../competitor_intelligence/latest-quality.json",
+      contentStrategy:"../competitor_content/strategy-summary.json"
     };
     var keys=Object.keys(sources),token=String(Date.now());
     Promise.all(keys.map(function(k){
