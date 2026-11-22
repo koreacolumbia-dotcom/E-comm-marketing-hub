@@ -10,6 +10,10 @@ on:
       - 'reports/daily_intelligence/index.html'
       - 'reports/daily_intelligence/coverage.js'
       - 'scripts/personal_intelligence/build_dashboard.py'
+      - 'scripts/build_problem_diagnosis.py'
+      - 'tests/test_problem_diagnosis.py'
+      - 'reports/decision_health/diagnosis.js'
+      - 'reports/decision_health/index.html'
 permissions:
   contents: write
 concurrency:
@@ -48,6 +52,11 @@ jobs:
           print('ASOS parser fixtures passed')
           PY
           python scripts/personal_intelligence/build_dashboard.py --out reports/daily_intelligence/latest.json
+      - name: Build evidence-based problem diagnosis from aggregate snapshots
+        run: |
+          python -m unittest discover -s tests -p 'test_problem_diagnosis.py' -v
+          python scripts/build_problem_diagnosis.py
+          test -s reports/decision_health/diagnoses.json
       - name: Validate navigation and aggregate output
         run: |
           python - <<'PY'
@@ -97,6 +106,16 @@ jobs:
           node --check /tmp/intelligence.js
           node --check reports/daily_intelligence/timeline.js
           node --check reports/daily_intelligence/coverage.js
+          node --check reports/decision_health/diagnosis.js
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          diag=json.loads(Path('reports/decision_health/diagnoses.json').read_text(encoding='utf-8'))
+          assert diag['schema']==1 and diag['report_date']
+          assert all(p.get('causal_confirmed') is False for p in diag['problems'])
+          assert 'src="./diagnosis.js' in Path('reports/decision_health/index.html').read_text(encoding='utf-8')
+          print('Decision diagnosis valid; missing data preserved')
+          PY
           node --check assets/dashboard-redesign.js
           grep -Fq '일일 통합 분석' reports/daily_intelligence/index.html
           grep -Fq 'ko(names[n-1])' reports/daily_intelligence/index.html
@@ -105,7 +124,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add reports/daily_intelligence/latest.json
+          git add reports/daily_intelligence/latest.json reports/decision_health/diagnoses.json
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "Refresh daily intelligence aggregate snapshot"
           for attempt in 1 2 3; do
