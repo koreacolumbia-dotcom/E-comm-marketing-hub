@@ -158,3 +158,20 @@ body.festival-motion [data-fm-tip]:hover:after{content:attr(data-fm-tip);positio
  animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
  .fm-reveal{opacity:1;transform:none}
 }
+
+.fm-drivers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:14px 0 18px}
+.fm-driver{min-width:0;background:linear-gradient(135deg,rgba(31,57,61,.64),rgba(22,31,41,.78));
+ border:1px solid rgba(71,203,176,.18);border-radius:12px;padding:14px 15px;position:relative;overflow:hidden}
+.fm-driver:before{content:"";position:absolute;left:0;right:0;top:0;height:2px;
+ background:linear-gradient(90deg,#32dcb1,transparent);opacity:.55}
+.fm-driver:nth-child(2):before{background:linear-gradient(90deg,#ef88a4,transparent)}
+.fm-driver:nth-child(3):before{background:linear-gradient(90deg,#ffca72,transparent)}
+.fm-driver span{display:block;color:#79d7ba;font-size:10px;letter-spacing:.02em;font-weight:800;margin-bottom:9px}
+.fm-driver:nth-child(2) span{color:#f2a6bc}
+.fm-driver:nth-child(3) span{color:#f6d79c}
+.fm-driver strong{display:block;font-size:13px;color:#e0f0f5;line-height:1.45}
+.fm-driver-value{font-size:20px;font-weight:850;color:#f2f9fa;letter-spacing:-.035em;margin:11px 0 7px}
+.fm-driver-value small{font-size:11px;font-weight:650;color:#a8c7d2}
+.fm-driver p{font-size:10px!important;line-height:1.7!important;color:#9fb8c2!important;margin:0!important}
+@media(max-width:730px){.fm-drivers{grid-template-columns:1fr;gap:7px}
+.fm-driver{padding:12px 13px}.fm-driver-value{font-size:19px;margin:6px 0 4px}}
