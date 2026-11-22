@@ -1,0 +1,58 @@
+name: CSK Direct Report SaaS Theme
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/csk-saas-direct-theme.yml'
+      - 'scripts/apply_csk_saas_theme.py'
+      - 'assets/csk-saas-unified.css'
+      - 'assets/csk-saas-standalone.js'
+      - 'reports/**/*.html'
+      - 'edm-intelligence.html'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: csk-direct-report-saas
+  cancel-in-progress: true
+
+jobs:
+  theme-direct-reports:
+    if: github.repository == 'koreacolumbia-dotcom/E-comm-marketing-hub'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Update checked out main
+        run: git pull --ff-only origin main
+      - name: Stamp all non-daily direct pages without changing source metrics
+        run: |
+          python -m py_compile scripts/apply_csk_saas_theme.py
+          python scripts/apply_csk_saas_theme.py
+          python scripts/apply_csk_saas_theme.py --check --quiet
+      - name: Validate route exclusions and standalone page references
+        run: |
+          python -m unittest discover -s tests -p 'test_csk_standalone_theme.py' -v
+          node --check assets/csk-saas-standalone.js
+      - name: Commit regenerated page themes if changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- reports edm-intelligence.html
+          if git diff --cached --quiet; then
+            echo 'Every generated report already matches the common theme.'
+            exit 0
+          fi
+          git commit -m 'style(report): persist shared SaaS design across standalone non-daily URLs'
+          git push origin HEAD:main
+          # GitHub-hosted Pages may not rebuild for GITHUB_TOKEN commits;
+          # explicitly request a source-branch build when the API permits it.
+          gh api -X POST "repos/${{ github.repository }}/pages/builds" >/dev/null 2>&1 || true
