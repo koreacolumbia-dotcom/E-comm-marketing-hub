@@ -26,6 +26,11 @@ def validate(root=ROOT):
     for brand, state in frontier_brands.items():
         assert isinstance(state.get("pending", []), list), f"{brand}: invalid queue"
         assert isinstance(state.get("url_ledger", {}), dict), f"{brand}: invalid ledger"
+        for url, record in state.get("url_ledger", {}).items():
+            parsed = urlsplit(url)
+            assert parsed.scheme == "https" and parsed.hostname, f"{brand}: unsafe ledger URL"
+            assert not parsed.username and not parsed.password and not parsed.fragment, f"{brand}: unsafe ledger authority"
+            assert isinstance(record, dict) and isinstance(record.get("state"), str), f"{brand}: invalid ledger entry"
         pending = state.get("pending", [])
         assert len(pending) == len(set(pending)), f"{brand}: duplicate pending URLs"
         for url in pending:
