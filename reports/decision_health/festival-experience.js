@@ -272,8 +272,37 @@ function renderEventRankings(source,images){
  if(hint)hint.textContent=full?"전체 "+String(rows.length)+"개 스타일 기준 · 상품명 매칭":
     "기존 120개 부분집계 · 전체 TOP5 재검증 대기";
  if(!full){
+  var missing=panel.querySelector("#fm-product-cohort-bars");
+  if(missing)missing.textContent="전체 스타일 집계 검증 후 매출 구성 비교 제공";
   tabs.forEach(function(t){t.disabled=t.getAttribute("data-fm-product-rank")!=="impact";t.title=t.disabled?"전체 스타일 검증 후 활성화":"";});
   return;
+ }
+ var cohortSlot=panel.querySelector("#fm-product-cohort-bars");
+ if(cohortSlot){
+   var groups=[
+     {id:"both",name:"동일 이름·양년 판매"},
+     {id:"only_2025",name:"2025 행사만 관측"},
+     {id:"only_2026",name:"2026 행사만 관측"}
+   ];
+   var effect=Object.fromEntries(groups.map(function(g){return [g.id,0]}));
+   rows.forEach(function(x){if(Object.prototype.hasOwnProperty.call(effect,x.presence)){
+     effect[x.presence]+=Number(x.delta_revenue||0);
+   }});
+   var diff=groups.reduce(function(n,g){return n+effect[g.id]},0);
+   if(Math.abs(diff-Number(source.item_revenue_delta||0))>1){
+     cohortSlot.textContent="연도별 상품 매출 합계 검증 전 — 구성 영향 분석 보류";
+   }else{
+     var maxEffect=Math.max(1,...groups.map(function(g){return Math.abs(effect[g.id])}));
+     cohortSlot.innerHTML=groups.map(function(g){
+       var amount=effect[g.id];
+       return '<div class="fm-product-cohort '+(amount<0?'down':'')+'">'+
+         '<span>'+esc(g.name)+'</span>'+
+         '<strong>'+esc(fmSigned(amount))+'</strong>'+
+         '<div class="fm-product-bar"><i class="'+(amount<0?'down':'')+
+         '" style="width:'+(Math.abs(amount)/maxEffect*100).toFixed(1)+'%"></i></div>'+
+         '</div>';
+     }).join('');
+   }
  }
  tabs.forEach(function(t){
    t.disabled=false;t.title="";
