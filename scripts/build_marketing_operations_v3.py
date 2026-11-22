@@ -203,6 +203,86 @@ def product_triage(v2: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def weekly_yoy(day: dt.date, current_week: dict[str, Any],
+               root: Path = DAILY) -> dict[str, Any]:
+    """Weekday-aligned last-year metrics, exact same BigQuery semantics as TY.
+
+    Never mix historical GA4 API sessions with current BigQuery session keys.
+    Only use per-day matched YoY records from the current-date daily cache,
+    whose YoY anchor is exactly 364 days ago. No partial-week extrapolation.
+    """
+    ly_end = day - dt.timedelta(days=364)
+    result: dict[str, Any] = {
+        "status": "unavailable",
+        "period": f"{ly_end-dt.timedelta(days=6)} ~ {ly_end}",
+        "alignment": "same_weekday_364_days",
+        "source": None,
+        "reference": {"status": "incomplete", "total": None},
+        "yoy_pct": {},
+        "missing_dates": [],
+        "note": "전년 동요일 7일의 동일 GA4 BigQuery 지표 검증 후에만 YoY를 표시합니다."
+    }
+    if not current_week.get("total"):
+        return result
+    totals = {"sessions": 0., "orders": 0., "revenue": 0.}
+    seen_sources: set[str] = set()
+    for i in range(6, -1, -1):
+        date = day - dt.timedelta(days=i)
+        reference_date = date - dt.timedelta(days=364)
+        j = read_json(root / f"{date.isoformat()}.json")
+        overall = (j or {}).get("overall") or {}
+        ty = overall.get("current") or {}
+        ly = overall.get("yoy") or {}
+        kpis = (j or {}).get("kpis") or {}
+        yoy_anchor = (j or {}).get("yoy") or {}
+        source = ty.get("source")
+        current_check = {
+            "sessions": finite(ty.get("sessions")),
+            "orders": finite(ty.get("transactions")),
+            "revenue": finite(ty.get("purchaseRevenue"))
+        }
+        previous = {
+            "sessions": finite(ly.get("sessions")),
+            "orders": finite(ly.get("transactions")),
+            "revenue": finite(ly.get("purchaseRevenue"))
+        }
+        if (j is None or j.get("end_date") != date.isoformat()
+            or yoy_anchor.get("start") != reference_date.isoformat()
+            or yoy_anchor.get("end") != reference_date.isoformat()
+            or source != "ga4_bigquery_session_key_v1" or ly.get("source") != source
+            or any(value is None for value in current_check.values())
+            or any(value is None for value in previous.values())
+            or any(previous[k] < 0 for k in previous)
+            or previous["sessions"] <= 0 or previous["orders"] > previous["sessions"]
+            or any(finite(kpis.get(k)) is None for k in totals)
+            or any(abs(current_check[k]-float(kpis[k])) > (1 if k == "revenue" else 0) for k in totals)):
+            result["missing_dates"].append(reference_date.isoformat())
+            continue
+        seen_sources.add(source)
+        for key in totals:
+            totals[key] += previous[key]
+    if result["missing_dates"] or seen_sources != {"ga4_bigquery_session_key_v1"}:
+        return result
+    ref = {key: round(val, 2) for key, val in totals.items()}
+    ref["cvr"] = totals["orders"] / totals["sessions"]
+    cur = current_week["total"]
+    metrics = {"sessions": cur["sessions"], "orders": cur["orders"],
+               "revenue": cur["revenue"], "cvr": cur["cvr"],
+               "aov": cur["revenue"] / cur["orders"] if cur["orders"] > 0 else None}
+    ref["aov"] = ref["revenue"] / ref["orders"] if ref["orders"] > 0 else None
+    yoy_pct = {}
+    for key, value in metrics.items():
+        base = ref.get(key)
+        yoy_pct[key] = round((value/base-1)*100, 2) if value is not None and base is not None and base > 0 else None
+    result.update(
+        status="ready", source="ga4_bigquery_session_key_v1",
+        reference={"status": "complete", "total": ref},
+        yoy_pct=yoy_pct,
+        note="전년 동일 요일 7일, 364일 오프셋. 동일 BigQuery 세션 정의·상품매출 합계가 아닌 구매매출 기준. 인과 관계는 해석하지 않습니다."
+    )
+    return result
+
+
 def weekly_kpis(day: dt.date, root: Path = DAILY) -> dict[str, Any]:
     """Full 7d windows only. Prevent incomplete-day zero filling."""
     def period(last: dt.date) -> dict[str, Any]:
@@ -231,6 +311,7 @@ def weekly_kpis(day: dt.date, root: Path = DAILY) -> dict[str, Any]:
                           if not missing else None)}
     this = period(day)
     last = period(day - dt.timedelta(days=7))
+    yoy = weekly_yoy(day, this, root)
     changes = {}
     if this["total"] and last["total"]:
         for key in ("sessions", "orders", "revenue", "cvr"):
@@ -241,6 +322,7 @@ def weekly_kpis(day: dt.date, root: Path = DAILY) -> dict[str, Any]:
         "comparison_period": f"{day-dt.timedelta(days=13)} ~ {day-dt.timedelta(days=7)}",
         "status": "ready" if this["total"] and last["total"] else "incomplete",
         "current": this, "previous": last, "wow_pct": changes,
+        "yoy": yoy,
         "caveat": "Daily KPI 합산 기준. 채널/CRM/PDP 품질 게이트와 별개이며 광고·CRM 기여도 아님"
     }
 
