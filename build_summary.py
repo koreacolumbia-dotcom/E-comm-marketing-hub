@@ -1853,6 +1853,10 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
   
 /* KPI Trend mobile: chart-first layout; retain full date data via horizontal scroll. */
 @media (max-width:700px){{
+  #dailyKpi,#weeklyKpi{{padding:0!important;margin-bottom:14px!important;border-radius:0!important;overflow:visible!important;background:transparent!important;box-shadow:none!important}}
+  #dailyKpi>.section-border,#weeklyKpi>.section-border{{display:none!important}}
+  #dailyKpi>.relative,#weeklyKpi>.relative{{padding:12px 10px!important;border-radius:14px!important;background:#fff!important;box-shadow:none!important;border:1px solid #e9edf4!important}}
+  #dailyKpi .trend-panel,#weeklyKpi .trend-panel{{max-width:100%!important;min-width:0!important}}
   .summary-section .trend-panel{{padding:12px!important;margin-top:10px!important;border:0!important;border-radius:14px!important;box-shadow:none!important;background:#fff!important}}
   .summary-section .trend-panel>div:first-child{{gap:5px!important;margin-bottom:8px!important}}
   .summary-section .trend-panel>div:first-child .section-eyebrow{{display:none!important}}
