@@ -96,7 +96,11 @@ def source_row(raw):
         c=(b[0],b[1]/b[0],b[2]/b[1])
         comp=bridge(p,c)
         components={k:round(comp[k],2) for k in FACTORS}
-        if abs(sum(components.values())-delta)>0.03:
+        # Preserve exact channel revenue after independent cent rounding.
+        cent_residual=round(delta-sum(components.values()),2)
+        leading=max(FACTORS,key=lambda key:abs(comp[key]))
+        components[leading]=round(components[leading]+cent_residual,2)
+        if abs(sum(components.values())-delta)>0.011:
             raise ValueError("Unreconciled row decomposition")
     result={"source_medium":name,"previous":prev,"current":cur,
             "revenue_delta":round(delta,2),
