@@ -24,7 +24,7 @@ assert.match(target.innerHTML,/핵심 문제: 객단가·구매 구성/);
 assert.match(target.innerHTML,/요인 1 · 객단가·구매 구성/);
 assert.match(target.innerHTML,/요인 2 · 구매전환 효율/);
 assert.match(target.innerHTML,/요인 3 · 유입 규모/);
-assert.match(target.innerHTML,/Paid/);
+assert.match(target.innerHTML,/동일 기간 채널별 매출 대사 결과를 아직 확보/);
 assert.match(target.innerHTML,/동일 기간 채널별 매출 대사 결과를 아직 확보/);
 assert.match(target.innerHTML,/인과 미확정/);
 render({...base,weekly:{...base.weekly,current:{status:'partial',total:current}}},di);
