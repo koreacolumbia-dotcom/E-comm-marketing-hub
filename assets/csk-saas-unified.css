@@ -423,3 +423,107 @@ body.csk-saas-report[data-csk-route="crema"]{
   border-radius:17px!important;
  }
 }
+
+
+/* 2026-11-22 Summary simplification: remove duplicated pre-summary boards, keep KPI sections. */
+body.csk-saas-report[data-csk-route="summary"] #dashboard-experience,
+body.csk-saas-report[data-csk-route="summary"] #dashboard-ops{
+ display:none!important;
+}
+body.csk-saas-report[data-csk-route="summary"] header.hero-shell{
+ background:#fff!important;box-shadow:var(--csk-saas-shadow)!important;
+ border:1px solid #e7eaf2!important;border-radius:19px!important;
+ padding:21px 25px!important;margin-bottom:16px!important;
+}
+body.csk-saas-report[data-csk-route="summary"] header.hero-shell :is(.hero-shimmer,.section-meta,.nav-chip){
+ display:none!important;
+}
+body.csk-saas-report[data-csk-route="summary"] header.hero-shell p.max-w-3xl{
+ display:none!important;
+}
+body.csk-saas-report[data-csk-route="summary"] header.hero-shell h1{
+ font-size:clamp(23px,2.4vw,31px)!important;margin-top:5px!important;
+ color:#181d31!important;
+}
+body.csk-saas-report[data-csk-route="summary"] .summary-kpi-grid--five{
+ grid-template-columns:repeat(5,minmax(0,1fr));
+}
+@media(max-width:1050px){
+ body.csk-saas-report[data-csk-route="summary"] .summary-kpi-grid--five{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+ }
+}
+@media(max-width:640px){
+ body.csk-saas-report[data-csk-route="summary"] header.hero-shell{
+  padding:16px 13px!important;border-radius:13px!important;
+ }
+ body.csk-saas-report[data-csk-route="summary"] .summary-kpi-grid--five{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+ }
+}
+/* Calendar: seven equal columns from Sunday to Saturday, no forced 755px width.
+   Single-day promotion chips remain tap targets, and labels are truncated, not expanded. */
+body.csk-saas-report[data-csk-route="sale_calendar"] .calendar-scroll{
+ width:100%;max-width:100%;min-width:0;overflow-x:hidden!important;
+}
+body.csk-saas-report[data-csk-route="sale_calendar"] .calendar-scroll>.week{
+ display:grid!important;
+ grid-template-columns:repeat(7,minmax(0,1fr))!important;
+ gap:0!important;width:100%!important;min-width:0!important;
+}
+body.csk-saas-report[data-csk-route="sale_calendar"] #calendar{
+ width:100%!important;min-width:0!important;max-width:100%!important;
+ display:block!important;
+}
+body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .calendar-week{
+ display:grid!important;
+ grid-template-columns:repeat(7,minmax(0,1fr))!important;
+ width:100%!important;min-width:0!important;
+}
+body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .day,
+body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .event-span{
+ min-width:0!important;
+}
+@media(max-width:720px){
+ body.csk-saas-report[data-csk-route="sale_calendar"] .calendar-scroll .week,
+ body.csk-saas-report[data-csk-route="sale_calendar"] .calendar-scroll .grid{
+  min-width:0!important;width:100%!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] .calendar-panel{
+  padding:8px!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] .calendar-scroll>.week span{
+  font-size:10px!important;padding:7px 0!important;text-align:center!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .calendar-week{
+  grid-template-rows:28px repeat(var(--lanes),22px) minmax(8px,1fr)!important;
+  min-height:89px!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .day{
+  padding:3px 1px!important;min-height:0!important;overflow:hidden!important;
+  justify-content:center!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .day .num{
+  font-size:11px!important;width:21px!important;height:21px!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .day .day-records{
+  display:none!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .event-span{
+  padding:1px 2px!important;margin:0 1px!important;height:18px!important;
+  min-height:18px!important;border-left-width:2px!important;
+  border-radius:3px!important;gap:1px!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .event-span .span-content{
+  min-width:0!important;max-width:100%!important;overflow:hidden!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .event-span :is(.span-brand,.span-title,.span-benefit){
+  font-size:8px!important;line-height:1.12!important;
+  max-width:100%!important;white-space:nowrap!important;overflow:hidden!important;
+  text-overflow:ellipsis!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] #calendar .event-span.single .span-title{
+  display:none!important;
+ }
+ body.csk-saas-report[data-csk-route="sale_calendar"] .scroll-hint{display:none!important}
+}
