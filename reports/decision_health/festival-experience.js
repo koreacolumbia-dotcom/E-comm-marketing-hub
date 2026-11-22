@@ -78,8 +78,8 @@ function fmReasonCard(card,index,good){
  '<div class="fm-cause-title">'+esc(title)+'</div>'+
  '<div class="fm-cause-amount">'+esc(fmSigned(value))+'</div>'+
  '<div class="fm-cause-sub">'+esc(card.subtitle||"동기간 GA4 귀속 매출")+'</div>'+
- '<p><b>관측:</b> '+esc(evidence)+'</p>'+
- '<details><summary>해석 근거와 다음 검증</summary><div class="fm-cause-explain">'+
+ '<div class="fm-cause-evidence">'+esc(evidence.split(";").slice(0,2).join(" · "))+'</div>'+
+ '<details><summary>근거·검증 보기</summary><div class="fm-cause-explain">'+
  '<p><b>해석 (인과 미확정)</b> · '+esc(card.interpretation||"추가 검증 필요")+'</p>'+
  '<p><b class="fm-verify-label">다음 검증</b> · '+esc(card.verify_next||"원본 추가 확인")+'</p>'+
  '</div></details></article>';
@@ -99,9 +99,8 @@ function renderDiagnosis(){
  var revenue=Number(diag.net_revenue_change_krw),netPct=Number(diag.net_revenue_yoy_pct);
  var thesis=section.querySelector("#fm-diagnosis-thesis");
  var line=Number.isFinite(term.amount_krw)?(
-    "매출 차이 "+fmSigned(revenue)+" ("+(netPct>=0?"+":"")+netPct.toFixed(1)+"% YoY). "+
-    "CVR 변화의 산술 기여 "+fmSigned(term.amount_krw)+". "+
-    "이 값은 구매전환율 변화로 매출 차이를 분해한 것이며 프로모션 인과 효과가 아닙니다."
+    "매출 "+fmSigned(revenue)+" ("+(netPct>=0?"+":"")+netPct.toFixed(1)+"% YoY) · "+
+    "CVR 산술기여 "+fmSigned(term.amount_krw)+" · 인과 효과 미확정"
  ):"행사 KPI는 확인됐지만 세션·전환율·객단가 분해는 아직 검증 중입니다.";
  thesis.innerHTML='<strong>핵심 결론 · 확정 행사 D1~D'+esc(diag.event_days)+'</strong><p>'+esc(line)+'</p>';
  var goods=Array.isArray(diag.strengths)?diag.strengths:[],bads=Array.isArray(diag.weaknesses)?diag.weaknesses:[];
@@ -144,8 +143,8 @@ function renderDiagnosis(){
  (warning>0?'<p class="fm-bridge-warning">기타·미분류 귀속 매출 '+esc(fmt(warning,"revenue"))+
  '은 별도 표기합니다. 실제 Paid/CRM 성과에 임의 배분하지 않습니다.</p>':"");
  section.querySelector("#fm-diagnosis-foot").textContent=
-  "채널 증감 합계 "+fmSigned(net)+" = 공식몰 총매출 증감 "+fmSigned(revenue)+
-  ". 단, 유입·CVR·AOV Shapley와 채널 귀속 증감은 서로 중복되는 별도 분해 축입니다. 원인 인과를 증명하지 않으며, Meta 광고비·매체 ROAS는 검증 전까지 미표시합니다.";
+  "채널 합계 "+fmSigned(net)+" = 총매출 증감 "+fmSigned(revenue)+
+  " · 퍼널·채널 영향은 중복 계산 금지 · 매체 ROAS 미검증";
 }
 
 
