@@ -338,6 +338,10 @@
     });
     var selected=list.find(function (x) { return x.source_medium===props.selected; }) || list[0];
     var current=raw && raw.period && raw.period.current || {},prior=raw && raw.period && raw.period.previous || {};
+    var verifiedBridge=props.sourceDrivers && props.sourceDrivers.status==="measured_descriptive" &&
+       props.sourceDrivers.report_date===props.ops.report_date;
+    var sourceBridge=verifiedBridge && selected && Array.isArray(props.sourceDrivers.rows)?
+      props.sourceDrivers.rows.find(function(x){return x.source_medium===selected.source_medium;}):null;
     var aggregated=raw && raw.status==="ga4_subchannel_aggregated";
     var label=aggregated?"세부채널(기존 Daily 집계)":"소스/매체";
     var sourceQuality=raw && raw.quality||{},alignedGap=sourceQuality.weekly_reconciliation||{};
@@ -390,7 +394,10 @@
             ),
             h(SourceAlgebraBreakdown,{key:"bridge",drivers:props.sourceDrivers,
               source:selected.source_medium,reportDate:props.ops.report_date}),
-            h(ActionPanel,{key:"action",label:"다음 확인",text:"세션 변화와 구매전환율 변화를 함께 점검하세요. 실제 광고비/증분 ROAS를 의미하지 않습니다."})
+            h(ActionPanel,{key:"action",label:"이 소스의 다음 검증",
+              text:(sourceBridge&&sourceBridge.next_validation?
+                sourceBridge.next_validation+" · 매출 증분 인과 효과 미확정":
+                "세션 변화와 구매전환율 변화를 함께 점검하세요. 실제 광고비/증분 ROAS를 의미하지 않습니다.")})
           ]:h(EmptyState,{title:"소스/매체 데이터 미확보"})
         )
       )
