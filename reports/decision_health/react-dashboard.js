@@ -214,7 +214,7 @@
           return h("button",{key:d.id,type:"button",className:cls("workspace-row",selected && selected.id===d.id && "selected"),onClick:function(){props.onSelect(d.id);}},
             h("span",{className:"workspace-row-number"},"0"+(i+1)),
             h("span",{className:"workspace-row-copy"},
-              h("strong",null,d.name),
+              h("strong",null,"변화 요인 "+(i+1)+" · "+d.name),
               h("small",null,d.explain)
             ),
             h("span",{className:cls("row-number",d.impact<0?"minus":"plus")},(d.impact>0?"+":"")+krw(d.impact))
@@ -223,16 +223,19 @@
       ),
       h("section",{className:"csk-workspace-detail"},
         selected ? [
-          h("div",{className:"detail-topline",key:"top"},h("span",null,"원인 기여 분석"),h("span",{className:"detail-badge"},"산술분해 · 인과 확정 아님")),
+          h("div",{className:"detail-topline",key:"top"},h("span",null,"원인 1·2·3 · 실측 근거"),h("span",{className:"detail-badge"},"산술 확인 · 인과 미확정")),
           h("h3",{key:"title"},selected.name),
           h("strong",{key:"impact",className:"detail-large"},(selected.impact>0?"+":"")+krw(selected.impact)),
-          h("p",{key:"desc",className:"detail-sub"},"전체 매출 변화에 대한 ",selected.metric," 요인의 산술 기여 금액입니다."),
+          h("p",{key:"desc",className:"detail-sub"},"전주 대비 매출 변화 중 ",selected.metric," 변동의 산술 분해액입니다. 독립적인 원인 효과가 아닙니다."),
           h("div",{key:"stats",className:"csk-detail-stats"},
             h(StatCard,{title:"직전 7일 "+selected.metric,value:selected.metric==="객단가"?fmt(selected.before)+"원":selected.metric==="CVR"?selected.before.toFixed(2)+"%":fmt(selected.before)}),
             h(StatCard,{title:"최근 7일 "+selected.metric,value:selected.metric==="객단가"?fmt(selected.after)+"원":selected.metric==="CVR"?selected.after.toFixed(2)+"%":fmt(selected.after)}),
             h(StatCard,{title:"변동",value:selected.metric==="CVR"?delta(selected.after-selected.before,"pp"):delta(percent(selected.after,selected.before))})
           ),
-          h(ActionPanel,{key:"action",text:selected.action}),
+          h("div",{key:"next",className:"cause-next"},
+            h("span",null,"다음 검증"),h("strong",null,selected.action),
+            h("small",null,"근거: 동일한 두 7일 기간의 GA4 세션·구매·매출 집계. 할인/광고/재고 원인 구분은 미완료")
+          ),
           h("button",{type:"button",key:"go",className:"csk-detail-go",onClick:function(){props.onTab(selected.target);}},"관련 상세 데이터 보기 →")
         ] : h(EmptyState,{title:"분석 기준일 확인 필요"})
       )
@@ -426,6 +429,47 @@
       )
     );
   }
+  function ExecutionProgress(props) {
+    var tracker=props.outcomes||{},ops=props.ops||{},ready=tracker.status==="ready" &&
+      tracker.report_date===ops.report_date && Array.isArray(tracker.actions);
+    var actions=ready?tracker.actions:[];
+    var selectedIds=["CHANNEL_QA","AGENCY_ATTRIBUTION","PAID_COST_FRESHNESS",
+                     "WAREHOUSE_ETL_FRESHNESS","PDP_QA"];
+    var featured=selectedIds.map(function(id){return actions.find(function(a){return a.action_id===id;});})
+      .filter(Boolean).slice(0,3);
+    return h("section",{className:"csk-execution-progress","aria-label":"조치 실행과 개선 성과 검증"},
+      h("div",{className:"csk-execution-heading"},
+        h("div",null,h("span",null,"EXECUTION & LEARNING"),
+          h("h2",null,"조치 후 실제로 개선됐는가?")),
+        ready?h("span",{className:"csk-execution-stat"},
+          "추적 "+tracker.total+" · 실행 "+tracker.implemented+" · 측정 "+tracker.measured) :
+          h("span",{className:"csk-execution-stat"},"검증 이력 미연결")
+      ),
+      h("p",{className:"csk-execution-subtitle"},
+        "실행일과 근거가 등록된 조치만 성과 비교를 시작합니다. 대조군이 없으면 증분 효과로 표시하지 않습니다."),
+      ready?h("div",{className:"csk-execution-list"},
+        featured.map(function(row,i){
+          var done=row.outcome_status==="implemented",measured=row.measurement_status==="descriptive_only",
+              metric=row.primary_metric||"revenue",
+              comparison=row.comparison||{},pct=comparison.change_pct&&comparison.change_pct[metric];
+          return h("article",{key:row.action_id,className:"csk-execution-entry"},
+            h("div",{className:"csk-execution-entry-head"},
+              h("span",{className:"csk-execution-priority"},row.priority||"P0"),
+              h("strong",null,row.title),
+              h("span",{className:cls("csk-execution-status",done?"started":"not-started")},
+                measured?"전후 지표 관측":done?"실행 확인 · 성과 대기":"실행 미확인")),
+            h("p",null,measured?
+              "실행 전후 "+metric.toUpperCase()+" 변화 "+(num(pct)?delta(pct):"미확보")+
+              " · 단순 전후 비교" : row.next_step||"실행 증빙 필요"),
+            measured&&comparison.before_period?h("small",null,comparison.before_period+" ↔ "+comparison.after_period):null
+          );
+        })
+      ):h("p",{className:"csk-execution-unavailable"},"실행 이력 원본을 불러오지 못했습니다."),
+      ready&&tracker.implemented===0?
+        h("p",{className:"csk-execution-caveat"},"현재 실행 완료 근거 0건 · 개선 효과를 계산하거나 추정하지 않았습니다."):null
+    );
+  }
+
   function SourcePreview(props) {
     var data=props.source||{},rows=Array.isArray(data.rows)?data.rows:[];
     var selected=rows.filter(function(x){return x&&x.previous&&x.current&&num(x.revenue_delta);})
@@ -667,6 +711,7 @@
       ),
       h(ContextCards,{di:di,ops:ops,dx:dx,events:events,products:products}),
       tab==="overview"?h(SourcePreview,{source:source,ops:ops,onTab:setTab}):null,
+      tab==="overview"?h(ExecutionProgress,{outcomes:data.outcomes,ops:ops}):null,
       h("div",{className:"csk-footer-actions"},
         h("button",{type:"button",className:"csk-legacy-toggle",onClick:function(){setLegacy(!showLegacy);}},showLegacy?"기존 상세 분석 접기 −":"기존 상세 분석·검증 근거 펼치기 +"),
         h("span",null,"수치와 가설 구분 · 기존 데이터 자동 갱신 · 임의 데이터 없음")
@@ -681,7 +726,8 @@
       dx:"./diagnoses.json",
       source:"./source_medium_weekly.json",
       funnel:"./product_funnel_evidence.json",
-      pictures:"./official_product_images.json"
+      pictures:"./official_product_images.json",
+      outcomes:"./action_outcomes.json"
     };
     var keys=Object.keys(sources),token=String(Date.now());
     Promise.all(keys.map(function(k){
