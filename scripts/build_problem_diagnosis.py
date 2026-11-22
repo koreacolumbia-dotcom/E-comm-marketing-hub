@@ -161,8 +161,9 @@ def build(operations: dict, intelligence: dict, content: dict,
         if not isinstance(e, dict):
             continue
         start, end = day(e.get("start_date")), day(e.get("end_date"))
-        if not report_day or start is None or end is None:
-            continue  # observed-only banners do NOT have an inferred event window
+        verified_period = e.get("kind") == "verified_period" and e.get("date_status") == "official_period"
+        if not verified_period or not report_day or start is None or end is None:
+            continue  # only verified official periods; no inferred dates or observed-only windows
         if start <= report_day and end >= report_day - dt.timedelta(days=6):
             linked_events.append({
                 "brand": e.get("brand") or e.get("brand_name") or "미확인",
