@@ -63,6 +63,41 @@ function selectedRows(){
 function unavailable(){
  return '<div class="fm-state warn">요청한 분류의 검증된 세션·구매 데이터가 없습니다. 0건으로 해석하지 않습니다.</div>';
 }
+function renderReasons(){
+ var d=app.data||{},area=$("#fm-reasons");if(!area)return;
+ var em=d.event_media||{},ys=em.years||{},a=((ys["2025"]||{}).groups)||[],b=((ys["2026"]||{}).groups)||[];
+ var period=em.period||{},matched=em.status==="ga4_measured"&&a.length&&b.length;
+ if(!matched){
+  area.innerHTML='<article class="fm-driver"><span>근거 1 · Meta</span><strong>유입 목적별 분리</strong><p>Meta / banner와 META_BD를 구분하여 GA4 구매전환을 확인합니다.</p></article>'+
+  '<article class="fm-driver"><span>근거 2 · Paid</span><strong>행사 단독 집계 대기</strong><p>현재 확보한 7일 자료는 전주 비교만 가능합니다. 행사일 채널 분석과 분리합니다.</p></article>'+
+  '<article class="fm-driver"><span>근거 3 · 비용</span><strong>ROAS 계산 보류</strong><p>광고비 원본이 행사 날짜와 일치하지 않아 효율을 확정할 수 없습니다.</p></article>';return;
+ }
+ var prev=new Map(a.map(function(x){return [x.id,x]})),cur=new Map(b.map(function(x){return [x.id,x]}));
+ var joined=new Set(a.concat(b).map(function(x){return x.id}));
+ var all=Array.from(joined).map(function(id){
+  var x=prev.get(id)||{revenue:0},y=cur.get(id)||{revenue:0},label=(y.label||x.label||id);
+  return {id:id,label:label,diff:y.revenue-x.revenue,prior:x.revenue,current:y.revenue};
+ });
+ var top=all.filter(function(x){return x.id!=="other"}).sort(function(x,y){return y.diff-x.diff})[0];
+ var mb=all.find(function(x){return x.id==="meta_conversion_tagged"})||{diff:0};
+ var bd=all.find(function(x){return x.id==="meta_bd_tagged"})||{diff:0};
+ var unmapped=all.find(function(x){return x.id==="other"})||{current:0,prior:0};
+ var paidCost=d.paid_cost||{};
+ function delta(v){return (v>0?"+":v<0?"−":"")+fmt(Math.abs(v),"revenue")}
+ var evt=((d.event||{}).totals)||{};
+ var periodLabel="본행사 "+((period["2026"]||[]).join(" ~ "));
+ var html='<article class="fm-driver"><span>근거 1 · 성장 상위 채널</span><strong>'+esc(top?top.label:"채널 미확보")+'</strong>'+
+ '<div class="fm-driver-value">'+esc(top?delta(top.diff):"미확보")+'</div>'+
+ '<p>'+esc(periodLabel)+'의 GA4 소스/매체 귀속 변화액입니다. 직접적인 캠페인 순증 효과는 아닙니다.</p></article>'+
+ '<article class="fm-driver"><span>근거 2 · Meta 내부 차이</span><strong>Meta 배너와 META_BD 분리</strong>'+
+ '<div class="fm-driver-value">'+esc(delta(mb.diff))+' <small>배너</small></div>'+
+ '<p>META_BD 귀속 매출 변화 '+esc(delta(bd.diff))+'. 태그·목적별로 구분해야 매출과 유입을 혼동하지 않습니다.</p></article>'+
+ '<article class="fm-driver"><span>근거 3 · 우선 점검</span><strong>소스 미분류와 광고비</strong>'+
+ '<div class="fm-driver-value">'+esc(fmt(unmapped.current,"revenue"))+' <small>기타 귀속</small></div>'+
+ '<p>기타 전년 '+esc(fmt(unmapped.prior,"revenue"))+' / 최신 광고비 '+esc(paidCost.latest_date||"미확보")+'까지 확인. 매체 태깅 및 ROAS 재검증 필요.</p></article>';
+ area.innerHTML=html;
+}
+
 function render(){
  var d=app.data;
  if(!d){$("#fm-items").innerHTML='<div class="fm-state warn">데이터 집계 원본을 불러오지 못했습니다. 기존 검증된 행사 성과 차트는 그대로 유지됩니다.</div>';return;}
@@ -77,6 +112,7 @@ function render(){
  }else if(period&&app.view==="event"){
   windowEl.textContent="2026 "+((period["2026"]||[]).join("~"))+" · 2025 "+((period["2025"]||[]).join("~"));
  }else windowEl.textContent="확정 기간 없음";
+ renderReasons();
  var rows=selectedRows();$("#fm-count").textContent=rows.length+"개 유입 그룹";
  $("#fm-items").innerHTML=rows.length?rows.map(function(r,i){
   var k=app.metric,a=oneMetric(r.previous,k),b=oneMetric(r.current,k),p=percent(a===null?0:a,b===null?0:b,k),isEmpty=a===null&&b===null;
@@ -134,6 +170,11 @@ function openDrawer(id){
  '<div class="fm-state"><strong>2026 또는 이번 주</strong> · '+fmt(row.current.revenue,"revenue")+' / '+fmt(row.current.orders,"orders")+' / '+fmt(row.current.sessions,"sessions")+'</div>'+
  '<p>'+esc(note[app.metric])+'</p>'+
  (row.kind==="meta"?metaCampaigns(row):"")+
+ ((app.view==="event"&&Array.isArray(row.current.top_sources)&&row.current.top_sources.length)?
+  '<h3>세부 소스/매체 · 실측 주요 항목</h3>'+row.current.top_sources.slice(0,6).map(function(s){
+    return '<div class="fm-state"><strong>'+esc(s.source_medium)+'</strong> · '+fmt(s.revenue,"revenue")+
+      ' / '+fmt(s.orders,"orders")+' / '+fmt(s.sessions,"sessions")+'</div>';
+  }).join(""):"")+
  '<div class="fm-state warn"><b>인과 효과·광고 플랫폼 실적과 구분</b><p>광고비 기준일: '+esc(paid.latest_date||"미확보")+'. 최신 광고비, 광고관리자 전환가치, ROAS와 CPA는 검증된 원본이 없으면 표시하지 않습니다.</p></div>';
  app.lastFocus=document.activeElement;detail.classList.add("open");detail.setAttribute("aria-hidden","false");
  document.body.style.overflow="hidden";detail.querySelector(".fm-close").focus();
