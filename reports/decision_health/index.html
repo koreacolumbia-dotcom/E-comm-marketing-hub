@@ -160,9 +160,10 @@ header{display:flex;justify-content:space-between;gap:16px;align-items:center;bo
 .macro-driver-more summary{font-size:11px;color:#396788;cursor:pointer;font-weight:600}
 .macro-driver-more:not([open]){margin-top:auto}
 .macro-driver-more .macro-basket-bridge{margin-top:8px}
-</style><link rel="stylesheet" href="./editorial.css?v=20261122-1"><link rel="stylesheet" href="./source-medium.css?v=20261122-3"><link rel="stylesheet" href="./decision-refinement.css?v=20261122-1"></head><body><main><header><div><small>CSK E-COMMERCE · DECISION INTELLIGENCE</small><h1>의사결정 센터</h1><small>매출 변화의 핵심 이유와 추천 실행</small></div><span class="status" id="overall">분석 중</span></header>
+</style><link rel="stylesheet" href="./editorial.css?v=20261122-1"><link rel="stylesheet" href="./source-medium.css?v=20261122-3"><link rel="stylesheet" href="./decision-refinement.css?v=20261122-2"></head><body><main><header><div><small>CSK E-COMMERCE · DECISION INTELLIGENCE</small><h1>의사결정 센터</h1><small>매출 변화의 핵심 이유와 추천 실행</small></div><span class="status" id="overall">분석 중</span></header>
 <nav class="decision-jump" aria-label="분석 바로가기"><a href="#macro-health">매출 원인 TOP 3</a><a href="#source-medium-health">유입·구매전환</a><a href="#product-drilldown">상품 상세 근거</a></nav>
 <section id="macro-health" aria-label="이커머스 전체 성과 원인 분석"><div class="macro-unavailable">주간 매출·전환·객단가를 확인하고 있습니다.</div></section>
+<section id="market-context" aria-label="기상 상품 동향 브랜드 일정 경쟁사 이벤트"><div class="ctx-heading"><h2>이번 주 시장·상품 컨텍스트</h2><small id="market-context-date">기준일 확인 중</small></div><div class="ctx-grid" id="market-context-cards">관측 신호를 불러오고 있습니다.</div></section>
 <section id="source-medium-health" aria-label="소스 매체별 유입과 구매전환 분석"><div class="sm-pending">소스/매체별 유입과 구매전환 분석을 준비하고 있습니다.</div></section>
 <details id="product-drilldown"><summary><b>상품별 하위 원인 사례 보기</b><small>전체 성과를 먼저 확인하고 상품별로 내려갑니다.</small></summary>
 <section id="priority-products" aria-label="상품별 우선순위 카드"><div class="p-top"><div><small>PRODUCT DRILL-DOWN · SECONDARY</small><h2>상품별 하위 원인 TOP 3 <small class="p-status-label">원인 확정 전</small></h2><p id="priority-period">관측 데이터 확인 중</p></div><small id="priority-coverage">상품별 영향 분석</small></div><div class="p-weather" id="priority-weather" aria-label="최근 14일 서울 일평균 기온 출처">서울 관측 기온 확인 중</div><div class="p-board" id="priority-cards" aria-live="polite">실측 근거 정리 중</div><div id="priority-detail" hidden></div></section></details><div id="loading" role="status"></div>
@@ -215,6 +216,8 @@ const load=async path=>{try{const r=await fetch(path+"?v="+Date.now(),{cache:"no
  $("story-note").textContent=risks.length?"광고비·주문/고객 원천 등 "+risks.length+"개 데이터 상태를 추가로 확인해야 합니다. 할인/날씨/경쟁사 영향은 관측 시점의 일치만으로 단정할 수 없습니다.":"동일 기간의 가격·판매수량·캠페인 데이터를 대조하여 인과 가설을 검증하세요.";
  window.__cskMacroPayload={operations:op,intelligence:di,weeklyEvidence,alignedBasket,diagnoses};
  window.CSKMacroBoard?.render(op,di,weeklyEvidence,alignedBasket,diagnoses);
+ window.__cskMarketPayload={intelligence:di,operations:op,diagnoses};
+ window.CSKMarketContext?.render(di,op,diagnoses);
  window.__cskSmPayload=sourceMedium;
  window.__cskSmOperatingWeek=op;
  window.CSKSourceMedium?.render(sourceMedium,op);
@@ -455,4 +458,4 @@ function render(focus,diag,ga4){
 }
 window.CSKCauseBoard={render};
 if(window.__cskCausePayload)render(window.__cskCausePayload.focus,window.__cskCausePayload.diagnoses,window.__cskCausePayload.ga4Purchase);
-})();</script><script defer src="./macro-board.js?v=20261122-6"></script><script defer src="./source-medium.js?v=20261122-4"></script><script defer src="./evidence-cards.js?v=20261122-1"></script><script defer src="./diagnosis.js?v=20261122-4"></script><script src="./timeline.js?v=20261122-2"></script></body></html>
+})();</script><script defer src="./macro-board.js?v=20261122-6"></script><script defer src="./source-medium.js?v=20261122-4"></script><script defer src="./market-context.js?v=20261122-1"></script><script defer src="./evidence-cards.js?v=20261122-1"></script><script defer src="./diagnosis.js?v=20261122-4"></script><script src="./timeline.js?v=20261122-2"></script></body></html>
