@@ -8,6 +8,9 @@ on:
       - "index.html"
       - "assets/csk-unified-hub.js"
       - "assets/csk-saas-unified.css"
+      - "assets/csk-layout-v2.css"
+      - "assets/csk-layout-v2.js"
+      - "tests/csk_layout_v2_smoke.js"
       - "assets/csk-saas-unified.js"
       - "assets/csk-saas-standalone.js"
       - "scripts/apply_csk_saas_theme.py"
@@ -113,6 +116,8 @@ jobs:
           node --check /tmp/csk-calendar-release-check.js
           node --check assets/csk-unified-hub.js
           node --check assets/csk-saas-unified.js
+          node --check assets/csk-layout-v2.js
+          node tests/csk_layout_v2_smoke.js
           node tests/csk_saas_theme_smoke.js
           node --check assets/csk-saas-standalone.js
           python -m py_compile scripts/apply_csk_saas_theme.py
