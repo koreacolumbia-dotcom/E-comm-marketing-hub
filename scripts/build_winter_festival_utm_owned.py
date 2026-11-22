@@ -154,7 +154,9 @@ def write(payload):
 # BQ session query as the Owned UTM report. No extra query jobs or ad API calls.
 def media_group(source):
     src=str(source or "").strip().lower()
-    if src in ("meta / banner","facebook / banner","meta-sitelink / banner","ig / paid"):
+    if src=="ig / paid":
+        return "instagram_paid_tagged"
+    if src in ("meta / banner","facebook / banner","meta-sitelink / banner"):
         return "meta_conversion_tagged"
     if src in ("meta_bd / meta_bd","meta_bd / mt"):
         return "meta_bd_tagged"
@@ -166,7 +168,8 @@ def media_group(source):
         return "google_paid"
     if src in ("criteo / banner","criteo / display"):
         return "criteo"
-    if src in ("kakao / da","daangn / da","naver_bd / naver_bd"):
+    if src in ("kakao / da","daangn / da","naver_bd / naver_bd",
+                "naver / shopping_ad","naver / da","naver / display","naver / gfa","naver / banner"):
         return "other_display"
     if src.startswith(("kakao_ch /","kakao_alimtalk /","kakao_fridnstalk /","lms_ecom /","edm /","email_mkt /")):
         return "owned_crm_tagged"
@@ -179,12 +182,13 @@ def media_group(source):
     return "other"
 MEDIA_LABELS={
     "meta_conversion_tagged":"Meta / banner·Facebook 배너",
+    "instagram_paid_tagged":"Instagram / paid (별도 태그)",
     "meta_bd_tagged":"META_BD / META_BD (별도 태그)",
     "naver_brand_search":"네이버 브랜드검색 CPC",
     "naver_search_other":"네이버 일반검색 CPC",
     "google_paid":"Google 유료 유입",
     "criteo":"Criteo 배너",
-    "other_display":"기타 DA (카카오·당근 등)",
+    "other_display":"기타 DA·쇼핑광고 (카카오·네이버 등)",
     "owned_crm_tagged":"카카오·LMS·EDM Owned",
     "organic_search":"자연검색",
     "referral":"레퍼럴",
@@ -214,7 +218,7 @@ def build_media_rollup(source):
                 totals[metric_key]+=value
             src_row=sources.setdefault((key,name),{"sessions":0.,"orders":0.,"revenue":0.})
             for k,v in metrics.items():src_row[k]+=v
-            if key not in {"meta_conversion_tagged","meta_bd_tagged"}:continue
+            if key not in {"meta_conversion_tagged","meta_bd_tagged","instagram_paid_tagged"}:continue
             campaign=clean_label(item.get("sessionCampaignName"))
             if campaign=="(restricted)" or not FESTIVAL_MARKERS.search(campaign+" "+str(item.get("sessionManualTerm") or "")) and not SEASONOFF_MARKERS.search(campaign+" "+str(item.get("sessionManualTerm") or "")):
                 continue
@@ -284,7 +288,7 @@ def main():
     try:
         prior=json.loads(OUTPUT.read_text(encoding="utf-8"))
         if (prior.get("status")=="ga4_measured" and prior.get("period")==windows
-                and prior.get("media_rollup") and prior.get("media_schema")==2):
+                and prior.get("media_rollup") and prior.get("media_schema")==3):
             print("[FESTIVAL UTM] same verified event period; reuse cached aggregates")
             return
     except (OSError,ValueError,TypeError):
@@ -332,7 +336,7 @@ def main():
         data=summarize(rows)
         write({**base,"status":"ga4_measured","data":data,
                "media_rollup":build_media_rollup(rows),
-               "media_schema":2,
+               "media_schema":3,
                "media_scope":"GA4 session source/medium + campaign tags; no Meta Ads API impressions, clicks or spend.",
                "causal":False,
                "cost":{**cost,"billed_bytes":billed}})
