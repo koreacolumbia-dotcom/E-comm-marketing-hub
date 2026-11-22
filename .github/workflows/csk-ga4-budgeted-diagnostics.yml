@@ -76,8 +76,12 @@ jobs:
           j=json.loads(Path("reports/decision_health/source_medium_weekly.json").read_text())
           assert j["schema"]==1
           assert j["cost"]["combined_cap"]==6*1024**3
-          assert j["status"] in ("ga4_measured","source_not_ready","blocked_credentials",
+          assert j["status"] in ("ga4_measured","ga4_subchannel_aggregated","source_not_ready","blocked_credentials",
                                  "blocked_estimate","blocked_budget","query_error")
+          if j["status"]=="ga4_subchannel_aggregated":
+            assert j["quality"]["source_medium_exact"] is False
+            assert j["cost"]["billed_bytes"]==0
+            assert j["row_count"]==len(j["rows"]) and j["row_count"]>0
           assert not any(k in str(j).lower() for k in ("user_pseudo_id","ga_session_id","email_address"))
           print("[SOURCE MEDIUM]",j["status"],len(j["rows"]),"grouped rows")
           PY
