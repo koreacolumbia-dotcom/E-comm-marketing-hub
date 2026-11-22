@@ -6,6 +6,13 @@ import re
 
 def namekey(s):return " ".join(str(s or "").replace("’","'").replace("`","'").split()).casefold()
 def number(v):return float(v) if isinstance(v,(int,float)) and not isinstance(v,bool) and isfinite(v) and v>=0 else None
+
+def official_product_image(row):
+    """One actual image/color from canonical PDP scope, never an inferred SKU image."""
+    url=str((row or {}).get("image_url") or "").strip()
+    if re.fullmatch(r"https://assetscdn\d+\.styleship\.com/assets/columbia/data/productimages/a/[124]/[A-Za-z0-9_-]+\.jpg",url,re.I):
+        return url
+    return None
 def idx(rows,field="itemName"):
     out={};dups=set()
     for r in rows or []:
@@ -93,6 +100,9 @@ def build_signals(d,history=(),events=None,discounts=None,weather=None,limit=3):
         c=cards[k];c["signals"]=labs
         c["pdp_7d"]=number(current.get(k,{}).get("views"));c["pdp_prior_7d"]=number(previous.get(k,{}).get("views"))
         c["pdp_change_pct"]=change(c["pdp_7d"],c["pdp_prior_7d"])
+        # Preferred displayed color = first observed current PDP SKU; fallback prior.
+        # Official images are already attached to the canonical Daily Digest data.
+        c["image_url"]=official_product_image(current.get(k)) or official_product_image(previous.get(k))
         c["sales_series"]=[number(sales[dt].get(k,{}).get("qty")) for dt in dates]
         c["sales_day"]=c["sales_series"][-1]
         c["temperature_change_c"]=shift
