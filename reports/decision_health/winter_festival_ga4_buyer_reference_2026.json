@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "status": "measured_2026_only",
+  "period": {
+    "2025": [
+      "2025-11-21",
+      "2025-11-22"
+    ],
+    "2026": [
+      "2026-11-20",
+      "2026-11-21"
+    ]
+  },
+  "source": "connected_ga4_windsor",
+  "ga4_account_property": "358593394",
+  "source_metrics": [
+    "total_purchasers",
+    "first_time_purchasers",
+    "ecommerce_purchases",
+    "purchase_revenue"
+  ],
+  "years": {
+    "2025": {
+      "status": "historical_unavailable_via_connector",
+      "note": "GA4 connector history is limited to the most recent 30 days; do not impute 2025 first-time purchasers."
+    },
+    "2026": {
+      "status": "ga4_measured",
+      "total_purchasers": 565,
+      "first_time_purchasers": 471,
+      "repeat_purchasers_derived": 94,
+      "first_time_share_pct": 83.36,
+      "repeat_share_pct": 16.64,
+      "ecommerce_purchases": 605,
+      "total_purchase_revenue_krw": 94452556.0025
+    }
+  },
+  "definitions": {
+    "first_time": "GA4 first_time_purchasers metric",
+    "repeat": "total_purchasers minus first_time_purchasers (same aggregate date range)",
+    "not_yet_available": "2025 comparable data or first-vs-repeat purchase revenue"
+  },
+  "causal": false,
+  "contains_personal_data": false
+}
