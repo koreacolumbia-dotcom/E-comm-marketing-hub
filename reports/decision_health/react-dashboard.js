@@ -685,6 +685,17 @@
         )
       );
     }
+    // Comparisons are from the SAME event elapsed days, not dates differing by a year.
+    // Keep this snapshot anchored to verified D1-D2 even if the weekly source rolls forward.
+    var festivalDayKeys=["2026-11-20","2026-11-21"];
+    var festivalPair=festivalDayKeys.map(function(key){return dayMap.get(key);});
+    var festivalReady=festivalPair.length===2 && festivalPair.every(function(d){
+      return d && d.current && d.last_year &&
+        Number.isFinite(Number(d.current.revenue)) && Number.isFinite(Number(d.last_year.revenue));
+    });
+    var festivalCurrent=festivalReady?festivalPair.reduce(function(n,d){return n+Number(d.current.revenue)},0):null;
+    var festivalLastYear=festivalReady?festivalPair.reduce(function(n,d){return n+Number(d.last_year.revenue)},0):null;
+    var festivalYoY=festivalReady && festivalLastYear>0?(festivalCurrent/festivalLastYear-1)*100:null;
     return h("section",{className:"cy-campaign-context","aria-label":"올해 행사와 예상 영향"},
       h("div",{className:"cy-campaign-head"},
         h("div",null,h("span",null,"2026 CAMPAIGN CONTEXT"),
@@ -695,9 +706,25 @@
       verified.length?h("p",{className:"cy-campaign-conclusion"},
         "공식몰 프로모션 진행 · 주문·CVR 상승 가능 / 할인·상품 믹스로 객단가 하락 가능",
         h("small",null,"효과 규모·원인 확정 아님")):null,
+      festivalReady && festivalYoY!==null?h("div",{className:"cy-festival-visual-preview","aria-label":"윈터페스티벌 본행사 D1~D2 전년 비교"},
+        h("div",{className:"cy-festival-preview-head"},
+          h("div",null,
+            h("span",{className:"cy-festival-preview-eyebrow"},"WINTER FESTIVAL · SAME EVENT DAY"),
+            h("strong",null,"2026 vs 2025 본행사 D1–D2 실측")),
+          h("b",{className:festivalYoY>=0?"positive":"negative"},delta(festivalYoY))),
+        h("div",{className:"cy-festival-preview-row"},
+          h("span",null,"2025 · 11/21–22"),h("b",null,krw(festivalLastYear))),
+        h("div",{className:"cy-festival-preview-track"},
+          h("div",{className:"cy-festival-preview-bar ly",style:{width:(100*festivalLastYear/Math.max(festivalCurrent,festivalLastYear)).toFixed(1)+"%"}})),
+        h("div",{className:"cy-festival-preview-row"},
+          h("span",null,"2026 · 11/20–21"),h("b",null,krw(festivalCurrent))),
+        h("div",{className:"cy-festival-preview-track"},
+          h("div",{className:"cy-festival-preview-bar ty",style:{width:(100*festivalCurrent/Math.max(festivalCurrent,festivalLastYear)).toFixed(1)+"%"}})),
+        h("small",null,"GA4 세션 기준 공식몰 매출 · 2026.11.21 집계 마감 · 행사 순증효과 아님")
+      ):null,
       h("a",{className:"cy-compare-report-link",href:"./winter_festival_comparison_2026.html",
         target:"_blank",rel:"noopener noreferrer"},
-        "2025 vs 2026 윈터페스티벌 임시 비교 리포트 열기 ↗"),
+        "전년 대비 상세 성과·채널·상품 검증 차트 열기 ↗"),
       diagnostic.status==="descriptive" && num(diagnostic.pre_revenue_yoy_pct) && num(diagnostic.active_revenue_yoy_pct)?
         h("div",{className:"cy-campaign-measured","aria-label":"행사 전후 실측 매출 성장률"},
           h("div",null,h("span",null,"본행사 전 "+diagnostic.pre_days+"일 · 매출 YoY"),
