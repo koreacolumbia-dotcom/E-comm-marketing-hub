@@ -160,7 +160,8 @@ header{display:flex;justify-content:space-between;gap:16px;align-items:center;bo
 .macro-driver-more summary{font-size:11px;color:#396788;cursor:pointer;font-weight:600}
 .macro-driver-more:not([open]){margin-top:auto}
 .macro-driver-more .macro-basket-bridge{margin-top:8px}
-</style><link rel="stylesheet" href="./editorial.css?v=20261122-1"><link rel="stylesheet" href="./source-medium.css?v=20261122-3"></head><body><main><header><div><small>CSK E-COMMERCE · DECISION INTELLIGENCE</small><h1>의사결정 센터</h1><small>매출 변화의 핵심 이유와 추천 실행</small></div><span class="status" id="overall">분석 중</span></header>
+</style><link rel="stylesheet" href="./editorial.css?v=20261122-1"><link rel="stylesheet" href="./source-medium.css?v=20261122-3"><link rel="stylesheet" href="./decision-refinement.css?v=20261122-1"></head><body><main><header><div><small>CSK E-COMMERCE · DECISION INTELLIGENCE</small><h1>의사결정 센터</h1><small>매출 변화의 핵심 이유와 추천 실행</small></div><span class="status" id="overall">분석 중</span></header>
+<nav class="decision-jump" aria-label="분석 바로가기"><a href="#macro-health">매출 원인 TOP 3</a><a href="#source-medium-health">유입·구매전환</a><a href="#product-drilldown">상품 상세 근거</a></nav>
 <section id="macro-health" aria-label="이커머스 전체 성과 원인 분석"><div class="macro-unavailable">주간 매출·전환·객단가를 확인하고 있습니다.</div></section>
 <section id="source-medium-health" aria-label="소스 매체별 유입과 구매전환 분석"><div class="sm-pending">소스/매체별 유입과 구매전환 분석을 준비하고 있습니다.</div></section>
 <details id="product-drilldown"><summary><b>상품별 하위 원인 사례 보기</b><small>전체 성과를 먼저 확인하고 상품별로 내려갑니다.</small></summary>
@@ -212,10 +213,11 @@ const load=async path=>{try{const r=await fetch(path+"?v="+Date.now(),{cache:"no
  const safe=w.status==="ready"&&Number.isFinite(aovChange)&&Number.isFinite(orderChange)&&oldDi!==null&&oldDi<=2;
  $("story").textContent=!safe?"최신 매출 구조 또는 데이터 품질을 먼저 검증해야 합니다.":(revenueChange<0&&orderChange>0&&aovChange<0?"주문은 "+pct(orderChange)+" 증가했지만 객단가가 "+pct(aovChange)+" 하락해 매출은 "+pct(revenueChange)+" 변화했습니다.":"주간 매출 "+pct(revenueChange)+" · 주문 "+pct(orderChange)+" · 객단가 "+pct(aovChange));
  $("story-note").textContent=risks.length?"광고비·주문/고객 원천 등 "+risks.length+"개 데이터 상태를 추가로 확인해야 합니다. 할인/날씨/경쟁사 영향은 관측 시점의 일치만으로 단정할 수 없습니다.":"동일 기간의 가격·판매수량·캠페인 데이터를 대조하여 인과 가설을 검증하세요.";
- window.__cskMacroPayload={operations:op,intelligence:di,weeklyEvidence,alignedBasket};
- window.CSKMacroBoard?.render(op,di,weeklyEvidence,alignedBasket);
+ window.__cskMacroPayload={operations:op,intelligence:di,weeklyEvidence,alignedBasket,diagnoses};
+ window.CSKMacroBoard?.render(op,di,weeklyEvidence,alignedBasket,diagnoses);
  window.__cskSmPayload=sourceMedium;
- window.CSKSourceMedium?.render(sourceMedium);
+ window.__cskSmOperatingWeek=op;
+ window.CSKSourceMedium?.render(sourceMedium,op);
  const focus=di.product_focus||{},cards=Array.isArray(focus.cards)?focus.cards:[];
  window.__cskPriorityFocus=focus;
  window.__cskCausePayload={focus,diagnoses,ga4Purchase};
@@ -453,4 +455,4 @@ function render(focus,diag,ga4){
 }
 window.CSKCauseBoard={render};
 if(window.__cskCausePayload)render(window.__cskCausePayload.focus,window.__cskCausePayload.diagnoses,window.__cskCausePayload.ga4Purchase);
-})();</script><script defer src="./macro-board.js?v=20261122-5"></script><script defer src="./source-medium.js?v=20261122-3"></script><script defer src="./evidence-cards.js?v=20261122-1"></script><script defer src="./diagnosis.js?v=20261122-4"></script><script src="./timeline.js?v=20261122-2"></script></body></html>
+})();</script><script defer src="./macro-board.js?v=20261122-6"></script><script defer src="./source-medium.js?v=20261122-4"></script><script defer src="./evidence-cards.js?v=20261122-1"></script><script defer src="./diagnosis.js?v=20261122-4"></script><script src="./timeline.js?v=20261122-2"></script></body></html>
