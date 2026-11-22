@@ -275,9 +275,13 @@ def build(operations: dict, intelligence: dict, content: dict,
         bridge = ga4["item_aov_bridge"]
         categories = ga4.get("category_bridge") or {}
         reconciled = bool((ga4.get("admin_reconciliation") or {}).get("comparable"))
+        independent_admin_ready = readiness.get("order_mart")=="ready"
         ga4_scope = (
-            "GA4와 관리자 주문/매출 합계가 허용오차 내 일치" if reconciled
-            else "GA4 구매 이벤트 분석이며 관리자 주문/매출과 불일치 또는 미확인"
+            "기존 Daily KPI 합계와 일치, 독립 관리자 주문마트는 미검증"
+            if reconciled and not independent_admin_ready
+            else "기존 Daily KPI 합계와 일치; 관리자 주문마트도 연결됨"
+            if reconciled and independent_admin_ready
+            else "GA4 구매 이벤트 기준이며 기존 KPI와 정합성 추가 검증 필요"
         )
         problems.append({
             "id": "GA4_PURCHASE_COMPONENTS", "priority": "P0", "status": "observed_ga4_components",
@@ -300,7 +304,8 @@ def build(operations: dict, intelligence: dict, content: dict,
                 "GA4 item.discount 필드 유효율을 확인하고 동일 SKU 실결제가/정가와 "
                 "관리자 결제금액을 대조해 할인 효과와 상품 믹스 효과를 독립 검증"
             ),
-            "blocked_by": ([] if reconciled else ["관리자 주문/매출과 GA4 정합성 검증"]),
+            "blocked_by": ([] if reconciled and independent_admin_ready else
+                           ["독립 관리자 주문마트 연결/정합성 검증"]),
             "category_mix": {
                 "mix_effect_per_item": categories.get("category_mix_effect_per_item"),
                 "within_category_effect_per_item": categories.get("within_category_effect_per_item"),
@@ -331,7 +336,8 @@ def build(operations: dict, intelligence: dict, content: dict,
             "cost": ga4.get("cost"),
             "item_aov_bridge": ga4.get("item_aov_bridge") if matched else None,
             "category_bridge": ga4.get("category_bridge") if matched else None,
-            "admin_reconciliation": ga4.get("admin_reconciliation") if matched else None
+            "admin_reconciliation": ga4.get("admin_reconciliation") if matched else None,
+            "independent_admin_verified": matched and readiness.get("order_mart")=="ready"
         },
         "weather_source_health": weather_health,
         "problems": sorted(problems,key=lambda p: ({"P0":0,"P1":1,"P2":2}.get(p["priority"],3),p["id"])),
