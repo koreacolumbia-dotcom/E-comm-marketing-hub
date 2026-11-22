@@ -21,11 +21,11 @@ class StandaloneThemeTests(unittest.TestCase):
     def test_target_list_is_menu_less_daily(self) -> None:
         routes = dict(ROUTE.findall(HUB))
         self.assertEqual(len(routes), 23)
-        self.assertEqual(set(THEME.TARGETS), set(routes) - {"daily", "daily_intelligence"})
+        self.assertEqual(set(THEME.TARGETS), set(routes) - {"daily"})
         for key, route in THEME.TARGETS.items():
             self.assertEqual(route, routes[key].split("?", 1)[0], key)
         self.assertNotIn("reports/daily_digest/index.html", THEME.TARGETS.values())
-        self.assertNotIn("reports/daily_intelligence/index.html", THEME.TARGETS.values())
+        self.assertIn("reports/daily_intelligence/index.html", THEME.TARGETS.values())
 
     def test_generated_pages_have_standalone_theme(self) -> None:
         for key, relative in THEME.TARGETS.items():
@@ -64,7 +64,7 @@ class StandaloneThemeTests(unittest.TestCase):
     def test_excluded_daily_paths_are_refused(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            for rel in ("reports/daily_digest/index.html", "reports/daily_intelligence/index.html",
+            for rel in ("reports/daily_digest/index.html",
                         "reports/daily_digest/daily/20261122.html"):
                 with self.subTest(rel=rel), mock.patch.object(THEME, "ROOT", root):
                     path = root / rel
