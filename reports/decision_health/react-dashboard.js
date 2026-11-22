@@ -272,6 +272,10 @@
     var aligned=funnel && funnel.status==="ga4_measured" && funnel.report_date===props.ops.report_date;
     var f=aligned && selected && Array.isArray(funnel.products)?funnel.products.find(function (x) {return x.name===selected.name && x.coverage_reliable===true;}):null;
     return h("div",null,
+      props.focusDate!==props.ops.report_date?h("div",{className:"csk-period-warning",role:"status"},
+        h("strong",null,"상품 분석 기준일 차이"),
+        h("span",null,"PDP·판매 기준 ",attr(props.focusDate)," · 운영 KPI 기준 ",attr(props.ops.report_date),
+          " · 두 기간의 합계와 기여액을 직접 연결하지 않습니다.")):null,
       h("div",{className:"csk-workspace-controls"},
         h("div",{className:"csk-filter-pills"},
           [["all","전체"]].concat(families.map(function(x){return [x,x];})).map(function(opt){
@@ -454,7 +458,7 @@
         h("div",{className:"csk-workspace-toolbar"},h("strong",null,title),h("span",null,attr(ops.report_date)," 기준")),
         tab==="overview"?h(CauseWorkspace,{causes:drivers,selected:causeId,onSelect:setCause,onTab:setTab}):
         tab==="acquisition"?h(SourceWorkspace,{source:source,ops:ops,group:group,onGroup:setGroup,sort:sourceSort,onSort:setSourceSort,search:search,onSearch:setSearch,selected:selectedSource,onSelect:setSource,showAll:showAll,onToggleAll:function(){setShowAll(!showAll);}}):
-        tab==="products"?h(ProductWorkspace,{products:products,funnel:funnel,ops:ops,selected:selectedProduct,onSelect:setProduct,family:productFamily,onFamily:setProductFamily,search:productSearch,onSearch:setProductSearch,showAll:showAllProducts,onToggleAll:function(){setShowAllProducts(!showAllProducts);}}):
+        tab==="products"?h(ProductWorkspace,{products:products,funnel:funnel,ops:ops,focusDate:di.product_focus&&di.product_focus.date,selected:selectedProduct,onSelect:setProduct,family:productFamily,onFamily:setProductFamily,search:productSearch,onSearch:setProductSearch,showAll:showAllProducts,onToggleAll:function(){setShowAllProducts(!showAllProducts);}}):
         h(EventWorkspace,{events:events,ops:ops,selected:selectedEvent,onSelect:setEvent})
       ),
       h(ContextCards,{di:di,ops:ops,dx:dx,events:events,products:products}),
