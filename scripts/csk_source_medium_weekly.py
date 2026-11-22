@@ -222,6 +222,38 @@ def cached_subchannel_fallback(dates,root=None):
 
 
 
+def audit_weekly_totals(report,operations):
+    """Keep measurable reconciliation gaps visible, never silently force equality."""
+    weekly=operations.get("weekly") or {}
+    checks={}
+    strict=True
+    within=True
+    for period,label in (("current","current"),("previous","previous")):
+        observed=(report.get("totals") or {}).get(period) or {}
+        expected=((weekly.get(label) or {}).get("total") or {})
+        gaps={}
+        for metric,kpi in (("sessions","sessions"),("transactions","orders"),("revenue","revenue")):
+            a,b=observed.get(metric),expected.get(kpi)
+            if type(a) not in (int,float) or type(b) not in (int,float) or b<=0:
+                gaps[metric]={"status":"unavailable"}
+                strict=False;within=False
+                continue
+            diff=round(float(a)-float(b),2)
+            pct=round(100*diff/float(b),4)
+            gaps[metric]={"observed":a,"kpi":b,"difference":diff,"difference_pct":pct}
+            if abs(diff)>(1 if metric=="revenue" else 0):strict=False
+            if abs(pct)>0.05:within=False
+        checks[period]=gaps
+    report["quality"]={**(report.get("quality") or {}),
+                       "weekly_reconciliation":checks,
+                       "strict_total_match":strict,
+                       "within_005_pct":within,
+                       "source_level":"exact_ga4_session_source_medium" if report.get("status")=="ga4_measured"
+                                      else "daily_channel_subcategory_not_raw_source_medium",
+                       "note":"세션 키 산출과 Daily 주간 KPI 간 소수 집계 차이는 별도 기록. 주문·매출은 비교 가능 여부 확인."}
+    return report
+
+
 def save(x):
     OUT.parent.mkdir(parents=True,exist_ok=True)
     OUT.write_text(json.dumps(x,ensure_ascii=False,indent=2,allow_nan=False)+"\n",encoding="utf-8")
@@ -239,6 +271,8 @@ def main():
     cached=read(OUT)
     if (cached.get("status")=="ga4_measured" and cached.get("period")==dates and cached.get("schema")==1
             and os.getenv("CSK_SOURCE_MEDIUM_FORCE")!="1"):
+        if not (cached.get("quality") or {}).get("weekly_reconciliation"):
+            save(audit_weekly_totals(cached,ops))
         print("[SOURCE MEDIUM] Same 7-day windows already measured; no query")
         return
     secret=os.getenv("GOOGLE_SA_JSON_B64","").strip()
@@ -289,7 +323,7 @@ def main():
             billing[period]=int(job.total_bytes_billed or 0)
         out=summarize(results["current"],results["previous"],dates,
                        {**cost,"billed_bytes":billing})
-        save(out)
+        save(audit_weekly_totals(out,ops))
         print("[SOURCE MEDIUM] ga4_measured",len(out["rows"]),"source/medium combinations",
               "sessions",out["totals"]["current"]["sessions"],"billed_bytes",billing)
     except Exception as exc:
