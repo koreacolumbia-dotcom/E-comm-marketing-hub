@@ -114,8 +114,9 @@ async function main(){
    const leading=sourceDrivers.top_gains.find(x=>x.components);
    if(leading){
      const selected=await render("acquisition",{8:leading.source_medium});
-     assertContent(selected,["이 소스의 매출 변화 분해",
-       "세션 변화와 구매전환율 변화를 함께 점검하세요"]);
+     assertContent(selected,["이 소스의 매출 변화 분해","이 소스의 다음 검증"]);
+     if(leading.next_validation)assert(selected.includes(leading.next_validation),
+       "Source-level next action must be grounded in the measured leading factor");
    }
  }
  const current=source.period&&source.period.current||{},wk=ops.weekly||{};
