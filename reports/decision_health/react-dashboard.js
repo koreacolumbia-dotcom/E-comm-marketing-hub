@@ -54,13 +54,25 @@
     if (/organic|referral|direct|none|social/.test(txt)) return "organic";
     return "other";
   }
-  function metricRows(ops) {
+  function dailySeries(ops,di,key) {
+    var w=ops&&ops.weekly||{},parts=dateRange(w.period),record=(di&&di.sections||[]).find(function(x){return x.number===4;})||{};
+    var allDates=record.dates||[],numbers=record[key]||[],target=w.current&&w.current.total&&w.current.total[key];
+    if(parts.length!==2 || !num(target) || target<=0 || allDates.length!==numbers.length)return null;
+    var values=[];
+    for(var i=0;i<allDates.length;i++)if(allDates[i]>=parts[0]&&allDates[i]<=parts[1]){
+      if(!num(numbers[i])||numbers[i]<0)return null;values.push(numbers[i]);
+    }
+    if(values.length!==7)return null;
+    var total=values.reduce(function(a,b){return a+b;},0);
+    return Math.abs(total-target)/target<=0.005?values:null;
+  }
+  function metricRows(ops,di) {
     var w=ops && ops.weekly, a=w && w.current && w.current.total, b=w && w.previous && w.previous.total;
     if (!w || w.status !== "ready" || !finiteTotal(a) || !finiteTotal(b)) return [];
     return [
-      {key:"revenue",label:"매출",value:a.revenue,prior:b.revenue,display:krw(a.revenue),before:krw(b.revenue),icon:"₩"},
+      {key:"revenue",label:"매출",value:a.revenue,prior:b.revenue,display:krw(a.revenue),before:krw(b.revenue),icon:"₩",series:dailySeries(ops,di,"revenue"),trend:"bar"},
       {key:"orders",label:"주문",value:a.orders,prior:b.orders,display:fmt(a.orders)+"건",before:fmt(b.orders)+"건",icon:"□"},
-      {key:"sessions",label:"세션",value:a.sessions,prior:b.sessions,display:fmt(a.sessions),before:fmt(b.sessions),icon:"↗"},
+      {key:"sessions",label:"세션",value:a.sessions,prior:b.sessions,display:fmt(a.sessions),before:fmt(b.sessions),icon:"↗",series:dailySeries(ops,di,"sessions"),trend:"line"},
       {key:"aov",label:"객단가",value:a.revenue/a.orders,prior:b.revenue/b.orders,display:fmt(a.revenue/a.orders)+"원",before:fmt(b.revenue/b.orders)+"원",icon:"◇"}
     ];
   }
@@ -96,6 +108,23 @@
     {id:"market",label:"경쟁사"}
   ];
 
+  function DailyMiniChart(props) {
+    var values=props.values;
+    if(!Array.isArray(values)||values.length!==7)return null;
+    var max=Math.max.apply(null,values.concat([1]));
+    var min=Math.min.apply(null,values);
+    var span=Math.max(1,max-min);
+    var points=values.map(function(v,i){return (10+i*36)+","+(50-40*(v-min)/span).toFixed(2);}).join(" ");
+    return h("div",{className:"csk-mini-trend",title:"동일 기간 실제 일별 "+props.label+" 집계"},
+      h("svg",{viewBox:"0 0 236 58",preserveAspectRatio:"none",role:"img","aria-label":"최근 7일 "+props.label+" 일별 추이"},
+        props.type==="bar"?values.map(function(v,i){
+          var height=Math.max(4,44*v/max);
+          return h("rect",{key:i,x:12+i*34,y:52-height,width:19,height:height,rx:4,fill:i===6?"#5e54f3":"#abb1fa"});
+        }):h("polyline",{points:points,fill:"none",stroke:"#0072ce",strokeWidth:"3",strokeLinecap:"round",strokeLinejoin:"round"})
+      ),
+      h("span",null,"최근 7일 일별 "+props.label+" 추이")
+    );
+  }
   function ComparisonTrack(props) {
     var max=Math.max(props.now||0,props.prior||0,1);
     return h("div",{className:"csk-comparison","aria-label":"직전 7일과 최근 7일 비교"},
@@ -109,7 +138,7 @@
       h("div",{className:"kpi-label-row"},h("span",{className:"kpi-label"},m.label),h("span",{className:"kpi-icon","aria-hidden":"true"},m.icon)),
       h("strong",{className:"kpi-big-number",title:fmt(m.value)+(m.key==="revenue" || m.key==="aov"?"원":"")},m.display),
       h("div",{className:"kpi-change"},h("span",{className:cls("delta-pill",p>0?"up":p<0?"down":"flat")},delta(p)),h("span",null,"전주 대비")),
-      h(ComparisonTrack,{prior:m.prior,now:m.value}),
+      m.series?h(DailyMiniChart,{values:m.series,type:m.trend,label:m.label}):h(ComparisonTrack,{prior:m.prior,now:m.value}),
       h("p",{className:"kpi-previous"},"전주 ",m.before)
     );
   }
@@ -382,7 +411,7 @@
     var [showAll,setShowAll]=useState(false);
     var [showLegacy,setLegacy]=useState(false);
     var drivers=useMemo(function(){return driverBridge(ops);},[ops]);
-    var metrics=useMemo(function(){return metricRows(ops);},[ops]);
+    var metrics=useMemo(function(){return metricRows(ops,di);},[ops,di]);
     var products=useMemo(function(){return productRows(di);},[di]);
     var events=useMemo(function(){return officialEvents(dx,ops);},[dx,ops]);
     useEffect(function(){
