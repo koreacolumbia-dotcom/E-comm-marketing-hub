@@ -45,6 +45,23 @@ jobs:
           fi
       - name: Validate conflict-safe publication merger
         run: python scripts/competitor_publish/safe_publish.py --self-test
+      - name: Validate content dashboard contracts
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          html=Path('reports/competitor_content/index.html').read_text()
+          summary=json.loads(Path('reports/competitor_content/strategy-summary.json').read_text())
+          assert len(summary['brands'])==24, 'expected 24 tracked brands'
+          for marker in ('id="classificationRules"','id="crawlHealth"','id="crawlHealthRows"','function classifyPlacement(x)',"fetch('strategy-summary.json'",'게재 위치: '):
+              assert marker in html, f'missing dashboard contract: {marker}'
+          for brand in summary['brands']:
+              c=brand.get('url_coverage') or {}
+              if c.get('known_urls') is not None:
+                  assert c['observed_urls']<=c['known_urls'], brand['brand']
+                  assert c['unobserved_urls']<=c['known_urls'], brand['brand']
+          print('Dashboard contracts and 24-brand coverage schema verified')
+          PY
       - name: Test interactive drilldowns in Chromium
         run: python scripts/competitor_content/drilldown_test.py
       - name: Crawl official editorial pages
