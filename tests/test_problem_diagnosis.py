@@ -174,6 +174,13 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('href="./product_funnel_evidence.json"', DECISION_HTML)
         self.assertIn('href="./ga4_purchase_diagnostics.json"', DECISION_HTML)
 
+    def test_weather_strip_is_present_and_source_scoped(self):
+        self.assertIn('id="priority-weather"', DECISION_HTML)
+        self.assertIn('NOAA 서울 대체 관측', DECISION_HTML)
+        self.assertIn('기상청 서울 ASOS 관측', DECISION_HTML)
+        self.assertIn('a.length===7&&b.length===7', DECISION_HTML)
+        self.assertIn('매출 인과 미확정', DECISION_HTML)
+
     def test_decision_product_priority_and_evidence(self):
         self.assertIn('d>=15&&s<=-15', DECISION_HTML)
         self.assertIn('GA4 구매 매칭', DECISION_HTML)

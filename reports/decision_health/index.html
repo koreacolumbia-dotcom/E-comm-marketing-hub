@@ -85,8 +85,10 @@ header{display:flex;justify-content:space-between;gap:16px;align-items:center;bo
 #raw-evidence[hidden]{display:none!important}
 .p-why{margin-top:2px;padding:9px 10px;border-radius:7px}
 .p-evidence{display:none}
+.p-weather{font-size:11px;color:#3c617d;background:#eef4f8;border-radius:7px;padding:9px 12px;margin:9px 0;line-height:1.5}
+@media(max-width:670px){.p-weather{padding:8px 10px;font-size:10px}}
 </style></head><body><main><header><div><small>CSK E-COMMERCE · DECISION INTELLIGENCE</small><h1>의사결정 센터</h1><small>관측 데이터와 미검증 가설을 분리합니다. 숫자가 없으면 임의로 채우지 않습니다.</small></div><span class="status" id="overall">원천 확인 중</span></header>
-<section id="priority-products" aria-label="상품별 우선순위 카드"><div class="p-top"><div><small>PRODUCT SIGNALS · ACTION FIRST</small><h2>원인 후보 TOP 3 <small class="p-status-label">원인 확정 전</small></h2><p id="priority-period">관측 데이터 확인 중</p></div><small id="priority-coverage">원천 점검 중</small></div><div class="p-board" id="priority-cards" aria-live="polite">실측 근거 정리 중</div><div id="priority-detail" hidden></div></section><div id="loading" role="status">연결된 보고서를 검사하고 있습니다.</div>
+<section id="priority-products" aria-label="상품별 우선순위 카드"><div class="p-top"><div><small>PRODUCT SIGNALS · ACTION FIRST</small><h2>원인 후보 TOP 3 <small class="p-status-label">원인 확정 전</small></h2><p id="priority-period">관측 데이터 확인 중</p></div><small id="priority-coverage">원천 점검 중</small></div><div class="p-weather" id="priority-weather" aria-label="최근 14일 서울 일평균 기온 출처">서울 관측 기온 확인 중</div><div class="p-board" id="priority-cards" aria-live="polite">실측 근거 정리 중</div><div id="priority-detail" hidden></div></section><div id="loading" role="status">연결된 보고서를 검사하고 있습니다.</div>
 <details id="decision-additional"><summary><span>상세 분석·검증 자료 보기</span><small>검증된 숫자 3개만 보기</small></summary><section id="evidence-short" aria-label="원인별 쿼리 검증 수치">GA4 검증 데이터를 확인하고 있습니다.</section><div class="p-source-links"><span>근거 원본</span><a href="./product_funnel_evidence.json">세션 퍼널</a><a href="./ga4_purchase_diagnostics.json">구매·객단가</a><a href="./diagnoses.json">집계 정의</a></div><div id="raw-evidence" hidden><section class="grid">
 <article class="card two"><h2>01 · 현재 가장 중요한 의사결정</h2><div id="story" class="lead">데이터 확인 중</div><div id="story-note" class="notice" style="margin-top:12px">원천 신선도 확인 후 판단합니다.</div></article>
 <article class="card third"><h2>원천 상태</h2><div id="health"></div></article>
@@ -348,6 +350,20 @@ function detail(item,focus,idx){
   box.scrollIntoView({block:"nearest",behavior:"smooth"});
 }
 function render(focus,diag,ga4){
+  const temperatures=Array.isArray(focus?.temperature)?focus.temperature:[];
+  const a=temperatures.slice(-7).filter(v=>typeof v==="number"&&Number.isFinite(v));
+  const b=temperatures.slice(0,7).filter(v=>typeof v==="number"&&Number.isFinite(v));
+  const avg=r=>r.length?r.reduce((sum,v)=>sum+v,0)/r.length:null;
+  const current=avg(a),prior=avg(b);
+  const source=String(focus?.weather_source||"");
+  const sourceLabel=source.includes("NOAA")?(source.includes("KMA")?"기상청·NOAA 서울 관측":"NOAA 서울 대체 관측"):
+    source.includes("KMA")?"기상청 서울 ASOS 관측":"관측 출처 미확보";
+  byId("priority-weather").textContent=current!==null?
+    "서울 일평균 최근 7일 "+current.toFixed(1)+"°C ("+a.length+"/7일)"+
+    (prior!==null?" · 직전 7일 "+prior.toFixed(1)+"°C ("+b.length+"/7일)":"")+
+    (a.length===7&&b.length===7?" · 전주 대비 "+(current-prior>0?"+":"")+(current-prior).toFixed(1)+"°C":" · 비교 일부 미확보")+
+    " · "+sourceLabel+" · 매출 인과 미확정":
+    "서울 일평균 기온 미확보 · 기상청/NOAA 관측 연결 확인 중";
   const {causes,total}=build(focus,diag,ga4);
   byId("priority-period").textContent=(focus?.date||"기준일 미확보")+' · 최근 7일 vs 직전 7일 · 관측 근거와 미확인 가설 구분';
   byId("priority-coverage").textContent="비교 가능 상품 "+total+"종 · 전체 상품 원인 확정 아님";
