@@ -63,6 +63,23 @@ function selectedRows(){
 function unavailable(){
  return '<div class="fm-state warn">요청한 분류의 검증된 세션·구매 데이터가 없습니다. 0건으로 해석하지 않습니다.</div>';
 }
+function renderLiveAggregate(){
+ var rootEl=$("#fm-live-aggregate"),d=app.data||{},e=d.event||{};
+ if(!rootEl)return;
+ if(e.status!=="verified_ga4"||!e.totals?.current||!e.totals?.previous){
+  rootEl.innerHTML='<span>행사 누적 GA4 확정 데이터를 확인하는 중입니다. 기존 D1~D2 검증표는 유지합니다.</span>';
+  return;
+ }
+ var a=e.totals.previous,b=e.totals.current,rev=percent(a.revenue,b.revenue,"revenue");
+ rootEl.innerHTML='<div class="fm-live-label">현재 확정된 누적 구간 · D1~D'+esc(e.days)+
+    ' <span>'+esc(e.daily?.[0]?.current_date||"")+" ~ "+esc(e.daily?.at(-1)?.current_date||"")+'</span></div>'+
+   '<div class="fm-live-line"><strong>'+esc(fmt(b.revenue,"revenue"))+'</strong>'+
+     '<span class="fm-delta '+(rev.down?"down":"")+'">'+esc(rev.value)+' YoY</span></div>'+
+   '<p>전년 동일 경과일 '+esc(fmt(a.revenue,"revenue"))+' · '+esc(fmt(b.orders,"orders"))+
+     ' / '+esc(fmt(b.sessions,"sessions"))+' / CVR '+esc(fmt(b.cvr_pct,"cvr"))+
+     '. 아래 기존 D1–D2 표는 최초 검증 기준을 보존합니다.</p>';
+}
+
 function renderReasons(){
  var d=app.data||{},area=$("#fm-reasons");if(!area)return;
  var em=d.event_media||{},ys=em.years||{},a=((ys["2025"]||{}).groups)||[],b=((ys["2026"]||{}).groups)||[];
@@ -112,6 +129,7 @@ function render(){
  }else if(period&&app.view==="event"){
   windowEl.textContent="2026 "+((period["2026"]||[]).join("~"))+" · 2025 "+((period["2025"]||[]).join("~"));
  }else windowEl.textContent="확정 기간 없음";
+ renderLiveAggregate();
  renderReasons();
  var rows=selectedRows();$("#fm-count").textContent=rows.length+"개 유입 그룹";
  $("#fm-items").innerHTML=rows.length?rows.map(function(r,i){
