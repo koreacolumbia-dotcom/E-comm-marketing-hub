@@ -398,6 +398,32 @@ def build(operations: dict, intelligence: dict, content: dict,
             "blocked_by":["2026년 6월 이후 갱신되지 않은 관리자 주문마트"],
             "sources":[INPUTS["coupon"],INPUTS["warehouse_metadata"]],
         })
+    if coupon.get("report_date") == (report_day.isoformat() if report_day else None) and coupon.get("status")=="partial_quality":
+        quality=coupon.get("quality_checks") or {}
+        missing=quality.get("purchase_events_without_item_rows") or {}
+        missed=sum(v for v in missing.values() if isinstance(v,int) and v>=0)
+        all_populated=quality.get("coupon_marker_present_in_all_item_rows")
+        problems.append({
+            "id":"GA4_COUPON_QUALITY","priority":"P1","status":"source_error_confirmed",
+            "title":"GA4 쿠폰코드 지표의 모집단/적용 여부 검증 실패",
+            "finding":(
+                f"상품행 없는 purchase 이벤트 {missed}건"
+                +(" · 모든 상품행에 coupon 필드 값 존재" if all_populated else "")
+            ),
+            "cause_component":(
+                "구매 이벤트 중 일부에 상품행이 없고 쿠폰 필드가 일률적으로 채워져 "
+                "실제 쿠폰 사용률/할인금액을 확정할 수 없음. 결측·스키마 범위 문제는 실측으로 확인."
+            ),
+            "cause_hypotheses":[],
+            "hypothesis_status":"confirmed_data_quality_limitation",
+            "causal_confirmed":False,
+            "how_to_verify":(
+                "누락된 item 배열의 원인과 coupon 필드 매핑을 GTM/GA4 이벤트 스키마에서 확인. "
+                "쿠폰 금액은 최신 관리자 주문마트 적재 이후 별도 재계산"
+            ),
+            "blocked_by":["GA4 상품행 완전성","관리자 주문상품마트 장기 지연"],
+            "sources":[INPUTS["coupon"],INPUTS["warehouse_metadata"]],
+        })
     for problem in problems:
         problem["blocked_by"] = [v for v in problem.get("blocked_by", []) if v]
     return {
@@ -424,6 +450,7 @@ def build(operations: dict, intelligence: dict, content: dict,
             "report_date": coupon.get("report_date"),
             "periods": coupon.get("periods") if coupon_ready else None,
             "delta_pp": coupon.get("coupon_presence_delta_pp") if coupon_ready else None,
+            "quality_checks": coupon.get("quality_checks"),
             "source": "GA4 items.coupon presence; not discount amount",
             "cost": coupon.get("cost"),
         },
