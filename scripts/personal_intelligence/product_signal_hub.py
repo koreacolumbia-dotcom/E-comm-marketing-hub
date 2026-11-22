@@ -81,6 +81,61 @@ def assess_weather_association(temperatures, quantities, source=None):
                       reason="최근 14일에 설정된 강한 역상관·저온 판매 증가 기준 미충족")
     return result
 
+
+def assess_weather_business(dates, temperatures, revenue, sessions):
+    """30-day weather association with sensitivity to the two largest sales days.
+
+    No adjustment claims for price, promotions, seasonality, stock, or channel mix.
+    Exclusion is an explicit robustness check, not a causal model or a replacement
+    for the full period. Preserve actual-date source alignment and missingness.
+    """
+    result={"status":"insufficient","label":"날씨 영향 판단 불가",
+            "n_days":0,"raw_revenue_r":None,"trimmed_revenue_r":None,
+            "raw_sessions_r":None,"trimmed_sessions_r":None,
+            "excluded_dates":[],"method":"실측 일평균 기온·매출/세션의 30일 관측 상관 및 매출 상위 2일 제외 민감도",
+            "causal":False,"reason":"비교 가능한 실측 기온·매출 일자 부족"}
+    if not all(isinstance(x,list) for x in (dates,temperatures,revenue,sessions)):
+        return result
+    rows=[(str(dt),float(t),float(rev),float(ses))
+          for dt,t,rev,ses in zip(dates,temperatures,revenue,sessions)
+          if isinstance(t,(int,float)) and not isinstance(t,bool) and isfinite(t)
+          and isinstance(rev,(int,float)) and not isinstance(rev,bool) and isfinite(rev) and rev>=0
+          and isinstance(ses,(int,float)) and not isinstance(ses,bool) and isfinite(ses) and ses>0]
+    # Limit the intended historical window to the latest 30 observed days.
+    rows=rows[-30:]
+    result["n_days"]=len(rows)
+    if len(rows)<21:return result
+    def corr(observations,field):
+        xs=[x[1] for x in observations];ys=[x[field] for x in observations]
+        mx=sum(xs)/len(xs);my=sum(ys)/len(ys)
+        tx=sum((x-mx)**2 for x in xs);ty=sum((y-my)**2 for y in ys)
+        return sum((x-mx)*(y-my) for x,y in zip(xs,ys))/(tx*ty)**0.5 if tx>0 and ty>0 else None
+    # Use rank of observed sales, not a hardcoded campaign start date.
+    excluded=set(x[0] for x in sorted(rows,key=lambda r:(-r[2],r[0]))[:2])
+    trimmed=[r for r in rows if r[0] not in excluded]
+    result["excluded_dates"]=sorted(excluded)
+    raw=corr(rows,2);trim=corr(trimmed,2)
+    ssraw=corr(rows,3);sstrim=corr(trimmed,3)
+    result["raw_revenue_r"]=round(raw,2) if raw is not None else None
+    result["trimmed_revenue_r"]=round(trim,2) if trim is not None else None
+    result["raw_sessions_r"]=round(ssraw,2) if ssraw is not None else None
+    result["trimmed_sessions_r"]=round(sstrim,2) if sstrim is not None else None
+    if raw is None or trim is None:
+        result["reason"]="매출 또는 기온 변동이 없어 비교 불가"
+    elif abs(raw)>=.5 and abs(trim)<.35:
+        result.update(status="confounded",label="날씨 단독 영향 미확인",
+                      reason="매출 급등일을 제외하면 기온과 매출의 연관성이 크게 약해짐")
+    elif raw<=-.55 and trim<=-.45:
+        result.update(status="signal",label="추운 날 매출 증가 신호",
+                      reason="관측 기간과 민감도 분석에서 추운 날 매출 증가 패턴 유지")
+    elif abs(trim)<.35:
+        result.update(status="weak",label="뚜렷한 날씨 연관 신호 없음",
+                      reason="매출 급등일을 제외한 관측 상관이 약함")
+    else:
+        result.update(status="confounded",label="날씨 영향 판단 보류",
+                      reason="매출과 기온 패턴이 일관되지 않거나 다른 요인과 중첩")
+    return result
+
 def build_signals(d,history=(),events=None,discounts=None,weather=None,limit=3):
     end=date.fromisoformat(d["end_date"]); day=end.isoformat()
     dates=[(end-timedelta(days=i)).isoformat() for i in range(13,-1,-1)]
