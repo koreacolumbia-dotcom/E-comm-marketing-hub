@@ -4,6 +4,7 @@
 const GROUPS=[
  ["overview","통합 홈","홈","fa-house",[
   ["decision_health","의사결정 센터","reports/decision_health/index.html","fa-shield-halved"],
+  ["winter_festival","윈터페스티벌 YoY","reports/decision_health/winter_festival_comparison_2026.html","fa-snowflake"],
   ["summary","전체 Summary","reports/index.html","fa-chart-simple"],
   ["daily","Owned 데일리","reports/daily_digest/index.html","fa-calendar-day"],
   ["daily_intelligence","18개 통합 분석","reports/daily_intelligence/index.html?v=20261122-weatherfocus-v1","fa-chart-line"]]],
@@ -42,7 +43,7 @@ css.textContent=[
  ".csk-group-head:hover,.csk-group.open .csk-group-head{background:#eaf1f8;color:#002d72}.csk-group-head .fa-chevron-down{margin-left:auto;font-size:11px}",
  ".csk-group-items[hidden],.csk-group[hidden]{display:none!important}.csk-group .nav-item{margin:2px 0 2px 14px;padding:8px 9px;font-size:12px;border-radius:9px;animation:none;min-height:39px;font-weight:700}",
  ".csk-group .nav-item.active{transform:none;box-shadow:none;background:#e9f2fb}.csk-group .nav-item:hover{transform:none;box-shadow:none}",
- ".csk-mobile-inner{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}.csk-mobile-inner .mo-tab,.csk-more{border:0;background:transparent;padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:#64748b;cursor:pointer}",
+ ".csk-mobile-inner{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0}.csk-mobile-inner .mo-tab,.csk-more{border:0;background:transparent;padding:8px 1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;color:#64748b;cursor:pointer;min-width:0;white-space:nowrap}",
  ".csk-mobile-inner i{font-size:17px}.csk-mobile-inner .mo-tab.active{background:#e9f2fb;border-radius:9px;color:#002d72}",
  "#csk-drawer-scrim{position:fixed;inset:0;background:rgba(20,35,50,.45);z-index:94;display:none}#csk-drawer-scrim.open{display:block}",
  "#csk-drawer{position:fixed;z-index:95;top:0;right:0;bottom:0;width:min(380px,92vw);background:#fff;transform:translateX(100%);transition:transform .2s;overflow:auto;padding:18px;box-shadow:-15px 0 45px #0002}",
@@ -74,6 +75,17 @@ GROUPS.forEach(g=>{
  const p=g[4][0],el=document.createElement("button");el.type="button";el.className="mo-tab";el.dataset.key=p[0];el.dataset.target=p[2];el.dataset.label=p[1];el.setAttribute("aria-label",g[1]);
  const ic=document.createElement("i");ic.className="fa-solid "+g[3];const text=document.createElement("span");text.textContent=g[2];el.append(ic,text);bottom.appendChild(el);
 });
+// Direct event tab is a shortcut, not a sixth top-level menu group.
+const winterRoute=lookup.get("winter_festival")?.[4].find(p=>p[0]==="winter_festival");
+if(winterRoute){
+ const festivalTab=document.createElement("button");
+ festivalTab.type="button";festivalTab.className="mo-tab csk-event-shortcut";
+ festivalTab.dataset.key=winterRoute[0];festivalTab.dataset.target=winterRoute[2];
+ festivalTab.dataset.label=winterRoute[1];festivalTab.setAttribute("aria-label","윈터페스티벌 전년 성과분석");
+ const eventIcon=document.createElement("i");eventIcon.className="fa-solid "+winterRoute[3];
+ const eventLabel=document.createElement("span");eventLabel.textContent="윈터";
+ festivalTab.append(eventIcon,eventLabel);bottom.appendChild(festivalTab);
+}
 const more=document.createElement("button");more.type="button";more.className="csk-more";more.innerHTML='<i class="fa-solid fa-bars"></i><span>전체</span>';bottom.appendChild(more);
 const scrim=document.createElement("div");scrim.id="csk-drawer-scrim";document.body.appendChild(scrim);
 const drawer=document.createElement("aside");drawer.id="csk-drawer";drawer.innerHTML='<div class="csk-drawer-title"><span>전체 분석 메뉴</span><button type="button" id="csk-drawer-close">닫기</button></div><input class="csk-menu-search" type="search" id="csk-drawer-search" placeholder="상세 분석 검색" aria-label="상세 분석 검색"><div id="csk-drawer-list"></div>';document.body.appendChild(drawer);
@@ -101,7 +113,7 @@ document.addEventListener("keydown",e=>{
 });
 function activate(key){const group=lookup.get(key);if(!group)return;
  holders.forEach((h,id)=>{const on=id===group[0];h.items.hidden=!on;h.section.classList.toggle("open",on);h.head.setAttribute("aria-expanded",String(on))});
- bottom.querySelectorAll(".mo-tab").forEach(x=>x.classList.toggle("active",lookup.get(x.dataset.key)?.[0]===group[0]));
+ bottom.querySelectorAll(".mo-tab").forEach(x=>x.classList.toggle("active",x.dataset.key==="winter_festival" ? key==="winter_festival" : key!=="winter_festival" && lookup.get(x.dataset.key)?.[0]===group[0]));
  list.querySelectorAll(".csk-drawer-link").forEach(x=>x.classList.toggle("active",x.dataset.key===key));
  closeDrawer();
 }
