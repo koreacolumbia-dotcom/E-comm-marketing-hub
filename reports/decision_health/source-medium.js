@@ -73,7 +73,7 @@ function updateRows(){
   btn.classList.toggle("active",active);
  });
 }
-function render(data){
+function render(data,operations){
  payload=data;
  if(data?.status!=="ga4_measured"||!data?.totals?.current||!data?.totals?.previous||!Array.isArray(data?.rows)){
   root.innerHTML='<div class="sm-section-head"><div><small>ACQUISITION ANALYTICS</small><h2>유입 · 전환 소스/매체</h2>'+
@@ -86,6 +86,17 @@ function render(data){
  }
  const a=data.totals.current,b=data.totals.previous;
  const dates=data.period||{},current=dates.current||{},previous=dates.previous||{};
+ const opsWeek=operations?.weekly||{},opsRange=String(opsWeek.period||"").split(" ~ "),
+   opsBaseline=String(opsWeek.comparison_period||"").split(" ~ ");
+ const periodAligned=opsWeek.status==="ready"&&
+   opsRange.length===2&&opsBaseline.length===2&&
+   current.start===opsRange[0]&&current.end===opsRange[1]&&
+   previous.start===opsBaseline[0]&&previous.end===opsBaseline[1];
+ const periodNotice=operations&&!periodAligned?
+   '<div class="sm-period-note mismatch" role="status"><b>분석 기간 불일치</b>'+
+   '<span class="sm-note-copy">이 소스·매체 분석은 '+safe(current.start)+' ~ '+safe(current.end)+
+   ' 기준입니다. 전체 매출 분석('+safe(opsWeek.period||"미확보")+
+   ')과 다른 7일 구간이므로 원인별 영향액으로 직접 연결하지 않습니다. 동일 기간 집계가 갱신되면 비교할 수 있습니다.</span></div>':"";
  const cvrChange=finite(a.cvr_pct)&&finite(b.cvr_pct)?a.cvr_pct-b.cvr_pct:null;
  const biggestLoss=data.rows.filter(r=>r.previous.sessions>=500&&r.current.sessions>=500&&
    r.previous.revenue>0&&r.revenue_delta<0).sort((a,b)=>a.revenue_delta-b.revenue_delta)[0];
@@ -107,7 +118,7 @@ function render(data){
  root.innerHTML='<div class="sm-section-head"><div><small>ACQUISITION ANALYTICS · SOURCE / MEDIUM</small>'+
    '<h2>유입부터 구매전환까지</h2><p>소스/매체별 세션 · 주문 · CVR · 매출을 연결해 확인합니다.</p></div>'+
    '<small class="sm-period">'+safe(current.start)+" ~ "+safe(current.end)+"<span>vs "+safe(previous.start)+" ~ "+safe(previous.end)+'</span></small></div>'+
-   '<div class="sm-kpis">'+
+   periodNotice+'<div class="sm-kpis">'+
    card("GA4 세션",fmt(a.sessions),numChange(a.sessions,b.sessions),colors(difference(a.sessions,b.sessions)))+
    card("구매 건수",fmt(a.transactions),numChange(a.transactions,b.transactions),colors(difference(a.transactions,b.transactions)))+
    card("구매전환율",finite(a.cvr_pct)?a.cvr_pct.toFixed(2)+"%":"—",pp(cvrChange),colors(cvrChange))+
@@ -141,5 +152,5 @@ root.addEventListener?.("change",e=>{
  if(e.target.matches?.(".sm-sort")){sort=e.target.value;showAll=false;updateRows();}
 });
 window.CSKSourceMedium={render,currentRows,group};
-if(window.__cskSmPayload)render(window.__cskSmPayload);
+if(window.__cskSmPayload)render(window.__cskSmPayload,window.__cskSmOperatingWeek);
 })();
