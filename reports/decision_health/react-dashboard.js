@@ -439,7 +439,12 @@
     },[]);
     useEffect(function(){
       document.body.classList.toggle("csk-show-legacy",showLegacy);
-      return function(){document.body.classList.remove("csk-show-legacy");};
+      var sourceDetail=document.getElementById("decision-additional");
+      if(sourceDetail)sourceDetail.hidden=!showLegacy;
+      return function(){
+        document.body.classList.remove("csk-show-legacy");
+        if(sourceDetail)sourceDetail.hidden=true;
+      };
     },[showLegacy]);
     var title=tab==="overview"?"매출 변화의 핵심 원인":tab==="acquisition"?"유입부터 구매전환까지":tab==="products"?"상품별 PDP·구매 흐름":"경쟁사 공식 행사";
     var subtitle=tab==="overview"?"매출 영향액 기준 · 전주 대비 산술분해":tab==="acquisition"?"실제 GA4 소스/매체 집계 · 기간 분리":tab==="products"?"상품명 기준 조회·판매 변화": "공식 기간이 확인된 프로모션만 표시";
