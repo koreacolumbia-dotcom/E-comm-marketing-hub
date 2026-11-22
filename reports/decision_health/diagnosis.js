@@ -134,8 +134,26 @@
         root.append(extra);
       }
       if(data.market?.official_event_overlap?.length){
-        const evidence=el('p','동일 기간 경쟁사 공식 행사 '+data.market.official_event_overlap.length+'건이 확인됐지만 매출·PDP 변동의 원인으로 검증되지는 않았습니다.','hint');
-        root.append(evidence);
+        const events=data.market.official_event_overlap;
+        const panel=el('details',null,'diag-card');
+        panel.style.marginTop='12px';
+        const toggle=el('summary','같은 기간에 확인된 경쟁사 행사 '+events.length+'건 · 매출 영향 미검증');
+        toggle.style.cursor='pointer';
+        toggle.style.fontWeight='700';
+        panel.append(toggle);
+        panel.append(el('p','기간 확인이 가능한 공식 행사만 포함합니다. 할인 내용의 관측과 컬럼비아 매출 변화는 별도 검증 대상입니다.','hint'));
+        events.slice(0,8).forEach(event=>{
+          const row=el('div',null,'row');
+          row.append(el('strong',(event.brand||'경쟁사')+' · '+(event.title||'행사')));
+          row.append(el('p',(event.start||'?')+' ~ '+(event.end||'?')+' · 근거 '+(event.date_status||'확인 필요'),'hint'));
+          if(typeof event.url==='string'&&/^https:\/\/[a-z0-9.-]+\//i.test(event.url)){
+            const link=el('a','공식 행사 원본');
+            link.href=event.url;link.target='_blank';link.rel='noopener noreferrer';
+            row.append(link);
+          }
+          panel.append(row);
+        });
+        root.append(panel);
       }
     })
     .catch(async()=>{
