@@ -38,7 +38,7 @@ const card=(i,driver)=>{
   (driver.breakdown||"")+
   '<div class="macro-next"><b>관련 수치</b> '+esc(driver.proof||"동일 기간 집계")+'</div></details></article>';
 };
-function render(operations,intelligence,weeklyEvidence,alignedBasket){
+function render(operations,intelligence,weeklyEvidence,alignedBasket,diagnoses){
  const w=operations?.weekly||{},a=w.current?.total,b=w.previous?.total;
  const safe=w.status==="ready"&&w.current?.status==="complete"&&w.previous?.status==="complete"
    &&typeof w.period==="string"&&typeof w.comparison_period==="string"&&
@@ -59,6 +59,15 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
    finite(alignedBasket.item_aov_bridge.items_per_order_current);
  const basketReconciled=samePeriodBasket&&alignedBasket.admin_reconciliation?.comparable===true;
  const basket=samePeriodBasket?alignedBasket.item_aov_bridge:null;
+ // Same-period GA4 purchase observations can inform a hypothesis, but not an
+ // operational KPI attribution when the independent admin reconciliation fails.
+ const refGA4=diagnoses?.ga4_evidence||{},refDates=refGA4.period||{};
+ const refBasket=refGA4.item_aov_bridge||{};
+ const referenceBasketMatched=refGA4.status==="ga4_measured" &&
+   refGA4.report_date===operations.report_date &&
+   refDates.current_start===currentDates[0] && refDates.current_end===currentDates[1] &&
+   refDates.previous_start===priorDates[0] && refDates.previous_end===priorDates[1] &&
+   finite(refBasket.items_per_order_previous)&&finite(refBasket.items_per_order_current);
  const qEffect=basketReconciled&&finite(basket.items_per_order_effect)?basket.items_per_order_effect:null;
  const pEffect=basketReconciled&&finite(basket.realized_item_revenue_effect)?basket.realized_item_revenue_effect:null;
  const gapEffect=qEffect!==null&&pEffect!==null?
@@ -73,8 +82,11 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
    "같은 7일 구간 GA4 구매구성 확인 · 주문당 상품수 "+basket.items_per_order_previous.toFixed(3)+
    "→"+basket.items_per_order_current.toFixed(3)+"개 / 상품당 실현매출 "+
    fmt(basket.realized_item_price_previous)+"→"+fmt(basket.realized_item_price_current)+"원":
-   samePeriodBasket?"GA4 구매구성 기간 일치 · 운영 KPI와 정합성 미통과(상품수·가격 기여 미확정)":
-   "같은 기간의 상품수·가격 구성이 아직 검증되지 않았습니다.";
+   referenceBasketMatched?
+     "GA4 참고 관측 · 주문당 수량 "+refBasket.items_per_order_previous.toFixed(2)+" → "+refBasket.items_per_order_current.toFixed(2)+
+     "개 · 관리자 매출·주문과 대사 불일치(원인 기여액 미확정)":
+   samePeriodBasket?"GA4 구매구성 기간 일치 · 운영 KPI 정합성 미통과":
+   "동일 기간 구매구성 근거 미확보 · 원인 미확정";
  const distribution=basketReconciled?alignedBasket.basket_distribution:null;
  const basketMix=(distribution&&finite(distribution.previous?.single_item_pct)&&
     finite(distribution.current?.single_item_pct)&&
@@ -120,13 +132,16 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
    summary:basketMix&&basketMix.multi_item_avg_units_change<0?
      "다품목 주문당 상품 "+basketMix.previous.multi_item_avg_units.toFixed(2)+" → "+
      basketMix.current.multi_item_avg_units.toFixed(2)+"개 (감소)":
-     (basketReconciled?"주문당 구매수량 감소가 객단가 하락을 주도":"주문 1건당 매출이 감소했습니다."),
+     (basketReconciled?"주문당 구매수량 감소가 객단가 하락을 주도":
+       referenceBasketMatched?"GA4상 주문당 수량 하락 관측 · 운영 매출 영향은 미확정":
+       "주문당 매출 하락 확인 · 상품수·가격 원인은 미확정"),
    confidence:basketReconciled?"동일 기간 GA4 구매 이벤트·운영 KPI 대사 통과 · 독립 ERP 검증 전":
-     "운영 객단가 산술 확인 · 구매구성 원인은 검증 제한",
+     referenceBasketMatched?"동일 기간 GA4 참고 관측 · 관리자 주문 대사 미통과":"운영 객단가 산술 확인 · 구매구성 원인 미확정",
    next:basketMix&&basketMix.multi_item_avg_units_change<0?
      "다품목 주문 수량 확대: 연관상품·세트 구매 실험":
      basketReconciled?"OUTER와 SALE 상품군을 활용한 연관구매 실험":
-     "상품 조합별 교차구매 제안 실험"},
+     referenceBasketMatched?"상품수 감소 가설 검증: 연관상품·세트 제안 소규모 실험":
+       "구매 수량·상품군 대사 후 연관구매 실험 설계"},
   {id:"conversion",title:"구매전환 효율",impact:data.conversion,
    metric:"CVR "+cvBefore.toFixed(3)+"% → "+cvAfter.toFixed(3)+"% ("+
      (cvAfter-cvBefore>0?"+":"")+(cvAfter-cvBefore).toFixed(3)+"%p)",
@@ -187,7 +202,7 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
   '<div class="macro-headline"><div><span>최근 7일 매출 변화</span><strong class="'+(change<0?"loss":"gain")+'">'+signed(change)+'</strong>'+
   '<small>'+won(data.delta)+' · '+fmt(prev.revenue)+' → '+fmt(cur.revenue)+'원</small></div>'+
   '<div class="macro-conclusion">'+(data.aov<0&&data.aov<=data.conversion&&data.aov<=data.traffic?
-    '<b>우선과제 · 주문당 구매수량 회복</b><p>유입보다 구매수량·상품 조합을 개선할 구간입니다.</p>':
+    '<b>우선 점검 · 객단가 하락</b><p>주문당 매출 하락이 성장분을 상쇄합니다. 구매 수량·상품 구성은 검증 후 확정합니다.</p>':
     '<b>주요 지표를 비교합니다.</b><p>각 요인의 산술 기여와 방향을 확인하세요.</p>')+'</div></div>'+
   '<div class="macro-driver-list">'+bucket.map((x,i)=>card(i+1,x)).join("")+'</div>'+
   '<section class="macro-channel-check"><h3>채널별 매출 흐름</h3>'+channelMarkup+'</section>'+
@@ -196,5 +211,5 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
   '<p class="macro-disclaimer">매출 기여액은 실제 관측 KPI의 산술 분해이며 실험에서 측정한 증분 효과는 아닙니다.</p>';
 }
 window.CSKMacroBoard={bridge,render};
-if(window.__cskMacroPayload)render(window.__cskMacroPayload.operations,window.__cskMacroPayload.intelligence,window.__cskMacroPayload.weeklyEvidence,window.__cskMacroPayload.alignedBasket);
+if(window.__cskMacroPayload)render(window.__cskMacroPayload.operations,window.__cskMacroPayload.intelligence,window.__cskMacroPayload.weeklyEvidence,window.__cskMacroPayload.alignedBasket,window.__cskMacroPayload.diagnoses);
 })();
