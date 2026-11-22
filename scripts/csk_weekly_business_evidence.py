@@ -59,7 +59,7 @@ def build(ops,read_day):
     failures=[]
     for window,dates in periods.items():
         for day in dates:
-            data=read_day(day)
+            data=read_day(day) or {}
             if data.get("end_date")!=day or data.get("mode")!="daily":
                 failures.append(day)
                 continue
