@@ -96,7 +96,11 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
     basketMix.previous.three_plus_pct.toFixed(1)+'% → '+
     basketMix.current.three_plus_pct.toFixed(1)+'%</b><span>'+
     (basketMix.three_plus_change_pp>0?'+':'')+
-    basketMix.three_plus_change_pp.toFixed(1)+'%p</span></div>':''):'';
+    basketMix.three_plus_change_pp.toFixed(1)+'%p</span></div>':'')+
+   (finite(basketMix.previous.multi_item_revenue)&&finite(basketMix.current.multi_item_revenue)&&
+    finite(basketMix.previous.single_item_revenue)&&finite(basketMix.current.single_item_revenue)?
+    '<div class="macro-basket-insight"><b>다품목 주문 매출 '+won(basketMix.current.multi_item_revenue-basketMix.previous.multi_item_revenue)+
+    '</b><span>단품 주문 '+won(basketMix.current.single_item_revenue-basketMix.previous.single_item_revenue)+'</span></div>':''):'';
  const categories=basketReconciled&&Array.isArray(alignedBasket.category_bridge?.rows)?
    alignedBasket.category_bridge.rows:[];
  const cat=n=>categories.find(x=>x.category===n&&finite(x.share_previous_pct)&&finite(x.share_current_pct));
