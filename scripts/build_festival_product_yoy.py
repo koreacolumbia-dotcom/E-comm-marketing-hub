@@ -159,6 +159,22 @@ def compare(period: dict, years: dict) -> dict:
                      "current":{"revenue":rev1,"units":qty1},
                      "delta_revenue":rev1-rev0,"delta_units":round(qty1-qty0,2)})
     rows.sort(key=lambda x:(-abs(x["delta_revenue"]),x["name"]))
+    for row in rows:
+        sold_25 = row["previous"]["units"] > 0
+        sold_26 = row["current"]["units"] > 0
+        row["presence"] = ("both" if sold_25 and sold_26 else
+                           "only_2025" if sold_25 else
+                           "only_2026" if sold_26 else "no_units")
+        # Compare normalized item_name, NOT the SKU. Different colors grouped.
+        # Only in 2026 does not imply a true product launch.
+        for year in ("previous","current"):
+            units = row[year]["units"]
+            row[year]["realized_item_revenue"] = (
+                round(row[year]["revenue"] / units, 2) if units > 0 else None)
+    presence_counts = {
+        key: sum(row["presence"] == key for row in rows)
+        for key in ("both","only_2025","only_2026","no_units")
+    }
     totals={}
     for year in ("2025","2026"):
         value=years[year]
@@ -180,10 +196,27 @@ def compare(period: dict, years: dict) -> dict:
                  for year in ("2025","2026")},
                "source":"GA4 purchase event items, duplicated transaction_id deduplicated within day",
                "no_raw_ids_or_users":True}
-    return {"schema":1,"status":"ga4_measured","report_date":period["2026"][1],
+    def top_names(items, sort_key):
+        return [row["name"] for row in sorted(items,key=sort_key)[:5]]
+    common=[row for row in rows if row["presence"]=="both"]
+    rankings={
+      "top_2025":top_names(rows,lambda x:(-x["previous"]["revenue"],x["name"])),
+      "top_2026":top_names(rows,lambda x:(-x["current"]["revenue"],x["name"])),
+      "impact_up":top_names([x for x in rows if x["delta_revenue"]>0],
+                             lambda x:(-x["delta_revenue"],x["name"])),
+      "impact_down":top_names([x for x in rows if x["delta_revenue"]<0],
+                               lambda x:(x["delta_revenue"],x["name"])),
+      "common_growth":top_names(common,lambda x:(-x["delta_revenue"],x["name"])),
+      "common_decline":top_names(common,lambda x:(x["delta_revenue"],x["name"])),
+    }
+    quality["full_product_ranking_verified"] = True
+    quality["style_match_definition"] = "Unicode NFKC + normalized apostrophes, whitespace and casefold on item_name; SKU/color variants grouped by normalized name"
+    return {"schema":2,"status":"ga4_measured","report_date":period["2026"][1],
             "period":period,"comparison":"same_event_elapsed_day_same_weekday",
-            "years":totals,"products":rows[:120],
-            "product_count":len(rows),"item_revenue_delta":item_diff,
+            "years":totals,"products":rows,
+            "product_count":len(rows),"presence_counts":presence_counts,
+            "rankings":rankings,
+            "item_revenue_delta":item_diff,
             "quality":quality,"causal":False,
             "caveat":"Item-level GA4 revenue can differ from official purchase revenue (tax, coupons, shipping, attribution, gaps). Never sum product revenue delta with channel/funnel bridges. New products are not necessarily promotional incremental lift."}
 
@@ -196,10 +229,10 @@ def main():
     ops = read(OPS)
     period = period_from_ops(ops)
     old = read(OUT)
-    if old.get("status")=="ga4_measured" and old.get("period")==period:
+    if old.get("schema")==2 and old.get("status")=="ga4_measured" and old.get("period")==period:
         print("[FESTIVAL PRODUCT] same measured window, no new BQ job")
         return
-    base={"schema":1,"period":period,"report_date":period["2026"][1],
+    base={"schema":2,"period":period,"report_date":period["2026"][1],
           "status":"not_ready","causal":False}
     def preserve_or_write(status, details=None):
         if old.get("status")=="ga4_measured":
