@@ -49,6 +49,69 @@ BODY_OPEN = re.compile(r"<body(?:\s|>)", re.I)
 ASSET_LINK = "csk-saas-unified.css"
 ASSET_SCRIPT = "csk-saas-standalone.js"
 
+# Oversized embedded GA4 HTML is too large for GitHub's normal blob upload.
+# Keep its original Git object by renaming it and expose a small themed entry.
+MAX_GITHUB_BLOB = 90 * 1024 * 1024
+
+def wrap_large_utm(path: Path, *, check: bool = False) -> str:
+    """Use an unchanged same-origin original through a themed responsive wrapper.
+
+    Moving an already-tracked file preserves its blob SHA and avoids attempting
+    to upload its >100 MiB contents as a newly generated HTML blob.
+    """
+    if check:
+        return "missing_theme"
+    legacy = path.with_name("legacy.html")
+    if legacy.exists():
+        legacy.unlink()
+    path.replace(legacy)
+    base = Path(os.path.relpath(ROOT / "assets", path.parent)).as_posix().rstrip("/") + "/"
+    html = """<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CSK E-COMM | 소스·매체</title>
+<link id="csk-saas-shared-theme" rel="stylesheet" href="__BASE__csk-saas-unified.css?v=__VERSION__">
+<script defer data-csk-route="utm_channel" src="__BASE__csk-saas-standalone.js?v=__VERSION__"></script>
+<style>html,body{margin:0;background:#f8f9fc}
+.csk-utm-shell{max-width:1550px;margin:0 auto;padding:16px 12px 30px}
+.csk-utm-head{display:flex;gap:12px;align-items:center;justify-content:space-between;
+background:#16192c;color:#fff;padding:15px 20px;border-radius:18px 18px 0 0;
+font:700 14px system-ui,sans-serif}.csk-utm-head small{color:#c9c9eb;font-size:11px}
+#csk-utm-original{display:block;width:100%;min-height:950px;border:0;background:#f8f9fc}
+@media(max-width:640px){.csk-utm-shell{padding:0}.csk-utm-head{border-radius:0}}</style>
+</head><body>
+<main class="csk-utm-shell">
+<div class="csk-utm-head"><span>소스·매체</span><small>원본 성과 데이터</small></div>
+<iframe id="csk-utm-original" title="소스·매체 성과 원본" src="./legacy.html" loading="eager"></iframe>
+</main>
+<script>
+(function(){
+"use strict";
+const f=document.getElementById("csk-utm-original");
+const theme=new URL("__BASE__csk-saas-unified.css?v=__VERSION__",location.href).href;
+f.addEventListener("load",function(){
+ try{
+  const d=f.contentDocument;if(!d||!d.body||d.location.origin!==location.origin)return;
+  d.body.classList.add("csk-saas-report");
+  d.body.dataset.cskRoute="utm_channel";
+  if(!d.getElementById("csk-saas-shared-theme")){
+   const link=d.createElement("link");link.id="csk-saas-shared-theme";
+   link.rel="stylesheet";link.href=theme;d.head.appendChild(link);
+  }
+  const resize=function(){
+   const h=Math.max(950,Math.ceil(d.documentElement.scrollHeight||d.body.scrollHeight)+20);
+   if(Math.abs((parseInt(f.style.height,10)||0)-h)>20)f.style.height=Math.min(h,100000)+"px";
+  };
+  resize();
+  if(typeof ResizeObserver!=="undefined")new ResizeObserver(resize).observe(d.body);
+ }catch(err){console.warn("Unable to style embedded GA4 report",err)}
+});
+})();
+</script></body></html>"""
+    html = html.replace("__BASE__", base).replace("__VERSION__", VERSION)
+    path.write_text(html + "\n", encoding="utf-8")
+    return "wrapped_large_original"
+
 
 def patch_report(path: Path, key: str, *, check: bool = False) -> str:
     relative_path = path.relative_to(ROOT).as_posix()
@@ -56,6 +119,10 @@ def patch_report(path: Path, key: str, *, check: bool = False) -> str:
         raise ValueError(f"Refusing to modify an excluded daily report: {relative_path}")
     if not path.is_file() or path.stat().st_size == 0:
         return "not_generated"
+    if path.stat().st_size > MAX_GITHUB_BLOB:
+        if key != "utm_channel":
+            raise ValueError(f"Unexpected >90MiB report HTML: {path}")
+        return wrap_large_utm(path, check=check)
     text = path.read_text(encoding="utf-8", errors="replace")
     match = HEAD_END.search(text)
     if not match or not BODY_OPEN.search(text):
