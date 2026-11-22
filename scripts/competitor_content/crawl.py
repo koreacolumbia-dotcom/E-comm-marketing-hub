@@ -478,6 +478,13 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     # Reserve most of the next run for unfinished discovery, rather than repeating the same first pages.
     seeds=unique_urls(queue,same)
     backlog=unique_urls((frontier or {}).get("pending",[]),same)
+    # Spend the limited slice on unvisited public editorial URLs before revisiting
+    # already-observed details. Keep the original order within each tier and
+    # preserve the every-fifth-page listing discovery reservation below.
+    prior_ledger=(frontier or {}).get("url_ledger",{})
+    backlog.sort(key=lambda u: (0 if u not in prior_ledger else
+                                1 if prior_ledger[u].get("state") in ("error","timeout","not_found") else
+                                2 if prior_ledger[u].get("state") in ("observed","partial_observed") else 3))
     # One homepage and one main hub per slice; use the rest to clear prior frontier.
     queue=unique_urls(seeds[:2]+backlog+seeds[2:],same)
     ledger_cutoff=(datetime.fromisoformat(checked)-timedelta(days=LEDGER_WINDOW_DAYS)).date().isoformat()
