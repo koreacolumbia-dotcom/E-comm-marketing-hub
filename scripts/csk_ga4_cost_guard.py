@@ -60,6 +60,7 @@ def sqls(date):
       SELECT event_date,event_timestamp,
         NULLIF(TRIM(ecommerce.transaction_id),'') AS txn,
         ecommerce.purchase_revenue AS purchase_revenue,items,
+        (SELECT SUM(SAFE_CAST(item.quantity AS FLOAT64)) FROM UNNEST(items) AS item) AS order_units,
         ROW_NUMBER() OVER (PARTITION BY event_date,
           NULLIF(TRIM(ecommerce.transaction_id),'') ORDER BY event_timestamp) AS rn
       FROM {table} WHERE {predicate}
@@ -71,7 +72,14 @@ def sqls(date):
       COUNTIF(txn IS NULL) AS missing_tx,
       COUNTIF(txn IS NOT NULL AND rn>1) AS duplicates,
       COUNTIF((txn IS NULL OR rn=1) AND purchase_revenue IS NULL) AS missing_revenue,
-      SUM(IF(txn IS NULL OR rn=1,SAFE_CAST(purchase_revenue AS FLOAT64),NULL)) AS revenue
+      SUM(IF(txn IS NULL OR rn=1,SAFE_CAST(purchase_revenue AS FLOAT64),NULL)) AS revenue,
+      COUNTIF((txn IS NULL OR rn=1) AND order_units=1) AS single_item_orders,
+      COUNTIF((txn IS NULL OR rn=1) AND order_units>=2) AS multi_item_orders,
+      COUNTIF((txn IS NULL OR rn=1) AND (order_units IS NULL OR (order_units!=1 AND order_units<2))) AS unknown_basket_orders,
+      SUM(IF((txn IS NULL OR rn=1) AND order_units=1,
+        SAFE_CAST(purchase_revenue AS FLOAT64),0)) AS single_item_revenue,
+      SUM(IF((txn IS NULL OR rn=1) AND order_units>=2,
+        SAFE_CAST(purchase_revenue AS FLOAT64),0)) AS multi_item_revenue
     FROM p GROUP BY 1
     """
     products=cte+f"""
@@ -89,6 +97,29 @@ def sqls(date):
     GROUP BY 1,2,3
     """
     return [orders,products]
+
+def basket_distribution(current,previous):
+    """Order-level one-item vs multi-item distribution, distinct from SKU-level averages."""
+    for obj in (current,previous):
+        if not obj["orders"] or obj["unknown_basket_orders"] or (
+            obj["single_item_orders"] + obj["multi_item_orders"] != obj["orders"]):
+            return None
+    out={}
+    for name,obj in (("previous",previous),("current",current)):
+        total=obj["orders"]
+        one=obj["single_item_orders"]
+        multi=obj["multi_item_orders"]
+        out[name]=dict(total_orders=total,single_item_orders=one,multi_item_orders=multi,
+            single_item_pct=round(100*one/total,2),multi_item_pct=round(100*multi/total,2),
+            single_item_revenue=round(obj["single_item_revenue"],2),
+            multi_item_revenue=round(obj["multi_item_revenue"],2))
+    p0=out["previous"]["single_item_pct"]
+    p1=out["current"]["single_item_pct"]
+    out["single_item_change_pp"]=round(p1-p0,2)
+    out["single_item_order_delta"]=out["current"]["single_item_orders"]-out["previous"]["single_item_orders"]
+    out["interpretation"]="Observed GA4 purchase-event basket size; item quantity not distinct SKU count."
+    return out
+
 
 def split_aov(current,previous):
     if any(t["orders"]<=0 or t["units"]<=0 or t["item_revenue"]<=0 for t in (current,previous)):return None
@@ -170,13 +201,18 @@ def analyze(orders,items,end,admin,focus):
     dates=[(start+dt.timedelta(days=i)).strftime("%Y%m%d") for i in range(14)]
     total={p:dict(orders=0,missing_tx=0,duplicates=0,missing_revenue=0,
                   purchase_revenue=None,units=0.,item_revenue=0.,missing_item_revenue=0,
+                  single_item_orders=0,multi_item_orders=0,unknown_basket_orders=0,
+                  single_item_revenue=0.,multi_item_revenue=0.,
                   bad_quantity=0,discount_null=0,reported_discount=0.)
            for p in ("previous","current")}
     for row in orders:
         period=row.get("period")
         if period not in total:continue
         t=total[period]
-        for f in ("orders","missing_tx","duplicates","missing_revenue"):t[f]=int(row.get(f) or 0)
+        for f in ("orders","missing_tx","duplicates","missing_revenue",
+                  "single_item_orders","multi_item_orders","unknown_basket_orders"):
+            t[f]=int(row.get(f) or 0)
+        for f in ("single_item_revenue","multi_item_revenue"):t[f]=num(row.get(f)) or 0.
         t["purchase_revenue"]=num(row.get("revenue"))
     categories={}
     by_name={}
@@ -240,6 +276,7 @@ def analyze(orders,items,end,admin,focus):
                     current_start=(end-dt.timedelta(days=6)).isoformat(),
                     current_end=end.isoformat()),
         item_aov_bridge=split_aov(total["current"],total["previous"]) if clean else None,
+        basket_distribution=basket_distribution(total["current"],total["previous"]) if clean else None,
         sales_revenue_bridge=revenue_bridge(total["current"],total["previous"]) if clean else None,
         category_bridge=split_categories(categories,total) if clean else None,
         product_sales=products,totals=total,
@@ -260,7 +297,11 @@ def save(doc):
 def run():
     end=report_date()
     previous=read(OUT)
-    if previous.get("report_date")==end.isoformat() and previous.get("status") in ("ga4_measured","partial_quality") and os.getenv("CSK_GA4_FORCE","")!="1":
+    needs_aligned_basket=(os.getenv("CSK_GA4_ALIGNED_WEEKLY")=="1" and
+                          "basket_distribution" not in previous)
+    if (previous.get("report_date")==end.isoformat() and
+            previous.get("status") in ("ga4_measured","partial_quality") and
+            os.getenv("CSK_GA4_FORCE","")!="1" and not needs_aligned_basket):
         if previous.get("status")=="ga4_measured" and not previous.get("sales_revenue_bridge"):
             totals=previous.get("totals") or {}
             if totals.get("current") and totals.get("previous"):

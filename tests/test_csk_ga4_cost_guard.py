@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
-from csk_ga4_cost_guard import CAP, analyze, sqls, split_aov, revenue_bridge
+from csk_ga4_cost_guard import CAP, analyze, sqls, split_aov, revenue_bridge, basket_distribution
 
 END=dt.date(2026,11,20)
 ORDERS=[
@@ -34,6 +34,9 @@ class GA4CappedDiagnosticsTests(unittest.TestCase):
             self.assertNotIn("user_pseudo_id",s)
             self.assertNotIn("email",s)
             self.assertNotIn("SELECT *",s)
+        self.assertIn("single_item_orders",q[0])
+        self.assertIn("multi_item_orders",q[0])
+        self.assertIn("order_units=1",q[0])
         self.assertEqual(CAP,1073741824)
 
     def test_exact_aov_split(self):
@@ -67,6 +70,18 @@ class GA4CappedDiagnosticsTests(unittest.TestCase):
             result["item_to_purchase_gap_effect_krw"],
             result["purchase_revenue_delta_krw"],delta=0.02)
         self.assertIn("not proof",result["note"])
+
+    def test_one_item_vs_multi_item_basket_distribution(self):
+        previous={"orders":100,"single_item_orders":60,"multi_item_orders":40,"unknown_basket_orders":0,
+                  "single_item_revenue":6000000,"multi_item_revenue":10000000}
+        current={"orders":120,"single_item_orders":90,"multi_item_orders":30,"unknown_basket_orders":0,
+                 "single_item_revenue":9000000,"multi_item_revenue":7000000}
+        out=basket_distribution(current,previous)
+        self.assertEqual(out["previous"]["single_item_pct"],60)
+        self.assertEqual(out["current"]["single_item_pct"],75)
+        self.assertEqual(out["single_item_change_pp"],15)
+        self.assertEqual(out["single_item_order_delta"],30)
+        self.assertIsNone(basket_distribution({**current,"unknown_basket_orders":1},previous))
 
     def test_missing_items_cannot_be_verified(self):
         incomplete=[dict(ITEMS[0]),dict(ITEMS[1])]
