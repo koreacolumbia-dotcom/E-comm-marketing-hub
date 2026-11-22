@@ -504,6 +504,44 @@ function renderCustomerComparison(data){
      bridge=panel.querySelector("#fm-customer-bridge"),
      quality=panel.querySelector("#fm-customer-quality"),
      period=panel.querySelector("#fm-customer-period");
+ if(data&&data.status==="measured_2026_only"&&data.years?.["2026"]?.status==="ga4_measured"){
+  var buyer=data.years["2026"],first=Number(buyer.first_time_purchasers),
+      repeat=Number(buyer.repeat_purchasers_derived),
+      total=Number(buyer.total_purchasers);
+  if(!Number.isFinite(first)||!Number.isFinite(repeat)||first+repeat!==total||total<=0){
+    if(status)status.textContent="GA4 첫구매/기존 구매 합계 검증 실패";return;
+  }
+  var span=data.period||{};
+  if(period)period.textContent=(span["2026"]||[]).join("~")+" · 2026 실측";
+  if(status)status.textContent="2026 구매자 구성 확인 · 2025 전년 비교 자료 미확보";
+  if(cards)cards.innerHTML=[
+   ["GA4 첫 구매자",first,first/total*100],
+   ["GA4 기존 구매자",repeat,repeat/total*100]
+  ].map(function(x,i){
+     return '<article class="fm-customer-card '+(i?"existing":"new")+'">'+
+       '<div class="fm-customer-card-head"><span>'+esc(x[0])+'</span><strong>'+
+       esc(String(x[1]))+'명</strong></div>'+
+       '<div class="fm-customer-row"><small>2026 구매자 비중</small><b>'+
+       x[2].toFixed(1)+'%</b></div>'+
+       '<div class="fm-customer-chart"><div><small>26</small>'+
+       '<span><i class="current" style="width:'+x[2].toFixed(1)+'%"></i></span>'+
+       '<b>'+esc(String(x[1]))+'명</b></div></div>'+
+       '<div class="fm-customer-stats"><div><small>2025 비교</small><b>미확보</b></div>'+
+       '<div><small>고객군별 매출</small><b>미확보</b></div></div></article>';
+   }).join("");
+  if(bridge)bridge.innerHTML='<div class="fm-customer-bridge-title"><strong>'+
+    '2026 구매자 구성 · 첫구매 / 기존구매</strong>'+
+    '<small>GA4 총 구매자 '+esc(String(total))+'명 · 구매 '+esc(String(buyer.ecommerce_purchases))+'건</small></div>'+
+    '<div class="fm-ga4-buyer-share" role="img" aria-label="첫 구매자 '+first+
+    '명, 기존 구매자 '+repeat+'명"><i style="width:'+(first/total*100).toFixed(1)+'%"></i>'+
+    '<em></em></div>'+
+    '<div class="fm-customer-bridge-total"><span>2026 구매매출 전체 · 고객군 매출 아님</span>'+
+    '<b>'+esc(fmt(buyer.total_purchase_revenue_krw,"revenue"))+'</b></div>';
+  if(quality)quality.textContent="GA4 first_time_purchasers 기준 · 기존=총 구매자−첫구매자. "+
+    "2025 동일 기간은 연결된 GA4 서비스의 과거 데이터 조회 제한으로 미확보. "+
+    "신규/기존 고객별 매출 기여액은 표시하지 않습니다.";
+  return;
+ }
  if(!data||data.status!=="measured_observed_first_purchase"){
   var why={blocked_credentials:"주문 이력 접근 권한 확인 필요",
            unavailable_source:"주문 원본·과거 구매 이력 미확보",
@@ -571,8 +609,18 @@ function renderCustomerComparison(data){
     "· 회원 식별 불가 주문 별도 표시 · 회원가입 기준 신규/기존과 다름 · GA4 매출과 합산 금지";
 }
 async function loadCustomerCohorts(){
- try{renderCustomerComparison(await getJSON("./winter_festival_customer_yoy_2026.json"))}
- catch(e){renderCustomerComparison(null)}
+ var sources=await Promise.all([
+  getJSON("./winter_festival_customer_yoy_2026.json").catch(function(){return null}),
+  getJSON("./winter_festival_ga4_buyer_reference_2026.json").catch(function(){return null})
+ ]);
+ var admin=sources[0],ga4=sources[1];
+ if(admin&&admin.status==="measured_observed_first_purchase"){
+   renderCustomerComparison(admin);return;
+ }
+ if(ga4&&ga4.status==="measured_2026_only"){
+   renderCustomerComparison(ga4);return;
+ }
+ renderCustomerComparison(admin);
 }
 
 function renderLiveAggregate(){
