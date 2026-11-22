@@ -275,7 +275,8 @@
       h("div",{className:"csk-driver-highlight-head"},
         h("div",null,h("span",null,"CHANNEL MOVEMENT"),
           h("h2",null,"어떤 유입에서 매출이 변했을까?")),
-        h("span",{className:"csk-driver-count"},"실측 "+d.row_count+"개 소스")
+        h("span",{className:"csk-driver-count"},
+          "실측 "+d.row_count+" · 검토 표본 "+(d.row_count-(d.quality&&d.quality.small_sample_rows||0)))
       ),
       h("div",{className:"csk-driver-highlight-list"},gains.map(function(x){return item(x,"gain");})),
       losses.length?h("details",{className:"csk-driver-declines"},
@@ -283,7 +284,7 @@
         h("div",{className:"csk-driver-highlight-list"},losses.map(function(x){return item(x,"loss");}))
       ):null,
       h("small",{className:"csk-driver-caveat"},
-        "같은 7일 기간의 소스별 매출 증감입니다. 유입·CVR·객단가는 산술 분해이며 실제 광고 순증분은 아닙니다.")
+        "같은 7일 기간의 소스별 매출 증감입니다. 개별 검토 기준: 양 기간 각각 세션 100건·구매 5건 이상. 유입·CVR·객단가는 산술 분해이며 광고 순증분이 아닙니다.")
     );
   }
 
