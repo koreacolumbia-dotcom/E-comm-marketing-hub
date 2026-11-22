@@ -16,6 +16,20 @@
     /\/reports\/daily_digest\/(?:index\.html|daily\/[^/]+\.html)$/.test(pathname) ||
     /\/reports\/daily_intelligence\/index\.html$/.test(pathname);
   const cssId = "csk-saas-shared-theme";
+  const layoutCssHref=new URL("assets/csk-layout-v2.css?v=20261122-1",document.baseURI).href;
+  const layoutJsHref=new URL("assets/csk-layout-v2.js?v=20261122-1",document.baseURI).href;
+  function ensureLayout(doc) {
+    if(!doc.getElementById("csk-layout-v2-css")){
+      const css=doc.createElement("link");
+      css.id="csk-layout-v2-css";css.rel="stylesheet";css.href=layoutCssHref;
+      doc.head.appendChild(css);
+    }
+    if(!doc.getElementById("csk-layout-v2-script")){
+      const js=doc.createElement("script");
+      js.id="csk-layout-v2-script";js.src=layoutJsHref;js.defer=true;
+      doc.body.appendChild(js);
+    }
+  }
 
   function routeFor(doc) {
     const pathname = doc.location && doc.location.pathname || "";
@@ -35,7 +49,7 @@
     } catch (_) { return; } // no cross-origin styling or DOM access
     const route = routeFor(doc);
     if (!route || SKIP.has(route)) return;
-    if (doc.body.classList.contains("csk-saas-report") && doc.getElementById(cssId)) return;
+    if (doc.body.classList.contains("csk-saas-report") && doc.getElementById(cssId)) { ensureLayout(doc); return; }
     doc.body.classList.add("csk-saas-report");
     doc.body.dataset.cskRoute = route;
     // This page already uses the exact same palette and layout; don't undo its
@@ -48,6 +62,7 @@
       link.href=assetHref;
       doc.head.appendChild(link);
     }
+    ensureLayout(doc);
   }
   document.body.classList.add("csk-saas-hub");
   // Hub controller controls the URL. Every load is isolated, preventing styles
@@ -57,6 +72,6 @@
   window.addEventListener("pageshow",decorate);
   window.CSKSaaSTheme = Object.freeze({
     excluded:["daily","daily_intelligence"],
-    version:"20261122-1"
+    version:"20261122-layout-v2"
   });
 })();
