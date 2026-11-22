@@ -4565,5 +4565,53 @@
       "current": 3225419776
     }
   },
-  "caveat": "Source/medium performance is observational, not incremental causal lift; GA4 export sessions and revenue may differ from GA4 API and administrative totals."
+  "caveat": "Source/medium performance is observational, not incremental causal lift; GA4 export sessions and revenue may differ from GA4 API and administrative totals.",
+  "quality": {
+    "weekly_reconciliation": {
+      "current": {
+        "sessions": {
+          "observed": 143191.0,
+          "kpi": 143178.0,
+          "difference": 13.0,
+          "difference_pct": 0.0091
+        },
+        "transactions": {
+          "observed": 1042.0,
+          "kpi": 1042.0,
+          "difference": 0.0,
+          "difference_pct": 0.0
+        },
+        "revenue": {
+          "observed": 159760406.0,
+          "kpi": 159760406.0,
+          "difference": 0.0,
+          "difference_pct": 0.0
+        }
+      },
+      "previous": {
+        "sessions": {
+          "observed": 120324.0,
+          "kpi": 120313.0,
+          "difference": 11.0,
+          "difference_pct": 0.0091
+        },
+        "transactions": {
+          "observed": 757.0,
+          "kpi": 757.0,
+          "difference": 0.0,
+          "difference_pct": 0.0
+        },
+        "revenue": {
+          "observed": 133278030.0,
+          "kpi": 133278030.02,
+          "difference": -0.02,
+          "difference_pct": -0.0
+        }
+      }
+    },
+    "strict_total_match": false,
+    "within_005_pct": true,
+    "source_level": "exact_ga4_session_source_medium",
+    "note": "세션 키 산출과 Daily 주간 KPI 간 소수 집계 차이는 별도 기록. 주문·매출은 비교 가능 여부 확인."
+  }
 }
