@@ -1,29 +1,29 @@
 {
   "schema": 1,
-  "report_date": "2026-11-20",
+  "report_date": "2026-11-21",
   "status": "partial_quality",
   "periods": {
     "previous": {
-      "orders_with_items": 773,
-      "orders_with_item_coupon": 773,
-      "observed_item_rows": 1025,
-      "item_coupon_rows": 1025,
-      "coupon_units": 1188.0,
-      "units": 1188.0,
-      "coupon_item_revenue": 153898000.0,
-      "item_revenue": 153898000.0,
+      "orders_with_items": 740,
+      "orders_with_item_coupon": 740,
+      "observed_item_rows": 977,
+      "item_coupon_rows": 977,
+      "coupon_units": 1146.0,
+      "units": 1146.0,
+      "coupon_item_revenue": 148583600.0,
+      "item_revenue": 148583600.0,
       "missing_values": 0,
       "order_coupon_presence_pct": 100.0
     },
     "current": {
-      "orders_with_items": 865,
-      "orders_with_item_coupon": 865,
-      "observed_item_rows": 1144,
-      "item_coupon_rows": 1144,
-      "coupon_units": 1166.0,
-      "units": 1166.0,
-      "coupon_item_revenue": 151830115.0,
-      "item_revenue": 151830115.0,
+      "orders_with_items": 1032,
+      "orders_with_item_coupon": 1032,
+      "observed_item_rows": 1378,
+      "item_coupon_rows": 1378,
+      "coupon_units": 1394.0,
+      "units": 1394.0,
+      "coupon_item_revenue": 181037265.0,
+      "item_revenue": 181037265.0,
       "missing_values": 0,
       "order_coupon_presence_pct": 100.0
     }
@@ -32,19 +32,19 @@
   "ga4_purchase_totals_aligned": false,
   "source": "GA4 items.coupon presence; not coupon discount amount or proven causal impact",
   "quality_caveat": "An item may have coupon code without an applied monetary discount. Counts are not discount savings.",
-  "cost": {
-    "estimated_bytes": 251878862,
-    "billed_bytes": 252706816,
-    "maximum_bytes_billed": 536870912,
-    "dry_run_required": true
-  },
   "quality_checks": {
     "purchase_events_without_item_rows": {
       "previous": 17,
-      "current": 11
+      "current": 10
     },
     "coupon_marker_present_in_all_item_rows": true,
     "can_interpret_coupon_as_applied_discount": false,
     "reason": "GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
+  },
+  "cost": {
+    "estimated_bytes": 261446592,
+    "billed_bytes": 262144000,
+    "maximum_bytes_billed": 536870912,
+    "dry_run_required": true
   }
 }

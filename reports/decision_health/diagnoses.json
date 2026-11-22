@@ -8,14 +8,14 @@
     "status": "observed",
     "period": "2026-11-14 ~ 2026-11-20",
     "compare_period": "2026-11-07 ~ 2026-11-13",
-    "revenue": 134038093,
+    "revenue": 134038093.0,
     "revenue_prior": 137770660.02,
     "revenue_pct": -2.71,
-    "orders": 876,
-    "orders_prior": 790,
+    "orders": 876.0,
+    "orders_prior": 790.0,
     "orders_pct": 10.89,
-    "sessions": 134393,
-    "sessions_prior": 119936,
+    "sessions": 134393.0,
+    "sessions_prior": 119936.0,
     "sessions_pct": 12.05,
     "aov": 153011.52,
     "aov_prior": 174393.24,
@@ -27,129 +27,18 @@
     "note": "R = 주문수 × 객단가의 정확한 산술 분해. 인과관계나 가격·할인 원인 증명이 아님."
   },
   "ga4_evidence": {
-    "report_date": "2026-11-20",
+    "report_date": "2026-11-21",
     "status": "ga4_measured",
     "cost": {
-      "dry_run_bytes": 606953290,
-      "billed_bytes": 608174080,
+      "dry_run_bytes": 630122986,
+      "billed_bytes": 631242752,
       "maximum_bytes_billed_total": 1073741824,
       "dry_run_required": true
     },
-    "item_aov_bridge": {
-      "items_per_order_previous": 1.504,
-      "items_per_order_current": 1.331,
-      "realized_item_price_previous": 129543.77,
-      "realized_item_price_current": 130214.51,
-      "item_aov_previous": 194807.59,
-      "item_aov_current": 173322.05,
-      "item_aov_delta": -21485.55,
-      "items_per_order_effect": -22436.26,
-      "realized_item_revenue_effect": 950.72,
-      "interpretation": "Arithmetic only: realized item revenue includes discount and SKU mix."
-    },
-    "sales_revenue_bridge": {
-      "qty_effect_krw": -2857341.06,
-      "realized_unit_revenue_effect_krw": 789456.06,
-      "item_to_purchase_gap_effect_krw": -1664682,
-      "prior_item_to_purchase_gap_krw": 16127340,
-      "current_item_to_purchase_gap_krw": 17792022,
-      "purchase_revenue_delta_krw": -3732567,
-      "prior_total_units": 1188,
-      "current_total_units": 1166,
-      "note": "Accounting identity, not proof of coupon/discount/refund causality."
-    },
-    "category_bridge": {
-      "category_mix_effect_per_item": -7014.05,
-      "within_category_effect_per_item": 7684.79,
-      "realized_item_price_delta": 670.74,
-      "rows": [
-        {
-          "category": "OUTER",
-          "share_previous_pct": 9.51,
-          "share_current_pct": 6.09,
-          "mix_effect_per_item": -12329.22,
-          "within_category_effect_per_item": -279.89
-        },
-        {
-          "category": "SALE",
-          "share_previous_pct": 44.02,
-          "share_current_pct": 48.2,
-          "mix_effect_per_item": 5456.66,
-          "within_category_effect_per_item": 8474.89
-        },
-        {
-          "category": "FLEECE",
-          "share_previous_pct": 22.39,
-          "share_current_pct": 17.92,
-          "mix_effect_per_item": -4159.53,
-          "within_category_effect_per_item": -1268.91
-        },
-        {
-          "category": "FOOTWEAR",
-          "share_previous_pct": 3.87,
-          "share_current_pct": 5.92,
-          "mix_effect_per_item": 3907.24,
-          "within_category_effect_per_item": -923.93
-        },
-        {
-          "category": "CAP",
-          "share_previous_pct": 3.96,
-          "share_current_pct": 5.32,
-          "mix_effect_per_item": 649.35,
-          "within_category_effect_per_item": -92.58
-        },
-        {
-          "category": "PANTS",
-          "share_previous_pct": 2.27,
-          "share_current_pct": 1.8,
-          "mix_effect_per_item": -615.72,
-          "within_category_effect_per_item": 787.59
-        },
-        {
-          "category": "TOPS",
-          "share_previous_pct": 4.21,
-          "share_current_pct": 3.86,
-          "mix_effect_per_item": -299.8,
-          "within_category_effect_per_item": 871.45
-        },
-        {
-          "category": "Acc",
-          "share_previous_pct": 6.4,
-          "share_current_pct": 7.38,
-          "mix_effect_per_item": 280,
-          "within_category_effect_per_item": 170.55
-        },
-        {
-          "category": "BAG",
-          "share_previous_pct": 3.37,
-          "share_current_pct": 3.43,
-          "mix_effect_per_item": 54.95,
-          "within_category_effect_per_item": -54.38
-        },
-        {
-          "category": "SET-UP",
-          "share_previous_pct": 0,
-          "share_current_pct": 0.09,
-          "mix_effect_per_item": 42.02,
-          "within_category_effect_per_item": 0
-        }
-      ],
-      "caveat": "New/retired categories attributed to mix; within-category price contains discount and mix."
-    },
-    "admin_reconciliation": {
-      "comparable": true,
-      "periods": {
-        "current": {
-          "order_gap_pct": 0,
-          "revenue_gap_pct": 0
-        },
-        "previous": {
-          "order_gap_pct": 0,
-          "revenue_gap_pct": 0
-        }
-      },
-      "caveat": "Agreement to existing Daily KPI (GA4 source). Independent MSSQL/ERP revenue still not verified."
-    },
+    "item_aov_bridge": null,
+    "sales_revenue_bridge": null,
+    "category_bridge": null,
+    "admin_reconciliation": null,
     "independent_admin_verified": false,
     "order_mart_metadata_accessible": true,
     "order_mart_coupon_column_exists": true,
@@ -164,50 +53,25 @@
   },
   "ga4_coupon_evidence": {
     "status": "partial_quality",
-    "report_date": "2026-11-20",
-    "periods": {
-      "previous": {
-        "orders_with_items": 773,
-        "orders_with_item_coupon": 773,
-        "observed_item_rows": 1025,
-        "item_coupon_rows": 1025,
-        "coupon_units": 1188,
-        "units": 1188,
-        "coupon_item_revenue": 153898000,
-        "item_revenue": 153898000,
-        "missing_values": 0,
-        "order_coupon_presence_pct": 100
-      },
-      "current": {
-        "orders_with_items": 865,
-        "orders_with_item_coupon": 865,
-        "observed_item_rows": 1144,
-        "item_coupon_rows": 1144,
-        "coupon_units": 1166,
-        "units": 1166,
-        "coupon_item_revenue": 151830115,
-        "item_revenue": 151830115,
-        "missing_values": 0,
-        "order_coupon_presence_pct": 100
-      }
-    },
+    "report_date": "2026-11-21",
+    "periods": null,
     "delta_pp": null,
     "quality_checks": {
       "purchase_events_without_item_rows": {
         "previous": 17,
-        "current": 11
+        "current": 10
       },
       "coupon_marker_present_in_all_item_rows": true,
       "can_interpret_coupon_as_applied_discount": false,
       "reason": "GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
     },
+    "source": "GA4 items.coupon presence; not discount amount",
     "cost": {
-      "estimated_bytes": 251878862,
-      "billed_bytes": 252706816,
+      "estimated_bytes": 261446592,
+      "billed_bytes": 262144000,
       "maximum_bytes_billed": 536870912,
       "dry_run_required": true
-    },
-    "source": "GA4 items.coupon marker cannot be read as verified discount usage"
+    }
   },
   "warehouse_source_health": {
     "inspection_status": "metadata_inspected",
@@ -242,100 +106,23 @@
       ]
     },
     {
-      "id": "GA4_PURCHASE_COMPONENTS",
-      "priority": "P0",
-      "status": "observed_ga4_components",
-      "title": "구매 객단가의 수량·실현단가 기여도 측정",
-      "finding": "GA4 상품기준 주문당 수량 효과 -22,436원, 상품 실현단가 효과 +951원 · 기존 Daily KPI 합계와 일치, 독립 관리자 주문마트는 미검증",
-      "cause_component": "GA4 구매 상품의 주문당 수량 변화와 상품 평균 실현매출 변화는 산술적으로 분해 완료. 실현단가에는 할인, 상품구성, 정가 변화가 함께 포함됨.",
-      "cause_hypotheses": [
-        "쿠폰/할인 변화",
-        "SKU별 가격 변화",
-        "상품 구성 및 저가 상품 비중 변화"
-      ],
-      "hypothesis_status": "verified_component_unverified_causal",
-      "causal_confirmed": false,
-      "how_to_verify": "GA4 items 구조에 discount 필드가 없는 것을 확인. 관리자 주문상품마트의 쿠폰·프로모션·실결제가 원천을 조회하고 동일 SKU/주문 기준으로 비교하여 할인·상품 믹스를 분리",
-      "blocked_by": [
-        "독립 관리자 주문마트 연결/정합성 검증"
-      ],
-      "revenue_factors": {
-        "qty_effect_krw": -2857341.06,
-        "realized_price_effect_krw": 789456.06,
-        "unclassified_item_to_checkout_gap_effect_krw": -1664682,
-        "source": "GA4 item revenue and purchase revenue"
-      },
-      "category_mix": {
-        "mix_effect_per_item": -7014.05,
-        "within_category_effect_per_item": 7684.79,
-        "rows": [
-          {
-            "category": "OUTER",
-            "share_previous_pct": 9.51,
-            "share_current_pct": 6.09,
-            "mix_effect_per_item": -12329.22,
-            "within_category_effect_per_item": -279.89
-          },
-          {
-            "category": "SALE",
-            "share_previous_pct": 44.02,
-            "share_current_pct": 48.2,
-            "mix_effect_per_item": 5456.66,
-            "within_category_effect_per_item": 8474.89
-          },
-          {
-            "category": "FLEECE",
-            "share_previous_pct": 22.39,
-            "share_current_pct": 17.92,
-            "mix_effect_per_item": -4159.53,
-            "within_category_effect_per_item": -1268.91
-          },
-          {
-            "category": "FOOTWEAR",
-            "share_previous_pct": 3.87,
-            "share_current_pct": 5.92,
-            "mix_effect_per_item": 3907.24,
-            "within_category_effect_per_item": -923.93
-          },
-          {
-            "category": "CAP",
-            "share_previous_pct": 3.96,
-            "share_current_pct": 5.32,
-            "mix_effect_per_item": 649.35,
-            "within_category_effect_per_item": -92.58
-          },
-          {
-            "category": "PANTS",
-            "share_previous_pct": 2.27,
-            "share_current_pct": 1.8,
-            "mix_effect_per_item": -615.72,
-            "within_category_effect_per_item": 787.59
-          }
-        ]
-      },
-      "sources": [
-        "reports/decision_health/ga4_purchase_diagnostics.json",
-        "reports/marketing_operations/latest.json"
-      ]
-    },
-    {
-      "id": "PRODUCT_DIVERGENCE_0",
+      "id": "PRODUCT_DIVERGENCE_1",
       "priority": "P0",
       "status": "observed_product_divergence",
       "title": "HAZY JOURNEY II WATERPROOF · PDP와 구매 흐름 재점검",
-      "finding": "PDP 7일 +29.6%, GA4 구매수량 17→11개 (-35.3%)",
-      "cause_component": "동일 상품명에서 PDP 관심 증가와 실제 구매수량 감소가 동시에 관측됨",
+      "finding": "PDP 7일 +29.6%, GA4 판매수량 17 → 11개 (-35.3%)",
+      "cause_component": "동일 정규화 상품명에 대해 7일 PDP 조회 증가와 구매수량 감소가 함께 확인됨.",
       "cause_hypotheses": [
-        "장바구니 단계 전환 변화",
-        "가격·할인 조건 변화",
-        "옵션별 재고·품절",
-        "유입 매체 품질 변화"
+        "상세페이지 구매 전환 둔화",
+        "가격/프로모션 변화",
+        "상품 옵션별 재고·품절",
+        "유입 트래픽 품질 변화"
       ],
       "hypothesis_status": "observed_pattern_unverified_cause",
       "causal_confirmed": false,
-      "how_to_verify": "동일 스타일/컬러/사이즈별 view_item→add_to_cart→purchase, 유입 매체·가격·재고를 14일 날짜별 비교",
+      "how_to_verify": "해당 상품의 14일 view_item→add_to_cart→purchase 퍼널과 가격·품절·유입 매체를 같은 날짜/스타일코드로 비교",
       "blocked_by": [
-        "상품별 전체 유입/장바구니 데이터",
+        "상품별 유입/장바구니 전체 모집단",
         "최신 옵션 재고"
       ],
       "sources": [
@@ -390,43 +177,23 @@
       ]
     },
     {
-      "id": "GA4_COUPON_QUALITY",
-      "priority": "P1",
-      "status": "source_error_confirmed",
-      "title": "쿠폰 사용률을 확정할 수 없는 GA4 상품행 품질 문제",
-      "finding": "상품행 누락 purchase 이벤트 28건 (이전 17, 현재 11) · 쿠폰 마커 전 상품행에 기록",
-      "cause_component": "GA4 구매 이벤트 일부에 item 배열이 없고 items.coupon 필드가 모든 상품행에 채워져 있음. 실제 쿠폰 적용 여부와 할인금액을 판정할 수 없는 데이터 품질 문제",
-      "cause_hypotheses": [],
-      "hypothesis_status": "confirmed_data_quality_limitation",
-      "causal_confirmed": false,
-      "how_to_verify": "GA4 상품 배열 누락 원인을 GTM/GA4 수집 설정에서 확인하고 주문상품마트 재적재 후 쿠폰 금액을 주문 단위로 중복 제거해 검증",
-      "blocked_by": [
-        "GA4 상품행 완전성",
-        "ERP 주문상품마트 최신 데이터"
-      ],
-      "sources": [
-        "reports/decision_health/ga4_coupon_usage.json",
-        "reports/decision_health/source_metadata.json"
-      ]
-    },
-    {
-      "id": "PRODUCT_DIVERGENCE_1",
+      "id": "PRODUCT_DIVERGENCE_2",
       "priority": "P1",
       "status": "observed_product_divergence",
       "title": "River Point Down Jacket · PDP와 구매 흐름 재점검",
-      "finding": "PDP 7일 -26.0%, GA4 구매수량 33→22개 (-33.3%)",
-      "cause_component": "PDP 조회와 구매수량의 동반 변동은 확인됐지만 원인은 미확정",
+      "finding": "PDP 7일 -26.0%, GA4 판매수량 33 → 22개 (-33.3%)",
+      "cause_component": "동일 정규화 상품명에서 7일 PDP·판매수량 변동을 관측함. 하락 추세의 원인은 미확정.",
       "cause_hypotheses": [
-        "장바구니 단계 전환 변화",
-        "가격·할인 조건 변화",
-        "옵션별 재고·품절",
-        "유입 매체 품질 변화"
+        "상세페이지 구매 전환 둔화",
+        "가격/프로모션 변화",
+        "상품 옵션별 재고·품절",
+        "유입 트래픽 품질 변화"
       ],
       "hypothesis_status": "observed_pattern_unverified_cause",
       "causal_confirmed": false,
-      "how_to_verify": "동일 스타일/컬러/사이즈별 view_item→add_to_cart→purchase, 유입 매체·가격·재고를 14일 날짜별 비교",
+      "how_to_verify": "해당 상품의 14일 view_item→add_to_cart→purchase 퍼널과 가격·품절·유입 매체를 같은 날짜/스타일코드로 비교",
       "blocked_by": [
-        "상품별 전체 유입/장바구니 데이터",
+        "상품별 유입/장바구니 전체 모집단",
         "최신 옵션 재고"
       ],
       "sources": [
@@ -435,23 +202,23 @@
       ]
     },
     {
-      "id": "PRODUCT_DIVERGENCE_2",
+      "id": "PRODUCT_DIVERGENCE_3",
       "priority": "P1",
       "status": "observed_product_divergence",
       "title": "Sunrise Cabin Down Jacket · PDP와 구매 흐름 재점검",
-      "finding": "PDP 7일 -29.5%, GA4 구매수량 15→4개 (-73.3%)",
-      "cause_component": "PDP 조회와 구매수량의 동반 변동은 확인됐지만 원인은 미확정",
+      "finding": "PDP 7일 -29.5%, GA4 판매수량 15 → 4개 (-73.3%)",
+      "cause_component": "동일 정규화 상품명에서 7일 PDP·판매수량 변동을 관측함. 하락 추세의 원인은 미확정.",
       "cause_hypotheses": [
-        "장바구니 단계 전환 변화",
-        "가격·할인 조건 변화",
-        "옵션별 재고·품절",
-        "유입 매체 품질 변화"
+        "상세페이지 구매 전환 둔화",
+        "가격/프로모션 변화",
+        "상품 옵션별 재고·품절",
+        "유입 트래픽 품질 변화"
       ],
       "hypothesis_status": "observed_pattern_unverified_cause",
       "causal_confirmed": false,
-      "how_to_verify": "동일 스타일/컬러/사이즈별 view_item→add_to_cart→purchase, 유입 매체·가격·재고를 14일 날짜별 비교",
+      "how_to_verify": "해당 상품의 14일 view_item→add_to_cart→purchase 퍼널과 가격·품절·유입 매체를 같은 날짜/스타일코드로 비교",
       "blocked_by": [
-        "상품별 전체 유입/장바구니 데이터",
+        "상품별 유입/장바구니 전체 모집단",
         "최신 옵션 재고"
       ],
       "sources": [
@@ -464,14 +231,14 @@
       "priority": "P1",
       "status": "source_error_confirmed",
       "title": "날씨 영향 분석의 실측 기온이 누락됨",
-      "finding": "최근 14일 실측 0건 · KMA ASOS HTTP 403 확인",
-      "cause_component": "기상청 ASOS 서울 관측 API가 실제 요청에서 HTTP 403 접근 거부를 반환함",
+      "finding": "서울 관측 기온 0 / 14일 확보 · 기상청 원천 응답 access_denied_403",
+      "cause_component": "기상청 API 접근 거부(HTTP 403) 확인",
       "cause_hypotheses": [],
       "hypothesis_status": "confirmed_source_failure",
       "causal_confirmed": false,
-      "how_to_verify": "기상청 API Hub 서비스 구독 승인·권한·인증키 유효성을 확인해야 함. 허가 없는 재요청은 중단",
+      "how_to_verify": "공식 API Hub 키의 서비스 사용 승인·유효기간·허용 IP/권한 점검. 재발급 전 추가 요청 중단",
       "blocked_by": [
-        "기상청 API 접근 권한"
+        "기상청 API 인증/접근 권한"
       ],
       "sources": [
         "reports/daily_intelligence/latest.json"
@@ -527,7 +294,7 @@
         "gap": 100,
         "pending_known_urls": 0,
         "known_urls": 18,
-        "known_url_coverage_pct": 0,
+        "known_url_coverage_pct": 0.0,
         "pages_checked_this_run": 0,
         "run_status": "not_collected",
         "error_types": {
@@ -546,7 +313,7 @@
         "gap": 100,
         "pending_known_urls": 0,
         "known_urls": 58,
-        "known_url_coverage_pct": 0,
+        "known_url_coverage_pct": 0.0,
         "pages_checked_this_run": 0,
         "run_status": "not_scheduled",
         "error_types": {},
@@ -596,7 +363,7 @@
         "gap": 64,
         "pending_known_urls": 0,
         "known_urls": 2,
-        "known_url_coverage_pct": 0,
+        "known_url_coverage_pct": 0.0,
         "pages_checked_this_run": 0,
         "run_status": "not_collected",
         "error_types": {},
@@ -643,7 +410,7 @@
         "gap": 61,
         "pending_known_urls": 27,
         "known_urls": 56,
-        "known_url_coverage_pct": 100,
+        "known_url_coverage_pct": 100.0,
         "pages_checked_this_run": 13,
         "run_status": "candidate",
         "error_types": {},
@@ -673,7 +440,7 @@
         "gap": 65,
         "pending_known_urls": 3,
         "known_urls": 51,
-        "known_url_coverage_pct": 100,
+        "known_url_coverage_pct": 100.0,
         "pages_checked_this_run": 0,
         "run_status": "not_scheduled",
         "error_types": {},
