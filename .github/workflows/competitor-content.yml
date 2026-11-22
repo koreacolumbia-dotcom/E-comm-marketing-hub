@@ -60,7 +60,25 @@ jobs:
               if c.get('known_urls') is not None:
                   assert c['observed_urls']<=c['known_urls'], brand['brand']
                   assert c['unobserved_urls']<=c['known_urls'], brand['brand']
-          print('Dashboard contracts and 24-brand coverage schema verified')
+          import re
+          from collections import Counter
+          ids=re.findall(r'\\bid="([^"]+)"',html)
+          duplicates=[key for key,count in Counter(ids).items() if count>1]
+          assert not duplicates, f'duplicate DOM ids: {duplicates}'
+          anchors=re.findall(r'href="#([^"]+)"',html)
+          missing=[key for key in anchors if key not in ids]
+          assert not missing, f'broken in-page navigation: {missing}'
+          expected_sections=['gapRadar','brandPulse','benchmark','purposePanel','strategyPanel','dnaPanel','advancedPanel','discoveryPanel','archive','calendarPanel','classificationRules','evidencePanel','crawlHealth','observedPanel','coveragePanel']
+          positions=[html.index('id="'+key+'"') for key in expected_sections]
+          assert positions==sorted(positions), 'dashboard strategic section order changed'
+          assert 'coverageSummary=d;renderCrawlHealth()' in html, 'coverage summary is not wired to the view'
+          frontier=json.loads(Path('reports/competitor_content/crawl-frontier.json').read_text())
+          assert len(frontier.get('brands',{}))==24, 'crawl frontier must track 24 brands'
+          for brand,entry in frontier['brands'].items():
+              pending=entry.get('pending',[])
+              assert len(pending)==len(set(pending)), f'duplicate frontier URLs for {brand}'
+              assert all(u.startswith(('https://','http://')) for u in pending), f'invalid URL in frontier: {brand}'
+          print('Dashboard DOM, navigation, strategy order, coverage, and frontier contracts verified')
           PY
       - name: Test interactive drilldowns in Chromium
         run: python scripts/competitor_content/drilldown_test.py
