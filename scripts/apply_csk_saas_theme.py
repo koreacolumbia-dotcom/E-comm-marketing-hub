@@ -134,9 +134,9 @@ def patch_report(path: Path, key: str, *, check: bool = False) -> str:
             )
     # Rotate hashed CSS/JS references on generated report pages, including
     # documents with an existing theme from the previous build.
-    text = re.sub(r'(csk-saas-unified\\.css\\?v=)[A-Za-z0-9_.-]+',
+    text = re.sub(r'(csk-saas-unified\.css\?v=)[A-Za-z0-9_.-]+',
                   lambda m: m.group(1) + VERSION, text)
-    text = re.sub(r'(csk-saas-standalone\\.js\\?v=)[A-Za-z0-9_.-]+',
+    text = re.sub(r'(csk-saas-standalone\.js\?v=)[A-Za-z0-9_.-]+',
                   lambda m: m.group(1) + VERSION, text)
     match = HEAD_END.search(text)
     if not match or not BODY_OPEN.search(text):
