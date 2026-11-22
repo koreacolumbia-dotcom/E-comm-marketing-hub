@@ -154,7 +154,7 @@ def write(payload):
 # BQ session query as the Owned UTM report. No extra query jobs or ad API calls.
 def media_group(source):
     src=str(source or "").strip().lower()
-    if src in ("meta / banner","facebook / banner","meta-sitelink / banner"):
+    if src in ("meta / banner","facebook / banner","meta-sitelink / banner","ig / paid"):
         return "meta_conversion_tagged"
     if src in ("meta_bd / meta_bd","meta_bd / mt"):
         return "meta_bd_tagged"
@@ -162,17 +162,17 @@ def media_group(source):
         return "naver_brand_search"
     if src in ("naver / cpc","m.search.naver.com / cpc"):
         return "naver_search_other"
-    if src.startswith("google / ") and any(x in src for x in ("cpc","paid","search","display")):
+    if src=="adwords / ppc" or (src.startswith("google / ") and any(x in src for x in ("cpc","paid","ppc","search","display","banner","pmax","gdn","demandgen"))):
         return "google_paid"
-    if src=="criteo / banner":
+    if src in ("criteo / banner","criteo / display"):
         return "criteo"
     if src in ("kakao / da","daangn / da","naver_bd / naver_bd"):
         return "other_display"
-    if src.startswith(("kakao_ch /","kakao_alimtalk /","kakao_fridnstalk /","lms_ecom /","edm /")):
+    if src.startswith(("kakao_ch /","kakao_alimtalk /","kakao_fridnstalk /","lms_ecom /","edm /","email_mkt /")):
         return "owned_crm_tagged"
     if "organic" in src:
         return "organic_search"
-    if " / referral" in src:
+    if " / referral" in src or src in ("ig / social","facebook / social"):
         return "referral"
     if src in ("(direct) / (none)","direct / none"):
         return "direct"
@@ -199,6 +199,7 @@ def build_media_rollup(source):
     for year,rows in source.items():
         grouped={}
         campaigns={}
+        sources={}
         totals={"sessions":0.,"orders":0.,"revenue":0.}
         for item in rows:
             name=clean_label(item.get("sessionSourceMedium"),160)
@@ -211,6 +212,8 @@ def build_media_rollup(source):
             for metric_key,value in metrics.items():
                 entry[metric_key]+=value
                 totals[metric_key]+=value
+            src_row=sources.setdefault((key,name),{"sessions":0.,"orders":0.,"revenue":0.})
+            for k,v in metrics.items():src_row[k]+=v
             if key not in {"meta_conversion_tagged","meta_bd_tagged"}:continue
             campaign=clean_label(item.get("sessionCampaignName"))
             if campaign=="(restricted)" or not FESTIVAL_MARKERS.search(campaign+" "+str(item.get("sessionManualTerm") or "")) and not SEASONOFF_MARKERS.search(campaign+" "+str(item.get("sessionManualTerm") or "")):
@@ -223,6 +226,15 @@ def build_media_rollup(source):
                     "orders":int(v["orders"]),"revenue":round(v["revenue"]),
                     "cvr_pct":round(100*v["orders"]/v["sessions"],3) if sessions else None}
         groups=[display(k,v) for k,v in grouped.items()]
+        # Aggregate, sanitized original source labels reveal taxonomy shifts (e.g.
+        # adwords / ppc moving out of unclassified) without storing raw GA4 users.
+        for group in groups:
+            details=[{"source_medium":name,"sessions":int(v["sessions"]),
+                      "orders":int(v["orders"]),"revenue":round(v["revenue"])}
+                     for (key,name),v in sources.items()
+                     if key==group["id"] and v["sessions"]>=10]
+            details.sort(key=lambda x:(-x["revenue"],-x["sessions"]))
+            group["top_sources"]=details[:8]
         groups.sort(key=lambda v:(-v["revenue"],v["id"]))
         campaign_rows=[]
         for (group,name),v in campaigns.items():
@@ -272,7 +284,7 @@ def main():
     try:
         prior=json.loads(OUTPUT.read_text(encoding="utf-8"))
         if (prior.get("status")=="ga4_measured" and prior.get("period")==windows
-                and prior.get("media_rollup")):
+                and prior.get("media_rollup") and prior.get("media_schema")==2):
             print("[FESTIVAL UTM] same verified event period; reuse cached aggregates")
             return
     except (OSError,ValueError,TypeError):
@@ -320,6 +332,7 @@ def main():
         data=summarize(rows)
         write({**base,"status":"ga4_measured","data":data,
                "media_rollup":build_media_rollup(rows),
+               "media_schema":2,
                "media_scope":"GA4 session source/medium + campaign tags; no Meta Ads API impressions, clicks or spend.",
                "causal":False,
                "cost":{**cost,"billed_bytes":billed}})
