@@ -211,6 +211,10 @@ def save(doc):
 
 def run():
     end=report_date()
+    previous=read(OUT)
+    if previous.get("report_date")==end.isoformat() and previous.get("status") in ("ga4_measured","partial_quality") and os.getenv("CSK_GA4_FORCE","")!="1":
+        print("[GA4] Existing dated evidence reused; zero query cost",end)
+        return
     status=dict(schema=1,report_date=end.isoformat(),status="blocked_credentials",
                 cost=dict(maximum_bytes_billed_total=CAP,dry_run_required=True))
     token=os.getenv("GOOGLE_SA_JSON_B64","").strip()
@@ -232,6 +236,7 @@ def run():
         save({**status,"status":"blocked_budget","estimated_bytes":sum(estimates)});return
     remaining=CAP;billed=0;rows=[]
     for sql in queries:
+        if remaining<=0:raise RuntimeError("Combined billing ceiling exhausted")
         job=client.query(sql,location=LOCATION,
                          job_config=bigquery.QueryJobConfig(maximum_bytes_billed=remaining,
                                                             use_query_cache=True))
