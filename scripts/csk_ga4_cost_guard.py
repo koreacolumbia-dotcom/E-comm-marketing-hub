@@ -118,6 +118,37 @@ def split_categories(categories,total):
         rows=sorted(rows,key=lambda x:-abs(x["mix_effect_per_item"]))[:20],
         caveat="New/retired categories attributed to mix; within-category price contains discount and mix.")
 
+def revenue_bridge(cur,pre):
+    """Exact GA4 purchase revenue delta = item units + realized unit + item/purchase gap.
+
+    Item-to-order discrepancy is not classified as coupon without a supported
+    transaction-level coupon, refund and price reconciliation source.
+    """
+    if any(x is None or x<=0 for x in (cur["units"],pre["units"],
+         cur["item_revenue"],pre["item_revenue"],
+         cur["purchase_revenue"],pre["purchase_revenue"])):
+        return None
+    p1=cur["item_revenue"]/cur["units"];p0=pre["item_revenue"]/pre["units"]
+    qty_effect=(cur["units"]-pre["units"])*(p1+p0)/2
+    price_effect=(p1-p0)*(cur["units"]+pre["units"])/2
+    gap_now=cur["item_revenue"]-cur["purchase_revenue"]
+    gap_old=pre["item_revenue"]-pre["purchase_revenue"]
+    gap_effect=-(gap_now-gap_old)
+    delta=cur["purchase_revenue"]-pre["purchase_revenue"]
+    if abs(qty_effect+price_effect+gap_effect-delta)>0.02:
+        raise AssertionError("Purchase revenue bridge did not reconcile")
+    return dict(
+        qty_effect_krw=round(qty_effect,2),
+        realized_unit_revenue_effect_krw=round(price_effect,2),
+        item_to_purchase_gap_effect_krw=round(gap_effect,2),
+        prior_item_to_purchase_gap_krw=round(gap_old,2),
+        current_item_to_purchase_gap_krw=round(gap_now,2),
+        purchase_revenue_delta_krw=round(delta,2),
+        prior_total_units=int(pre["units"]),current_total_units=int(cur["units"]),
+        note="Accounting identity, not proof of coupon/discount/refund causality."
+    )
+
+
 def analyze(orders,items,end,admin,focus):
     start=end-dt.timedelta(days=13)
     dates=[(start+dt.timedelta(days=i)).strftime("%Y%m%d") for i in range(14)]
@@ -193,6 +224,7 @@ def analyze(orders,items,end,admin,focus):
                     current_start=(end-dt.timedelta(days=6)).isoformat(),
                     current_end=end.isoformat()),
         item_aov_bridge=split_aov(total["current"],total["previous"]) if clean else None,
+        sales_revenue_bridge=revenue_bridge(total["current"],total["previous"]) if clean else None,
         category_bridge=split_categories(categories,total) if clean else None,
         product_sales=products,totals=total,
         admin_reconciliation=dict(comparable=reconciled,periods=comparison,
@@ -213,6 +245,14 @@ def run():
     end=report_date()
     previous=read(OUT)
     if previous.get("report_date")==end.isoformat() and previous.get("status") in ("ga4_measured","partial_quality") and os.getenv("CSK_GA4_FORCE","")!="1":
+        if previous.get("status")=="ga4_measured" and not previous.get("sales_revenue_bridge"):
+            totals=previous.get("totals") or {}
+            if totals.get("current") and totals.get("previous"):
+                previous["sales_revenue_bridge"]=revenue_bridge(totals["current"],totals["previous"])
+                previous.setdefault("admin_reconciliation",{})["caveat"]=(
+                    "Agreement to existing Daily KPI (GA4 source). Independent MSSQL/ERP revenue still not verified.")
+                save(previous)
+                print("[GA4] Rebuilt purchase revenue factors from cached aggregates, no BigQuery query")
         print("[GA4] Existing dated evidence reused; zero query cost",end)
         return
     status=dict(schema=1,report_date=end.isoformat(),status="blocked_credentials",
