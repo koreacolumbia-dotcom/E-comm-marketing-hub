@@ -258,7 +258,7 @@ if __name__=="__main__":
     except Exception as exc:
         # Log BigQuery's first error line only; never print credentials or raw rows.
         detail=str(exc).splitlines()[0][:240]
-        detail=re.sub(r"(?i)(authkey|token|password|secret)=[^&\\s]+",r"\\1=[REDACTED]",detail)
+        detail=re.sub(r"(?i)(authkey|token|password|secret)\s*=\s*[^\s&]+",r"\1=[REDACTED]",detail)
         print("[GA4] stopped",type(exc).__name__,detail)
         try:save(dict(schema=1,status="query_error",report_date=report_date().isoformat(),
                       error_type=type(exc).__name__,maximum_bytes_billed_total=CAP))
