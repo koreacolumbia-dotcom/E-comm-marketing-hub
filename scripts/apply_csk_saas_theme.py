@@ -124,6 +124,14 @@ def patch_report(path: Path, key: str, *, check: bool = False) -> str:
             raise ValueError(f"Unexpected >90MiB report HTML: {path}")
         return wrap_large_utm(path, check=check)
     text = path.read_text(encoding="utf-8", errors="replace")
+    # The executive Summary must not prepend two redundant diagnostic boards.
+    # Their original data/diagnostics remain available in dedicated menu pages.
+    if key == "summary":
+        for marker in ("DASHBOARD-EXPERIENCE", "DASHBOARD-OPS"):
+            text = re.sub(
+                rf"<!-- {marker}-START -->.*?<!-- {marker}-END -->",
+                "", text, flags=re.S,
+            )
     match = HEAD_END.search(text)
     if not match or not BODY_OPEN.search(text):
         return "not_html"
@@ -139,7 +147,13 @@ def patch_report(path: Path, key: str, *, check: bool = False) -> str:
             f'<script defer data-csk-route="{key}" '
             f'src="{asset_base}{ASSET_SCRIPT}?v={VERSION}"></script>'
         )
+    original = path.read_text(encoding="utf-8", errors="replace")
+    if check and original != text:
+        return "missing_theme"
     if not head_bits:
+        if original != text and not check:
+            path.write_text(text, encoding="utf-8")
+            return "updated"
         return "already_present"
     if check:
         return "missing_theme"
