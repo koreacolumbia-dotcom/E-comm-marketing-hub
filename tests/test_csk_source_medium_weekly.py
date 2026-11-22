@@ -1,5 +1,7 @@
 import importlib.util
 import unittest
+import tempfile
+import json
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location("sm",ROOT/"scripts/csk_source_medium_weekly.py")
@@ -48,8 +50,40 @@ class SourceMediumReportTests(unittest.TestCase):
                   "transactions":0,"purchaseRevenue":0,"expected_sessions":1}],m.window(OPS),{})
 
     def test_guard_and_coverage(self):
-        self.assertEqual(m.PER_QUERY_CAP,3*1024**3)
+        self.assertEqual(m.PER_QUERY_CAP,3*1024**3+8*1024**2)
         self.assertEqual(m.TOTAL_DRY_CAP,6*1024**3)
+        self.assertLess(m.PER_QUERY_CAP, m.TOTAL_DRY_CAP)
+
+    def test_zero_query_cache_reuse_reconciles_without_inventing_source(self):
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t)
+            dates=m.window(OPS)
+            for period in ("previous","current"):
+                start=m.dt.date.fromisoformat(dates[period]["start"])
+                for k in range(7):
+                    day=(start+m.dt.timedelta(days=k)).isoformat()
+                    row={"mode":"daily","end_date":day,
+                         "traffic_metric_source":"ga4_bigquery_session_key_v1",
+                         "kpis":{"sessions":100,"orders":3,"revenue":1500},
+                         "channels":{"Paid Ad":{"sessions":60,"orders":2,"revenue":1000},
+                                     "Organic Traffic":{"sessions":40,"orders":1,"revenue":500}},
+                         "channel_detail_map":{
+                            "Paid Ad":[{"sub_channel":"Paid Search · 브랜드",
+                                        "sessions":60,"orders":2,"purchaseRevenue":1000}],
+                            "Organic Traffic":[{"sub_channel":"Search · 오가닉",
+                                                "sessions":38,"orders":1,"purchaseRevenue":500}]}}
+                    (root/(day+".json")).write_text(json.dumps(row))
+            out=m.cached_subchannel_fallback(dates,root)
+            self.assertEqual(out["status"],"ga4_subchannel_aggregated")
+            self.assertEqual(out["totals"]["current"]["sessions"],700)
+            self.assertTrue(any("미배분" in row["source_medium"] for row in out["rows"]))
+            self.assertFalse(out["quality"]["source_medium_exact"])
+            self.assertEqual(out["cost"]["billed_bytes"],0)
+            self.assertEqual(len(out["quality"]["unallocated_rows"]),14)
+            (root/("2026-11-20.json")).unlink()
+            blocked=m.cached_subchannel_fallback(dates,root)
+            self.assertEqual(blocked["status"],"fallback_incomplete")
+            self.assertEqual(blocked["rows"],[])
 
 
 if __name__=="__main__":
