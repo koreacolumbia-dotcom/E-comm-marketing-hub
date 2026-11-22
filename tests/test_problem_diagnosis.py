@@ -155,6 +155,14 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('원인 1·2·3의 실측 증거만 먼저 표시', DECISION_HTML)
         self.assertIn('CSKDetailEvidence?.render(window.__cskCausePayload)', DECISION_HTML)
 
+    def test_verified_funnel_refines_ranked_causes(self):
+        self.assertIn('sessionEvidence=p=>', DECISION_HTML)
+        self.assertIn('window.__cskSessionFunnel', DECISION_HTML)
+        self.assertIn('장바구니 이후 구매완료율 약화', DECISION_HTML)
+        self.assertIn('조회 감소 + 장바구니 진입 약화', DECISION_HTML)
+        self.assertIn('stageDiagnosis(p)?.proof||detail.breakdown', DECISION_HTML)
+        self.assertIn('f.report_date===day', DECISION_HTML)
+
     def test_decision_product_priority_and_evidence(self):
         self.assertIn('d>=15&&s<=-15', DECISION_HTML)
         self.assertIn('GA4 구매 매칭', DECISION_HTML)

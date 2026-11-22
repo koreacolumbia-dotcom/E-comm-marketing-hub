@@ -189,8 +189,38 @@ const tag=(p)=>{
   if(d>=0&&s>=0)return "조회·판매 동반 증가";
   return "조회·판매 방향 차이";
 };
-const headline=(p)=>tag(p)==="조회 증가 · 판매 감소"?"조회 대비 구매 약화":
-  tag(p)==="조회·판매 동반 감소"?"유입·판매 동반 하락":"조회·구매 흐름 이상";
+const sessionEvidence=p=>{
+  const f=window.__cskSessionFunnel,day=window.__cskCausePayload?.focus?.date;
+  return f?.status==="ga4_measured"&&f.report_date===day?
+    f.products?.find(x=>x.name===p.name&&x.coverage_reliable===true):null;
+};
+const postCartPct=(p,period)=>{
+  const x=p?.[period];
+  return x&&x.cart_after_view_sessions>0?100*x.purchase_after_cart_sessions/x.cart_after_view_sessions:null;
+};
+const stageDiagnosis=p=>{
+  const f=sessionEvidence(p);
+  if(!f)return null;
+  const before=postCartPct(f,"previous"),now=postCartPct(f,"current");
+  if(p.pdp_change_pct>=15&&salePct(p)<0&&Number.isFinite(before)&&Number.isFinite(now)&&before-now>=5&&f.view_to_cart_delta_pp>=0){
+    return {heading:"장바구니 이후 구매완료율 약화",
+      proof:"장바구니→구매완료 "+before.toFixed(1)+"% → "+now.toFixed(1)+"% · 조회→장바구니 "+
+        f.previous.view_to_cart_pct.toFixed(2)+"% → "+f.current.view_to_cart_pct.toFixed(2)+"%",
+      next:"구매완료 흐름 · 결제/쿠폰 조건 · 이벤트 정합성"};
+  }
+  if(p.pdp_change_pct<=-15&&salePct(p)<0&&f.view_to_cart_delta_pp<=-.3){
+    return {heading:"조회 감소 + 장바구니 진입 약화",
+      proof:"상품 조회 세션 "+Math.round(f.previous.view_sessions).toLocaleString("ko-KR")+" → "+
+        Math.round(f.current.view_sessions).toLocaleString("ko-KR")+
+        " · 조회→장바구니 "+f.previous.view_to_cart_pct.toFixed(2)+"% → "+f.current.view_to_cart_pct.toFixed(2)+"%",
+      next:"상품 유입 감소 구간 · 최초유입 소스 구성 · 장바구니 진입"};
+  }
+  return {heading:null,proof:"조회→장바구니 "+f.previous.view_to_cart_pct.toFixed(2)+"% → "+
+    f.current.view_to_cart_pct.toFixed(2)+"% · 구매완료 단계 병행 확인",next:null};
+};
+const headline=(p)=>stageDiagnosis(p)?.heading ||
+  (tag(p)==="조회 증가 · 판매 감소"?"조회 대비 구매 약화":
+  tag(p)==="조회·판매 동반 감소"?"유입·판매 동반 하락":"조회·구매 흐름 이상");
 const action=(p)=>p.pdp_change_pct>=15&&salePct(p)<=-15?"장바구니율 · 유입매체 · 평균 실현매출":
   p.pdp_change_pct<=-15&&salePct(p)<=-15?"노출·유입경로 · 평균 실현매출":"유입구성 · PDP→장바구니 · 가격";
 
@@ -226,7 +256,7 @@ function productCause(p,focus,ga4){
     data1:["PDP 조회",pct(p.pdp_change_pct),fmt(p.pdp_prior_7d)+" → "+fmt(p.pdp_7d)],
     data2:["GA4 구매수량",pct(s),fmt(p.sales_previous_7d)+" → "+fmt(p.sales_7d)+"개"],
     signal:"구매 / PDP 1천회",value:fixed(buyPerK(p.sales_previous_7d,p.pdp_prior_7d))+" → "+fixed(buyPerK(p.sales_7d,p.pdp_7d)),
-    indicator:pct(ratioDelta(p)),why:detail.breakdown,next:action(p),source:"PDP 실측 · GA4 상품명 매칭",note:"구매/PDP 단순비(전환율 아님) · 원인 미확정"};
+    indicator:pct(ratioDelta(p)),why:stageDiagnosis(p)?.proof||detail.breakdown,next:stageDiagnosis(p)?.next||action(p),source:sessionEvidence(p)?"GA4 동일 세션·상품명 매칭":"PDP 실측 · GA4 상품명 매칭",note:"구매/PDP 단순비(전환율 아님) · 원인 미확정"};
 }
 function basketCause(diag,focus){
   const g=diag?.ga4_evidence||{},a=g.item_aov_bridge||{},p=g.period||{};
