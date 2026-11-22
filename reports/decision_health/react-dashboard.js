@@ -439,6 +439,70 @@
   }
 
   // Last-year marketing context is evidence for comparison, not a causal attribution.
+  function CurrentYearCampaignContext(props) {
+    var ops=props.ops||{},cal=ops.calendar||{},wk=ops.weekly||{},yoy=wk.yoy||{};
+    var entries=Array.isArray(cal.current)?cal.current.slice():[];
+    var dayRows=yoy.status==="ready" && Array.isArray(yoy.daily_comparison) && yoy.daily_comparison.length===7
+      ? yoy.daily_comparison : [];
+    var dayMap=new Map(dayRows.filter(function(r){return r && r.date;}).map(function(r){return [r.date,r];}));
+    function rank(item) {
+      if(item.scope==="official_mall" && item.status==="confirmed" && item.kind==="event")return 0;
+      if(item.status==="reported")return 1;
+      if(item.status==="confirmed" && item.scope==="offline_partner")return 2;
+      if(item.status==="observed")return 3;
+      return 4;
+    }
+    entries.sort(function(a,b){return rank(a)-rank(b)||String(a.date).localeCompare(String(b.date));});
+    var verified=entries.filter(function(x){return x.status==="confirmed" && x.scope==="official_mall";});
+    function shortDate(s){return String(s||"—").slice(5).replace("-",".");}
+    function statusText(item){
+      if(item.status==="confirmed")return item.scope==="offline_partner"?"오프라인 행사 확인":"공식몰 행사 확인";
+      if(item.status==="observed")return "콘텐츠 존재 확인 · 시작일 추정";
+      if(item.status==="reported")return "일정 공유 · 실행 미확인";
+      return "계획만 확인";
+    }
+    function row(item){
+      var day=dayMap.get(item.date);
+      var hasObserved=day && num(day.revenue_yoy_pct);
+      var date=shortDate(item.date)+(item.end_date?"–"+shortDate(item.end_date):"");
+      var source=typeof item.source==="string" && /^https:\/\/[^\s<>"]+$/.test(item.source) ? item.source : null;
+      return h("article",{key:item.date+"|"+item.title,className:"cy-campaign-row"},
+        h("div",{className:"cy-campaign-meta"},
+          h("strong",null,date),
+          h("span",{className:cls("cy-status",item.status==="confirmed"?"verified":item.status==="reported"?"reported":"observed")},statusText(item))
+        ),
+        h("div",{className:"cy-campaign-main"},
+          h("strong",null,item.title),
+          h("p",null,h("b",null,"예상 여파 · "),item.impact_hypothesis||"영향 가설 미수립"),
+          h("div",{className:"cy-observed"},
+            h("span",null,"관측 · ",hasObserved?"당일 매출 YoY "+delta(day.revenue_yoy_pct):"당일 YoY 미확보"),
+            h("span",null,"검증 · ",Array.isArray(item.impact_metrics)&&item.impact_metrics.length?item.impact_metrics.slice(0,3).join(" / "):"별도 검증 필요")
+          ),
+          source?h("a",{className:"cy-source",href:source,target:"_blank",rel:"noopener noreferrer"},"확인된 출처 ↗"):null
+        )
+      );
+    }
+    return h("section",{className:"cy-campaign-context","aria-label":"올해 행사와 예상 영향"},
+      h("div",{className:"cy-campaign-head"},
+        h("div",null,h("span",null,"2026 CAMPAIGN CONTEXT"),
+          h("h2",null,"올해 행사 · 예상 여파"),
+          h("p",null,"확인된 일정과 예상 영향, 실제 매출 변화를 분리해 표시")),
+        h("span",{className:"cy-campaign-count"},entries.length+"개 활동")
+      ),
+      verified.length?h("p",{className:"cy-campaign-conclusion"},
+        "공식몰 프로모션 진행 · 주문·CVR 상승 가능 / 할인·상품 믹스로 객단가 하락 가능",
+        h("small",null,"효과 규모·원인 확정 아님")):null,
+      entries.length?h("div",null,
+        h("div",{className:"cy-campaign-list"},entries.slice(0,2).map(row)),
+        entries.length>2?h("details",{className:"cy-campaign-more"},
+          h("summary",null,"다른 행사·콘텐츠 "+(entries.length-2)+"건 보기"),
+          h("div",{className:"cy-campaign-list"},entries.slice(2).map(row))):null
+      ):h("p",{className:"ly-campaign-empty"},"올해 행사 원본 미연결. 미등록을 행사 부재로 해석하지 않습니다."),
+      h("p",{className:"cy-campaign-caveat"},
+        "행사 시작일·채널 범위를 구분합니다. 오프라인 혜택은 공식몰 매출로 합산하지 않으며, 올해 CRM 실제 발송 기록은 별도 확인이 필요합니다.")
+    );
+  }
+
   function PriorYearCampaignContext(props) {
     var ops=props.ops||{},cal=ops.calendar||{},weekly=ops.weekly||{},yoy=weekly.yoy||{};
     var samePeriod=yoy.status==="ready" && cal.yoy_window && cal.yoy_window===yoy.period;
@@ -567,6 +631,7 @@
         metrics.length?metrics.map(function(m){return h(KpiCard,{key:m.key,item:m});}):
           h(EmptyState,{title:"운영 KPI 근거 없음",note:"완전한 주간 세션·주문·매출 합계를 확인할 수 없습니다."})
       ),
+      tab==="overview"?h(CurrentYearCampaignContext,{ops:ops}):null,
       tab==="overview"?h(PriorYearCampaignContext,{ops:ops}):null,
       h("div",{className:"csk-workspace-heading"},
         h("div",null,h("span",null,"EXECUTIVE WORKSPACE"),h("h2",null,title),h("p",null,subtitle)),
