@@ -3,6 +3,46 @@
 <style>
 :root{--ink:#17334e;--navy:#142d45;--blue:#28557e;--muted:#68798b;--border:#dfe7ef;--green:#19764d;--red:#b33b42}*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:var(--ink);font:14px/1.5 Arial,"Pretendard","Noto Sans KR",sans-serif}main{max-width:1440px;margin:auto;padding:24px}header{background:var(--navy);color:#fff;padding:28px;border-radius:12px}header h1{font-size:30px;letter-spacing:-1px;margin:4px 0}header small{color:#b8d0e5;letter-spacing:1.6px}.navigation{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0 22px}.navigation a{padding:7px 10px;border:1px solid var(--border);background:white;color:var(--ink);font-size:12px;text-decoration:none;border-radius:5px}.section{background:white;padding:22px;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;scroll-margin-top:12px}.section h2{font-size:17px;letter-spacing:.25px;margin:0}.section h3{font-size:13px;margin:16px 0 8px}.heading{display:flex;justify-content:space-between;gap:10px;align-items:center;padding-bottom:13px;border-bottom:1px solid var(--border);margin-bottom:12px}.status{font-size:11px;color:var(--muted);white-space:nowrap}.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin:12px 0}.tile{border:1px solid var(--border);padding:14px}.tile span{font-size:11px;color:var(--muted);display:block}.tile strong{font-size:25px;font-variant-numeric:tabular-nums;display:block;line-height:1.3;margin:6px 0}.tile small{font-size:12px}.positive{color:var(--green)}.negative{color:var(--red)}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}th,td{padding:9px 10px;text-align:left;border-bottom:1px solid #e8edf2;white-space:nowrap}th{color:var(--muted);font-weight:600;background:#f5f8fb}td:not(:first-child),th:not(:first-child){text-align:right}a{color:var(--blue)}.note{font-size:12px;color:var(--muted);margin:10px 0 0}.barrow{display:grid;grid-template-columns:minmax(90px,180px) 1fr minmax(75px,105px);gap:10px;align-items:center;margin:7px 0;font-size:12px}.track{background:#eaf0f5;height:16px;border-radius:3px;overflow:hidden}.bar{height:100%;background:var(--blue)}.bar.neg{background:#bd5b61}.trend{width:100%;height:auto;display:block}.spark{width:112px;height:28px;vertical-align:middle}.local{margin:14px 0;padding:12px;border:1px dashed #a8b6c4;border-radius:6px}.local input{max-width:100%}.muted{color:var(--muted)}button{cursor:pointer;padding:7px;background:white;color:var(--ink);border:1px solid var(--border);border-radius:5px}#load{padding:16px;background:white;border:1px solid var(--border);margin-bottom:16px} @media(max-width:600px){main{padding:10px}header{padding:18px}header h1{font-size:23px}.section{padding:13px}.tile strong{font-size:21px}.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.navigation{gap:4px}.navigation a{font-size:10px}.barrow{grid-template-columns:95px 1fr 80px}}
 .focus-lead{border-top:4px solid #28557e}.focus-head{font-size:22px;margin:0 0 4px;letter-spacing:-.5px}.focus-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}.focus-card{border:1px solid var(--border);border-radius:8px;padding:15px;min-width:0}.focus-card h3{font-size:16px;margin:6px 0}.focus-card .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.focus-card .tile{padding:10px}.focus-card .tile strong{font-size:20px}.focus-card h4{margin:14px 0 5px;font-size:13px}.focus-card .evidence{padding:8px 0;border-top:1px solid #e8edf2;overflow-wrap:anywhere}.focus-card .evidence small{display:block;color:var(--muted)}.focus-card .note{overflow-wrap:anywhere}.focus-chip{color:#28557e;font-size:11px;font-weight:700}.focus-date{font-size:12px;color:var(--muted)}.focus-card .spark{width:100%;height:45px}.focus-card .summary-line{margin:8px 0;font-weight:600}@media(max-width:740px){.focus-grid{grid-template-columns:1fr}.focus-head{font-size:19px}.focus-card{padding:12px}}
+
+/* Compact competitive evidence — responsive, source-aware and expandable. */
+#product-priority .focus-product-header{display:flex;align-items:center;gap:12px;min-width:0;margin:8px 0 12px}
+#product-priority .focus-product-header .focus-product-title{flex:1;min-width:0}
+#product-priority .focus-product-header h3{font-size:16px;line-height:1.4;margin:3px 0;overflow-wrap:break-word}
+#product-priority .focus-thumb{width:72px;height:78px;flex:0 0 72px;border-radius:12px;object-fit:contain;background:#f7f9fc;border:1px solid #e7ebf2}
+#product-priority .compact-block{min-width:0;margin-top:14px;padding:12px;border:1px solid #e4e9f3;border-radius:12px;background:#fbfcfe}
+#product-priority .compact-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+#product-priority .compact-head h4{margin:0;font-size:12px;font-weight:750;letter-spacing:-.02em;color:#273653}
+#product-priority .compact-count{flex:none;font-size:11px;color:#68798b;background:#edf1f8;border-radius:20px;padding:2px 8px}
+#product-priority .compact-list{display:grid;gap:8px;min-width:0}
+#product-priority .compact-entry{min-width:0;border:1px solid #edf0f6;border-radius:9px;padding:10px 11px;background:white}
+#product-priority .compact-titleline{display:flex;align-items:center;gap:7px;min-width:0}
+#product-priority .compact-brand{flex:none;font-size:10px;font-weight:750;color:#495a76;background:#f1f4fa;border-radius:5px;padding:3px 6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#product-priority .compact-link{min-width:0;flex:1;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere;text-overflow:ellipsis;font-size:12px;font-weight:650;line-height:1.55;color:#235c99;text-decoration:none}
+#product-priority .compact-link:hover{text-decoration:underline}
+#product-priority .compact-entry-meta{font-size:11px;color:#758297;margin:6px 0 0;line-height:1.5;overflow-wrap:break-word}
+#product-priority .compact-price{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;margin-top:6px;font-variant-numeric:tabular-nums}
+#product-priority .compact-price s{font-size:11px;color:#8490a2}
+#product-priority .compact-price strong{font-size:14px;color:#222b47}
+#product-priority .compact-discount{font-size:11px;color:#d04e52;font-weight:750}
+#product-priority .compact-more{margin-top:8px}
+#product-priority .compact-more summary{cursor:pointer;list-style:none;font-size:12px;font-weight:700;color:#245c97;background:#edf4fb;border-radius:8px;padding:9px 11px}
+#product-priority .compact-more summary::-webkit-details-marker{display:none}
+#product-priority .compact-more summary:after{content:" ▾";float:right}
+#product-priority .compact-more[open] summary{margin-bottom:8px}
+#product-priority .compact-more[open] summary:after{content:" ▴"}
+#product-priority .compact-empty{font-size:11px;color:#78859a;margin:0}
+@media(max-width:740px){
+  #product-priority .focus-grid{grid-template-columns:minmax(0,1fr)}
+  #product-priority .focus-card{min-width:0;max-width:100%;padding:12px}
+  #product-priority .compact-block{padding:9px;margin-top:12px}
+  #product-priority .compact-entry{padding:9px}
+  #product-priority .focus-thumb{width:62px;height:68px;flex-basis:62px}
+  #product-priority .compact-titleline{align-items:flex-start;flex-wrap:wrap;gap:4px 7px}
+  #product-priority .compact-link{flex:1 1 150px}
+  #product-priority .focus-card .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #product-priority .focus-card .tile{min-width:0;overflow-wrap:break-word}
+}
+
 </style>
 <link id="csk-saas-shared-theme" rel="stylesheet" href="../../assets/csk-saas-unified.css?v=20261122-18a">
 <script defer data-csk-route="daily_intelligence" src="../../assets/csk-saas-standalone.js?v=20261122-18a"></script>
@@ -33,7 +73,49 @@ function forecastChart(d){const ns='http://www.w3.org/2000/svg',s=document.creat
 function note(p,text){if(text)p.append(el('p',text,'note'))}
 function section(n,d){const p=el('section',null,'section');p.id='s'+String(n).padStart(2,'0');const h=el('div',null,'heading');add(h,el('h2',String(n).padStart(2,'0')+'. '+ko(names[n-1])),el('span',statusNames[d.status]||d.status||'원본 필요','status'));p.append(h);return p}
 function privateBox(p,reportDate){const box=el('div',null,'local'),input=el('input');input.type='file';input.accept='.json,application/json';const result=el('div');add(box,el('h3','PRIVATE MULTI-TOUCH ATTRIBUTION'),el('p','구매 경로 결과 JSON을 선택하면 현재 브라우저에서만 표시됩니다. 서버 전송·저장 없음. 공개 탭에는 구매 경로 데이터를 저장하지 않습니다.','note'),input,result);input.onchange=async()=>{result.replaceChildren();try{const f=input.files?.[0];if(!f||f.size>5000000)throw Error('파일 크기 오류');const obj=JSON.parse(await f.text());const m=obj.sections?.['Marketing Attribution']?.data?.multi_touch_attribution||obj;if(m.source!=='ga4_bigquery_observed_session_paths'||m.period_end!==reportDate||m.status!=='available'||!m.models)throw Error('보고일 또는 검증 상태 불일치');tiles(result,[['관측 주문',fmt(m.observed_orders)],['주문 커버리지',rate(m.order_coverage_pct)],['다중 세션 주문',fmt(m.multi_session_orders)],['매출 커버리지',rate(m.revenue_coverage_pct)]]);const models=['first_touch','last_touch','linear','position_based'];const channels=m.models.first_touch||[];table(result,['Channel','First','Last','Linear','Position'],channels.map(r=>[r.channel,...models.map(k=>krw(m.models[k]?.find(v=>v.channel===r.channel)?.revenue))]));table(result,['Path','Orders','Revenue'],(m.top_paths||[]).filter(r=>r.orders>=5).slice(0,10).map(r=>[r.path.map(ko).join(' → '),fmt(r.orders),krw(r.revenue)]));note(result,'로컬 파일 · 관측 세션 기반 · 인과 효과 아님')}catch(e){note(result,'표시 실패: '+e.message)}};p.append(box)}
-function renderFocus(f){const host=document.getElementById('product-focus');host.replaceChildren();const p=el('section',null,'section focus-lead');p.id='product-priority';add(p,el('div','핵심 모니터링 · 상품 중심','focus-chip'),el('h2','어떤 상품이 왜 급등·급락했을까?','focus-head'));note(p,'상품별 판매 및 PDP 변화와 같은 시기 실측 기온, 경쟁사 할인·기획전을 한 카드에서 비교합니다.');if(!f){note(p,'교차 분석 집계 준비 중');host.append(p);return}note(p,'기준일 '+f.date+' · 최근 7일 vs 직전 7일');tiles(p,[['상품명 PDP 비교 가능',fmt(f.matched_pdp_names)+'개'],['평균 기온 변화 (7일)',f.temperature_change_c==null?'미확보':pctTemp(f.temperature_change_c)],['실측 기온 확보',fmt(f.weather_days)+' / 14일'],['상품 분석 카드',fmt(f.cards?.length)+'개']]);if(f.weather_days>0){p.append(el('h3','서울 실측 평균 기온 · 최근 14일'));const w=el('div',null,'table-wrap');table(w,['날짜','평균 기온'],(f.dates||[]).map((dt,i)=>[dt,f.temperature?.[i]==null?'—':fmt(f.temperature[i],1)+' °C']));const detail=el('details');detail.append(el('summary','날짜별 실측 기온 확인'),w);p.append(detail)}if(window.renderProductTimeline)window.renderProductTimeline(p,f.timeline);const grid=el('div',null,'focus-grid');const labels={pdp_up:'PDP 급증',pdp_down:'PDP 급감',sales_up:'판매 급증',sales_down:'판매 급감',review_only:'관심 상위 검토'};for(const r of f.cards||[]){const card=el('article',null,'focus-card');add(card,el('div',(r.signals||[]).map(x=>labels[x]||x).join(' · ')+' / '+r.family,'focus-chip'),el('h3',r.name));tiles(card,[['7일 PDP',fmt(r.pdp_7d),'직전 7일 '+fmt(r.pdp_prior_7d)+' · '+pct(r.pdp_change_pct)],['당일 판매량',r.sales_day==null?'표본 없음':fmt(r.sales_day)+'개',r.sales_baseline==null?'7일 비교 원본 미확보':'직전 7일 중앙값 '+fmt(r.sales_baseline,1)+'개 · '+pct(r.sales_change_pct)]]);if(r.sales_series?.some(v=>v!==null)){card.append(el('h4','최근 14일 판매 표본 (빈 구간은 미수집)'),spark(r.sales_series))}card.append(el('h4','날씨와의 관계'),el('p',r.weather_assessment,'summary-line'));note(card,'실측 기온 변화: '+(r.temperature_change_c==null?'미확보':pctTemp(r.temperature_change_c))+' · 직접 영향은 미검증');card.append(el('h4','같은 기간 경쟁사 기획전'));if(!r.competitor_events?.length)note(card,'관련 행사 근거 미확보');for(const e of r.competitor_events||[]){const row=el('div',null,'evidence');row.append(e.url?link((e.brand||'')+' · '+e.title,e.url):el('span',(e.brand||'')+' · '+e.title));row.append(el('small',e.match+' · '+ko(e.date_status)+' · '+fmt(e.overlap_days)+'일 '+(e.date_status==='observed_only'?'관측':'겹침')+(e.start?' · '+e.start+'~'+(e.end||'미확인'):'')));card.append(row)}card.append(el('h4','경쟁 상품 할인 후보'));if(!r.discount_samples?.length)note(card,'동일 상품군 정가·할인가 쌍 미확보');for(const v of r.discount_samples||[]){const row=el('div',null,'evidence');row.append(v.url?link(ko(v.brand)+' · '+v.name,v.url):el('span',v.name));row.append(el('small',krw(v.regular)+' → '+krw(v.sale)+' · 할인율 '+rate(v.discount_pct)));card.append(row)}if(r.discount_samples?.length)note(card,'가격 확인 시점: '+(r.discount_checked_at||'미확인')+' · 과거 행사 당시 가격은 미확인');note(card,r.interpretation);grid.append(card)}p.append(grid);p.append(el('h3','당일 판매량 급등·급락 (개별 SKU 표본)'));table(p,['상품 / SKU','당일 수량','직전 6일 중앙값','증감 수량','7일 추이'],(f.daily_sku_alerts||[]).map(x=>[x.name+' / '+x.sku,fmt(x.qty),fmt(x.baseline,1),fmt(x.delta,1),spark(x.series)]));note(p,f.note);host.append(p)}
+
+function compactDate(s){return s?String(s).slice(5).replace('-','.'):''}
+function compactEvidenceItem(v,kind){
+ const row=el('article',null,'compact-entry'),top=el('div',null,'compact-titleline');
+ const brand=el('span',v.brand||'브랜드 미확인','compact-brand');
+ const title=link(kind==='event'?(v.title||'행사명 미확인'):(v.name||'상품명 미확인'),v.url);
+ title.classList.add('compact-link');add(top,brand,title);row.append(top);
+ if(kind==='event'){
+   const term=v.start?(compactDate(v.start)+(v.end?'–'+compactDate(v.end):'~ 종료 미확인')):'실제 기간 미확인';
+   const level=v.date_status==='official_period'?'공식 기간':v.date_status==='observed_only'?'배너 관측':ko(v.date_status||'검증 상태 미확인');
+   const overlap=v.overlap_days==null?'겹침 일수 미확인':fmt(v.overlap_days)+'일 '+(v.date_status==='observed_only'?'관측':'기간 겹침');
+   row.append(el('div',level+' · '+term+' · '+overlap,'compact-entry-meta'));
+   if(v.match)row.append(el('div',v.match,'compact-entry-meta'));
+ }else{
+   const price=el('div',null,'compact-price');
+   if(v.regular!=null)price.append(el('s','정가 '+krw(v.regular)));
+   if(v.sale!=null)price.append(el('strong',krw(v.sale)));
+   if(v.discount_pct!=null)price.append(el('span',fmt(v.discount_pct,1)+'% 할인','compact-discount'));
+   row.append(price);
+ }
+ return row;
+}
+function compactEvidenceGroup(card,title,records,kind,emptyMessage){
+ const items=Array.isArray(records)?records:[],block=el('section',null,'compact-block');
+ const heading=el('div',null,'compact-head');
+ add(heading,el('h4',title),el('span',fmt(items.length)+'건','compact-count'));block.append(heading);
+ if(!items.length){block.append(el('p',emptyMessage,'compact-empty'));card.append(block);return}
+ const shown=el('div',null,'compact-list');items.slice(0,2).forEach(v=>shown.append(compactEvidenceItem(v,kind)));block.append(shown);
+ if(items.length>2){
+   const more=el('details',null,'compact-more'),detail=el('div',null,'compact-list');
+   items.slice(2).forEach(v=>detail.append(compactEvidenceItem(v,kind)));
+   more.append(el('summary','나머지 '+fmt(items.length-2)+'건 펼쳐보기'),detail);block.append(more);
+ }
+ card.append(block);
+}
+function renderCompetitiveEvidence(card,r){
+ const events=[...(r.competitor_events||[])].sort((a,b)=>Number((b.match||'').includes('상품군'))-Number((a.match||'').includes('상품군')));
+ compactEvidenceGroup(card,'관련 경쟁사 프로모션',events,'event','관련 행사 근거 미확보');
+ compactEvidenceGroup(card,'경쟁사 할인 상품',r.discount_samples,'product','동일 상품군 정가·할인가 쌍 미확보');
+ if(r.discount_samples?.length)note(card,'가격 확인: '+(r.discount_checked_at||'미확인')+' · 과거 행사 당시 가격은 미확인');
+}
+
+function renderFocus(f){const host=document.getElementById('product-focus');host.replaceChildren();const p=el('section',null,'section focus-lead');p.id='product-priority';add(p,el('div','핵심 모니터링 · 상품 중심','focus-chip'),el('h2','어떤 상품이 왜 급등·급락했을까?','focus-head'));note(p,'상품별 판매 및 PDP 변화와 같은 시기 실측 기온, 경쟁사 할인·기획전을 한 카드에서 비교합니다.');if(!f){note(p,'교차 분석 집계 준비 중');host.append(p);return}note(p,'기준일 '+f.date+' · 최근 7일 vs 직전 7일');tiles(p,[['상품명 PDP 비교 가능',fmt(f.matched_pdp_names)+'개'],['평균 기온 변화 (7일)',f.temperature_change_c==null?'미확보':pctTemp(f.temperature_change_c)],['실측 기온 확보',fmt(f.weather_days)+' / 14일'],['상품 분석 카드',fmt(f.cards?.length)+'개']]);if(f.weather_days>0){p.append(el('h3','서울 실측 평균 기온 · 최근 14일'));const w=el('div',null,'table-wrap');table(w,['날짜','평균 기온'],(f.dates||[]).map((dt,i)=>[dt,f.temperature?.[i]==null?'—':fmt(f.temperature[i],1)+' °C']));const detail=el('details');detail.append(el('summary','날짜별 실측 기온 확인'),w);p.append(detail)}if(window.renderProductTimeline)window.renderProductTimeline(p,f.timeline);const grid=el('div',null,'focus-grid');const labels={pdp_up:'PDP 급증',pdp_down:'PDP 급감',sales_up:'판매 급증',sales_down:'판매 급감',review_only:'관심 상위 검토'};for(const r of f.cards||[]){const card=el('article',null,'focus-card');const hero=el('div',null,'focus-product-header'),titleWrap=el('div',null,'focus-product-title');add(titleWrap,el('div',(r.signals||[]).map(x=>labels[x]||x).join(' · ')+' / '+r.family,'focus-chip'),el('h3',r.name));if(r.image_url){try{const imgURL=new URL(r.image_url);if(imgURL.protocol==='https:'){const img=el('img');img.src=imgURL.href;img.alt=r.name;img.loading='lazy';img.referrerPolicy='no-referrer';img.className='focus-thumb';img.onerror=()=>img.remove();hero.append(img)}}catch(e){}}hero.append(titleWrap);card.append(hero);tiles(card,[['7일 PDP',fmt(r.pdp_7d),'직전 7일 '+fmt(r.pdp_prior_7d)+' · '+pct(r.pdp_change_pct)],['당일 판매량',r.sales_day==null?'표본 없음':fmt(r.sales_day)+'개',r.sales_baseline==null?'7일 비교 원본 미확보':'직전 7일 중앙값 '+fmt(r.sales_baseline,1)+'개 · '+pct(r.sales_change_pct)]]);if(r.sales_series?.some(v=>v!==null)){card.append(el('h4','최근 14일 판매 표본 (빈 구간은 미수집)'),spark(r.sales_series))}card.append(el('h4','날씨와의 관계'),el('p',r.weather_assessment,'summary-line'));note(card,'실측 기온 변화: '+(r.temperature_change_c==null?'미확보':pctTemp(r.temperature_change_c))+' · 직접 영향은 미검증');renderCompetitiveEvidence(card,r);note(card,r.interpretation);grid.append(card)}p.append(grid);p.append(el('h3','당일 판매량 급등·급락 (개별 SKU 표본)'));table(p,['상품 / SKU','당일 수량','직전 6일 중앙값','증감 수량','7일 추이'],(f.daily_sku_alerts||[]).map(x=>[x.name+' / '+x.sku,fmt(x.qty),fmt(x.baseline,1),fmt(x.delta,1),spark(x.series)]));note(p,f.note);host.append(p)}
 function pctTemp(v){return (v>0?'+':'')+fmt(v,1)+' °C'}
 function render(m){renderFocus(m.product_focus);const host=document.getElementById('sections');host.replaceChildren();const by=new Map((m.sections||[]).map(x=>[x.number,x]));for(let n=1;n<=18;n++){const d=by.get(n)||{},p=section(n,d);if(n===1){tiles(p,[['매출 증감',krw(d.revenue_change)]]);bars(p,(d.drivers||[]).map(x=>[x.label,x.observed_revenue_contribution]));for(const a of d.actions||[])note(p,a.priority+' · '+ko(a.check))}
 if(n===2){tiles(p,(d.cards||[]).map(x=>[x.metric.toUpperCase(),x.metric==='cvr'?rate(x.current==null?null:x.current*100):['revenue','aov'].includes(x.metric)?krw(x.current):fmt(x.current), '전년비 '+(x.delta_unit==='pp'?fmt(x.yoy,2)+'%p':pct(x.yoy))+' / 전주비 '+(x.delta_unit==='pp'?fmt(x.wow,2)+'%p':pct(x.wow))]))}
