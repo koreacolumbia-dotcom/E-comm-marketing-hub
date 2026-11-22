@@ -115,7 +115,96 @@ function renderCompetitiveEvidence(card,r){
  if(r.discount_samples?.length)note(card,'가격 확인: '+(r.discount_checked_at||'미확인')+' · 과거 행사 당시 가격은 미확인');
 }
 
-function renderFocus(f){const host=document.getElementById('product-focus');host.replaceChildren();const p=el('section',null,'section focus-lead');p.id='product-priority';add(p,el('div','핵심 모니터링 · 상품 중심','focus-chip'),el('h2','어떤 상품이 왜 급등·급락했을까?','focus-head'));note(p,'상품별 판매 및 PDP 변화와 같은 시기 실측 기온, 경쟁사 할인·기획전을 한 카드에서 비교합니다.');if(!f){note(p,'교차 분석 집계 준비 중');host.append(p);return}note(p,'기준일 '+f.date+' · 최근 7일 vs 직전 7일');tiles(p,[['상품명 PDP 비교 가능',fmt(f.matched_pdp_names)+'개'],['평균 기온 변화 (7일)',f.temperature_change_c==null?'미확보':pctTemp(f.temperature_change_c)],['실측 기온 확보',fmt(f.weather_days)+' / 14일'],['상품 분석 카드',fmt(f.cards?.length)+'개']]);if(f.weather_days>0){p.append(el('h3','서울 실측 평균 기온 · 최근 14일'));const w=el('div',null,'table-wrap');table(w,['날짜','평균 기온'],(f.dates||[]).map((dt,i)=>[dt,f.temperature?.[i]==null?'—':fmt(f.temperature[i],1)+' °C']));const detail=el('details');detail.append(el('summary','날짜별 실측 기온 확인'),w);p.append(detail)}if(window.renderProductTimeline)window.renderProductTimeline(p,f.timeline);const grid=el('div',null,'focus-grid');const labels={pdp_up:'PDP 급증',pdp_down:'PDP 급감',sales_up:'판매 급증',sales_down:'판매 급감',review_only:'관심 상위 검토'};for(const r of f.cards||[]){const card=el('article',null,'focus-card');const hero=el('div',null,'focus-product-header'),titleWrap=el('div',null,'focus-product-title');add(titleWrap,el('div',(r.signals||[]).map(x=>labels[x]||x).join(' · ')+' / '+r.family,'focus-chip'),el('h3',r.name));if(r.image_url){try{const imgURL=new URL(r.image_url);if(imgURL.protocol==='https:'){const img=el('img');img.src=imgURL.href;img.alt=r.name;img.loading='lazy';img.referrerPolicy='no-referrer';img.className='focus-thumb';img.onerror=()=>img.remove();hero.append(img)}}catch(e){}}hero.append(titleWrap);card.append(hero);tiles(card,[['7일 PDP',fmt(r.pdp_7d),'직전 7일 '+fmt(r.pdp_prior_7d)+' · '+pct(r.pdp_change_pct)],['당일 판매량',r.sales_day==null?'표본 없음':fmt(r.sales_day)+'개',r.sales_baseline==null?'7일 비교 원본 미확보':'직전 7일 중앙값 '+fmt(r.sales_baseline,1)+'개 · '+pct(r.sales_change_pct)]]);if(r.sales_series?.some(v=>v!==null)){card.append(el('h4','최근 14일 판매 표본 (빈 구간은 미수집)'),spark(r.sales_series))}card.append(el('h4','날씨와의 관계'),el('p',r.weather_assessment,'summary-line'));note(card,'실측 기온 변화: '+(r.temperature_change_c==null?'미확보':pctTemp(r.temperature_change_c))+' · 직접 영향은 미검증');renderCompetitiveEvidence(card,r);note(card,r.interpretation);grid.append(card)}p.append(grid);p.append(el('h3','당일 판매량 급등·급락 (개별 SKU 표본)'));table(p,['상품 / SKU','당일 수량','직전 6일 중앙값','증감 수량','7일 추이'],(f.daily_sku_alerts||[]).map(x=>[x.name+' / '+x.sku,fmt(x.qty),fmt(x.baseline,1),fmt(x.delta,1),spark(x.series)]));note(p,f.note);host.append(p)}
+function focusMetric(parent,label,value,sub){
+ const box=el('div',null,'focus-mini-metric');
+ add(box,el('span',label),el('strong',value));
+ if(sub)box.append(el('small',sub));
+ parent.append(box);
+}
+function renderWeatherVerdict(card,r){
+ const w=r.weather_signal||{},state=['signal','weak','insufficient'].includes(w.status)?w.status:'insufficient';
+ const wrap=el('div',null,'weather-verdict weather-'+state);
+ const heading=el('div',null,'weather-head');
+ heading.append(el('span','날씨와 판매','weather-kicker'),el('strong',w.label||'판단 불가','weather-state'));
+ wrap.append(heading);
+ if(state==='signal'){
+   wrap.append(el('p','추운 날 판매 증가 신호 · 인과관계 미확인','weather-short'));
+ }else if(state==='weak'){
+   wrap.append(el('p','최근 14일 판매와 기온의 뚜렷한 동행 패턴 없음','weather-short'));
+ }else{
+   wrap.append(el('p','판매량 또는 기온의 비교 표본 부족','weather-short'));
+ }
+ const parts=[];
+ if(Number.isFinite(w.correlation))parts.push('상관 '+(w.correlation>0?'+':'')+fmt(w.correlation,2));
+ if(Number.isFinite(w.cold_avg_units)&&Number.isFinite(w.warm_avg_units))parts.push('5°C 이하 '+fmt(w.cold_avg_units,2)+'개/일 · 초과 '+fmt(w.warm_avg_units,2)+'개/일');
+ if(w.paired_days)parts.push('비교 '+fmt(w.paired_days)+'일');
+ if(parts.length)wrap.append(el('div',parts.join(' · '),'weather-detail'));
+ card.append(wrap);
+}
+function renderFocus(f){
+ const host=document.getElementById('product-focus');host.replaceChildren();
+ const p=el('section',null,'section focus-lead');p.id='product-priority';
+ add(p,el('div','핵심 상품 분석','focus-chip'),el('h2','상품 변화 · 날씨 신호','focus-head'));
+ if(!f){note(p,'분석 데이터 미확보');host.append(p);return}
+ const summary=el('div',null,'focus-brief');
+ const summaryParts=[
+   '기준 '+String(f.date||'미확인').slice(5),
+   '기온 '+(f.temperature_change_c==null?'미확보':pctTemp(f.temperature_change_c)),
+   '날씨 연관 '+fmt(f.weather_signal_counts?.signal||0)+'/'+fmt(f.cards?.length||0)+'개'
+ ];
+ summary.textContent=summaryParts.join('  ·  ');p.append(summary);
+ const grid=el('div',null,'focus-grid');
+ const labels={pdp_up:'PDP 증가',pdp_down:'PDP 감소',sales_up:'판매 증가',sales_down:'판매 감소',review_only:'검토 상품'};
+ for(const r of f.cards||[]){
+   const card=el('article',null,'focus-card');
+   const hero=el('div',null,'focus-product-header'),titleWrap=el('div',null,'focus-product-title');
+   add(titleWrap,el('div',(r.signals||[]).map(x=>labels[x]||x).join(' · ')+' / '+r.family,'focus-chip'),el('h3',r.name));
+   if(r.image_url){try{const url=new URL(r.image_url);if(url.protocol==='https:'){const img=el('img');img.src=url.href;img.alt=r.name;img.loading='lazy';img.className='focus-thumb';img.referrerPolicy='no-referrer';img.onerror=()=>img.remove();hero.append(img)}}catch(e){}}
+   hero.append(titleWrap);card.append(hero);
+   const metrics=el('div',null,'focus-mini-grid');
+   focusMetric(metrics,'PDP · 7일',pct(r.pdp_change_pct),fmt(r.pdp_7d)+'회');
+   const bothSales=Number.isFinite(r.sales_7d)&&Number.isFinite(r.sales_previous_7d);
+   focusMetric(metrics,'판매 · 7일',bothSales?fmt(r.sales_7d)+'개':(r.sales_day==null?'미확보':fmt(r.sales_day)+'개'),bothSales?'직전 '+fmt(r.sales_previous_7d)+'개':'당일 표본');
+   card.append(metrics);
+   renderWeatherVerdict(card,r);
+   const detail=el('details',null,'focus-more');
+   detail.append(el('summary','근거·경쟁사 비교 자세히'));
+   const body=el('div',null,'focus-more-body');
+   if(r.sales_series?.some(v=>v!==null)){body.append(el('div','14일 판매량 추이','focus-detail-caption'),spark(r.sales_series))}
+   if(r.weather_signal?.reason)body.append(el('p',r.weather_signal.reason,'focus-detail-caption'));
+   body.append(el('p','날씨와 판매의 관계는 관측 패턴입니다. 할인·행사·재고 등을 통제한 인과 효과가 아닙니다.','focus-detail-caption'));
+   renderCompetitiveEvidence(body,r);
+   detail.append(body);card.append(detail);grid.append(card);
+ }
+ p.append(grid);
+ if(!f.cards?.length)note(p,'원본 데이터에서 상품 변화 후보를 확인하지 못했습니다.');
+ const help=el('details',null,'focus-more focus-method');
+ help.append(el('summary','날씨 판단 기준·원본 확인'));
+ const hbody=el('div',null,'focus-more-body');
+ hbody.append(el('p','실측 기온과 GA4 상품명별 일별 판매 14일을 비교합니다. 5°C 이하와 초과의 판매량, 상관관계, 최소 관측량을 함께 확인합니다.','focus-detail-caption'));
+ hbody.append(el('p','상관 신호가 있어도 날씨가 매출을 일으켰다고 확정할 수 없습니다. 행사 중복·재고·가격·요일을 통제하지 못했습니다.','focus-detail-caption'));
+ if(f.weather_days>0){
+   const wrap=el('div',null,'table-wrap');
+   table(wrap,['날짜','서울 실측 평균 기온'],(f.dates||[]).map((dt,i)=>[dt,f.temperature?.[i]==null?'—':fmt(f.temperature[i],1)+'°C']));
+   const wt=el('details',null,'focus-more');wt.append(el('summary','기온 원본 14일'),wrap);hbody.append(wt);
+ }
+ help.append(hbody);p.append(help);
+ if(window.renderProductTimeline && f.timeline){
+   const detail=el('details',null,'focus-more focus-timeline');
+   detail.append(el('summary','전체 타임라인 보기 · 날씨/상품/행사'));
+   const body=el('div',null,'focus-more-body');
+   window.renderProductTimeline(body,f.timeline);
+   detail.append(body);p.append(detail);
+ }
+ if(f.daily_sku_alerts?.length){
+   const detail=el('details',null,'focus-more focus-skus');
+   detail.append(el('summary','개별 SKU 판매 변동 '+fmt(f.daily_sku_alerts.length)+'건'));
+   const body=el('div',null,'focus-more-body');
+   table(body,['상품 / SKU','당일 수량','직전 6일 중앙값','증감 수량','7일 추이'],f.daily_sku_alerts.map(x=>[x.name+' / '+x.sku,fmt(x.qty),fmt(x.baseline,1),fmt(x.delta,1),spark(x.series)]));
+   detail.append(body);p.append(detail);
+ }
+ host.append(p);
+}
 function pctTemp(v){return (v>0?'+':'')+fmt(v,1)+' °C'}
 function render(m){renderFocus(m.product_focus);const host=document.getElementById('sections');host.replaceChildren();const by=new Map((m.sections||[]).map(x=>[x.number,x]));for(let n=1;n<=18;n++){const d=by.get(n)||{},p=section(n,d);if(n===1){tiles(p,[['매출 증감',krw(d.revenue_change)]]);bars(p,(d.drivers||[]).map(x=>[x.label,x.observed_revenue_contribution]));for(const a of d.actions||[])note(p,a.priority+' · '+ko(a.check))}
 if(n===2){tiles(p,(d.cards||[]).map(x=>[x.metric.toUpperCase(),x.metric==='cvr'?rate(x.current==null?null:x.current*100):['revenue','aov'].includes(x.metric)?krw(x.current):fmt(x.current), '전년비 '+(x.delta_unit==='pp'?fmt(x.yoy,2)+'%p':pct(x.yoy))+' / 전주비 '+(x.delta_unit==='pp'?fmt(x.wow,2)+'%p':pct(x.wow))]))}
