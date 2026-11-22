@@ -273,6 +273,7 @@ def build(operations: dict, intelligence: dict, content: dict,
     matched = ga4.get("report_date") == (report_day.isoformat() if report_day else None)
     if matched and ga4.get("status") == "ga4_measured" and ga4.get("item_aov_bridge"):
         bridge = ga4["item_aov_bridge"]
+        revenue_bridge = ga4.get("sales_revenue_bridge") or {}
         categories = ga4.get("category_bridge") or {}
         reconciled = bool((ga4.get("admin_reconciliation") or {}).get("comparable"))
         independent_admin_ready = readiness.get("order_mart")=="ready"
@@ -306,6 +307,12 @@ def build(operations: dict, intelligence: dict, content: dict,
             ),
             "blocked_by": ([] if reconciled and independent_admin_ready else
                            ["독립 관리자 주문마트 연결/정합성 검증"]),
+            "revenue_factors": {
+                "qty_effect_krw": revenue_bridge.get("qty_effect_krw"),
+                "realized_price_effect_krw": revenue_bridge.get("realized_unit_revenue_effect_krw"),
+                "unclassified_item_to_checkout_gap_effect_krw": revenue_bridge.get("item_to_purchase_gap_effect_krw"),
+                "source": "GA4 item revenue and purchase revenue"
+            },
             "category_mix": {
                 "mix_effect_per_item": categories.get("category_mix_effect_per_item"),
                 "within_category_effect_per_item": categories.get("within_category_effect_per_item"),
@@ -335,6 +342,7 @@ def build(operations: dict, intelligence: dict, content: dict,
             "status": ga4.get("status","not_connected"),
             "cost": ga4.get("cost"),
             "item_aov_bridge": ga4.get("item_aov_bridge") if matched else None,
+            "sales_revenue_bridge": ga4.get("sales_revenue_bridge") if matched else None,
             "category_bridge": ga4.get("category_bridge") if matched else None,
             "admin_reconciliation": ga4.get("admin_reconciliation") if matched else None,
             "independent_admin_verified": matched and readiness.get("order_mart")=="ready"
