@@ -164,6 +164,8 @@ jobs:
       - name: Commit patched Owned report
         if: ${{ steps.check.outputs.needed == 'true' }}
         shell: bash
+        env:
+          YMD: ${{ steps.date.outputs.ymd }}
         run: |
           set -euo pipefail
           git add "reports/daily_digest/daily/${YMD}.html" "reports/daily_digest/data/daily/${YMD}.json" reports/daily_digest/index.html
