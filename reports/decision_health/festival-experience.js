@@ -675,6 +675,12 @@ async function loadCustomerCohorts(){
  if(official&&official.status==="ga4_measured_yoy"){
    renderCustomerComparison(official);return;
  }
+ // Pages data JSON may deploy later than HTML; keep verified 2025+2026
+ // server-rendered fallback rather than overwrite it with 2026-only counts.
+ var verifiedStatic=document.getElementById("fm-customer");
+ if(verifiedStatic&&verifiedStatic.getAttribute("data-fallback-yoy")==="validated"){
+   return;
+ }
  if(admin&&admin.status==="measured_observed_first_purchase"){
    renderCustomerComparison(admin);return;
  }
