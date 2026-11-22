@@ -20,8 +20,8 @@ OUT=ROOT/"reports/decision_health/source_medium_weekly.json"
 OPS=ROOT/"reports/marketing_operations/latest.json"
 TABLE="columbia-ga4.analytics_358593394.events_*"
 LOCATION="asia-northeast3"
-PER_QUERY_CAP=2*1024**3
-TOTAL_DRY_CAP=4*1024**3
+PER_QUERY_CAP=3*1024**3
+TOTAL_DRY_CAP=6*1024**3
 METRICS=("sessions","transactions","revenue")
 
 

@@ -48,8 +48,8 @@ class SourceMediumReportTests(unittest.TestCase):
                   "transactions":0,"purchaseRevenue":0,"expected_sessions":1}],m.window(OPS),{})
 
     def test_guard_and_coverage(self):
-        self.assertEqual(m.PER_QUERY_CAP,2*1024**3)
-        self.assertEqual(m.TOTAL_DRY_CAP,4*1024**3)
+        self.assertEqual(m.PER_QUERY_CAP,3*1024**3)
+        self.assertEqual(m.TOTAL_DRY_CAP,6*1024**3)
 
 
 if __name__=="__main__":
