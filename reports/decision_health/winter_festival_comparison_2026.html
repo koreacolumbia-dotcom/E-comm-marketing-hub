@@ -24,15 +24,30 @@
 <p><b>11/17</b> 카카오 발송 112,620건 확인 · 집계상 CRM 매출 9,274,365원.</p>
 <p><b>11/19</b> D-2 EDM 110,812건 확인 · 제목상 최대 20% 할인쿠폰 / 일 100명 한정.</p>
 <p><b>11/21</b> 본행사 시작 · 주간보고서 카카오 유입 7,466 / 매출 1,770만 원 기록.</p>
-<p class="meta">11/19 LMS 티징·11/21 LMS/카카오 추가 발송은 별도 확정 자료가 없는 계획 기록.</p></div>
+<p class="meta">11/21 LMS 행사 링크 유입(UTM)은 실측됐으나 발송 대상자 수·실제 발송 로그는 별도 미확인. 계획만 확인된 내역과 구분.</p></div>
 <div class="tile"><h3>2026 WINTER FESTIVAL · 11/20 시작</h3>
 <p><b>11/18</b> 사전 알림 시작 일정 공유 · 실행 실적 미확인.</p>
 <p><b>11/20</b> 최대 20% 추가 할인 및 공식몰 단독 상품 최대 55% 할인(담당자 제공 혜택). 한정 룰렛, 금액대별 사은혜택, 포토리뷰 더블 적립도 운영.</p>
 <p><b>11/16</b> BUGABOO 콘텐츠 확인 · 정확한 게시 개시일은 미확인.</p>
-<p class="meta">올해 실제 CRM 발송수·기여매출 원본 미연결. 오프라인 행사 성과는 자사몰 매출에 포함하지 않음.</p></div></div>
+<p class="meta">올해 카카오·EDM·LMS의 UTM 링크 유입·구매는 실측했으나 실제 발송 모수는 미확인. 오프라인 행사 성과는 자사몰 매출에 포함하지 않음.</p></div></div>
 <div class="warn">2025년은 최대 20% 쿠폰, 2026년은 최대 20% 추가 할인 및 공식몰 단독 상품 최대 55% 할인 혜택이 확인됐습니다. 두 할인율은 서로 다른 혜택 표기로 단순 합산(75%)하지 않습니다. 실제 중복 적용 가능 여부와 사용률·상품별 실구매 할인율은 미검증입니다. CRM 귀속 매출을 GA4 매출에 더하지 않았습니다.</div></section>
+
+<section class="panel" id="owned-utm">
+ <div class="eyebrow">05-A / UTM CAMPAIGN + TERM · BIGQUERY OBSERVED</div>
+ <h2>윈터페스티벌 Owned UTM 실측 비교</h2>
+ <div class="split">
+  <div class="tile"><h3>2025 윈터페스티벌 태그</h3><div class="value">10,302,005원</div><p>8,953세션 · 90주문</p></div>
+  <div class="tile"><h3>2026 윈터페스티벌 태그</h3><div class="value neg">7,476,298원</div><p>6,732세션 · 69주문 / 매출 -27.4%</p></div>
+ </div>
+ <p class="meta">2026년에는 별도 <code>Winter_seasonoff</code> 태그에서 834세션 · 6주문 · 487,150원도 확인됩니다. 합산하면 관련 태그 총 7,963,448원이며 서로 다른 캠페인 패밀리를 그대로 구분했습니다.</p>
+ <div class="scroll"><table><thead><tr><th>Owned 채널별 UTM</th><th>2025 세션 / 주문</th><th>2026 세션 / 주문</th><th>2025 매출</th><th>2026 매출</th><th>매출 변화</th></tr></thead><tbody><tr><th scope="row">카카오 채널 · WinterFestival</th><td>7,722<br><small>73건</small></td><td>6,732<br><small>69건</small></td><td>8,001,895원</td><td>7,476,298원</td><td>-6.6%</td></tr><tr><th scope="row">LMS · 작년 Festival / 올해 Seasonoff</th><td>1,098<br><small>15건</small></td><td>244<br><small>2건</small></td><td>2,197,810원</td><td>80,720원</td><td>-96.3%</td></tr><tr><th scope="row">EDM · 작년 Festival / 올해 Seasonoff</th><td>133<br><small>2건</small></td><td>590<br><small>4건</small></td><td>102,300원</td><td>406,430원</td><td>+297.3%</td></tr></tbody></table></div>
+ <p class="meta"><b>핵심 인사이트:</b> 2026년 전체 공식몰 매출은 증가했으나, 윈터페스티벌 명시 UTM 매출은 감소했습니다. 특히 작년의 LMS 행사 태그와 올해의 LMS 시즌오프 티징 태그는 명명·발송 시점·혜택이 달라 정확한 캠페인 인과 비교는 보류해야 합니다.</p>
+ <details><summary>UTM 캠페인·텀별 상세 보기 (확인된 주요 태그만)</summary><div class="scroll"><table><thead><tr><th>구분</th><th>utm_campaign</th><th>utm_term</th><th>세션</th><th>주문</th><th>귀속 매출</th></tr></thead><tbody><tr><th>2025 · LMS 본행사</th><td>LMS_ECOM_1121_WinterFestival</td><td>LMS_ECOM_1121_WinterFestival</td><td>862</td><td>10</td><td>1,459,590원</td></tr><tr><th>2026 · 카카오 본행사 MAIN</th><td>KAKAO_CH_MESSAGE_1120_WINTERFESTIVAL_MAIN</td><td>(not set)</td><td>5,004</td><td>51</td><td>5,611,408원</td></tr><tr><th>2026 · EDM 쿠폰 CTA</th><td>1120_Winter_seasonoff</td><td>coupon</td><td>271</td><td>3</td><td>328,930원</td></tr><tr><th>2026 · EDM 특가 CTA</th><td>1120_Winter_seasonoff</td><td>special_price</td><td>138</td><td>0</td><td>0원</td></tr><tr><th>2026 · LMS 티징 MAIN</th><td>1118_Winter_seasonoff_teaser</td><td>main</td><td>201</td><td>2</td><td>80,720원</td></tr></tbody></table></div></details>
+ <div class="warn">동일 행사 이름이 포함된 &#39;Owned&#39; 소스 UTM만 비교했습니다. 전년도에는 LMS/EDM이 WinterFestival, 올해에는 Winter_seasonoff 명칭도 사용되므로 태그 네이밍과 모집단이 동일하지 않습니다. 5세션 미만 그룹은 보호 목적으로 제외됐고 UTM 태그가 없는 활동도 포함되지 않았습니다. GA4 세션 귀속 매출이지 메시지 발송 성과의 순증분 효과는 아닙니다.</div>
+ <p class="meta">원본: <a href="https://github.com/koreacolumbia-dotcom/E-comm-marketing-hub/blob/main/reports/decision_health/winter_festival_utm_owned_2026.json" target="_blank" rel="noopener noreferrer">UTM 집계 JSON (개인화 텀 마스킹)</a> · GA4 세션/구매 원본, 각 연도 행사 D1~D2 · 조회비용 상한 6GiB</p>
+</section>
 <section class="panel"><h2>06. 원인 검증을 위한 다음 분석</h2>
-<div class="next"><b>1 · CRM 효과</b><span>11/20–21 올해 발송 내역을 확인해 작년 동요일의 카카오·EDM·LMS 발송 및 구매 전환과 동일 기준 비교.</span></div>
+<div class="next"><b>1 · CRM 효과</b><span>UTM 유입·구매는 비교 완료. 다음으로 실제 카카오·EDM·LMS 발송 모수, 도달율, 발송일·클릭율·비용을 대조해 채널 간 성과 차이 검증.</span></div>
 <div class="next"><b>2 · 상품 믹스</b><span>신상품/이월·할인 SKUs·구매 수량·객단가를 같은 행사 경과일로 비교해 AOV 하락 원인 검증.</span></div>
 <div class="next"><b>3 · 채널 퍼널</b><span>브랜드검색·메타·카카오 등 랜딩→PDP→장바구니→구매 기여 차이 비교. 전년 소스/매체 원본이 없어 현재 원인 확정 보류.</span></div>
 </section>
