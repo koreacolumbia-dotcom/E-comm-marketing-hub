@@ -63,6 +63,7 @@
       const focus = d.product_focus || {};
       const cards = Array.isArray(focus.cards) ? focus.cards : [];
       const salesCovered = cards.filter(c => Number.isFinite(c.sales_day) && c.sales_day >= 0).length;
+      const ga4Source=focus.ga4_purchase_status||'not_connected';
       const weatherDays = Number.isFinite(focus.weather_days) ? focus.weather_days : null;
       const pdpNames = Number.isFinite(focus.matched_pdp_names) ? focus.matched_pdp_names : null;
       const sourceRequired = count('source_required') + count('validation_required');
@@ -77,8 +78,12 @@
         tile('상품 카드 판매량', cards.length ? salesCovered + ' / ' + cards.length : '확인 필요')
       );
       const missing = [];
-      if (cards.length && salesCovered < cards.length) missing.push('상품 판매량 원천 연결');
-      if (weatherDays !== null && weatherDays < 14) missing.push('서울 기상 실측치 연결');
+      if (cards.length && salesCovered < cards.length) missing.push('상품 판매량 원천 연결 (GA4 '+ga4Source+')');
+      const weatherError=(d.weather_source_health||{}).current;
+      if(weatherError==='access_denied_403')missing.push('기상청 API 403 접근권한 복구');
+      else if(weatherError==='rate_limited_429')missing.push('기상청 API 429 요청제한 확인');
+      else if(weatherError==='credential_missing')missing.push('기상청 API 키 연결');
+      else if(weatherDays !== null && weatherDays < 14)missing.push('서울 기상 실측치 연결');
       if (sourceRequired) missing.push('원본 미연결 분석 ' + sourceRequired + '건 검증');
       bottom.replaceChildren();
       const lead = document.createElement('span');
