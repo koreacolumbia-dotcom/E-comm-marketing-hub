@@ -57,7 +57,7 @@ async function render(tab,filters){
 async function main(){
  const overview=await render("overview");
  assertContent(overview,["이커머스 성과 인텔리전스",ops.report_date,"매출","주문","세션","객단가",
-   ops.weekly.period,"매출 변화의 핵심 원인","산술분해 · 인과 확정 아님"]);
+   ops.weekly.period,"매출 변화의 핵심 원인","산술 확인 · 인과 미확정","변화 요인 1"]);
  assert(overview.includes(Math.round(ops.weekly.current.total.orders).toLocaleString("ko-KR")+"건"),"Observed order count absent");
  assert(overview.includes(Math.round(ops.weekly.current.total.revenue/ops.weekly.current.total.orders).toLocaleString("ko-KR")+"원"),"AOV must preserve won units");
  assert(!overview.includes("INV-1003")&&!overview.includes("$ 24,850"),"Sample invoice numbers must never appear");
@@ -83,6 +83,12 @@ async function main(){
    const plans=lastYear.last_year_planned||[];
    if(plans.length)assert(overview.includes("계획 기록 "+plans.length+"건"),"Unverified sending plans must be distinguished");
  }
+ const outcomes=JSON.parse(fs.readFileSync(path.join(root,"reports/decision_health/action_outcomes.json"),"utf8"));
+ if(outcomes.report_date===ops.report_date){
+   assertContent(overview,["조치 후 실제로 개선됐는가?","실행 "+outcomes.implemented,"측정 "+outcomes.measured]);
+   if(outcomes.implemented===0)assert(overview.includes("실행 완료 근거 0건"),
+     "Never invent completed interventions");
+ }
  const acquisition=await render("acquisition");
  assertContent(acquisition,["유입부터 구매전환까지","소스/매체 검색"]);
  if(source.rows.length){
@@ -101,7 +107,7 @@ async function main(){
  const focus=di.product_focus&&di.product_focus.cards||[];
  if(focus.some(x=>x.sales_source==="ga4_purchase_items"&&x.sales_match_method==="normalized_exact_item_name"))assert(products.includes("상품명 기준 분석"),"Observed product missing");
  const market=await render("market");
- assertContent(market,["경쟁사 공식 행사","공식 기간"]);
+ assertContent(market,["경쟁사 공식 행사","공식 기간","경쟁사 비교 · 검증 상태"]);
  const reactHtml=fs.readFileSync(path.join(root,"reports/decision_health/index.html"),"utf8");
  assert(reactHtml.includes("react-dashboard.js?v=")&&reactHtml.includes("react-dashboard.css?v="));
  assert(reactHtml.includes('id="macro-health"'),"Legacy evidence view must remain");
