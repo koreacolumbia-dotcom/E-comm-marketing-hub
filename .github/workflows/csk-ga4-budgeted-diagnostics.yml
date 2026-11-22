@@ -81,25 +81,7 @@ jobs:
           assert not any(k in str(j).lower() for k in ("user_pseudo_id","ga_session_id","email_address"))
           print("[SOURCE MEDIUM]",j["status"],len(j["rows"]),"grouped rows")
           PY
-      - name: Read only 14 completed GA4 daily partitions with 1-GiB total cap
-        env:
-          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
-        run: |
-          python scripts/csk_ga4_cost_guard.py
-          test -s reports/decision_health/ga4_purchase_diagnostics.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          data=json.loads(Path('reports/decision_health/ga4_purchase_diagnostics.json').read_text())
-          assert data.get('schema')==1
-          assert data.get('cost',{}).get('maximum_bytes_billed_total')==1073741824
-          assert data.get('status') in (
-              'ga4_measured','partial_quality','blocked_credentials','blocked_budget','blocked_estimate')
-          assert not any(k in str(data).lower() for k in ('user_pseudo_id','email_address','customer_phone'))
-          print('[COST-AUDIT] status',data['status'],'date',data['report_date'],
-                'billed_bytes',data.get('cost',{}).get('billed_bytes','not_run'))
-          PY
-      - name: Recheck item basket on matching operational weeks (dry-run, separate 1-GiB ceiling)
+      - name: Query canonical GA4 purchase aggregation once (1-GiB cap)
         env:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           CSK_GA4_ALIGNED_WEEKLY: "1"
@@ -121,6 +103,24 @@ jobs:
           assert not any(k in str(ga).lower() for k in ('user_pseudo_id','email_address','customer_phone'))
           print('[WEEKLY ALIGNED ITEM BASKET]',ga['status'],
                 'admin_comparable',ga.get('admin_reconciliation',{}).get('comparable'))
+          PY
+      - name: Reuse canonical 14-day purchase aggregate for diagnostics (0 query when aligned)
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+        run: |
+          python scripts/csk_ga4_cost_guard.py
+          test -s reports/decision_health/ga4_purchase_diagnostics.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('reports/decision_health/ga4_purchase_diagnostics.json').read_text())
+          assert data.get('schema')==1
+          assert data.get('cost',{}).get('maximum_bytes_billed_total')==1073741824
+          assert data.get('status') in (
+              'ga4_measured','partial_quality','blocked_credentials','blocked_budget','blocked_estimate')
+          assert not any(k in str(data).lower() for k in ('user_pseudo_id','email_address','customer_phone'))
+          print('[COST-AUDIT] status',data['status'],'date',data['report_date'],
+                'billed_bytes',data.get('cost',{}).get('billed_bytes','not_run'))
           PY
       - name: Query 14-day matched-product session funnel with a separate 2-GiB hard cap
         env:
