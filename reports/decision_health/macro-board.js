@@ -33,9 +33,11 @@ const card=(i,driver)=>{
   '<div class="macro-impact">'+esc(won(driver.impact))+'</div>'+
   '<div class="macro-numbers">'+esc(driver.metric)+'</div>'+
   '<p class="macro-explain">'+esc(driver.insight)+'</p>'+
-  '<div class="macro-next"><b>다음 검증</b> '+esc(driver.next)+'</div></article>';
+  '<div class="macro-next"><b>근거</b> '+esc(driver.proof||"동일 기간 운영 KPI의 산술 분해")+'</div>'+
+  '<div class="macro-next"><b>검증 상태</b> '+esc(driver.confidence||"산술 확인 · 인과 미확정")+'</div>'+
+  '<div class="macro-next"><b>우선 조치</b> '+esc(driver.next)+'</div></article>';
 };
-function render(operations,intelligence){
+function render(operations,intelligence,weeklyEvidence,alignedBasket){
  const w=operations?.weekly||{},a=w.current?.total,b=w.previous?.total;
  const safe=w.status==="ready"&&w.current?.status==="complete"&&w.previous?.status==="complete"
    &&typeof w.period==="string"&&typeof w.comparison_period==="string"&&
@@ -47,45 +49,88 @@ function render(operations,intelligence){
   return;
  }
  const cur=data.current,prev=data.previous,change=pct(cur.revenue,prev.revenue);
+ const dates=x=>typeof x==="string"?x.split(" ~ "):[];
+ const currentDates=dates(w.period),priorDates=dates(w.comparison_period);
+ const samePeriodBasket=alignedBasket?.status==="ga4_measured"&&alignedBasket?.report_date===operations.report_date&&
+   alignedBasket.period?.current_start===currentDates[0]&&alignedBasket.period?.current_end===currentDates[1]&&
+   alignedBasket.period?.previous_start===priorDates[0]&&alignedBasket.period?.previous_end===priorDates[1]&&
+   alignedBasket.item_aov_bridge&&finite(alignedBasket.item_aov_bridge.items_per_order_previous)&&
+   finite(alignedBasket.item_aov_bridge.items_per_order_current);
+ const basketReconciled=samePeriodBasket&&alignedBasket.admin_reconciliation?.comparable===true;
+ const basket=samePeriodBasket?alignedBasket.item_aov_bridge:null;
+ const basketNote=basketReconciled?
+   "같은 7일 구간 GA4 구매구성 확인 · 주문당 상품수 "+basket.items_per_order_previous.toFixed(3)+
+   "→"+basket.items_per_order_current.toFixed(3)+"개 / 상품당 실현매출 "+
+   fmt(basket.realized_item_price_previous)+"→"+fmt(basket.realized_item_price_current)+"원":
+   samePeriodBasket?"GA4 구매구성 기간 일치 · 운영 KPI와 정합성 미통과(상품수·가격 기여 미확정)":
+   "같은 기간의 상품수·가격 구성이 아직 검증되지 않았습니다.";
  const cvBefore=prev.cvr*100,cvAfter=cur.cvr*100;
  const bucket=[
   {id:"aov",title:"객단가·구매 구성",impact:data.aov,
    metric:"객단가 "+fmt(prev.aov)+" → "+fmt(cur.aov)+"원 ("+signed(pct(cur.aov,prev.aov))+")",
    insight:data.aov<0?"주문은 늘었지만 주문 1건당 매출이 낮아졌습니다.":"주문당 매출이 전체 실적에 기여했습니다.",
-   next:"주문당 상품수 · 상품군/가격 구성 · 할인"},
+   proof:basketNote,confidence:basketReconciled?"상품 구성 확인(동기간·대사 통과) · 인과는 미확정":"운영 객단가 산술 확인 · 구매구성 원인은 검증 제한",
+   next:basketReconciled?"주문당 상품수 감소 구간 → 고객군·상품군 확인":"동기간 GA4 구매구성/관리자 주문 대사 우선"},
   {id:"conversion",title:"구매전환 효율",impact:data.conversion,
    metric:"CVR "+cvBefore.toFixed(3)+"% → "+cvAfter.toFixed(3)+"% ("+
      (cvAfter-cvBefore>0?"+":"")+(cvAfter-cvBefore).toFixed(3)+"%p)",
    insight:data.conversion<0?"방문 대비 주문 효율이 다소 약화됐습니다.":"방문 대비 주문 효율이 개선됐습니다.",
-   next:"채널별 세션→주문 · 장바구니→구매"},
+   proof:"전환율은 전체 세션·주문으로 계산. 기존 상품 퍼널의 비교 날짜는 다릅니다.",
+   confidence:"전체 전환 산술 확인 · 구간별 구매이탈 원인은 미확정",
+   next:"같은 기간 채널·세션 퍼널로 이탈 구간 검증"},
   {id:"traffic",title:"유입 규모",impact:data.traffic,
    metric:"세션 "+fmt(prev.sessions)+" → "+fmt(cur.sessions)+" ("+signed(pct(cur.sessions,prev.sessions))+")",
    insight:data.traffic>=0?"유입 증가는 매출 감소를 일부 상쇄했습니다.":"유입 감소가 전체 매출을 압박했습니다.",
-   next:"채널별 유입량 · 방문 품질 · 신규/기존 구성"}
+   proof:"일별 전체 세션 합계(채널별 세션과 별개)",
+   confidence:"전체 세션 변화 확인 · 유입 인과효과는 미확정",
+   next:"채널 유입·고객구성 검증(채널 세션 품질 확인 후)"}
  ];
  bucket.sort((x,y)=>(x.impact>=0)-(y.impact>=0)||Math.abs(y.impact)-Math.abs(x.impact));
  const sec=Array.isArray(intelligence?.sections)?intelligence.sections:[];
- const customer=sec.find(x=>x.number===10),channel=sec.find(x=>x.number===11);
  const day=intelligence?.report_date||null,opsDay=operations.report_date;
- const channelValid=day&&channel?.status==="partial"&&Array.isArray(channel.channels);
- const paid=channelValid?channel.channels.find(x=>x.channel==="Paid Ad"):null;
- const owned=channelValid?channel.channels.find(x=>x.channel==="Owned Channel"):null;
- const customerValid=day&&customer?.buyer_status==="available"&&finite(customer.new_mix_pct)&&finite(customer.observed_buyers);
- const temps=intelligence?.product_focus?.temperature;
- const weatherValid=Array.isArray(temps)&&temps.length===14&&temps.every(finite);
- const currentTemp=weatherValid?temps.slice(7).reduce((a,b)=>a+b,0)/7:null;
- const priorTemp=weatherValid?temps.slice(0,7).reduce((a,b)=>a+b,0)/7:null;
- const weatherSource=intelligence?.product_focus?.weather_source||"출처 미확보";
+ const weeklyChecked=weeklyEvidence&&
+   ["reconciled","reconciled_with_taxonomy_warning"].includes(weeklyEvidence.status)&&
+   weeklyEvidence.report_date===opsDay&&weeklyEvidence.current_period===w.period&&
+   weeklyEvidence.previous_period===w.comparison_period&&
+   weeklyEvidence.quality?.revenue_reconciled===true&&
+   finite(weeklyEvidence.net_revenue_delta)&&Math.abs(weeklyEvidence.net_revenue_delta-data.delta)<=1;
+ const chan=weeklyChecked?weeklyEvidence.channels||[]:[];
+ const lookup=name=>chan.find(x=>x.channel===name);
+ const numDelta=name=>lookup(name)?won(lookup(name).delta_revenue):"—";
+ const warnings=weeklyChecked?(weeklyEvidence.quality?.taxonomy_warnings||[]):[];
+ const sessionMismatch=weeklyChecked?(weeklyEvidence.quality?.daily_channel_session_mismatch_dates||[]):[];
+ const channelMarkup=weeklyChecked?
+   '<div class="macro-channel-main"><strong>동일 기간 채널 매출 변화</strong><small>채널별 매출·주문은 주간 합계 검증 · 직접적인 증분 기여가 아님</small></div>'+
+   (warnings.length?'<p class="macro-data-warning"><b>채널 분류 확인 1순위</b> ETC 등 미분류 채널 '+
+       warnings.map(x=>esc(x.channel)+" "+won(-x.previous_revenue)+" (직전 매출의 "+x.share_of_previous_total_pct+"%)").join(" · ")+
+       ' · 실제 수요 감소인지 분류 변경인지 미확정</p>':'')+
+   '<div class="macro-channel-values">'+["etc","Organic Traffic","Paid Ad","Owned Channel"].map(n=>
+     '<div><small>'+esc(n)+'</small><b>'+esc(numDelta(n))+'</b></div>').join("")+'</div>'+
+   (sessionMismatch.length?
+     '<p class="macro-data-note">주의: 14일 중 '+sessionMismatch.length+'일은 채널별 세션 합계가 전체 세션과 불일치. 채널별 CVR 분석을 보류합니다.</p>':
+     '<p class="macro-data-note">채널별 세션 합계 정합성 확인 완료. 채널 매출의 인과 기여는 별도 검증이 필요합니다.</p>'):
+   '<p class="macro-data-note">동일 기간 채널별 매출 대사 결과를 아직 확보하지 못해 원인 순위를 추가하지 않았습니다.</p>';
+ const weather=sec.find(x=>x.number===4);
+ const weatherMap=new Map((weather?.dates||[]).map((d,i)=>[d,weather?.temperature?.[i]]));
+ const dayRange=(a,b)=>{
+   if(!a||!b)return null;
+   const rows=[];let d=new Date(a+"T00:00:00Z"),stop=new Date(b+"T00:00:00Z");
+   if(!Number.isFinite(d.getTime())||!Number.isFinite(stop.getTime()))return null;
+   for(let i=0;i<7&&d<=stop;i++,d.setUTCDate(d.getUTCDate()+1)){
+     const key=d.toISOString().slice(0,10),v=weatherMap.get(key);
+     if(!finite(v))return null;rows.push(v);
+   }
+   return rows.length===7&&d>stop?rows:null;
+ };
+ const wa=dayRange(currentDates[0],currentDates[1]),wb=dayRange(priorDates[0],priorDates[1]);
+ const weatherDiff=wa&&wb?wa.reduce((a,b)=>a+b,0)/7-wb.reduce((a,b)=>a+b,0)/7:null;
  const context=[
-  {name:"채널·CRM",headline:paid&&owned?"Paid "+signed(paid.revenue_yoy_pct)+" · Owned "+signed(owned.revenue_yoy_pct):"같은 기준의 채널 변화 미확보",
-   note:(day||"기준일 미확보")+" 단일일 전년비 · 주간 기여액에 더하지 않음",
-   url:"../daily_intelligence/index.html"},
-  {name:"신규·기존 고객",headline:customerValid?"신규 구매자 "+customer.new_mix_pct.toFixed(1)+"%":"비교 가능한 구매자 정보 미확보",
-   note:customerValid?fmt(customer.new_buyers)+"명 신규 / "+fmt(customer.existing_buyers)+"명 기존 · GA4 관측 기준":"GA4 고객 구분 관측 필요",
-   url:"../daily_intelligence/index.html"},
-  {name:"외부 환경",headline:weatherValid?"서울 평균기온 "+(currentTemp-priorTemp>0?"+":"")+(currentTemp-priorTemp).toFixed(1)+"°C":"서울 관측 기온 미확보",
-   note:weatherValid?"최근 7일 vs 직전 7일 · "+weatherSource+" · 인과 미확정":"기온이 빠져도 매출 원인으로 추정하지 않음",
-   url:"../daily_intelligence/index.html"}
+  {name:"채널 분류",headline:weeklyChecked?warnings.length?"미분류 ETC 변화 확인 필요":"동기간 채널 매출 대사 완료":"동기간 채널 근거 미확보",
+    note:weeklyChecked?"채널 세션 정합성 "+(sessionMismatch.length?"제한("+sessionMismatch.length+"일 불일치)":"확인"):"주간 매출 영향으로 단정하지 않음"},
+  {name:"신규·기존 고객",headline:"동일 주간 신규/기존 구매 구분 미확보",
+    note:day&&day!==opsDay?"일별 고객 지표 "+day+" · 주간과 기간 불일치":"주문 이력·고객군 동일 기간 대사 필요"},
+  {name:"서울 기온",headline:finite(weatherDiff)?"전주 대비 "+(weatherDiff>0?"+":"")+weatherDiff.toFixed(1)+"°C":"주간 관측 정합성 확인 전",
+    note:finite(weatherDiff)?"운영 주간과 날짜 일치 · 기상청 관측 · 매출 인과 미확정":"기온 관측일과 운영 기간 일치 여부 확인 필요"}
  ];
  const contextMarkup=context.map(x=>'<div class="macro-context-item"><b>'+esc(x.name)+'</b>'+
    '<strong>'+esc(x.headline)+'</strong><small>'+esc(x.note)+'</small></div>').join("");
@@ -99,11 +144,13 @@ function render(operations,intelligence){
     '<b>핵심 문제: 객단가·구매 구성</b><p>유입 확대에도 주문당 매출 하락이 더 컸습니다.</p>':
     '<b>주요 지표를 비교합니다.</b><p>각 요인의 산술 기여와 방향을 확인하세요.</p>')+'</div></div>'+
   '<div class="macro-driver-list">'+bucket.map((x,i)=>card(i+1,x)).join("")+'</div>'+
-  '<div class="macro-context-title"><b>상위 원인의 추가 확인 축</b><small>채널·고객·기온은 기간 및 지표 정의가 달라 기여액과 합산하지 않음</small></div>'+
+  '<section class="macro-channel-check"><h3>채널별 변화 · 데이터 품질 확인</h3>'+channelMarkup+
+  '<small class="macro-channel-source">근거: <a href="./weekly_business_evidence.json">14일 동기간 집계 원본</a> · 이 값은 위 Shapley 요인에 다시 더하지 않습니다.</small></section>'+
+  '<div class="macro-context-title"><b>고객·환경 보조 신호</b><small>관측 시점과 집계 정의를 검증한 정보만 사용</small></div>'+
   '<div class="macro-context-grid">'+contextMarkup+'</div>'+
   '<p class="macro-disclaimer">근거: <a href="../marketing_operations/latest.json">7일 운영 집계</a>의 세션 × 주문전환율 × 객단가 Shapley 산술 분해. '+
   '3개 요인의 합계는 매출 증감과 일치하며 광고·할인·날씨의 인과 효과를 의미하지 않습니다. '+esc(w.caveat||"")+'</p>';
 }
 window.CSKMacroBoard={bridge,render};
-if(window.__cskMacroPayload)render(window.__cskMacroPayload.operations,window.__cskMacroPayload.intelligence);
+if(window.__cskMacroPayload)render(window.__cskMacroPayload.operations,window.__cskMacroPayload.intelligence,window.__cskMacroPayload.weeklyEvidence,window.__cskMacroPayload.alignedBasket);
 })();
