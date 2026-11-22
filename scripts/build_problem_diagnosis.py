@@ -204,6 +204,43 @@ def build(operations: dict, intelligence: dict, content: dict,
             "blocked_by": ["상품별 완전한 판매 집계"],
             "sample_products": names, "sources": [INPUTS["intelligence"]],
         })
+    # Full GA4 purchase-item histories expose actual PDP-versus-sales divergence
+    # for exact-name-matched products. Never infer a cause from correlation.
+    comparable=[]
+    for card in cards:
+        if card.get("sales_source")!="ga4_purchase_items":continue
+        before=num(card.get("sales_previous_7d"))
+        after=num(card.get("sales_7d"))
+        view_change=card.get("pdp_change_pct")
+        if before is None or after is None or before<=0 or type(view_change) not in (int,float):
+            continue
+        sales_change=round((after/before-1)*100,1)
+        if abs(sales_change)<30 or abs(view_change)<20:continue
+        contrary=view_change>0 and sales_change<0
+        comparable.append((int(contrary),abs(after-before),card,sales_change))
+    for contrary,_,card,sales_change in sorted(comparable,key=lambda row:(-row[0],-row[1]))[:3]:
+        change=card["pdp_change_pct"]
+        problem={
+          "id":"PRODUCT_DIVERGENCE_"+str(len(problems)),
+          "priority":"P0" if contrary else "P1",
+          "status":"observed_product_divergence",
+          "title":str(card.get("name") or "상품")+" · PDP와 구매 흐름 재점검",
+          "finding":f"PDP 7일 {change:+.1f}%, GA4 판매수량 "+str(card['sales_previous_7d'])+
+                    " → "+str(card['sales_7d'])+f"개 ({sales_change:+.1f}%)",
+          "cause_component":(
+            "동일 정규화 상품명에 대해 7일 PDP 조회 증가와 구매수량 감소가 함께 확인됨."
+            if contrary else
+            "동일 정규화 상품명에서 7일 PDP·판매수량 변동을 관측함. 하락 추세의 원인은 미확정."
+          ),
+          "cause_hypotheses":["상세페이지 구매 전환 둔화","가격/프로모션 변화","상품 옵션별 재고·품절",
+                              "유입 트래픽 품질 변화"],
+          "hypothesis_status":"observed_pattern_unverified_cause",
+          "causal_confirmed":False,
+          "how_to_verify":"해당 상품의 14일 view_item→add_to_cart→purchase 퍼널과 가격·품절·유입 매체를 같은 날짜/스타일코드로 비교",
+          "blocked_by":["상품별 유입/장바구니 전체 모집단","최신 옵션 재고"],
+          "sources":[INPUTS["intelligence"],INPUTS["ga4_purchase"]],
+        }
+        problems.append(problem)
     if weather_days is not None and weather_days < 14:
         problems.append({
             "id": "WEATHER_COVERAGE", "priority": "P1", "status": "source_required",
