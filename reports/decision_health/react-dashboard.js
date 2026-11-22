@@ -101,10 +101,16 @@
       return x && x.name && num(x.pdp_7d) && num(x.pdp_prior_7d) &&
         num(x.sales_7d) && num(x.sales_previous_7d) &&
         x.sales_source === "ga4_purchase_items" && x.sales_match_method === "normalized_exact_item_name";
-    }).map(function(x){var p=byName.get(normalizeName(x.name));return {
-      ...x,image_url:p?p.image_url:null,product_url:p?p.product_url:null,
-      representative_color:p?p.color:null
-    };}).sort(function (a,b) {
+    }).map(function(x){
+      var p=byName.get(normalizeName(x.name));
+      var sourcePhoto=String(x.image_url||"");
+      var validated= /^https:\/\/assetscdn\d+\.styleship\.com\/assets\/columbia\/data\/productimages\/a\/[124]\/[a-z0-9_-]+\.jpg$/i.test(sourcePhoto);
+      return {
+        ...x,image_url:validated?sourcePhoto:(p?p.image_url:null),
+        product_url:p?p.product_url:null,
+        representative_color:p?p.color:(validated?"공식몰 상품 대표 컬러":null)
+      };
+    }).sort(function (a,b) {
       var aDelta=Math.abs(a.sales_7d-a.sales_previous_7d),bDelta=Math.abs(b.sales_7d-b.sales_previous_7d);
       return bDelta-aDelta || Math.abs(b.pdp_change_pct||0)-Math.abs(a.pdp_change_pct||0);
     }) : [];
