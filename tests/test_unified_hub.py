@@ -19,6 +19,7 @@ OLD_KEYS = {
     "product_keyword", "purchase_pattern", "member", "owned", "ai_agent",
     "competitor_content", "edm_intelligence", "crm_intelligence",
     "price", "hero", "sale_calendar", "competitor", "voc", "crema",
+    "winter_festival",
 }
 ROUTE = re.compile(r'^\s*\["([a-z0-9_]+)","[^"]+","([^"]+)","fa-[^"]+"\]', re.M)
 
@@ -39,6 +40,14 @@ class UnifiedHubTests(unittest.TestCase):
         keys = [key for key, _ in self.routes]
         self.assertEqual(set(keys), OLD_KEYS)
         self.assertEqual(len(keys), len(OLD_KEYS))
+
+    def test_festival_shortcut_available_on_mobile(self) -> None:
+        path = "reports/decision_health/winter_festival_comparison_2026.html"
+        self.assertIn('["winter_festival","윈터페스티벌 YoY","' + path + '"', self.js)
+        self.assertIn('festivalTab.dataset.key=winterRoute[0]', self.js)
+        self.assertIn('grid-template-columns:repeat(7,minmax(0,1fr))', self.js)
+        self.assertIn('key==="winter_festival"', self.js)
+        self.assertTrue((ROOT / path).is_file())
 
     def test_local_first_party_report_targets_exist(self) -> None:
         for _, target in self.routes:
