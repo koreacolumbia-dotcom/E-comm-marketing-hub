@@ -30,7 +30,7 @@ function twoBars(a,b,k){var max=Math.max(a===null?0:a,b===null?0:b,1),one=+(100*
 return '<div class="fm-bars"><div class="fm-row"><span>2025/전주</span><div class="fm-line"><div class="fm-fill" style="width:'+one+'%"></div></div><b>'+esc(fmt(a,k))+'</b></div>'+
 '<div class="fm-row"><span>2026/이번주</span><div class="fm-line"><div class="fm-fill current" style="width:'+two+'%"></div></div><b>'+esc(fmt(b,k))+'</b></div></div>';}
 var EVENT_KINDS={
-meta_conversion_tagged:"meta",meta_bd_tagged:"meta",naver_brand_search:"paid",naver_search_other:"paid",
+meta_conversion_tagged:"meta",meta_bd_tagged:"meta",instagram_paid_tagged:"meta",naver_brand_search:"paid",naver_search_other:"paid",
 google_paid:"paid",criteo:"paid",other_display:"paid",owned_crm_tagged:"crm",
 organic_search:"organic",referral:"organic",direct:"direct",other:"other"};
 function getRows(){
