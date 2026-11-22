@@ -117,7 +117,7 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('구매 / PDP 1천회', DECISION_HTML)
         self.assertIn('전환율 아님', DECISION_HTML)
         self.assertIn('ga4_evidence', DECISION_HTML)
-        self.assertIn('id="decision-additional"', DECISION_HTML)
+        self.assertIn('id="decision-additional" hidden', DECISION_HTML)
         self.assertIn('scrollIntoView', DECISION_HTML)
         self.assertIn('p.sales_source==="ga4_purchase_items"', DECISION_HTML)
         self.assertIn('p.sales_previous_7d>0', DECISION_HTML)
