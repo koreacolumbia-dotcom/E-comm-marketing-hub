@@ -25,7 +25,7 @@ class FunnelAnalysis(unittest.TestCase):
         self.assertIn("buy_ts>=cart_ts",q)
         self.assertIn("session_key",q)
         self.assertNotIn("SELECT *",q)
-        self.assertEqual(mod.CAP,1073741824)
+        self.assertEqual(mod.CAP,2147483648)
 
     def test_aggregate_is_reconciled_and_contains_no_user_identifiers(self):
         data=[{"period":"previous","style":"Test Down","first_source":"google",

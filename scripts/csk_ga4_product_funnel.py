@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GA4 same-session ordered product funnel. Aggregate only, one 1-GiB cost-capped query."""
+"""GA4 same-session ordered product funnel. Aggregate only, one 2-GiB cost-capped query."""
 import base64
 import datetime as dt
 import json
@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "reports/decision_health/product_funnel_evidence.json"
-CAP = 1073741824
+CAP = 2147483648
 TABLE = "columbia-ga4.analytics_358593394.events_*"
 LOCATION = "asia-northeast3"
 COUNTS = ("view_sessions","cart_sessions","purchase_sessions","cart_after_view_sessions",
@@ -164,7 +164,7 @@ def main():
             return
         if estimate>CAP:
             save({**status,"status":"blocked_budget","cost":{**status["cost"],"dry_run_bytes":estimate}})
-            print("[FUNNEL] Budget guard: scan larger than 1 GiB, execution skipped")
+            print("[FUNNEL] Budget guard: scan larger than 2 GiB, execution skipped")
             return
         job=client.query(q,location=LOCATION,job_config=bigquery.QueryJobConfig(maximum_bytes_billed=CAP,use_query_cache=True))
         rows=[dict(r) for r in job.result(timeout=180)]

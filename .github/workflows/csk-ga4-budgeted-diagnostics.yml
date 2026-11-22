@@ -77,7 +77,7 @@ jobs:
           print('[COST-AUDIT] status',data['status'],'date',data['report_date'],
                 'billed_bytes',data.get('cost',{}).get('billed_bytes','not_run'))
           PY
-      - name: Query 14-day matched-product session funnel with a separate 1-GiB hard cap
+      - name: Query 14-day matched-product session funnel with a separate 2-GiB hard cap
         env:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
         run: |
@@ -87,7 +87,7 @@ jobs:
           import json
           from pathlib import Path
           out=json.loads(Path('reports/decision_health/product_funnel_evidence.json').read_text())
-          assert out['schema']==1 and out['cost']['maximum_bytes_billed']==1073741824
+          assert out['schema']==1 and out['cost']['maximum_bytes_billed']==2147483648
           assert out['status'] in {'source_not_aligned','blocked_credentials','blocked_estimate','blocked_budget','query_error','no_matching_events','ga4_measured'}
           assert not any(k in str(out).lower() for k in ('user_pseudo_id','ga_session_id','email_address'))
           print('[PRODUCT FUNNEL] status',out['status'],'products',len(out.get('products',[])))
