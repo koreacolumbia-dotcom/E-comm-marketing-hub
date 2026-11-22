@@ -17,6 +17,9 @@ on:
       - "tests/test_pdp_yoy_guard.py"
       - "tests/test_mobile_dashboard.py"
       - "reports/decision_health/index.html"
+      - "reports/decision_health/react-dashboard.js"
+      - "reports/decision_health/react-dashboard.css"
+      - "tests/decision_react_smoke.js"
       - "reports/decision_health/diagnosis.js"
       - "scripts/build_problem_diagnosis.py"
       - "tests/test_problem_diagnosis.py"
@@ -112,6 +115,8 @@ jobs:
           node --check /tmp/csk-decision-center.js
           node --check reports/decision_health/timeline.js
           node --check reports/decision_health/diagnosis.js
+          node --check reports/decision_health/react-dashboard.js
+          node tests/decision_react_smoke.js
           python -m py_compile scripts/build_problem_diagnosis.py
           python -m py_compile scripts/patch_owned_pdp_yoy.py scripts/pdp_yoy_guard.py scripts/dashboard_security.py
       - name: Validate calendar regression tests
