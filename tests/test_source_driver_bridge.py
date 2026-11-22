@@ -39,6 +39,8 @@ class SourceDriverTests(unittest.TestCase):
     self.assertTrue(out["quality"]["no_additional_bigquery_jobs"])
     self.assertFalse(out["causal"])
     self.assertEqual(out["top_gains"][0]["source_medium"],"google / cpc")
+    self.assertIn("퍼널",out["top_gains"][0]["next_validation"])
+    self.assertIn("양 기간",next(x for x in out["rows"] if x["source_medium"]=="new / email")["next_validation"])
     self.assertIsNone(next(x for x in out["rows"] if x["source_medium"]=="new / email")["components"])
 
  def test_not_ready_or_stale_period_must_show_unavailable(self):
