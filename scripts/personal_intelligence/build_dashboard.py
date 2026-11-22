@@ -150,6 +150,29 @@ def build(root=ROOT,day=None):
     end=date.fromisoformat(d["end_date"])
     recent=[read(rep/"daily_digest/data/daily"/((end-timedelta(days=i)).isoformat()+".json")) for i in range(1,14)]
     focus=build_signals(d,recent,calendar,competitive_discount_matrix(feed),observed)
+    # A complete GA4 purchase-event scan can fill missing name-matched sales.
+    # No sample absence is treated as zero unless this dated source is verified.
+    ga4=read(rep/"decision_health/ga4_purchase_diagnostics.json")
+    focus["ga4_purchase_status"]=ga4.get("status","not_connected")
+    focus["ga4_sales_matched_cards"]=0
+    if ga4.get("status")=="ga4_measured" and ga4.get("report_date")==focus["date"]:
+        from product_signal_hub import namekey
+        all_names={namekey(p.get("name")):p for p in ga4.get("product_sales",[])
+                   if isinstance(p,dict) and len(p.get("daily_units") or [])==14}
+        for card in focus["cards"]:
+            matched=all_names.get(namekey(card.get("name")))
+            if matched:
+                values=matched["daily_units"]
+                if not all(isinstance(v,(int,float)) and v>=0 for v in values):continue
+                card["sales_series"]=values
+                card["sales_day"]=values[-1]
+                card["sales_7d"]=sum(values[-7:])
+                card["sales_previous_7d"]=sum(values[:7])
+                card["sales_source"]="ga4_purchase_items"
+                card["sales_match_method"]="normalized_exact_item_name"
+                card["sales_admin_reconciled"]=bool(
+                    (ga4.get("admin_reconciliation") or {}).get("comparable"))
+                focus["ga4_sales_matched_cards"]+=1
     focus['timeline']=build_timeline(d,recent,calendar,observed,focus)
     from product_signal_hub import valid_temp
     focus['timeline']['weather_prior']=[valid_temp(prior_observed.get((date.fromisoformat(t)-timedelta(days=364)).isoformat())) for t in focus['dates']]
