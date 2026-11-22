@@ -14,6 +14,11 @@
 <div class="kpi"><span>세션 YoY</span><strong>+7.9%</strong><small>63,179회</small></div>
 <div class="kpi"><span>CVR YoY</span><strong>+0.23%p</strong><small>0.96% vs 0.73%</small></div>
 </div>
+<section class="panel" id="festival-d3-live" hidden aria-label="검증된 D3 최신 추가 성과" style="display:none">
+ <div class="viz-head"><div><div class="viz-eyebrow">AUTO-REFRESHED · GA4 DAILY DATA</div><h2 style="margin-top:5px">D3 추가 실적 · 최신 검증 데이터</h2></div><div class="viz-note" id="festival-d3-date">2026.11.22 마감 기준</div></div>
+ <p class="viz-meta">기존 D1~D2 차트는 그대로 보존하고, D3 데이터가 동일 요일·3일 모두 확정되면 이 섹션만 자동 표시합니다. 새 BigQuery 조회 없이 이미 생성된 일별 원천을 재사용합니다.</p>
+ <div id="festival-d3-panel" class="viz-grid"></div>
+ <p class="viz-source">원천: <a href="../marketing_operations/latest.json">일별 GA4 확정 집계 (7일 롤링)</a>. D3 표시는 D1~D3 전부 포함되고 누락일이 없을 때만 가능합니다.</p></section>
 <section class="panel" id="festival-visualizations" aria-label="윈터페스티벌 전년대비 시각화">
 <div class="viz-head"><div><div class="viz-eyebrow">2025 / 2026 · PERFORMANCE VISUALS</div><h2 style="margin-top:5px">성과 차이를 한눈에 보기</h2></div><div class="viz-note">GA4 · 11월 21일까지 검증된 D1~D2</div></div>
 <div class="viz-switch" role="group" aria-label="비교 지표 전환"><button type="button" aria-pressed="true" data-festival-metric="revenue">매출</button><button type="button" aria-pressed="false" data-festival-metric="orders">주문</button><button type="button" aria-pressed="false" data-festival-metric="sessions">세션</button><button type="button" aria-pressed="false" data-festival-metric="cvr">CVR</button><button type="button" aria-pressed="false" data-festival-metric="aov">객단가</button></div>
@@ -85,4 +90,20 @@
 revenue:{name:'매출',a:68716525,b:94452556,unit:'원'},orders:{name:'주문',a:427,b:605,unit:'건'},sessions:{name:'세션',a:58560,b:63179,unit:'회'},cvr:{name:'CVR',a:427/58560*100,b:605/63179*100,unit:'%'},aov:{name:'객단가',a:68716525/427,b:94452556/605,unit:'원'}};
 function format(k,n){if(k==='revenue')return(n/1000000).toFixed(2)+'백만원';if(k==='cvr')return n.toFixed(2)+'%';return Math.round(n).toLocaleString('ko-KR')+data[k].unit;}
 function bar(k,yr,n,max){return '<div class="viz-bar-label"><span>'+yr+' '+data[k].name+'</span><b>'+format(k,n)+'</b></div><div class="viz-track" role="img" aria-label="'+yr+' '+format(k,n)+'"><div class="viz-bar '+(yr==='2026'?'current':'')+'" style="width:'+(100*n/max).toFixed(1)+'%"></div></div>'}
-var holder=document.getElementById('festival-metric-chart');var buttons=[].slice.call(document.querySelectorAll('[data-festival-metric]'));function show(k){var d=data[k],max=Math.max(d.a,d.b),change=k==='cvr'?'+'+(d.b-d.a).toFixed(2)+'%p':((d.b/d.a-1)*100>0?'+':'')+((d.b/d.a-1)*100).toFixed(1)+'%';holder.innerHTML='<div class="viz-legend"><span><i></i> 2025.11.21–22</span><span class="current"><i></i> 2026.11.20–21</span></div>'+bar(k,'2025',d.a,max)+bar(k,'2026',d.b,max)+'<p class="viz-meta"><span class="viz-delta '+(d.b<d.a?'negative':'')+'">'+change+'</span> · 동일 행사 경과일·요일 비교</p>';buttons.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-festival-metric')===k?'true':'false')})};buttons.forEach(function(b){b.addEventListener('click',function(){show(b.getAttribute('data-festival-metric'))})});})();</script></body></html>
+var holder=document.getElementById('festival-metric-chart');var buttons=[].slice.call(document.querySelectorAll('[data-festival-metric]'));function show(k){var d=data[k],max=Math.max(d.a,d.b),change=k==='cvr'?'+'+(d.b-d.a).toFixed(2)+'%p':((d.b/d.a-1)*100>0?'+':'')+((d.b/d.a-1)*100).toFixed(1)+'%';holder.innerHTML='<div class="viz-legend"><span><i></i> 2025.11.21–22</span><span class="current"><i></i> 2026.11.20–21</span></div>'+bar(k,'2025',d.a,max)+bar(k,'2026',d.b,max)+'<p class="viz-meta"><span class="viz-delta '+(d.b<d.a?'negative':'')+'">'+change+'</span> · 동일 행사 경과일·요일 비교</p>';buttons.forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-festival-metric')===k?'true':'false')})};buttons.forEach(function(b){b.addEventListener('click',function(){show(b.getAttribute('data-festival-metric'))})});})();</script><script>(function(){'use strict';
+var out=document.getElementById('festival-d3-live'),panel=document.getElementById('festival-d3-panel');
+if(!out||!panel||typeof fetch!=='function')return;
+function amount(n){return Number(n).toLocaleString('ko-KR')}function pct(a,b){return a?(((b/a)-1)*100):null}
+function bar(year,n,max){return '<div class="viz-track" role="img" aria-label="'+year+'년 매출 '+amount(n)+'원"><div class="viz-bar '+(year===2026?'current':'')+'" style="width:'+((n/max)*100).toFixed(1)+'%"></div></div>'}
+function panelHtml(title,prev,curr,desc){var y=pct(prev,curr);if(y===null)return '';var max=Math.max(prev,curr);return '<article class="viz-card"><h3>'+title+'</h3><div class="viz-bar-label"><span>2025</span><b>'+amount(prev)+'원</b></div>'+bar(2025,prev,max)+'<div class="viz-bar-label"><span>2026</span><b>'+amount(curr)+'원</b></div>'+bar(2026,curr,max)+'<p class="viz-meta"><span class="viz-delta '+(y<0?'negative':'')+'">'+(y>0?'+':'')+y.toFixed(1)+'%</span> '+desc+'</p></article>'}
+fetch('../marketing_operations/latest.json',{cache:'no-cache'}).then(function(r){if(!r.ok)throw Error('not_ready');return r.json()}).then(function(v){
+var y=v&&v.weekly&&v.weekly.yoy,w=v&&v.weekly,days=y&&y.daily_comparison;
+if(!y||y.status!=='ready'||!w||!w.current||w.current.status!=='complete'||!Array.isArray(days)||String(v.report_date||'')<'2026-11-22')return;
+var key=['2026-11-20','2026-11-21','2026-11-22'],ly=['2025-11-21','2025-11-22','2025-11-23'];
+var rows=key.map(function(k,i){return days.find(function(d){return d.date===k&&d.ly_date===ly[i]})});
+if(rows.some(function(r){return !r||!r.current||!r.last_year||!Number.isFinite(Number(r.current.revenue))||!Number.isFinite(Number(r.last_year.revenue))}))return;
+var pa=rows.reduce(function(n,r){return n+Number(r.last_year.revenue)},0),cu=rows.reduce(function(n,r){return n+Number(r.current.revenue)},0);
+panel.innerHTML=panelHtml('D3 · 일요일 (11/23 ↔ 11/22)',Number(rows[2].last_year.revenue),Number(rows[2].current.revenue),'D3 단일일 비교')+panelHtml('D1~D3 누적 · 동일 행사 경과일',pa,cu,'3일 누적 비교');
+if(!panel.innerHTML)return;out.hidden=false;out.style.display='';document.getElementById('festival-d3-date').textContent='2026.11.22 확정분 반영 · 원천 갱신 '+String(v.generated_at_kst||'');
+}).catch(function(){/* D1-D2 static validated snapshot remains visible if source is missing */});
+})();</script></body></html>
