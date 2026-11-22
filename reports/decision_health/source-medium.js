@@ -33,7 +33,8 @@ function viewRow(r,i){
  return '<article class="sm-entry" role="row">'+
   '<div class="sm-entry-name" role="cell"><span class="sm-entry-rank">'+String(i+1).padStart(2,"0")+'</span>'+
   '<div><strong title="'+safe(s)+'">'+safe(s)+'</strong>'+
-  '<small>세션 점유율 '+(finite(share)?share.toFixed(1):"—")+'%</small></div></div>'+
+  '<small>세션 점유율 '+(finite(share)?share.toFixed(1):"—")+'%</small>'+
+  '<span class="sm-share-track" aria-hidden="true"><span style="width:'+Math.max(0,Math.min(100,finite(share)?share:0)).toFixed(1)+'%"></span></span></div></div>'+
   '<div class="sm-entry-metric" role="cell" data-label="세션"><strong>'+fmt(a.sessions)+'</strong>'+
   '<small class="'+colors(sdiff)+'">'+signed(sdiff)+' · '+fmt(b.sessions)+' 이전</small></div>'+
   '<div class="sm-entry-metric" role="cell" data-label="구매"><strong>'+fmt(a.transactions)+'</strong>'+
