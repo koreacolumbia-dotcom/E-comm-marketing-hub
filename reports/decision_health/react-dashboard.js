@@ -206,6 +206,87 @@
       h("p",null,props.note || "데이터가 수집되면 실제 관측값만 표시합니다.")
     );
   }
+  // Source-level arithmetic never substitutes for the site-wide driver bridge.
+  function SourceAlgebraBreakdown(props) {
+    var d=props.drivers||{},row=d.status==="measured_descriptive" &&
+      d.report_date===props.reportDate && Array.isArray(d.rows) ?
+      d.rows.find(function(x){return x.source_medium===props.source;}):null;
+    if(!row || !row.components)return null;
+    var labels={sessions:"유입",cvr:"구매전환",aov:"객단가"};
+    return h("div",{className:"csk-source-decomposition"},
+      h("strong",null,"이 소스의 매출 변화 분해"),
+      h("div",{className:"csk-source-decomp-cells"},
+        ["sessions","cvr","aov"].map(function(key){
+          var val=row.components[key];
+          return h("div",{key:key},h("small",null,labels[key]),
+            h("b",{className:cls(val<0?"negative":"positive")},(val>0?"+":"")+krw(val)));
+        })
+      ),
+      h("small",{className:"csk-source-decomp-note"},
+        row.quality==="reviewable_descriptive"?
+          "매출 항등식의 산술 분해이며, 소스별 광고 기여나 증분 성과는 아닙니다.":
+          "이 소스는 관측 표본이 작습니다. 산술 결과를 원인 판단에 사용하지 마세요.")
+    );
+  }
+  function CauseSourceEvidence(props) {
+    var data=props.drivers||{},factor=props.factor;
+    if(data.status!=="measured_descriptive"||data.report_date!==props.reportDate ||
+       !["sessions","cvr","aov"].includes(factor))return null;
+    var rows=(data.rows||[]).filter(function(x){
+      return x.components && x.quality==="reviewable_descriptive";
+    }).sort(function(a,b){
+      return Math.abs(b.components[factor])-Math.abs(a.components[factor]);
+    }).slice(0,3);
+    if(!rows.length)return null;
+    var name={sessions:"유입",cvr:"전환",aov:"객단가"}[factor];
+    return h("details",{className:"csk-cause-source-evidence"},
+      h("summary",null,name+" 변화가 컸던 실측 소스 "+rows.length+"개"),
+      h("div",null,
+        rows.map(function(x){
+          var val=x.components[factor];
+          return h("div",{className:"csk-cause-source-row",key:x.source_medium},
+            h("span",null,x.source_medium),
+            h("b",{className:cls(val<0?"negative":"positive")},(val>0?"+":"")+krw(val)));
+        }),
+        h("small",null,"소스별 항등식 분해입니다. 전체 사이트의 변화요인 1·2·3 기여액과 같은 모집단 수준의 분해가 아니며 단순 합산·인과 해석할 수 없습니다.")
+      )
+    );
+  }
+  function SourceDriverHighlight(props) {
+    var d=props.drivers||{},ops=props.ops||{},isReady=d.status==="measured_descriptive" &&
+      d.report_date===ops.report_date && Array.isArray(d.rows) && d.rows.length>0;
+    if(!isReady)return null;
+    var gains=(d.top_gains||[]).slice(0,3);
+    var losses=(d.top_losses||[]).slice(0,2);
+    var factorNames={sessions:"유입",cvr:"CVR",aov:"객단가"};
+    function item(x,kind) {
+      var label=x.components?factorNames[x.primary_component]:"분해 보류",
+          tiny=x.quality!=="reviewable_descriptive";
+      return h("button",{type:"button",key:x.source_medium,className:"csk-driver-source-line",
+        onClick:function(){props.onInspect(x.source_medium);}},
+        h("span",{className:"csk-driver-source-text"},
+          h("strong",null,x.source_medium),
+          h("small",null,(tiny?"소표본 · ":"")+"주요 산술 변동 "+label)),
+        h("span",{className:cls("csk-driver-source-amount",kind==="loss"?"negative":"positive")},
+          (x.revenue_delta>0?"+":"")+krw(x.revenue_delta))
+      );
+    }
+    return h("section",{className:"csk-driver-highlight","aria-label":"실측 소스별 매출 변동"},
+      h("div",{className:"csk-driver-highlight-head"},
+        h("div",null,h("span",null,"CHANNEL MOVEMENT"),
+          h("h2",null,"어떤 유입에서 매출이 변했을까?")),
+        h("span",{className:"csk-driver-count"},"실측 "+d.row_count+"개 소스")
+      ),
+      h("div",{className:"csk-driver-highlight-list"},gains.map(function(x){return item(x,"gain");})),
+      losses.length?h("details",{className:"csk-driver-declines"},
+        h("summary",null,"매출 감소 소스 "+losses.length+"개 보기"),
+        h("div",{className:"csk-driver-highlight-list"},losses.map(function(x){return item(x,"loss");}))
+      ):null,
+      h("small",{className:"csk-driver-caveat"},
+        "같은 7일 기간의 소스별 매출 증감입니다. 유입·CVR·객단가는 산술 분해이며 실제 광고 순증분은 아닙니다.")
+    );
+  }
+
   function CauseWorkspace(props) {
     var causes=props.causes,selected=causes.find(function (x) { return x.id===props.selected; }) || causes[0];
     return h("div",{className:"csk-workspace-grid"},
@@ -232,6 +313,8 @@
             h(StatCard,{title:"최근 7일 "+selected.metric,value:selected.metric==="객단가"?fmt(selected.after)+"원":selected.metric==="CVR"?selected.after.toFixed(2)+"%":fmt(selected.after)}),
             h(StatCard,{title:"변동",value:selected.metric==="CVR"?delta(selected.after-selected.before,"pp"):delta(percent(selected.after,selected.before))})
           ),
+          h(CauseSourceEvidence,{key:"sources",drivers:props.sourceDrivers,reportDate:props.reportDate,
+            factor:selected.id==="traffic"?"sessions":selected.id==="conversion"?"cvr":"aov"}),
           h("div",{key:"next",className:"cause-next"},
             h("span",null,"다음 검증"),h("strong",null,selected.action),
             h("small",null,"근거: 동일한 두 7일 기간의 GA4 세션·구매·매출 집계. 할인/광고/재고 원인 구분은 미완료")
@@ -304,6 +387,8 @@
               h(StatCard,{title:"구매",value:fmt(selected.current.transactions)+"건",sub:(selected.transactions_delta>0?"+":"")+fmt(selected.transactions_delta)+"건"}),
               h(StatCard,{title:"CVR",value:num(selected.current.cvr_pct)?selected.current.cvr_pct.toFixed(2)+"%":"—",sub:delta(selected.cvr_change_pp,"pp")})
             ),
+            h(SourceAlgebraBreakdown,{key:"bridge",drivers:props.sourceDrivers,
+              source:selected.source_medium,reportDate:props.ops.report_date}),
             h(ActionPanel,{key:"action",label:"다음 확인",text:"세션 변화와 구매전환율 변화를 함께 점검하세요. 실제 광고비/증분 ROAS를 의미하지 않습니다."})
           ]:h(EmptyState,{title:"소스/매체 데이터 미확보"})
         )
@@ -751,6 +836,8 @@
         metrics.length?metrics.map(function(m){return h(KpiCard,{key:m.key,item:m});}):
           h(EmptyState,{title:"운영 KPI 근거 없음",note:"완전한 주간 세션·주문·매출 합계를 확인할 수 없습니다."})
       ),
+      tab==="overview"?h(SourceDriverHighlight,{drivers:data.sourceDrivers,ops:ops,
+        onInspect:function(name){setSource(name);setGroup("all");setSearch("");setTab("acquisition");}}):null,
       tab==="overview"?h(DataReadiness,{ops:ops}):null,
       tab==="market"?h(CompetitorEvidenceCoverage,{quality:data.competitiveQuality,content:data.contentStrategy}):null,
       tab==="overview"?h(CurrentYearCampaignContext,{ops:ops}):null,
@@ -761,8 +848,9 @@
       ),
       h("section",{className:"csk-workspace rounded-2xl","aria-label":"선택한 의사결정 분석"},
         h("div",{className:"csk-workspace-toolbar"},h("strong",null,title),h("span",null,attr(ops.report_date)," 기준")),
-        tab==="overview"?h(CauseWorkspace,{causes:drivers,selected:causeId,onSelect:setCause,onTab:setTab}):
-        tab==="acquisition"?h(SourceWorkspace,{source:source,ops:ops,group:group,onGroup:setGroup,sort:sourceSort,onSort:setSourceSort,search:search,onSearch:setSearch,selected:selectedSource,onSelect:setSource,showAll:showAll,onToggleAll:function(){setShowAll(!showAll);}}):
+        tab==="overview"?h(CauseWorkspace,{causes:drivers,selected:causeId,onSelect:setCause,onTab:setTab,
+          sourceDrivers:data.sourceDrivers,reportDate:ops.report_date}):
+        tab==="acquisition"?h(SourceWorkspace,{source:source,sourceDrivers:data.sourceDrivers,ops:ops,group:group,onGroup:setGroup,sort:sourceSort,onSort:setSourceSort,search:search,onSearch:setSearch,selected:selectedSource,onSelect:setSource,showAll:showAll,onToggleAll:function(){setShowAll(!showAll);}}):
         tab==="products"?h(ProductWorkspace,{products:products,funnel:funnel,ops:ops,focusDate:di.product_focus&&di.product_focus.date,selected:selectedProduct,onSelect:setProduct,family:productFamily,onFamily:setProductFamily,search:productSearch,onSearch:setProductSearch,showAll:showAllProducts,onToggleAll:function(){setShowAllProducts(!showAllProducts);}}):
         h(EventWorkspace,{events:events,ops:ops,selected:selectedEvent,onSelect:setEvent})
       ),
@@ -782,6 +870,7 @@
       di:"../daily_intelligence/latest.json",
       dx:"./diagnoses.json",
       source:"./source_medium_weekly.json",
+      sourceDrivers:"./source_driver_bridge.json",
       funnel:"./product_funnel_evidence.json",
       pictures:"./official_product_images.json",
       outcomes:"./action_outcomes.json",
