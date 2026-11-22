@@ -406,8 +406,7 @@ function renderEventProduct(source,images){
  renderEventRankings(source,images);
  var compareLabel="2025 "+(source.period?.["2025"]||[]).join("~")+" / 2026 "+(source.period?.["2026"]||[]).join("~");
  var label=get("fm-product-window-note");if(label)label.textContent=compareLabel;
- get("fm-product-scope").textContent="GA4 상품 아이템 귀속 기준 · SKU 색상 통합 스타일 "+String(source.product_count||items.length)+
-   "개 비교, 증감 TOP 4 표시. 아이템 매출은 공식몰 주문매출과 정의가 달라 별도 합산 금지.";
+ get("fm-product-scope").textContent="동일 이름 상품은 정규화된 상품명 기준으로 SKU·컬러를 통합. 2025/2026 본행사 판매수량을 기준으로 양년·단년 판매를 구분. TOP 5는 검증된 전체 "+String(source.product_count||items.length)+"개 스타일에서 계산. GA4 품목매출은 공식몰 주문매출과 합산 금지.";
  return true;
 }
 function drawProductWindow(){
