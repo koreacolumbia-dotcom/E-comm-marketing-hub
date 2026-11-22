@@ -84,6 +84,15 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn("robots_policy", tnf["policy_or_access_blockers"])
         self.assertIn("추가 요청을 강행하지 않고", tnf["next_step"])
 
+    def test_missing_owned_sample_is_not_market_underperformance(self):
+        content = dict(CONTENT)
+        content["quality"] = {"market_count": 49, "owned_count": 0}
+        result = build(OPS, DI, content, QUALITY, CAL)
+        item = next(p for p in result["problems"] if p["id"] == "OWNED_CONTENT_BASELINE")
+        self.assertEqual(item["status"], "source_required")
+        self.assertIn("비교할 수 없음", item["cause_component"].replace("계산할 수 없음","비교할 수 없음"))
+        self.assertFalse(item["causal_confirmed"])
+
     def test_error_classification(self):
         self.assertEqual(describe_error("HTTP 429 stop requests")[0], "rate_limited")
         self.assertEqual(describe_error("Page.evaluate: Execution context was destroyed")[0], "navigation_race")
