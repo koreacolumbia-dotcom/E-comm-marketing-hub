@@ -68,12 +68,13 @@ def sql_for(start: str, end: str) -> str:
       SELECT event_date,event_timestamp,
         NULLIF(TRIM(ecommerce.transaction_id),'') AS txn,
         SAFE_CAST(ecommerce.purchase_revenue AS FLOAT64) AS order_revenue,
+        (SELECT SUM(SAFE_CAST(q.quantity AS FLOAT64)) FROM UNNEST(items) q) AS order_units,
         items,
         ROW_NUMBER() OVER (
           PARTITION BY event_date,NULLIF(TRIM(ecommerce.transaction_id),'')
           ORDER BY event_timestamp
         ) AS rn
-      FROM \`{TABLE}\`
+      FROM {chr(96)}{TABLE}{chr(96)}
       WHERE _TABLE_SUFFIX BETWEEN '{start.replace("-","")}' AND '{end.replace("-","")}'
         AND event_name='purchase'
     ), deduped AS (
@@ -81,7 +82,7 @@ def sql_for(start: str, end: str) -> str:
     )
     SELECT 'order' AS kind,CAST(NULL AS STRING) AS sku,
       CAST(NULL AS STRING) AS name,CAST(NULL AS STRING) AS category,
-      SUM((SELECT SUM(SAFE_CAST(i.quantity AS FLOAT64)) FROM UNNEST(items) i)) AS units,
+      SUM(order_units) AS units,
       CAST(NULL AS FLOAT64) AS item_revenue, 0 AS missing_item_revenue,
       COUNT(*) AS order_count,SUM(order_revenue) AS purchase_revenue
     FROM deduped
