@@ -1,4 +1,4 @@
-# CSK Marketing Operations 3.0 — 2026-11-20
+# CSK Marketing Operations 3.0 — 2026-11-21
 
 **보고 상태: READY** · 원천 복구 우선
 
@@ -13,15 +13,15 @@
 
 ## 7일 KPI (전주 완결 기간 비교)
 상태: **ready**
-기간: 2026-11-14 ~ 2026-11-20 / 비교: 2026-11-07 ~ 2026-11-13
-- 세션 134,393 · WoW +12.1%
-- 주문 876 · WoW +10.9%
-- 매출 ₩134,038,093 · WoW -2.7%
-- 구매 CVR 0.65% · 상대 WoW -1.0%
+기간: 2026-11-15 ~ 2026-11-21 / 비교: 2026-11-08 ~ 2026-11-14
+- 세션 143,178 · WoW +19.0%
+- 주문 1,042 · WoW +37.6%
+- 매출 ₩159,760,406 · WoW +19.9%
+- 구매 CVR 0.73% · 상대 WoW +15.7%
 
 ## 마케팅 캘린더 (기간과 출처 확인)
-올해 2026-11-14 ~ 2026-11-20: not_connected
-전년 동요일 대응 기간 2025-11-15 ~ 2025-11-21: available
+올해 2026-11-15 ~ 2026-11-21: not_connected
+전년 동요일 대응 기간 2025-11-16 ~ 2025-11-22: available
 ### 전년 확인 활동
 - 2025-11-16 [event] 무신사 블랙프라이데이 · W47 · 4p
 - 2025-11-17 [message] 윈터페스티벌 · 트래픽현황 2026 · 2025 비교기준 54행
@@ -36,24 +36,24 @@
 - 2025-11-21 윈터페스티벌 2차
 
 ## 상품/PDP 개선 검토
-- [MEASUREMENT_QA] M`s MT.Hood Down Jacket (C74YM3674342) · PDP 15,844 · Cart 0.10% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
-- [CRO_HYPOTHESIS] Amaze Puff Hooded Jacket (C74WR9847309) · PDP 462 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] PFG PRO SPORT BOOT (C75BM1935063) · PDP 365 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 233 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 216 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Endevour Mountain Down Jacket (C74WE0547011) · PDP 177 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 147 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] RUDDY LEAF SHORT II (C75YU8771010) · PDP 145 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [MEASUREMENT_QA] M`s MT.Hood Down Jacket (C74YM3674342) · PDP 16,566 · Cart 0.13% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
+- [MEASUREMENT_QA] Amaze Puff Hooded Jacket (C74WR9847309) · PDP 520 · Cart 0.00% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
+- [CRO_HYPOTHESIS] PFG PRO SPORT BOOT (C75BM1935063) · PDP 374 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257010) · PDP 279 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 239 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] ROC Wide Leg Pant (C73AR3742278) · PDP 238 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 221 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Loneridge Legging (C73AR7506010) · PDP 158 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
 
 ## 경쟁사 가격 참고 (동일 SKU 비교 불가)
 수집 상태: reference_fresh
 브랜드 평균 가격은 상품 구성·시즌·판매처가 달라 동일 SKU의 가격 차이를 증명하지 않음
-- DISCOVERY: 수집상품 5,698, 표기 평균가 ₩60,770, 할인 상품 비율 46.0% (수집일 2026-11-20, recent)
+- DISCOVERY: 수집상품 5,699, 표기 평균가 ₩60,778, 할인 상품 비율 46.0% (수집일 2026-11-21, recent)
 - NEW_BALANCE: 수집상품 5,308, 표기 평균가 ₩113,699, 할인 상품 비율 1.8% (수집일 2026-11-21, recent)
-- THE_NORTH_FACE: 수집상품 3,631, 표기 평균가 ₩144,729, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
-- NEPA: 수집상품 3,165, 표기 평균가 ₩89,148, 할인 상품 비율 0.0% (수집일 2026-11-21, recent)
+- THE_NORTH_FACE: 수집상품 3,631, 표기 평균가 ₩144,729, 할인 상품 비율 0.0% (수집일 2026-11-21, recent)
+- NEPA: 수집상품 3,175, 표기 평균가 ₩89,274, 할인 상품 비율 0.0% (수집일 2026-11-21, recent)
 - MILLET: 수집상품 2,266, 표기 평균가 ₩112,677, 할인 상품 비율 92.2% (수집일 2026-11-21, recent)
-- COLUMBIA: 수집상품 1,614, 표기 평균가 ₩129,884, 할인 상품 비율 0.0% (수집일 2026-11-20, recent)
+- COLUMBIA: 수집상품 1,614, 표기 평균가 ₩129,884, 할인 상품 비율 0.0% (수집일 2026-11-21, recent)
 - ARCTERYX: 수집상품 657, 표기 평균가 ₩220,000, 할인 상품 비율 0.0% (수집일 2026-11-21, recent)
 
 ## 신상품 7·14·30일
