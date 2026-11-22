@@ -48,11 +48,11 @@ function makeDoc(url,readyState="complete"){
  const links=[];
  const doc={
   location:new URL(url,base),readyState,
-  body:{classList:cl(),dataset:{}},
+  body:{classList:cl(),dataset:{},appendChild(node){links.push(node)}},
   documentElement:{},
   head:{appendChild(node){links.push(node)}},
   getElementById(id){return links.find(x=>x.id===id)||null;},
-  createElement(tag){assert.equal(tag,"link");return {tag};}
+  createElement(tag){assert(["link","script"].includes(tag));return {tag};}
  };
  return {doc,links};
 }
@@ -63,13 +63,15 @@ for(const [key,label,target] of routes){
   assert(!obj.doc.body.classList.contains("csk-saas-report"),"Daily report body mutated: "+key);
   unchanged++;
  }else{
-  assert.equal(obj.links.length,1,"One design link per route: "+key);
-  assert(obj.links[0].href.startsWith(base+"assets/csk-saas-unified.css"),"Root-relative theme URL incorrect: "+key);
+  assert.equal(obj.links.length,3,"Shared theme, layout CSS and chart runtime per route: "+key);
+  assert(obj.links.some(x=>x.href&&x.href.startsWith(base+"assets/csk-saas-unified.css")),"Base CSS missing: "+key);
+  assert(obj.links.some(x=>x.href&&x.href.startsWith(base+"assets/csk-layout-v2.css")),"Unified layout CSS missing: "+key);
+  assert(obj.links.some(x=>x.src&&x.src.startsWith(base+"assets/csk-layout-v2.js")),"Chart and layout engine missing: "+key);
   assert(obj.doc.body.classList.contains("csk-saas-report"),"Report class missing: "+key);
   assert.equal(obj.doc.body.dataset.cskRoute,key);
   assert.equal(obj.doc.body.classList.contains("csk-saas-existing"),key==="decision_health");
   listeners.load();
-  assert.equal(obj.links.length,1,"Duplicate CSS after iframe load: "+key);
+  assert.equal(obj.links.length,3,"Duplicate theme assets after iframe load: "+key);
   styled++;
  }
 }
@@ -80,4 +82,4 @@ for(const p of ["reports/daily_digest/daily/20261121.html","reports/daily_intell
 const ext=makeDoc("https://elsewhere.test/untrusted");currentDoc=ext.doc;listeners.load();
 assert.equal(ext.links.length,0,"Cross-origin CSS injection prohibited");
 assert.equal(styled,21);assert.equal(unchanged,2);
-console.log("CSK SaaS theme passed: "+styled+" themed, "+unchanged+" daily excluded, no duplicate or foreign injection.");
+console.log("CSK v2 passed: "+styled+" reflowed + chart-themed, "+unchanged+" daily excluded, idempotent.");
