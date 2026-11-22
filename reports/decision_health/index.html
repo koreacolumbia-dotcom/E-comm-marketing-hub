@@ -80,16 +80,21 @@ header{display:flex;justify-content:space-between;gap:16px;align-items:center;bo
 @media(max-width:1050px){.p-board{grid-template-columns:1fr}.p-card{gap:7px}.p-proof strong{font-size:22px}}
 @media(max-width:670px){.p-board{grid-template-columns:1fr}.p-card{padding:12px;gap:7px}.p-top{align-items:start;flex-direction:column}.p-top h2{font-size:20px}.p-trends,.p-extra-row{grid-template-columns:1fr}#decision-additional>summary small{display:block;margin:2px 0 0}}
 
+.p-source-links{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:10px 0 0;padding:10px 0;border-top:1px solid #e5edf2;font-size:11px}
+.p-source-links span{color:#7b8b9a}.p-source-links a{color:#2b6586;text-decoration:underline;text-underline-offset:2px}
+#raw-evidence[hidden]{display:none!important}
+.p-why{margin-top:2px;padding:9px 10px;border-radius:7px}
+.p-evidence{display:none}
 </style></head><body><main><header><div><small>CSK E-COMMERCE · DECISION INTELLIGENCE</small><h1>의사결정 센터</h1><small>관측 데이터와 미검증 가설을 분리합니다. 숫자가 없으면 임의로 채우지 않습니다.</small></div><span class="status" id="overall">원천 확인 중</span></header>
 <section id="priority-products" aria-label="상품별 우선순위 카드"><div class="p-top"><div><small>PRODUCT SIGNALS · ACTION FIRST</small><h2>원인 후보 TOP 3 <small class="p-status-label">원인 확정 전</small></h2><p id="priority-period">관측 데이터 확인 중</p></div><small id="priority-coverage">원천 점검 중</small></div><div class="p-board" id="priority-cards" aria-live="polite">실측 근거 정리 중</div><div id="priority-detail" hidden></div></section><div id="loading" role="status">연결된 보고서를 검사하고 있습니다.</div>
-<details id="decision-additional"><summary><span>상세 분석·검증 자료 보기</span><small>원인 1·2·3의 실측 증거만 먼저 표시</small></summary><section id="evidence-short" aria-label="원인별 쿼리 검증 수치">GA4 검증 데이터를 확인하고 있습니다.</section><details id="raw-evidence"><summary>원천 로그·기술 진단 더 보기</summary><section class="grid">
+<details id="decision-additional"><summary><span>상세 분석·검증 자료 보기</span><small>검증된 숫자 3개만 보기</small></summary><section id="evidence-short" aria-label="원인별 쿼리 검증 수치">GA4 검증 데이터를 확인하고 있습니다.</section><div class="p-source-links"><span>근거 원본</span><a href="./product_funnel_evidence.json">세션 퍼널</a><a href="./ga4_purchase_diagnostics.json">구매·객단가</a><a href="./diagnoses.json">집계 정의</a></div><div id="raw-evidence" hidden><section class="grid">
 <article class="card two"><h2>01 · 현재 가장 중요한 의사결정</h2><div id="story" class="lead">데이터 확인 중</div><div id="story-note" class="notice" style="margin-top:12px">원천 신선도 확인 후 판단합니다.</div></article>
 <article class="card third"><h2>원천 상태</h2><div id="health"></div></article>
 <article class="card"><h2>02 · 직전 7일 매출 분해</h2><div class="metrics" id="metrics"></div><div id="decomposition" class="muted" style="margin-top:12px"></div></article>
 <article class="card half"><h2>03 · 상품 이상징후 우선순위</h2><p class="muted" id="product-period">상품명 기준 최근 7일과 직전 7일 비교 · GA4 구매수량은 관리자 주문과 별도입니다.</p><div id="products"></div></article>
 <article class="card half"><h2>04 · 경쟁사·콘텐츠 검증</h2><div id="competition"></div></article>
 <article class="card"><h2>05 · 우선 실행할 검증 과제</h2><div id="actions" class="actions"></div></article>
-</section></details></details>
+</section></div></details>
 <div class="links"><a href="../daily_intelligence/index.html">18개 상세 분석</a><a href="../marketing_operations/index.html">운영·실행 추적</a><a href="../competitor_content/index.html">경쟁 콘텐츠</a><a href="../competitor_sale_calendar/index.html">세일 캘린더</a><a href="../daily_digest/index.html">Owned.com Report</a></div>
 <p class="footer">매출 변동의 산술적 분해는 원인 증명이 아닙니다. 광고비·매체 성과는 원천과 기간이 일치할 때만 의사결정 근거로 사용합니다.</p>
 </main><script>
@@ -204,15 +209,12 @@ const stageDiagnosis=p=>{
   const before=postCartPct(f,"previous"),now=postCartPct(f,"current");
   if(p.pdp_change_pct>=15&&salePct(p)<0&&Number.isFinite(before)&&Number.isFinite(now)&&before-now>=5&&f.view_to_cart_delta_pp>=0){
     return {heading:"장바구니 이후 구매완료율 약화",
-      proof:"장바구니→구매완료 "+before.toFixed(1)+"% → "+now.toFixed(1)+"% · 조회→장바구니 "+
-        f.previous.view_to_cart_pct.toFixed(2)+"% → "+f.current.view_to_cart_pct.toFixed(2)+"%",
+      proof:"장바구니→구매완료 "+before.toFixed(1)+"% → "+now.toFixed(1)+"% ("+pct(now-before).replace("%","%p")+")",
       next:"구매완료 흐름 · 결제/쿠폰 조건 · 이벤트 정합성"};
   }
   if(p.pdp_change_pct<=-15&&salePct(p)<0&&f.view_to_cart_delta_pp<=-.3){
     return {heading:"조회 감소 + 장바구니 진입 약화",
-      proof:"상품 조회 세션 "+Math.round(f.previous.view_sessions).toLocaleString("ko-KR")+" → "+
-        Math.round(f.current.view_sessions).toLocaleString("ko-KR")+
-        " · 조회→장바구니 "+f.previous.view_to_cart_pct.toFixed(2)+"% → "+f.current.view_to_cart_pct.toFixed(2)+"%",
+      proof:"조회→장바구니 "+f.previous.view_to_cart_pct.toFixed(2)+"% → "+f.current.view_to_cart_pct.toFixed(2)+"% ("+pct(f.view_to_cart_delta_pp).replace("%","%p")+")",
       next:"상품 유입 감소 구간 · 최초유입 소스 구성 · 장바구니 진입"};
   }
   return {heading:null,proof:"조회→장바구니 "+f.previous.view_to_cart_pct.toFixed(2)+"% → "+
@@ -268,9 +270,9 @@ function basketCause(diag,focus){
   const unitPricePct=(a.realized_item_price_current/a.realized_item_price_previous-1)*100;
   return {type:"basket",g,title:"주문당 구매수량 감소",name:"전체 GA4 구매상품 기준",tag:"관측된 객단가 구성 변화",
     data1:["주문당 상품수",pct(d),fixed(a.items_per_order_previous,3)+" → "+fixed(a.items_per_order_current,3)+"개"],
-    data2:["객단가 수량 효과",fmt(a.items_per_order_effect)+"원","GA4 산술 분해"],
+    data2:["상품당 실현매출",pct(unitPricePct),fmt(a.realized_item_price_previous)+" → "+fmt(a.realized_item_price_current)+"원"],
     signal:"상품 실현단가 효과",value:(a.realized_item_revenue_effect>0?"+":"")+fmt(a.realized_item_revenue_effect)+"원",
-    indicator:null,why:"주문당 상품수 "+pct(d)+" / 상품 평균실현매출 "+pct(unitPricePct),next:"상품군 비중 · SKU 믹스 · 할인액",source:"GA4 구매 이벤트 · "+p.current_start+"~"+p.current_end,
+    indicator:null,why:"객단가 수량효과 "+fmt(a.items_per_order_effect)+"원",next:"상품군 비중 · SKU 믹스 · 할인액",source:"GA4 구매 이벤트 · "+p.current_start+"~"+p.current_end,
     note:"수량 기여도는 산술 근거 · 할인/구성 원인은 미확정"};
 }
 function build(focus,diag,ga4){
@@ -290,17 +292,15 @@ function build(focus,diag,ga4){
   for(const p of others){if(picked.length>=3)break;picked.push(productCause(p,focus,ga4));}
   return {causes:picked.slice(0,3),total:all.length};
 }
-const metric=([name,change,rng])=>'<div class="p-proof"><span>'+esc(name)+'</span><strong class="'+(String(change).trim().startsWith("-")?"down":"up")+'">'+esc(change)+'</strong><small>'+esc(rng)+'</small></div>';
+const metric=([name,change,rng],number)=>'<div class="p-proof"><span>근거 '+number+' · '+esc(name)+'</span><strong class="'+(String(change).trim().startsWith("-")?"down":"up")+'">'+esc(change)+'</strong><small>'+esc(rng)+'</small></div>';
 const cell=(x,i)=>'<button type="button" class="p-card" data-card="'+i+'" aria-expanded="false" aria-controls="priority-detail">'+
-  '<span class="p-cause-label"><strong>원인 후보 '+(i+1)+'</strong><small>검증 전</small></span>'+
+  '<span class="p-cause-label"><strong>원인 후보 '+(i+1)+'</strong><small>수치 확인 · 원인 미확정</small></span>'+
   '<span class="p-cause-title">'+esc(x.title)+'</span>'+
   '<span class="p-cause-product">'+esc(x.name)+'</span>'+
-  '<span class="p-proof-pair">'+metric(x.data1)+metric(x.data2)+'</span>'+
-  '<span class="p-evidence">근거 ③ <b>'+esc(x.signal)+": "+esc(x.value)+'</b>'+
-    (x.indicator?' <em>'+esc(x.indicator)+'</em>':'')+'</span>'+
-  '<span class="p-why">감소 분해 <b>'+esc(x.why||"근거 확인 중")+'</b></span>'+
-  '<span class="p-check">확인할 것 <b>'+esc(x.next)+'</b></span>'+
-  '<span class="p-mini-source">'+esc(x.source)+'</span></button>';
+  '<span class="p-proof-pair">'+metric(x.data1,1)+metric(x.data2,2)+'</span>'+
+  '<span class="p-why"><b>근거 3 · '+esc(x.why||"검증 수치 미확보")+'</b></span>'+
+  '<span class="p-check">다음 확인 <b>'+esc(x.next)+'</b></span>'+
+  '<span class="p-mini-source">'+esc(x.source)+' · 눌러서 추이 확인</span></button>';
 const empty=i=>'<div class="p-card empty"><span class="p-cause-label"><strong>원인 후보 '+(i+1)+'</strong></span>'+
   '<span class="p-cause-title">근거 미확보</span><span class="p-mini-source">동일 기간의 비교 자료가 필요합니다.</span></div>';
 function chart(p,focus,type){
