@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* Source-route smoke test for CSK shared SaaS theme.
-   All 23 menu routes are evaluated; owned daily and daily intelligence remain untouched. */
+   All 23 menu routes are evaluated; only the owned daily report remains unchanged. */
 "use strict";
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
 const ROOT=path.resolve(__dirname,"..");
@@ -10,9 +10,9 @@ const SHELL=fs.readFileSync(path.join(ROOT,"index.html"),"utf8");
 const CSS=fs.readFileSync(path.join(ROOT,"assets/csk-saas-unified.css"),"utf8");
 const re=/^\s*\["([a-z0-9_]+)","([^"]+)","([^"]+)","fa-[^"]+"\]/gm;
 const routes=Array.from(HUB.matchAll(re),m=>[m[1],m[2],m[3],"fa"]);
-const skipped=new Set(["daily","daily_intelligence"]);
+const skipped=new Set(["daily"]);
 assert.equal(routes.length,23,"All original report menu items must remain");
-assert.equal(routes.filter(r=>!skipped.has(r[0])).length,21);
+assert.equal(routes.filter(r=>!skipped.has(r[0])).length,22);
 assert(SHELL.includes('href="assets/csk-saas-unified.css'),"Shared CSS not linked");
 assert(SHELL.includes('src="assets/csk-saas-unified.js'),"Shared controller not linked");
 assert(SHELL.includes('src="assets/csk-unified-hub.js'),"Original routing lost");
@@ -75,11 +75,11 @@ for(const [key,label,target] of routes){
   styled++;
  }
 }
-for(const p of ["reports/daily_digest/daily/20261121.html","reports/daily_intelligence/index.html"]){
+for(const p of ["reports/daily_digest/daily/20261121.html","reports/daily_digest/index.html"]){
  const x=makeDoc(p);currentDoc=x.doc;listeners.load();
  assert.equal(x.links.length,0,"Daily output must remain unstyled: "+p);
 }
 const ext=makeDoc("https://elsewhere.test/untrusted");currentDoc=ext.doc;listeners.load();
 assert.equal(ext.links.length,0,"Cross-origin CSS injection prohibited");
-assert.equal(styled,21);assert.equal(unchanged,2);
+assert.equal(styled,22);assert.equal(unchanged,1);
 console.log("CSK v2 passed: "+styled+" reflowed + chart-themed, "+unchanged+" daily excluded, idempotent.");
