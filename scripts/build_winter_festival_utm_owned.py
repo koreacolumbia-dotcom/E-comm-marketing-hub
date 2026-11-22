@@ -149,8 +149,135 @@ def write(payload):
     OUTPUT.parent.mkdir(parents=True,exist_ok=True)
     OUTPUT.write_text(json.dumps(payload,ensure_ascii=False,indent=2,allow_nan=False)+"\n",encoding="utf-8")
 
+
+# Paid, owned and organic event sources are extracted from the SAME canonical
+# BQ session query as the Owned UTM report. No extra query jobs or ad API calls.
+def media_group(source):
+    src=str(source or "").strip().lower()
+    if src in ("meta / banner","facebook / banner","meta-sitelink / banner"):
+        return "meta_conversion_tagged"
+    if src in ("meta_bd / meta_bd","meta_bd / mt"):
+        return "meta_bd_tagged"
+    if src == "naverbs / cpc":
+        return "naver_brand_search"
+    if src in ("naver / cpc","m.search.naver.com / cpc"):
+        return "naver_search_other"
+    if src.startswith("google / ") and any(x in src for x in ("cpc","paid","search","display")):
+        return "google_paid"
+    if src=="criteo / banner":
+        return "criteo"
+    if src in ("kakao / da","daangn / da","naver_bd / naver_bd"):
+        return "other_display"
+    if src.startswith(("kakao_ch /","kakao_alimtalk /","kakao_fridnstalk /","lms_ecom /","edm /")):
+        return "owned_crm_tagged"
+    if "organic" in src:
+        return "organic_search"
+    if " / referral" in src:
+        return "referral"
+    if src in ("(direct) / (none)","direct / none"):
+        return "direct"
+    return "other"
+MEDIA_LABELS={
+    "meta_conversion_tagged":"Meta / banner·Facebook 배너",
+    "meta_bd_tagged":"META_BD / META_BD (별도 태그)",
+    "naver_brand_search":"네이버 브랜드검색 CPC",
+    "naver_search_other":"네이버 일반검색 CPC",
+    "google_paid":"Google 유료 유입",
+    "criteo":"Criteo 배너",
+    "other_display":"기타 DA (카카오·당근 등)",
+    "owned_crm_tagged":"카카오·LMS·EDM Owned",
+    "organic_search":"자연검색",
+    "referral":"레퍼럴",
+    "direct":"직접 유입",
+    "other":"기타·분류 미확정"
+}
+def build_media_rollup(source):
+    """Group ALL sources by a deterministic, non-PII source/medium taxonomy.
+    Meta campaign names are GA4 UTM labels, not Meta Ads delivery or spend.
+    """
+    result={}
+    for year,rows in source.items():
+        grouped={}
+        campaigns={}
+        totals={"sessions":0.,"orders":0.,"revenue":0.}
+        for item in rows:
+            name=clean_label(item.get("sessionSourceMedium"),160)
+            if name=="(restricted)":
+                continue
+            key=media_group(name)
+            entry=grouped.setdefault(key,{"sessions":0.,"orders":0.,"revenue":0.})
+            metrics={"sessions":metric(item.get("sessions")),"orders":metric(item.get("transactions")),
+                     "revenue":metric(item.get("purchaseRevenue"))}
+            for metric_key,value in metrics.items():
+                entry[metric_key]+=value
+                totals[metric_key]+=value
+            if key not in {"meta_conversion_tagged","meta_bd_tagged"}:continue
+            campaign=clean_label(item.get("sessionCampaignName"))
+            if campaign=="(restricted)" or not FESTIVAL_MARKERS.search(campaign+" "+str(item.get("sessionManualTerm") or "")) and not SEASONOFF_MARKERS.search(campaign+" "+str(item.get("sessionManualTerm") or "")):
+                continue
+            row=campaigns.setdefault((key,campaign),{"sessions":0.,"orders":0.,"revenue":0.})
+            for k,v in metrics.items():row[k]+=v
+        def display(k,v):
+            sessions=int(v["sessions"])
+            return {"id":k,"label":MEDIA_LABELS[k],"sessions":sessions,
+                    "orders":int(v["orders"]),"revenue":round(v["revenue"]),
+                    "cvr_pct":round(100*v["orders"]/v["sessions"],3) if sessions else None}
+        groups=[display(k,v) for k,v in grouped.items()]
+        groups.sort(key=lambda v:(-v["revenue"],v["id"]))
+        campaign_rows=[]
+        for (group,name),v in campaigns.items():
+            if v["sessions"]<10:continue
+            campaign_rows.append({"group_id":group,"campaign":name,"sessions":int(v["sessions"]),
+                                  "orders":int(v["orders"]),"revenue":round(v["revenue"])})
+        campaign_rows.sort(key=lambda v:(-v["revenue"],v["campaign"]))
+        result[year]={"groups":groups,"meta_campaign_tags":campaign_rows[:18],
+                       "totals":{"sessions":int(totals["sessions"]),
+                                 "orders":int(totals["orders"]),"revenue":round(totals["revenue"])}}
+    return result
+
+def current_windows():
+    """D3 only after a complete same-weekday GA4 comparison is published."""
+    path=ROOT/"reports/marketing_operations/latest.json"
+    try:
+        ops=json.loads(path.read_text(encoding="utf-8"))
+        yoy=((ops.get("weekly") or {}).get("yoy") or {})
+        days=yoy.get("daily_comparison") or []
+        d3=next((r for r in days if r.get("date")=="2026-11-22" and
+                 r.get("ly_date")=="2025-11-23" and
+                 r.get("current") and r.get("last_year")),None)
+        if ops.get("report_date","")>="2026-11-22" and yoy.get("status")=="ready" and d3:
+            return {"2025":("2025-11-21","2025-11-23"),
+                    "2026":("2026-11-20","2026-11-22")}
+    except (OSError,ValueError,TypeError,AttributeError):
+        pass
+    return WINDOWS
+
+def write_or_preserve_on_blocked(payload):
+    """Never erase an already verified D1-D2 comparison when D3 budget exceeds cap."""
+    try:
+        existing=json.loads(OUTPUT.read_text(encoding="utf-8"))
+        if existing.get("status")=="ga4_measured" and existing.get("data") and existing.get("media_rollup"):
+            existing["refresh"]={"status":payload["status"],
+                                "attempted_period":payload.get("period"),
+                                "note":"Last measured period preserved; newer event source not yet available."}
+            write(existing)
+            return
+    except (OSError,ValueError,TypeError):
+        pass
+    write(payload)
+
+
 def main():
-    base={"schema":1,"report_date":"2026-11-21","period":WINDOWS,
+    windows=current_windows()
+    try:
+        prior=json.loads(OUTPUT.read_text(encoding="utf-8"))
+        if (prior.get("status")=="ga4_measured" and prior.get("period")==windows
+                and prior.get("media_rollup")):
+            print("[FESTIVAL UTM] same verified event period; reuse cached aggregates")
+            return
+    except (OSError,ValueError,TypeError):
+        pass
+    base={"schema":1,"report_date":windows["2026"][1],"period":windows,
        "status":"not_measured","data":{},"causal":False,
        "definition":"GA4 BigQuery purchase-event revenue and session-key attribution. campaign is sessionCampaignName; term is session UTM manual_term or landing URL utm_term.",
        "evidence_separation":"utm_campaign_or_term denotes keyword match in campaign or term; media_context_only is only a source/medium hint, NOT verified Winter Festival.",
@@ -160,7 +287,7 @@ def main():
                   "Small tag groups suppressed. Untagged or differently tagged sessions excluded from relevant buckets.",
                   "2025 and 2026 tag naming may differ; compare category coverage, not exact term names."]}
     if not os.getenv("GOOGLE_SA_JSON_B64"):
-        write({**base,"status":"blocked_credentials"})
+        write_or_preserve_on_blocked({**base,"status":"blocked_credentials"})
         return
     try:
         from google.cloud import bigquery
@@ -172,7 +299,7 @@ def main():
         client=bigquery.Client(project=info["project_id"],credentials=creds,location=LOCATION)
         prepared={}
         estimates={}
-        for year,(start,end) in WINDOWS.items():
+        for year,(start,end) in windows.items():
             parts=select_partitions(client,TABLE,dt.date.fromisoformat(start),dt.date.fromisoformat(end))
             sql=sql_with_utm_term(build_sql(parts,start,end))
             dry=client.query(sql,location=LOCATION,job_config=bigquery.QueryJobConfig(dry_run=True,use_query_cache=False))
@@ -182,7 +309,7 @@ def main():
         cost={**base["cost"],"dry_run_bytes":estimates,
             "dry_run_total_bytes":sum(estimates.values())}
         if any(x<=0 or x>PER_QUERY_CAP for x in estimates.values()) or sum(estimates.values())>TOTAL_CAP:
-            write({**base,"status":"blocked_budget","cost":cost})
+            write_or_preserve_on_blocked({**base,"status":"blocked_budget","cost":cost})
             return
         rows={}
         billed={}
@@ -192,11 +319,14 @@ def main():
             billed[year]=int(job.total_bytes_billed or 0)
         data=summarize(rows)
         write({**base,"status":"ga4_measured","data":data,
+               "media_rollup":build_media_rollup(rows),
+               "media_scope":"GA4 session source/medium + campaign tags; no Meta Ads API impressions, clicks or spend.",
+               "causal":False,
                "cost":{**cost,"billed_bytes":billed}})
         print("[FESTIVAL UTM] measured", {y:v["visible_rows"] for y,v in data.items()})
     except Exception as exc:
         # No raw SQL, UTM identifiers, event properties, or secrets in error file.
-        write({**base,"status":"query_error","error_type":type(exc).__name__})
+        write_or_preserve_on_blocked({**base,"status":"query_error","error_type":type(exc).__name__})
         print("[FESTIVAL UTM] unavailable",type(exc).__name__)
 
 if __name__=="__main__":
