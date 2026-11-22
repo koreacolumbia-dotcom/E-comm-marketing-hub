@@ -83,6 +83,30 @@ jobs:
               assert all(not urlsplit(u).fragment for u in pending), f'fragment in crawl frontier: {brand}'
           print('Dashboard DOM, navigation, strategy order, coverage, and frontier contracts verified')
           PY
+      - name: Validate dashboard inline JavaScript syntax
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          class Scripts(HTMLParser):
+              def __init__(self):
+                  super().__init__(); self.active=False; self.parts=[]; self.scripts=[]
+              def handle_starttag(self, tag, attrs):
+                  if tag=='script':
+                      self.active=not dict(attrs).get('src'); self.parts=[]
+              def handle_data(self, data):
+                  if self.active: self.parts.append(data)
+              def handle_endtag(self, tag):
+                  if tag=='script' and self.active:
+                      self.scripts.append(''.join(self.parts)); self.active=False
+          parser=Scripts()
+          parser.feed(Path('reports/competitor_content/index.html').read_text())
+          assert parser.scripts, 'missing inline dashboard scripts'
+          for i, script in enumerate(parser.scripts):
+              Path(f'/tmp/csk-competitor-inline-{i}.mjs').write_text(script)
+          print(f'Extracted {len(parser.scripts)} inline scripts for syntax verification')
+          PY
+          for script in /tmp/csk-competitor-inline-*.mjs; do node --check "$script"; done
       - name: Test interactive drilldowns in Chromium
         run: python scripts/competitor_content/drilldown_test.py
       - name: Crawl official editorial pages
