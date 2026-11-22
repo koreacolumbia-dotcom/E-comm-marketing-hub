@@ -38,6 +38,7 @@ QUALITY = {"brands": [{"brand": "TNF", "errors": [
     {"url": "https://example.test", "error": "robots disallowed path"}
 ]}]}
 CAL = {"events": [{"brand": "NEPA", "title": "할인",
+                   "kind": "verified_period", "date_status": "official_period",
                    "start_date": "2026-11-16", "end_date": "2026-11-22",
                    "source_url": "https://example.com/sale"},
                   {"brand": "K2", "title": "관측 배너", "start_date": None,
