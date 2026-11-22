@@ -1,5 +1,5 @@
 import unittest
-from scripts.build_festival_report_snapshot import build,event_days,weekly_channels,media_event,metrics
+from scripts.build_festival_report_snapshot import build,event_days,weekly_channels,media_event,metrics,diagnose_drivers,shapley_event
 
 def day(date,ly,now,prev):
     return {"date":date,"ly_date":ly,
@@ -48,6 +48,62 @@ class FestivalSnapshotTests(unittest.TestCase):
         result=media_event(utm,{})
         self.assertEqual(result["status"],"ga4_measured")
         self.assertFalse(result["causal"])
+    def test_funnel_driver_breakdown_reconciles_without_causal_claims(self):
+        event=event_days(self.ops,{})
+        d=shapley_event(event["totals"])
+        self.assertEqual(d["status"],"reconciled")
+        parts=d["terms"]
+        self.assertAlmostEqual(sum(v["amount_krw"] for v in parts.values()),800,delta=2)
+        self.assertIn("not causal",d["note"])
+    def test_media_ranked_drivers_only_same_event_days(self):
+        event=event_days(self.ops,{})
+        groups1=[
+            {"id":"naver_brand_search","label":"네이버 브랜드검색 CPC",
+             "revenue":2000,"orders":15,"sessions":1500},
+            {"id":"referral","label":"레퍼럴","revenue":1400,"orders":12,"sessions":1200}]
+        groups2=[
+            {"id":"naver_brand_search","label":"네이버 브랜드검색 CPC",
+             "revenue":3300,"orders":21,"sessions":1800},
+            {"id":"referral","label":"레퍼럴","revenue":900,"orders":9,"sessions":1200}]
+        media={"status":"ga4_measured",
+            "period":{"2025":["2025-11-21","2025-11-23"],
+                      "2026":["2026-11-20","2026-11-22"]},
+            "years":{"2025":{"totals":{"revenue":3400,"orders":27,"sessions":2700},
+                             "groups":groups1},
+                     "2026":{"totals":{"revenue":4200,"orders":30,"sessions":3000},
+                             "groups":groups2}}}
+        # Daily test fixture order/session totals differ from the mocked media.
+        # Use same totals to test positive channel reconciliation explicitly.
+        event["totals"]["previous"]["sessions"]=2700
+        event["totals"]["previous"]["orders"]=27
+        event["totals"]["current"]["sessions"]=3000
+        event["totals"]["current"]["orders"]=30
+        result=diagnose_drivers(event,media,{"roas_eligible":False})
+        self.assertEqual(result["status"],"reconciled")
+        self.assertEqual(result["channel_total_change_krw"],800)
+        self.assertTrue(result["event_media_aligned"])
+        self.assertEqual(result["channel_gains"][0]["id"],"naver_brand_search")
+        self.assertEqual(result["channel_losses"][0]["id"],"referral")
+        self.assertFalse(result["causal"])
+        media["period"]["2026"]=["2026-11-20","2026-11-21"]
+        result=diagnose_drivers(event,media,{"roas_eligible":False})
+        self.assertFalse(result["event_media_aligned"])
+        self.assertEqual(result["status"],"funnel_only")
+        self.assertEqual(result["media_unavailable_reason"],"행사 채널 원본 기간과 누적 KPI 집계 기간 불일치")
+    def test_media_totals_mismatch_never_publish_unsupported_channel_drivers(self):
+        event=event_days(self.ops,{})
+        media={"status":"ga4_measured",
+               "period":{"2025":["2025-11-21","2025-11-23"],
+                         "2026":["2026-11-20","2026-11-22"]},
+               "years":{"2025":{"totals":{"revenue":3400,"orders":27,"sessions":2700},
+                                "groups":[]},
+                        "2026":{"totals":{"revenue":4201,"orders":30,"sessions":3000},
+                                "groups":[]}}}
+        result=diagnose_drivers(event,media,{})
+        self.assertEqual(result["status"],"funnel_only")
+        self.assertFalse(result["event_media_aligned"])
+        self.assertNotIn("channel_bridge",result)
+
     def test_never_fabricate_roas_from_freshness_only(self):
         result=build(self.ops,self.source,{},self.intel)
         self.assertNotIn("roas",result["weekly_media"])
