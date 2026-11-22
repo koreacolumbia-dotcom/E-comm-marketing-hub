@@ -72,6 +72,33 @@ class CalendarTests(unittest.TestCase):
             self.assertEqual(c["status"], "reference_missing")
             self.assertIsNone(c["yoy_window"])
 
+    def test_historical_promotion_and_confirmed_message_context_is_source_backed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            c25, owned, c26 = [folder / n for n in ("c25.json", "owned.json", "c26.json")]
+            c25.write_text(json.dumps({"entries":[
+                {"date":"2025-11-14","kind":"event","title":"Winter Festival",
+                 "detail":"11월 14일~16일 진행","status":"confirmed","source":"W46 · 4p","end_date":"2025-11-16"}
+            ]}))
+            owned.write_text(json.dumps({"entries":[
+                {"date":"2025-11-14","kind":"message","channel":"KAKAO","title":"윈터페스티벌",
+                 "status":"confirmed","sent_count":900,"source":"2025 발송 기록 4행"},
+                {"date":"2025-11-14","kind":"message","channel":"LMS","title":"추가 발송",
+                 "status":"confirmed","sent_count":None,"source":"예정만 기록"}
+            ]}))
+            c26.write_text(json.dumps({"entries":[]}))
+            cal=calendar_context(DAY,daily(DAY),c25,owned,c26)
+            self.assertEqual(cal["current_status"],"not_connected")
+            self.assertEqual(len(cal["last_year_confirmed"]),2)
+            self.assertEqual(len(cal["last_year_planned"]),1)
+            campaign=next(e for e in cal["last_year_confirmed"] if e["origin"]=="marketing_calendar_2025")
+            self.assertEqual(campaign["detail"],"11월 14일~16일 진행")
+            message=next(e for e in cal["last_year_confirmed"] if e["origin"]=="owned_message_2025")
+            self.assertTrue(message["sent_confirmed"])
+            self.assertEqual(message["channel"],"KAKAO")
+            self.assertEqual(message["sent_count"],900)
+            self.assertIsNone(cal["last_year_planned"][0]["sent_count"])
+
     def test_empty_current_is_unknown_not_zero(self):
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp)
@@ -169,6 +196,11 @@ class WeeklyTests(unittest.TestCase):
             self.assertEqual(yoy["yoy_pct"]["aov"],0)
             self.assertEqual(yoy["alignment"],"same_weekday_364_days")
             self.assertEqual(yoy["period"],f"{DAY-dt.timedelta(days=370)} ~ {DAY-dt.timedelta(days=364)}")
+            self.assertEqual(len(yoy["daily_comparison"]),7)
+            self.assertEqual(yoy["daily_comparison"][0]["ly_date"],(DAY-dt.timedelta(days=370)).isoformat())
+            self.assertEqual(yoy["daily_comparison"][0]["current"]["revenue"],2_000_000)
+            self.assertEqual(yoy["daily_comparison"][0]["last_year"]["revenue"],1_500_000)
+            self.assertEqual(yoy["daily_comparison"][0]["revenue_yoy_pct"],33.33)
 
     def test_yoy_does_not_mix_ga4_api_with_bigquery_or_fill_missing_days(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -196,6 +228,7 @@ class WeeklyTests(unittest.TestCase):
             self.assertEqual(result["yoy"]["status"],"unavailable")
             self.assertIsNone(result["yoy"]["reference"]["total"])
             self.assertEqual(result["yoy"]["missing_dates"],[(bad-dt.timedelta(days=364)).isoformat()])
+            self.assertEqual(result["yoy"]["daily_comparison"],[])
 
 
 class IncrementalityTests(unittest.TestCase):
