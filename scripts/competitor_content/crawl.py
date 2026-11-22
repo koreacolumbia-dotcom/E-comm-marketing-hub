@@ -488,9 +488,9 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     def note(u,state):
         ledger[u]={"state":state,"at":checked};known.add(u)
     def skip_recent(u):
-        if u in refresh: return False
         entry=ledger.get(u,{})
-        return retry_cooldown(entry,checked) or (editorial_route(brand,u) and recent_success(entry,checked))
+        if retry_cooldown(entry,checked): return True
+        return u not in refresh and editorial_route(brand,u) and recent_success(entry,checked)
     previous=sorted((x for x in old.values() if x.get("brand")==brand),key=lambda x:x.get("last_seen_at",""),reverse=True)
     prior_urls={canonical(v) for x in previous for v in (x.get("url"),x.get("source_url")) if isinstance(v,str) and same(v)}
     for x in previous:
