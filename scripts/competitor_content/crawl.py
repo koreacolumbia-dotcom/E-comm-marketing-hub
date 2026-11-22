@@ -105,7 +105,7 @@ def scoped(brand,u):
     if not allowed_link(brand,u): return False
     if re.search(r"/(?:sign-in|sign-up|image_zoom[^/]*|personal-information-collection-statement[^/]*|service/company)(?:/|\.html|$)",path,re.I): return False
     if re.search(r"(?:^|&)(?:product_no|goodsNo|productNo|styleCode)=",p.query,re.I): return False
-    if brand=="HOKA":
+    # Feedback endpoints are interaction handlers, not editorial assets.\n    # Exclude them before they consume the bounded crawl budget.\n    if brand=="TNF" and path.startswith("/lookbook/feedback"): return False\n    if brand=="HOKA":
         return (host(u)=="linktr.ee" and path.rstrip("/")=="/hoka_korea") or (host(u)=="brand.naver.com" and path.rstrip("/")=="/hoka")
     if brand=="DECATHLON": return path=="/" or (path.startswith("/s/") and not re.search(r"membership|shipping|payment|return|refund|help|contact|store",path,re.I))
     if host(u)==ALTERNATE.get(brand):
@@ -715,7 +715,7 @@ def self_test():
     assert scoped("DECATHLON","https://www.decathlon.co.kr/s/running-campaign")
     assert not scoped("DECATHLON","https://www.decathlon.co.kr/p/test.html")
     assert not scoped("DECATHLON","https://www.decathlon.co.kr/c/test.html")
-    assert brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/all_films")
+    assert not scoped("TNF","https://www.thenorthfacekorea.co.kr/lookbook/feedback?lookbookId=12002")\n    assert scoped("TNF","https://www.thenorthfacekorea.co.kr/lookbook/12002")\n    assert brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/all_films")
     assert not brand_listing("PATAGONIA","https://www.patagonia.co.kr/stories/filmDetail/275")
     assert not scoped("NEW BALANCE","https://devapm-m.nbkorea.com/event/test.action")
     assert not scoped("BLACKYAK","https://www.byn.kr/other")
