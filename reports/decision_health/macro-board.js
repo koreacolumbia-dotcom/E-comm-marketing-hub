@@ -34,9 +34,8 @@ const card=(i,driver)=>{
   '<div class="macro-numbers">'+esc(driver.metric)+'</div>'+
   '<p class="macro-explain">'+esc(driver.insight)+'</p>'+
   (driver.breakdown||"")+
-  '<div class="macro-next"><b>근거</b> '+esc(driver.proof||"동일 기간 운영 KPI의 산술 분해")+'</div>'+
-  '<div class="macro-next"><b>검증 상태</b> '+esc(driver.confidence||"산술 확인 · 인과 미확정")+'</div>'+
-  '<div class="macro-next"><b>우선 조치</b> '+esc(driver.next)+'</div></article>';
+  '<div class="macro-next"><b>확인된 변화</b> '+esc(driver.proof||"동일 기간 집계")+'</div>'+
+  '<div class="macro-next macro-action"><b>추천 실행</b> '+esc(driver.next)+'</div></article>';
 };
 function render(operations,intelligence,weeklyEvidence,alignedBasket){
  const w=operations?.weekly||{},a=w.current?.total,b=w.previous?.total;
@@ -75,28 +74,63 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
    fmt(basket.realized_item_price_previous)+"→"+fmt(basket.realized_item_price_current)+"원":
    samePeriodBasket?"GA4 구매구성 기간 일치 · 운영 KPI와 정합성 미통과(상품수·가격 기여 미확정)":
    "같은 기간의 상품수·가격 구성이 아직 검증되지 않았습니다.";
+ const distribution=basketReconciled?alignedBasket.basket_distribution:null;
+ const basketMix=(distribution&&finite(distribution.previous?.single_item_pct)&&
+    finite(distribution.current?.single_item_pct)&&
+    finite(distribution.previous?.classified_share_pct)&&finite(distribution.current?.classified_share_pct)&&
+    distribution.previous.classified_share_pct>=95&&distribution.current.classified_share_pct>=95&&
+    distribution.previous.total_orders===prev.orders&&distribution.current.total_orders===cur.orders)?
+    distribution:null;
+ const mixMarkup=basketMix?
+   '<div class="macro-basket-insight"><b>1개 구매 주문 '+basketMix.previous.single_item_pct.toFixed(1)+'% → '+
+   basketMix.current.single_item_pct.toFixed(1)+'%</b><span>'+
+   (basketMix.single_item_change_pp>0?'+':'')+basketMix.single_item_change_pp.toFixed(1)+'%p</span></div>'+
+   (finite(basketMix.previous.multi_item_avg_units)&&finite(basketMix.current.multi_item_avg_units)?
+    '<div class="macro-basket-insight"><b>다품목 주문 평균 수량 '+
+    basketMix.previous.multi_item_avg_units.toFixed(2)+' → '+
+    basketMix.current.multi_item_avg_units.toFixed(2)+'개</b><span>'+
+    (basketMix.multi_item_avg_units_change>0?'+':'')+
+    basketMix.multi_item_avg_units_change.toFixed(2)+'개</span></div>':'')+
+   (finite(basketMix.previous.three_plus_pct)&&finite(basketMix.current.three_plus_pct)?
+    '<div class="macro-basket-insight"><b>3개 이상 구매 주문 비중 '+
+    basketMix.previous.three_plus_pct.toFixed(1)+'% → '+
+    basketMix.current.three_plus_pct.toFixed(1)+'%</b><span>'+
+    (basketMix.three_plus_change_pp>0?'+':'')+
+    basketMix.three_plus_change_pp.toFixed(1)+'%p</span></div>':''):'';
+ const categories=basketReconciled&&Array.isArray(alignedBasket.category_bridge?.rows)?
+   alignedBasket.category_bridge.rows:[];
+ const cat=n=>categories.find(x=>x.category===n&&finite(x.share_previous_pct)&&finite(x.share_current_pct));
+ const outer=cat('OUTER'),sale=cat('SALE');
+ const catMarkup=outer||sale?
+   '<div class="macro-category-mini"><b>구매 상품군 비중</b>'+
+   (outer?'<span>OUTER '+outer.share_previous_pct.toFixed(1)+'% → '+outer.share_current_pct.toFixed(1)+'%</span>':'')+
+   (sale?'<span>SALE '+sale.share_previous_pct.toFixed(1)+'% → '+sale.share_current_pct.toFixed(1)+'%</span>':'')+
+   '</div>':'';
  const cvBefore=prev.cvr*100,cvAfter=cur.cvr*100;
  const bucket=[
   {id:"aov",title:"객단가·구매 구성",impact:data.aov,
    metric:"객단가 "+fmt(prev.aov)+" → "+fmt(cur.aov)+"원 ("+signed(pct(cur.aov,prev.aov))+")",
    insight:data.aov<0?"주문은 늘었지만 주문 1건당 매출이 낮아졌습니다.":"주문당 매출이 전체 실적에 기여했습니다.",
-   proof:basketNote,breakdown:basketBreakdown,
+   proof:basketNote,breakdown:basketBreakdown+mixMarkup+catMarkup,
    confidence:basketReconciled?"동일 기간 GA4 구매 이벤트·운영 KPI 대사 통과 · 독립 ERP 검증 전":
      "운영 객단가 산술 확인 · 구매구성 원인은 검증 제한",
-   next:basketReconciled?"1개 구매 주문 비중 · 고객/상품군별 구매수량 분포 조사":"동기간 GA4 구매구성·운영 지표 대사 우선"},
+   next:basketMix&&basketMix.multi_item_avg_units_change<0?
+     "다품목 주문 수량 확대: 연관상품·세트 구매 실험":
+     basketReconciled?"OUTER와 SALE 상품군을 활용한 연관구매 실험":
+     "상품 조합별 교차구매 제안 실험"},
   {id:"conversion",title:"구매전환 효율",impact:data.conversion,
    metric:"CVR "+cvBefore.toFixed(3)+"% → "+cvAfter.toFixed(3)+"% ("+
      (cvAfter-cvBefore>0?"+":"")+(cvAfter-cvBefore).toFixed(3)+"%p)",
    insight:data.conversion<0?"방문 대비 주문 효율이 다소 약화됐습니다.":"방문 대비 주문 효율이 개선됐습니다.",
-   proof:"전환율은 전체 세션·주문으로 계산. 기존 상품 퍼널의 비교 날짜는 다릅니다.",
+   proof:"방문→구매 "+cvBefore.toFixed(3)+"% → "+cvAfter.toFixed(3)+"%",
    confidence:"전체 전환 산술 확인 · 구간별 구매이탈 원인은 미확정",
-   next:"같은 기간 채널·세션 퍼널로 이탈 구간 검증"},
+   next:"방문 대비 구매 단계가 약한 상품부터 장바구니 흐름 개선"},
   {id:"traffic",title:"유입 규모",impact:data.traffic,
    metric:"세션 "+fmt(prev.sessions)+" → "+fmt(cur.sessions)+" ("+signed(pct(cur.sessions,prev.sessions))+")",
    insight:data.traffic>=0?"유입 증가는 매출 감소를 일부 상쇄했습니다.":"유입 감소가 전체 매출을 압박했습니다.",
-   proof:"일별 전체 세션 합계(채널별 세션과 별개)",
+   proof:"세션 "+fmt(prev.sessions)+" → "+fmt(cur.sessions),
    confidence:"전체 세션 변화 확인 · 유입 인과효과는 미확정",
-   next:"채널 유입·고객구성 검증(채널 세션 품질 확인 후)"}
+   next:"증가한 유입을 추가 구매수량으로 연결"}
  ];
  bucket.sort((x,y)=>(x.impact>=0)-(y.impact>=0)||Math.abs(y.impact)-Math.abs(x.impact));
  const sec=Array.isArray(intelligence?.sections)?intelligence.sections:[];
@@ -110,19 +144,12 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
  const chan=weeklyChecked?weeklyEvidence.channels||[]:[];
  const lookup=name=>chan.find(x=>x.channel===name);
  const numDelta=name=>lookup(name)?won(lookup(name).delta_revenue):"—";
- const warnings=weeklyChecked?(weeklyEvidence.quality?.taxonomy_warnings||[]):[];
- const sessionMismatch=weeklyChecked?(weeklyEvidence.quality?.daily_channel_session_mismatch_dates||[]):[];
  const channelMarkup=weeklyChecked?
-   '<div class="macro-channel-main"><strong>동일 기간 채널 매출 변화</strong><small>채널별 매출·주문은 주간 합계 검증 · 직접적인 증분 기여가 아님</small></div>'+
-   (warnings.length?'<p class="macro-data-warning"><b>채널 분류 확인 1순위</b> ETC 등 미분류 채널 '+
-       warnings.map(x=>esc(x.channel)+" "+won(-x.previous_revenue)+" (직전 매출의 "+x.share_of_previous_total_pct+"%)").join(" · ")+
-       ' · 실제 수요 감소인지 분류 변경인지 미확정</p>':'')+
-   '<div class="macro-channel-values">'+["etc","Organic Traffic","Paid Ad","Owned Channel"].map(n=>
-     '<div><small>'+esc(n)+'</small><b>'+esc(numDelta(n))+'</b></div>').join("")+'</div>'+
-   (sessionMismatch.length?
-     '<p class="macro-data-note">주의: 14일 중 '+sessionMismatch.length+'일은 채널별 세션 합계가 전체 세션과 불일치. 채널별 CVR 분석을 보류합니다.</p>':
-     '<p class="macro-data-note">채널별 세션 합계 정합성 확인 완료. 채널 매출의 인과 기여는 별도 검증이 필요합니다.</p>'):
-   '<p class="macro-data-note">동일 기간 채널별 매출 대사 결과를 아직 확보하지 못해 원인 순위를 추가하지 않았습니다.</p>';
+   '<div class="macro-channel-main"><strong>유입 채널별 매출 변화</strong><small>전주 대비</small></div>'+
+   '<div class="macro-channel-values">'+["Organic Traffic","Paid Ad","Owned Channel","etc"].map(n=>
+     '<div><small>'+esc(n==="Organic Traffic"?"오가닉":n==="Paid Ad"?"Paid Ad":
+       n==="Owned Channel"?"Owned/CRM":"기타")+'</small><b>'+esc(numDelta(n))+'</b></div>').join("")+
+   '</div>':'<p class="macro-data-note">채널별 매출 변화는 집계 중입니다.</p>';
  const weather=sec.find(x=>x.number===4);
  const weatherMap=new Map((weather?.dates||[]).map((d,i)=>[d,weather?.temperature?.[i]]));
  const dayRange=(a,b)=>{
@@ -138,31 +165,26 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
  const wa=dayRange(currentDates[0],currentDates[1]),wb=dayRange(priorDates[0],priorDates[1]);
  const weatherDiff=wa&&wb?wa.reduce((a,b)=>a+b,0)/7-wb.reduce((a,b)=>a+b,0)/7:null;
  const context=[
-  {name:"채널 분류",headline:weeklyChecked?warnings.length?"미분류 ETC 변화 확인 필요":"동기간 채널 매출 대사 완료":"동기간 채널 근거 미확보",
-    note:weeklyChecked?"채널 세션 정합성 "+(sessionMismatch.length?"제한("+sessionMismatch.length+"일 불일치)":"확인"):"주간 매출 영향으로 단정하지 않음"},
-  {name:"신규·기존 고객",headline:"동일 주간 신규/기존 구매 구분 미확보",
-    note:day&&day!==opsDay?"일별 고객 지표 "+day+" · 주간과 기간 불일치":"주문 이력·고객군 동일 기간 대사 필요"},
-  {name:"서울 기온",headline:finite(weatherDiff)?"전주 대비 "+(weatherDiff>0?"+":"")+weatherDiff.toFixed(1)+"°C":"주간 관측 정합성 확인 전",
-    note:finite(weatherDiff)?"운영 주간과 날짜 일치 · 기상청 관측 · 매출 인과 미확정":"기온 관측일과 운영 기간 일치 여부 확인 필요"}
+  ...(outer?[{name:"OUTER 구매 비중",headline:outer.share_previous_pct.toFixed(1)+"% → "+outer.share_current_pct.toFixed(1)+"%",note:"주문 구성"}]:[]),
+  ...(sale?[{name:"SALE 카테고리",headline:sale.share_previous_pct.toFixed(1)+"% → "+sale.share_current_pct.toFixed(1)+"%",note:"상품 분류상 SALE"}]:[]),
+  ...(finite(weatherDiff)?[{name:"서울 기온",headline:"전주 대비 "+(weatherDiff>0?"+":"")+weatherDiff.toFixed(1)+"°C",note:"동일 기간 관측 · 판매 원인 단정 안 함"}]:[])
  ];
  const contextMarkup=context.map(x=>'<div class="macro-context-item"><b>'+esc(x.name)+'</b>'+
    '<strong>'+esc(x.headline)+'</strong><small>'+esc(x.note)+'</small></div>').join("");
- const diDayNote=day&&day!==opsDay?' · '+esc(day)+' 단일일 분석과 기준 기간 다름':"";
+ const diDayNote="";
  root.innerHTML='<div class="macro-heading"><div><small>BUSINESS FIRST · OVERALL SALES DIAGNOSIS</small>'+
-  '<h2>매출을 움직인 큰 요인</h2><p>상품보다 먼저 전체 매출 구조를 진단합니다.</p></div>'+
+  '<h2>이번 주 매출의 핵심 원인</h2><p>매출 영향 → 구매 행동 → 실행 실험</p></div>'+
   '<small class="macro-period">'+esc(w.period)+' vs '+esc(w.comparison_period)+diDayNote+'</small></div>'+
   '<div class="macro-headline"><div><span>최근 7일 매출 변화</span><strong class="'+(change<0?"loss":"gain")+'">'+signed(change)+'</strong>'+
   '<small>'+won(data.delta)+' · '+fmt(prev.revenue)+' → '+fmt(cur.revenue)+'원</small></div>'+
   '<div class="macro-conclusion">'+(data.aov<0&&data.aov<=data.conversion&&data.aov<=data.traffic?
-    '<b>핵심 문제: 객단가·구매 구성</b><p>유입 확대에도 주문당 매출 하락이 더 컸습니다.</p>':
+    '<b>우선과제 · 주문당 구매수량 회복</b><p>유입보다 구매수량·상품 조합을 개선할 구간입니다.</p>':
     '<b>주요 지표를 비교합니다.</b><p>각 요인의 산술 기여와 방향을 확인하세요.</p>')+'</div></div>'+
   '<div class="macro-driver-list">'+bucket.map((x,i)=>card(i+1,x)).join("")+'</div>'+
-  '<section class="macro-channel-check"><h3>채널별 변화 · 데이터 품질 확인</h3>'+channelMarkup+
-  '<small class="macro-channel-source">근거: <a href="./weekly_business_evidence.json">14일 동기간 집계 원본</a> · 이 값은 위 Shapley 요인에 다시 더하지 않습니다.</small></section>'+
-  '<div class="macro-context-title"><b>고객·환경 보조 신호</b><small>관측 시점과 집계 정의를 검증한 정보만 사용</small></div>'+
-  '<div class="macro-context-grid">'+contextMarkup+'</div>'+
-  '<p class="macro-disclaimer">근거: <a href="../marketing_operations/latest.json">7일 운영 집계</a>의 세션 × 주문전환율 × 객단가 Shapley 산술 분해. '+
-  '3개 요인의 합계는 매출 증감과 일치하며 광고·할인·날씨의 인과 효과를 의미하지 않습니다. '+esc(w.caveat||"")+'</p>';
+  '<section class="macro-channel-check"><h3>채널별 매출 흐름</h3>'+channelMarkup+'</section>'+
+  (context.length?'<div class="macro-context-title"><b>구매 상품군과 날씨</b></div>'+
+   '<div class="macro-context-grid">'+contextMarkup+'</div>':'')+
+  '<p class="macro-disclaimer">매출 기여액은 실제 관측 KPI의 산술 분해이며 실험에서 측정한 증분 효과는 아닙니다.</p>';
 }
 window.CSKMacroBoard={bridge,render};
 if(window.__cskMacroPayload)render(window.__cskMacroPayload.operations,window.__cskMacroPayload.intelligence,window.__cskMacroPayload.weeklyEvidence,window.__cskMacroPayload.alignedBasket);
