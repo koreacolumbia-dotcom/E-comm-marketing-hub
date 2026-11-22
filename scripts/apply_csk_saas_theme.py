@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "20261122-2"
+VERSION = "20261122-layout-v2"
 
 # Matches assets/csk-unified-hub.js route keys, except daily and daily_intelligence.
 TARGETS = {
@@ -132,6 +132,12 @@ def patch_report(path: Path, key: str, *, check: bool = False) -> str:
                 rf"<!-- {marker}-START -->.*?<!-- {marker}-END -->",
                 "", text, flags=re.S,
             )
+    # Rotate hashed CSS/JS references on generated report pages, including
+    # documents with an existing theme from the previous build.
+    text = re.sub(r'(csk-saas-unified\\.css\\?v=)[A-Za-z0-9_.-]+',
+                  lambda m: m.group(1) + VERSION, text)
+    text = re.sub(r'(csk-saas-standalone\\.js\\?v=)[A-Za-z0-9_.-]+',
+                  lambda m: m.group(1) + VERSION, text)
     match = HEAD_END.search(text)
     if not match or not BODY_OPEN.search(text):
         return "not_html"
