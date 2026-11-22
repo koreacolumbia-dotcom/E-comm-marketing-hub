@@ -113,7 +113,7 @@ class ProblemDiagnosisTests(unittest.TestCase):
         self.assertIn('id="priority-cards"', DECISION_HTML)
         self.assertIn('id="priority-detail"', DECISION_HTML)
         self.assertIn('원인 후보 ', DECISION_HTML)
-        self.assertIn('원인 후보 TOP 3', DECISION_HTML)
+        self.assertIn('상품별 하위 원인 TOP 3', DECISION_HTML)
         self.assertIn('구매 / PDP 1천회', DECISION_HTML)
         self.assertIn('전환율 아님', DECISION_HTML)
         self.assertIn('ga4_evidence', DECISION_HTML)
