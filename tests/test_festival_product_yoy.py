@@ -9,12 +9,12 @@ from scripts.build_festival_product_yoy import (
 class ProductYoYTests(unittest.TestCase):
     def test_sql_scans_only_two_purchase_partitions_per_period(self):
         sql=sql_for("2026-11-20","2026-11-21")
-        self.assertIn("FROM \`columbia-ga4.analytics_358593394.events_*\`",sql)
+        self.assertIn("FROM " + chr(96) + "columbia-ga4.analytics_358593394.events_*" + chr(96),sql)
         self.assertIn("_TABLE_SUFFIX BETWEEN '20261120' AND '20261121'",sql)
         self.assertIn("event_name='purchase'",sql)
         self.assertIn("txn IS NULL OR rn=1",sql)
         self.assertIn("SUM(order_units) AS units",sql)
-        self.assertNotIn("\\\`",sql)
+        self.assertNotIn(chr(92)+chr(96),sql)
         with self.assertRaises(ValueError):
             sql_for("2026-11-20' OR TRUE","2026-11-21")
     def test_d3_requires_same_weekday_verified_source(self):
