@@ -53,6 +53,8 @@ const aligned={status:'ga4_measured',report_date:'2026-11-20',
  {category:'SALE',share_previous_pct:44.02,share_current_pct:47.51}]}};
 render(ops,di,weekly,aligned);
 assert.match(target.innerHTML,/주문당 상품수 변화/);
+assert.match(target.innerHTML,/세부 근거 보기/);
+assert.match(target.innerHTML,/다품목 주문당 상품 3.68 → 2.65개/);
 assert.match(target.innerHTML,/-22,436원\/건/);
 assert.match(target.innerHTML,/1개 구매 주문 80.0% → 78.8%/);
 assert.match(target.innerHTML,/다품목 주문 평균 수량 3.68 → 2.65개/);

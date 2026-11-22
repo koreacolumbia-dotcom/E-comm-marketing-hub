@@ -32,10 +32,11 @@ const card=(i,driver)=>{
   '<div class="macro-driver-top"><strong>요인 '+i+' · '+esc(driver.title)+'</strong><span>'+role+'</span></div>'+
   '<div class="macro-impact">'+esc(won(driver.impact))+'</div>'+
   '<div class="macro-numbers">'+esc(driver.metric)+'</div>'+
-  '<p class="macro-explain">'+esc(driver.insight)+'</p>'+
+  '<p class="macro-explain">'+esc(driver.summary||driver.insight)+'</p>'+
+  '<div class="macro-next macro-action"><b>추천 실행</b> '+esc(driver.next)+'</div>'+
+  '<details class="macro-driver-more"><summary>세부 근거 보기</summary>'+
   (driver.breakdown||"")+
-  '<div class="macro-next"><b>확인된 변화</b> '+esc(driver.proof||"동일 기간 집계")+'</div>'+
-  '<div class="macro-next macro-action"><b>추천 실행</b> '+esc(driver.next)+'</div></article>';
+  '<div class="macro-next"><b>관련 수치</b> '+esc(driver.proof||"동일 기간 집계")+'</div></details></article>';
 };
 function render(operations,intelligence,weeklyEvidence,alignedBasket){
  const w=operations?.weekly||{},a=w.current?.total,b=w.previous?.total;
@@ -116,6 +117,10 @@ function render(operations,intelligence,weeklyEvidence,alignedBasket){
    metric:"객단가 "+fmt(prev.aov)+" → "+fmt(cur.aov)+"원 ("+signed(pct(cur.aov,prev.aov))+")",
    insight:data.aov<0?"주문은 늘었지만 주문 1건당 매출이 낮아졌습니다.":"주문당 매출이 전체 실적에 기여했습니다.",
    proof:basketNote,breakdown:basketBreakdown+mixMarkup+catMarkup,
+   summary:basketMix&&basketMix.multi_item_avg_units_change<0?
+     "다품목 주문당 상품 "+basketMix.previous.multi_item_avg_units.toFixed(2)+" → "+
+     basketMix.current.multi_item_avg_units.toFixed(2)+"개 (감소)":
+     (basketReconciled?"주문당 구매수량 감소가 객단가 하락을 주도":"주문 1건당 매출이 감소했습니다."),
    confidence:basketReconciled?"동일 기간 GA4 구매 이벤트·운영 KPI 대사 통과 · 독립 ERP 검증 전":
      "운영 객단가 산술 확인 · 구매구성 원인은 검증 제한",
    next:basketMix&&basketMix.multi_item_avg_units_change<0?
