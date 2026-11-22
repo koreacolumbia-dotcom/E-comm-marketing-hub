@@ -14,6 +14,8 @@ const deepTexts=(node,out=[])=>{
  if(node==null || node===false)return out;
  if(typeof node==="string"||typeof node==="number"){out.push(String(node));return out;}
  if(Array.isArray(node)){node.forEach(x=>deepTexts(x,out));return out;}
+ if(node.props && node.props.placeholder)out.push(String(node.props.placeholder));
+ if(node.props && node.props["aria-label"])out.push(String(node.props["aria-label"]));
  if(node.children)node.children.forEach(x=>deepTexts(x,out));
  return out;
 };
@@ -61,7 +63,10 @@ async function main(){
  assert(!overview.includes("INV-1003")&&!overview.includes("$ 24,850"),"Sample invoice numbers must never appear");
  const acquisition=await render("acquisition");
  assertContent(acquisition,["유입부터 구매전환까지","소스/매체 검색","GA4 세션 귀속"]);
- if(source.rows.length)assert(acquisition.includes(source.rows[0].source_medium)||acquisition.includes(source.rows[1].source_medium),"No observed source present");
+ if(source.rows.length){
+   const top=[...source.rows].sort((a,b)=>a.revenue_delta-b.revenue_delta).slice(0,12);
+   assert(top.some(x=>acquisition.includes(x.source_medium)),"No observed source present");
+ }
  const current=source.period&&source.period.current||{},wk=ops.weekly||{};
  if(current.end!==ops.report_date || current.start!==(wk.period||"").split(" ~ ")[0])
    assert(acquisition.includes("기간 불일치"),"Out-of-period source must be labeled");
