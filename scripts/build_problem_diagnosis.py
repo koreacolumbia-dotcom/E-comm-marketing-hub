@@ -470,6 +470,7 @@ def build(operations: dict, intelligence: dict, content: dict,
         "finance": finance,
         "ga4_evidence": {
             "report_date": ga4.get("report_date"),
+            "period": ga4.get("period") if matched else None,
             "status": ga4.get("status","not_connected"),
             "cost": ga4.get("cost"),
             "item_aov_bridge": ga4.get("item_aov_bridge") if matched else None,

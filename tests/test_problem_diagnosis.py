@@ -115,6 +115,26 @@ class ProblemDiagnosisTests(unittest.TestCase):
     def test_observed_product_divergence_is_labeled_correctly(self):
         self.assertIn("p.status==='observed_product_divergence'?'관측된 PDP·구매 방향 차이'", DIAGNOSIS_JS)
 
+    def test_ga4_period_propagates_only_for_matching_date(self):
+        measured = {
+            "report_date": "2026-11-20", "status": "ga4_measured",
+            "period": {
+                "previous_start": "2026-11-06", "previous_end": "2026-11-12",
+                "current_start": "2026-11-13", "current_end": "2026-11-19"
+            }
+        }
+        matched = build(OPS, DI, CONTENT, QUALITY, CAL, ga4_purchase=measured)
+        self.assertEqual(matched["ga4_evidence"]["period"], measured["period"])
+        stale = dict(measured, report_date="2026-11-19")
+        unmatched = build(OPS, DI, CONTENT, QUALITY, CAL, ga4_purchase=stale)
+        self.assertIsNone(unmatched["ga4_evidence"]["period"])
+
+    def test_ga4_revenue_label_is_source_scoped_and_period_guarded(self):
+        self.assertIn("GA4 구매 이벤트 매출 변동 구성", DIAGNOSIS_JS)
+        self.assertIn("period.current_end!==opsPeriodEnd", DIAGNOSIS_JS)
+        self.assertIn("할인·상품믹스의 원인은 미검증", DIAGNOSIS_JS)
+        self.assertNotIn("주간 전체 매출 구성:", DIAGNOSIS_JS)
+
     def test_error_classification(self):
         self.assertEqual(describe_error("HTTP 429 stop requests")[0], "rate_limited")
         self.assertEqual(describe_error("Page.evaluate: Execution context was destroyed")[0], "navigation_race")

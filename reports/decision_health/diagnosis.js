@@ -100,11 +100,34 @@
         const observed=el('article',null,'diag-card');
         observed.style.marginBottom='12px';
         observed.append(el('h3','GA4 구매 원인 분해 · 실제 상품 구매 이벤트'));
+        const period=g.period||{},financePeriod=data.finance?.period||data.period||'';
+        const currentPeriod=period.current_start&&period.current_end?
+          period.current_start+' ~ '+period.current_end:'세부 기간 원천 확인 필요';
+        const previousPeriod=period.previous_start&&period.previous_end?
+          period.previous_start+' ~ '+period.previous_end:'세부 기간 원천 확인 필요';
+        observed.append(el('p','GA4 관측: '+currentPeriod+' / 비교: '+previousPeriod+' · 기준일 '+(g.report_date||'미확보'),'hint'));
+        const opsPeriodEnd=financePeriod.split(' ~ ').pop();
+        if(!period.current_end||!opsPeriodEnd||period.current_end!==opsPeriodEnd){
+          observed.append(el('p','주의: 상단 운영 매출 기간 '+(financePeriod||'미확보')+
+            '과 GA4 상품 구매 비교 기간이 일치하지 않습니다. 두 결과를 직접 합산하거나 동일 기간의 인과 분석으로 취급하지 않습니다.','blocked'));
+        }
         const line=el('p',
           '주문당 구매수량 효과 '+fmt(b.items_per_order_effect)+'원 / '+
           '상품 실현단가 효과 '+fmt(b.realized_item_revenue_effect)+'원 / '+
           'GA4 상품기준 객단가 변화 '+fmt(b.item_aov_delta)+'원','observed');
         observed.append(line);
+        if(Number.isFinite(b.items_per_order_previous)&&Number.isFinite(b.items_per_order_current)
+           &&Number.isFinite(b.realized_item_price_previous)&&Number.isFinite(b.realized_item_price_current)){
+          const piecesPct=b.items_per_order_previous>0?
+            ((b.items_per_order_current/b.items_per_order_previous)-1)*100:null;
+          const pricePct=b.realized_item_price_previous>0?
+            ((b.realized_item_price_current/b.realized_item_price_previous)-1)*100:null;
+          observed.append(el('p','GA4 주문당 구매수량 '+b.items_per_order_previous.toFixed(3)+' → '+
+            b.items_per_order_current.toFixed(3)+(piecesPct===null?'':' ('+pct(piecesPct)+')')+
+            ' / 상품당 실현매출 '+fmt(b.realized_item_price_previous)+'원 → '+fmt(b.realized_item_price_current)+
+            '원'+(pricePct===null?'':' ('+pct(pricePct)+')')+
+            '. 수량·실현단가의 산술적 기여이며, 할인·상품믹스의 원인은 미검증입니다.','observed'));
+        }
         observed.append(el('p','상품군 구성 효과(판매 상품 1개당) '+
           fmt(part.category_mix_effect_per_item)+'원 · 동일 상품군 내 실현단가 효과 '+
           fmt(part.within_category_effect_per_item)+'원'));
@@ -118,7 +141,7 @@
         const revenue=g.sales_revenue_bridge||{};
         if(typeof revenue.purchase_revenue_delta_krw==='number'){
           const line=el('p',null,'observed');
-          line.append(el('strong','주간 전체 매출 구성: '),
+          line.append(el('strong','GA4 구매 이벤트 매출 변동 구성: '),
             document.createTextNode(
               '판매수량 효과 '+fmt(revenue.qty_effect_krw)+'원 / '+
               '상품 실현단가 효과 '+fmt(revenue.realized_unit_revenue_effect_krw)+'원 / '+
