@@ -27,7 +27,7 @@ const layoutCssId="csk-layout-v2-css",layoutJsId="csk-layout-v2-script";
 if(!document.getElementById(layoutCssId)){
   const link=document.createElement("link");
   link.id=layoutCssId;link.rel="stylesheet";
-  link.href=new URL("./csk-layout-v2.css?v=20261122-weatherfocus-v1",entry.src).href;
+  link.href=new URL("./csk-layout-v2.css?v=20261122-weatherfocus-v2",entry.src).href;
   document.head.appendChild(link);
 }
 if(!document.getElementById(layoutJsId)){
