@@ -61,6 +61,17 @@ async function main(){
  assert(overview.includes(Math.round(ops.weekly.current.total.orders).toLocaleString("ko-KR")+"건"),"Observed order count absent");
  assert(overview.includes(Math.round(ops.weekly.current.total.revenue/ops.weekly.current.total.orders).toLocaleString("ko-KR")+"원"),"AOV must preserve won units");
  assert(!overview.includes("INV-1003")&&!overview.includes("$ 24,850"),"Sample invoice numbers must never appear");
+ const thisYear=ops.calendar||{},actual=thisYear.impact_diagnostics||{};
+ if(Array.isArray(thisYear.current) && thisYear.current.length) {
+   assertContent(overview,["올해 행사 · 예상 여파","2026 CAMPAIGN CONTEXT"]);
+   const sample=thisYear.current.find(x=>x.impact_hypothesis);
+   if(sample)assert(overview.includes(sample.title) && overview.includes(sample.impact_hypothesis),
+     "Current-year source event and forecast effect must be visible");
+   if(actual.status==="descriptive")
+     assertContent(overview,["본행사 전 "+actual.pre_days+"일 · 매출 YoY",
+       "본행사 시작 후 "+actual.active_days+"일 · 매출 YoY",
+       "동일 요일 비교, 추정 기여액 아님"]);
+ }
  const yr=ops.weekly && ops.weekly.yoy||{},lastYear=ops.calendar||{};
  if(yr.status==="ready" && lastYear.yoy_window===yr.period){
    assertContent(overview,["작년 행사 · 매출 비교","YOY CONTEXT","동일 요일 기준"]);
