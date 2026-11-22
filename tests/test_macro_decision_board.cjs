@@ -25,7 +25,6 @@ assert.match(target.innerHTML,/요인 1 · 객단가·구매 구성/);
 assert.match(target.innerHTML,/요인 2 · 구매전환 효율/);
 assert.match(target.innerHTML,/요인 3 · 유입 규모/);
 assert.match(target.innerHTML,/동일 기간 채널별 매출 대사 결과를 아직 확보/);
-assert.match(target.innerHTML,/동일 기간 채널별 매출 대사 결과를 아직 확보/);
 assert.match(target.innerHTML,/인과 미확정/);
 render({...base,weekly:{...base.weekly,current:{status:'partial',total:current}}},di);
 assert.match(target.innerHTML,/기여액을 계산하지 않았습니다/);
@@ -54,12 +53,12 @@ aligned.admin_reconciliation.comparable=true;
 render(base,di,weekly,aligned);
 assert.match(target.innerHTML,/1.500→1.300개/);
 assert.match(target.innerHTML,/GA4 구매 이벤트·운영 KPI 대사 통과/);
-assert.match(target.innerHTML,/주문당 상품수 변화/);
-assert.match(target.innerHTML,/상품행·구매매출 차이/);
 aligned.item_aov_bridge={items_per_order_previous:1.504,items_per_order_current:1.331,
  realized_item_price_previous:129543.77,realized_item_price_current:130214.51,
  items_per_order_effect:-22436.26,realized_item_revenue_effect:950.72};
 render(base,di,weekly,aligned);
+assert.match(target.innerHTML,/주문당 상품수 변화/);
+assert.match(target.innerHTML,/상품행·구매매출 차이/);
 assert.match(target.innerHTML,/-22,436원\/건/);
 assert.match(target.innerHTML,/\+951원\/건/);
 render(base,di,{...weekly,net_revenue_delta:1000000},aligned);
