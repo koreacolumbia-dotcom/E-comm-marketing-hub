@@ -36,10 +36,13 @@
     },
     "status": "ga4_measured",
     "cost": {
-      "dry_run_bytes": 630122986,
-      "billed_bytes": 631242752,
+      "dry_run_bytes": 677429602,
+      "billed_bytes": 0,
       "maximum_bytes_billed_total": 1073741824,
-      "dry_run_required": true
+      "dry_run_required": true,
+      "source_query_billed_bytes": 678428672,
+      "reused_aggregate": true,
+      "read_from": "weekly_ga4_aligned.json"
     },
     "item_aov_bridge": {
       "items_per_order_previous": 1.514,
@@ -65,30 +68,30 @@
       "note": "Accounting identity, not proof of coupon/discount/refund causality."
     },
     "category_bridge": {
-      "category_mix_effect_per_item": -5076.01,
-      "within_category_effect_per_item": 5290.82,
+      "category_mix_effect_per_item": -5501.29,
+      "within_category_effect_per_item": 5716.1,
       "realized_item_price_delta": 214.81,
       "rows": [
         {
           "category": "OUTER",
-          "share_previous_pct": 9.16,
-          "share_current_pct": 4.88,
-          "mix_effect_per_item": -15246.73,
-          "within_category_effect_per_item": 562.18
+          "share_previous_pct": 9.51,
+          "share_current_pct": 5.16,
+          "mix_effect_per_item": -15753.92,
+          "within_category_effect_per_item": 1246.38
         },
         {
           "category": "SALE",
-          "share_previous_pct": 43.19,
-          "share_current_pct": 51.65,
-          "mix_effect_per_item": 11429.25,
-          "within_category_effect_per_item": 8310.82
+          "share_previous_pct": 42.84,
+          "share_current_pct": 51.94,
+          "mix_effect_per_item": 12043.33,
+          "within_category_effect_per_item": 7928.32
         },
         {
           "category": "FLEECE",
           "share_previous_pct": 23.04,
-          "share_current_pct": 18.01,
-          "mix_effect_per_item": -4570.0,
-          "within_category_effect_per_item": -3220.83
+          "share_current_pct": 17.43,
+          "mix_effect_per_item": -5102.19,
+          "within_category_effect_per_item": -3097.25
         },
         {
           "category": "FOOTWEAR",
@@ -143,15 +146,15 @@
       "caveat": "New/retired categories attributed to mix; within-category price contains discount and mix."
     },
     "admin_reconciliation": {
-      "comparable": false,
+      "comparable": true,
       "periods": {
         "current": {
-          "order_gap_pct": 18.95,
-          "revenue_gap_pct": 19.19
+          "order_gap_pct": 0.0,
+          "revenue_gap_pct": 0.0
         },
         "previous": {
-          "order_gap_pct": 4.18,
-          "revenue_gap_pct": 3.26
+          "order_gap_pct": 0.0,
+          "revenue_gap_pct": 0.0
         }
       },
       "caveat": "GA4 event and administrative net revenue/order definitions can differ."
@@ -205,7 +208,7 @@
       "priority": "P0",
       "status": "observed_ga4_components",
       "title": "구매 객단가의 수량·실현단가 기여도 측정",
-      "finding": "GA4 상품기준 주문당 수량 효과 -22,846원, 상품 실현단가 효과 +306원 · GA4 구매 이벤트 기준이며 기존 KPI와 정합성 추가 검증 필요",
+      "finding": "GA4 상품기준 주문당 수량 효과 -22,846원, 상품 실현단가 효과 +306원 · 기존 Daily KPI 합계와 일치, 독립 관리자 주문마트는 미검증",
       "cause_component": "GA4 구매 상품의 주문당 수량 변화와 상품 평균 실현매출 변화는 산술적으로 분해 완료. 실현단가에는 할인, 상품구성, 정가 변화가 함께 포함됨.",
       "cause_hypotheses": [
         "쿠폰/할인 변화",
@@ -225,29 +228,29 @@
         "source": "GA4 item revenue and purchase revenue"
       },
       "category_mix": {
-        "mix_effect_per_item": -5076.01,
-        "within_category_effect_per_item": 5290.82,
+        "mix_effect_per_item": -5501.29,
+        "within_category_effect_per_item": 5716.1,
         "rows": [
           {
             "category": "OUTER",
-            "share_previous_pct": 9.16,
-            "share_current_pct": 4.88,
-            "mix_effect_per_item": -15246.73,
-            "within_category_effect_per_item": 562.18
+            "share_previous_pct": 9.51,
+            "share_current_pct": 5.16,
+            "mix_effect_per_item": -15753.92,
+            "within_category_effect_per_item": 1246.38
           },
           {
             "category": "SALE",
-            "share_previous_pct": 43.19,
-            "share_current_pct": 51.65,
-            "mix_effect_per_item": 11429.25,
-            "within_category_effect_per_item": 8310.82
+            "share_previous_pct": 42.84,
+            "share_current_pct": 51.94,
+            "mix_effect_per_item": 12043.33,
+            "within_category_effect_per_item": 7928.32
           },
           {
             "category": "FLEECE",
             "share_previous_pct": 23.04,
-            "share_current_pct": 18.01,
-            "mix_effect_per_item": -4570.0,
-            "within_category_effect_per_item": -3220.83
+            "share_current_pct": 17.43,
+            "mix_effect_per_item": -5102.19,
+            "within_category_effect_per_item": -3097.25
           },
           {
             "category": "FOOTWEAR",
