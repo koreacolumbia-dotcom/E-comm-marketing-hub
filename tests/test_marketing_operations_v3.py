@@ -141,6 +141,62 @@ class WeeklyTests(unittest.TestCase):
             self.assertEqual(r["wow_pct"]["orders"], 100)
             self.assertEqual(r["current"]["total"]["sessions"], 14_000)
 
+    def test_weekday_aligned_bigquery_yoy_is_derived_only_from_matching_daily_sources(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            for offset in range(13,-1,-1):
+                date=DAY-dt.timedelta(days=offset)
+                row=daily(date,orders=20 if offset<7 else 10,
+                          revenue=2_000_000 if offset<7 else 1_000_000)
+                if offset<7:
+                    ly=(date-dt.timedelta(days=364)).isoformat()
+                    row["yoy"]={"start":ly,"end":ly}
+                    row["overall"]={
+                        "current":{"source":"ga4_bigquery_session_key_v1",
+                                   "sessions":2000,"transactions":20,"purchaseRevenue":2_000_000},
+                        "yoy":{"source":"ga4_bigquery_session_key_v1",
+                               "sessions":2500,"transactions":15,"purchaseRevenue":1_500_000}
+                    }
+                (folder/f"{date}.json").write_text(json.dumps(row))
+            measured=weekly_kpis(DAY,folder)
+            self.assertEqual(measured["status"],"ready")
+            yoy=measured["yoy"]
+            self.assertEqual(yoy["status"],"ready")
+            self.assertEqual(yoy["reference"]["total"]["sessions"],17_500)
+            self.assertEqual(yoy["reference"]["total"]["orders"],105)
+            self.assertEqual(yoy["reference"]["total"]["revenue"],10_500_000)
+            self.assertEqual(yoy["yoy_pct"]["orders"],33.33)
+            self.assertEqual(yoy["yoy_pct"]["aov"],0)
+            self.assertEqual(yoy["alignment"],"same_weekday_364_days")
+            self.assertEqual(yoy["period"],f"{DAY-dt.timedelta(days=370)} ~ {DAY-dt.timedelta(days=364)}")
+
+    def test_yoy_does_not_mix_ga4_api_with_bigquery_or_fill_missing_days(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            for offset in range(13,-1,-1):
+                date=DAY-dt.timedelta(days=offset)
+                row=daily(date)
+                if offset<7:
+                    ly=(date-dt.timedelta(days=364)).isoformat()
+                    row["yoy"]={"start":ly,"end":ly}
+                    row["overall"]={
+                        "current":{"source":"ga4_bigquery_session_key_v1",
+                                   "sessions":2000,"transactions":20,"purchaseRevenue":2_000_000},
+                        "yoy":{"source":"ga4_bigquery_session_key_v1",
+                               "sessions":2500,"transactions":15,"purchaseRevenue":1_500_000}
+                    }
+                (folder/f"{date}.json").write_text(json.dumps(row))
+            bad=DAY-dt.timedelta(days=3)
+            p=folder/f"{bad}.json"
+            row=json.loads(p.read_text())
+            row["overall"]["yoy"]["source"]="ga4_api"
+            p.write_text(json.dumps(row))
+            result=weekly_kpis(DAY,folder)
+            self.assertEqual(result["status"],"ready")
+            self.assertEqual(result["yoy"]["status"],"unavailable")
+            self.assertIsNone(result["yoy"]["reference"]["total"])
+            self.assertEqual(result["yoy"]["missing_dates"],[(bad-dt.timedelta(days=364)).isoformat()])
+
 
 class IncrementalityTests(unittest.TestCase):
     def test_private_missing_does_not_invent_results(self):
