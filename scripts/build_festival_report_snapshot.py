@@ -133,6 +133,182 @@ def owned_comparison(utm):
     return {"status":"ga4_measured","period":utm.get("period"),"grouped_totals":out,
             "tag_naming_not_equivalent":True,"causal":False}
 
+
+def shapley_event(totals):
+    """Exact 3-factor 6-permutation decomposition: sessions x CVR x AOV."""
+    a,b=totals["previous"],totals["current"]
+    if not all(a.get(k,0)>0 and b.get(k,0)>0 for k in ("sessions","orders","revenue")):
+        return {"status":"not_ready","terms":{}}
+    old=[a["sessions"],a["orders"]/a["sessions"],a["revenue"]/a["orders"]]
+    new=[b["sessions"],b["orders"]/b["sessions"],b["revenue"]/b["orders"]]
+    impact=[0.,0.,0.]
+    permutations=((0,1,2),(0,2,1),(1,0,2),(1,2,0),(2,0,1),(2,1,0))
+    def multiply(v):return v[0]*v[1]*v[2]
+    for perm in permutations:
+        vals=old[:]
+        for i in perm:
+            before=multiply(vals)
+            vals[i]=new[i]
+            impact[i]+=(multiply(vals)-before)/len(permutations)
+    if abs(sum(impact)-(b["revenue"]-a["revenue"]))>0.1:
+        return {"status":"unreconciled","terms":{}}
+    return {"status":"reconciled","terms":{
+        name:{"amount_krw":round(value),"value_before":old[i],
+              "value_after":new[i]} for i,(name,value) in enumerate(
+              zip(("sessions","cvr","aov"),impact))},
+            "note":"Shapley 6-order arithmetic decomposition, not causal effects."}
+
+def diagnose_drivers(event, media, paid):
+    """Rank why performance changed using two SEPARATE, not additive lenses.
+    Funnel Shapley factors and GA4 channel attribution overlap. Never sum them.
+    2026 event D3 is not combined with a D2-only media analysis.
+    """
+    if event.get("status")!="verified_ga4" or not event.get("totals"):
+        return {"status":"not_ready","causal":False}
+    totals=event["totals"]
+    a,b=totals["previous"],totals["current"]
+    if a["revenue"]<=0:
+        return {"status":"not_ready","causal":False}
+    funnel=shapley_event(totals)
+    net=b["revenue"]-a["revenue"]
+    event_days_count=event.get("days",0)
+    out={"schema":1,"status":"funnel_only","causal":False,
+         "event_days":event_days_count,
+         "compared_dates":{"current":[event["daily"][0]["current_date"],
+                                      event["daily"][-1]["current_date"]],
+                           "previous":[event["daily"][0]["previous_date"],
+                                       event["daily"][-1]["previous_date"]]},
+         "net_revenue_change_krw":net,
+         "net_revenue_yoy_pct":round((b["revenue"]/a["revenue"]-1)*100,2),
+         "funnel":funnel,
+         "event_media_aligned":False,
+         "strengths":[],"weaknesses":[],
+         "caveats":["전환율·세션·객단가 분해와 채널 매출 증감은 서로 겹치는 설명 관점입니다. 둘을 합산하지 않습니다.",
+                    "관측된 GA4 귀속 매출은 프로모션·광고의 순증 인과 효과가 아닙니다.",
+                    "상품 믹스·할인·광고 소재·실제 광고비 원본이 검증되지 않으면 원인으로 확정하지 않습니다."]}
+    def card(key,axis,title,headline,sub,evidence,interpretation,verify):
+        return {"id":key,"axis":axis,"title":title,"headline":headline,
+                "subtitle":sub,"evidence":evidence,
+                "interpretation":interpretation,"verify_next":verify,
+                "confidence":"measured_descriptive","causal":False}
+    if funnel["status"]=="reconciled":
+        ft=funnel["terms"]
+        cv=a["orders"]/a["sessions"]*100
+        cv2=b["orders"]/b["sessions"]*100
+        out["strengths"].append(card(
+            "conversion","funnel","구매전환 효율 변화",
+            ft["cvr"]["amount_krw"],"CVR 변화의 매출 산술 배분액 (원)",
+            f"CVR {cv:.2f}% → {cv2:.2f}%; 주문 {a['orders']} → {b['orders']}; 세션 {a['sessions']:,} → {b['sessions']:,}",
+            "유입 증가만으로 설명되지 않는 전환율 변화가 관측됐습니다. 판촉 자체의 인과 기여로 단정할 수 없습니다.",
+            "제품상세→장바구니→결제 퍼널, 신규·기존 구매자, 가격/쿠폰 및 디바이스별 전환을 전년 동일 구간으로 대조"))
+        out["basket_watch"]=card(
+            "aov","funnel","객단가·구매 구성 점검",
+            ft["aov"]["amount_krw"],"객단가 변화의 매출 산술 배분액 (원)",
+            f"AOV {a['revenue']/a['orders']:,.0f}원 → {b['revenue']/b['orders']:,.0f}원",
+            "주문수 증가와 별개로 객단가가 하락했습니다. 할인율·SKU 믹스·수량 구성이 원인인지는 아직 미검증입니다.",
+            "스타일·카테고리·할인율별 구매수량, 주문당 상품수와 객단가 비교"))
+    if (media.get("status")!="ga4_measured" or
+            not all((media.get("years") or {}).get(y) for y in ("2025","2026"))):
+        out["media_unavailable_reason"]="2025·2026 채널 귀속 원본 미확보"
+        return out
+    periods=media.get("period") or {}
+    expect={"2025":out["compared_dates"]["previous"],
+            "2026":out["compared_dates"]["current"]}
+    if any(periods.get(y)!=dates for y,dates in expect.items()):
+        out["media_unavailable_reason"]="행사 채널 원본 기간과 누적 KPI 집계 기간 불일치"
+        out["media_period"]=periods
+        return out
+    years=media["years"]
+    # Bridge only if full grouped channel totals reconcile with official event sums.
+    for year,key in (("2025","previous"),("2026","current")):
+        media_totals=years[year].get("totals") or {}
+        if (media_totals.get("revenue")!=totals[key]["revenue"] or
+                media_totals.get("orders")!=totals[key]["orders"] or
+                abs(media_totals.get("sessions",0)-totals[key]["sessions"])>2):
+            out["media_unavailable_reason"]="채널 합계가 GA4 행사 KPI와 일치하지 않음"
+            return out
+    ly={r["id"]:r for r in years["2025"].get("groups",[]) if "id" in r}
+    ty={r["id"]:r for r in years["2026"].get("groups",[]) if "id" in r}
+    rows=[]
+    for key in sorted(set(ly)|set(ty)):
+        prior=ly.get(key,{})
+        current=ty.get(key,{})
+        row={"id":key,"label":current.get("label") or prior.get("label") or key,
+             "previous":{"revenue":prior.get("revenue",0),
+                         "orders":prior.get("orders",0),"sessions":prior.get("sessions",0)},
+             "current":{"revenue":current.get("revenue",0),
+                        "orders":current.get("orders",0),"sessions":current.get("sessions",0)},
+             "delta_krw":current.get("revenue",0)-prior.get("revenue",0)}
+        for year in ("previous","current"):
+            p=row[year]
+            p["cvr_pct"]=round(100*p["orders"]/p["sessions"],3) if p["sessions"] else None
+        rows.append(row)
+    if sum(r["delta_krw"] for r in rows)!=net:
+        out["media_unavailable_reason"]="채널별 증감액 합계가 총매출 증감과 불일치"
+        return out
+    out.update({"status":"reconciled","event_media_aligned":True,
+                "media_period":periods,"channel_bridge":rows,
+                "channel_total_change_krw":sum(r["delta_krw"] for r in rows),
+                "channel_gains":sorted([r for r in rows if r["delta_krw"]>0],key=lambda x:-x["delta_krw"]),
+                "channel_losses":sorted([r for r in rows if r["delta_krw"]<0],key=lambda x:x["delta_krw"]),
+                "unclassified":{"current":ty.get("other",{}).get("revenue",0),
+                                "previous":ly.get("other",{}).get("revenue",0)},
+                "paid_roas_eligible":paid.get("roas_eligible") is True})
+    brand=next((r for r in rows if r["id"]=="naver_brand_search"),None)
+    meta=next((r for r in rows if r["id"]=="meta_conversion_tagged"),None)
+    referral=next((r for r in rows if r["id"]=="referral"),None)
+    search=next((r for r in rows if r["id"]=="naver_search_other"),None)
+    crm=next((r for r in rows if r["id"]=="owned_crm_tagged"),None)
+    bd=next((r for r in rows if r["id"]=="meta_bd_tagged"),None)
+    if brand:
+        b0,b1=brand["previous"],brand["current"]
+        out["strengths"].append(card(
+            "brand_search","media","네이버 브랜드검색 성장",
+            brand["delta_krw"],"동일 행사일 GA4 브랜드검색 매출 증감 (원)",
+            f"세션 {b0['sessions']:,} → {b1['sessions']:,}; 구매 {b0['orders']} → {b1['orders']}; CVR {b0['cvr_pct']:.2f}% → {b1['cvr_pct']:.2f}%",
+            "브랜드를 찾는 유입의 구매·전환이 동시에 증가했습니다. 검색 수요 증가인지 검색광고 개선인지는 구분되지 않습니다.",
+            "검색어·브랜드검색 노출/클릭·점유율·랜딩과 프로모션 노출 확인"))
+    if meta:
+        m0,m1=meta["previous"],meta["current"]
+        out["strengths"].append(card(
+            "meta_banner","media","Meta 배너 구매 확대",
+            meta["delta_krw"],"동일 행사일 Meta/Facebook 배너 귀속 매출 증감 (원)",
+            f"세션 {m0['sessions']:,} → {m1['sessions']:,}; 구매 {m0['orders']} → {m1['orders']}; CVR {m0['cvr_pct']:.2f}% → {m1['cvr_pct']:.2f}%",
+            "Meta 배너 태그로 들어온 세션의 구매가 증가했습니다. 광고 집행비·캠페인 목적 데이터 없이 ROAS 개선으로 판단하지 않습니다.",
+            "Meta 광고관리자 캠페인별 실제 지출·목적·소재/세트·구매 전환 데이터 대조"))
+    if referral:
+        r0,r1=referral["previous"],referral["current"]
+        out["weaknesses"].append(card(
+            "referral","media","레퍼럴 전환 약화",
+            referral["delta_krw"],"동일 행사일 레퍼럴 귀속 매출 증감 (원)",
+            f"세션 {r0['sessions']:,} → {r1['sessions']:,}; 구매 {r0['orders']} → {r1['orders']}; CVR {r0['cvr_pct']:.2f}% → {r1['cvr_pct']:.2f}%",
+            "레퍼럴 유입은 늘었지만 구매 효율이 악화됐습니다. 어떤 추천 사이트 또는 랜딩에서 이탈하는지는 추가 분석이 필요합니다.",
+            "추천 도메인/랜딩/PDP/주문 세그먼트별 전년 차이 확인"))
+    if search:
+        x0,x1=search["previous"],search["current"]
+        out["weaknesses"].append(card(
+            "nonbrand_search","media","네이버 일반검색 유입 감소",
+            search["delta_krw"],"동일 행사일 일반검색 귀속 매출 증감 (원)",
+            f"세션 {x0['sessions']:,} → {x1['sessions']:,}; 구매 {x0['orders']} → {x1['orders']}; CVR {x0['cvr_pct']:.2f}% → {x1['cvr_pct']:.2f}%",
+            "CVR은 개선됐지만 방문 규모가 줄어 매출이 감소했습니다. 검색 수요·노출·입찰의 어느 요인 때문인지는 미확인입니다.",
+            "일반검색 키워드 노출수/클릭수, 품절/랜딩 품질, 예산·입찰 변동 확인"))
+    if crm:
+        x0,x1=crm["previous"],crm["current"]
+        out["weaknesses"].append(card(
+            "crm","media","CRM·Owned 구매 유입 약세",
+            crm["delta_krw"],"동일 행사일 카카오·LMS·EDM 귀속 매출 증감 (원)",
+            f"세션 {x0['sessions']:,} → {x1['sessions']:,}; 구매 {x0['orders']} → {x1['orders']}; CVR {x0['cvr_pct']:.2f}% → {x1['cvr_pct']:.2f}%",
+            "유입·구매건수가 소폭 감소했습니다. 전년/올해 UTM 명명체계가 달라 캠페인 태그 한 종류만으로 CRM 효과를 판단하지 않습니다.",
+            "LMS·EDM·카카오 발송수/수신모수, 미구매자/기존 구매자, 발송 시점별 세션 확인"))
+    if bd:
+        x=bd["current"]
+        out["traffic_watch"]={"title":"META_BD 대량 유입·구매 분리",
+             "sessions":x["sessions"],"orders":x["orders"],"revenue":x["revenue"],
+             "cvr_pct":x["cvr_pct"],
+             "note":"인지·트래픽 목적 태그는 판매 목적 Meta 배너와 분리. 인지도 목적의 실패를 구매 지표만으로 판정하지 않음.",
+             "verify_next":"노출·도달·CPM·빈도·랜딩 이후 전환 경로"}
+    return out
+
 def build(ops,source,utm,intel,previous=None):
     previous=previous or {}
     integration=((intel.get("integrations") or {}).get("paid_cost") or {})
@@ -145,9 +321,10 @@ def build(ops,source,utm,intel,previous=None):
     e=event_days(ops,previous)
     w=weekly_channels(source,ops)
     u=media_event(utm,previous)
+    diag=diagnose_drivers(e,u,paid)
     now=dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat(timespec="seconds")
     return {"schema":2,"generated_at_kst":now,"report_date":ops.get("report_date"),
-            "event":e,"weekly_media":w,"event_media":u,
+            "event":e,"weekly_media":w,"event_media":u,"diagnosis":diag,
             "owned_utm":owned_comparison(utm),"paid_cost":paid,
             "updated_from":["reports/marketing_operations/latest.json",
                             "reports/decision_health/source_medium_weekly.json",
