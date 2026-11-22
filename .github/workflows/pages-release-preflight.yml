@@ -7,6 +7,9 @@ on:
     paths:
       - "index.html"
       - "assets/csk-unified-hub.js"
+      - "assets/csk-saas-unified.css"
+      - "assets/csk-saas-unified.js"
+      - "tests/csk_saas_theme_smoke.js"
       - "tests/test_unified_hub.py"
       - "scripts/prepare_cloudflare_bundle.py"
       - "assets/dashboard-redesign.js"
@@ -101,6 +104,8 @@ jobs:
           PY
           node --check /tmp/csk-calendar-release-check.js
           node --check assets/csk-unified-hub.js
+          node --check assets/csk-saas-unified.js
+          node tests/csk_saas_theme_smoke.js
           node --check assets/mobile-edge-to-edge.js
           python -m unittest discover -s tests -p 'test_unified_hub.py' -v
           python - <<'PY'
