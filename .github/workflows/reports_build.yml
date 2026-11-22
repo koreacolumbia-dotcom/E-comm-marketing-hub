@@ -1515,6 +1515,9 @@ jobs:
           cp reports/member_funnel/index.html site/member_funnel/index.html
           cp reports/member_funnel/index.html reports/voc_crema/member_funnel/index.html
           python scripts/dashboard_security.py --root reports/member_funnel --root site/member_funnel --root reports/voc_crema/member_funnel
+          # Apply standalone SaaS styling after generators and privacy placeholders.
+          # Do not touch either daily report route or modify generated data.
+          python scripts/apply_csk_saas_theme.py
 
           echo "[DEBUG] Final member funnel data candidates before git add"
           ls -la reports/member_funnel/data || true
