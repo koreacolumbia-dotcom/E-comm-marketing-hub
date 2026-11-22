@@ -1850,7 +1850,29 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     .trend-anim-fade {{ opacity:0; animation:fadeRise .55s ease forwards; }}
     @keyframes dashDraw {{ to {{ stroke-dashoffset:0; }} }}
     @keyframes fadeRise {{ from {{ opacity:0; transform:translateY(8px); }} to {{ opacity:1; transform:translateY(0); }} }}
-  </style>
+  
+/* KPI Trend mobile: chart-first layout; retain full date data via horizontal scroll. */
+@media (max-width:700px){{
+  .summary-section .trend-panel{{padding:12px!important;margin-top:10px!important;border:0!important;border-radius:14px!important;box-shadow:none!important;background:#fff!important}}
+  .summary-section .trend-panel>div:first-child{{gap:5px!important;margin-bottom:8px!important}}
+  .summary-section .trend-panel>div:first-child .section-eyebrow{{display:none!important}}
+  .summary-section .trend-panel>div:first-child h3{{font-size:15px!important;letter-spacing:-.025em!important;margin:0!important}}
+  .summary-section .trend-panel>div:first-child p{{display:none!important}}
+  .summary-section .trend-legend{{font-size:10px!important;white-space:nowrap;display:flex!important;gap:6px;flex-wrap:wrap}}
+  .summary-section .trend-head{{gap:8px!important;margin-bottom:9px!important}}
+  .summary-section .trend-head>div:first-child{{gap:6px!important}}
+  .summary-section .trend-selected{{font-size:17px!important;line-height:1.3!important;overflow-wrap:anywhere}}
+  .summary-section .trend-summary{{font-size:11px!important;line-height:1.55!important;color:#65758b!important}}
+  .summary-section .range-tabs{{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:5px!important;width:100%!important;flex-wrap:nowrap!important}}
+  .summary-section .range-tabs .range-tab{{min-width:0!important;width:100%;padding:9px 2px!important;font-size:10px!important;letter-spacing:0!important;border:1px solid #e3e9f1!important;border-radius:9px!important;box-shadow:none!important}}
+  .summary-section .range-tabs .range-tab.active{{border-color:#24354f!important;box-shadow:none!important}}
+  .summary-section .trend-svg-shell{{padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important;overflow:hidden!important}}
+  .summary-section .trend-scroll{{max-width:100%!important;width:100%!important;overflow-x:auto!important;overflow-y:hidden!important;touch-action:pan-x;overscroll-behavior-x:contain;scrollbar-width:thin}}
+  .summary-section .trend-scroll .trend-svg{{max-width:none!important;min-width:0!important;display:block!important;flex-shrink:0!important}}
+  body.csk-embedded-mobile .trend-scroll svg.trend-svg{{max-width:none!important}}
+  .summary-section .chart-tooltip{{max-width:85vw;white-space:normal}}
+}}
+</style>
 </head>
 <body>
   <div class="w-full max-w-none px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
@@ -2070,22 +2092,24 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const lyCount = lySeries.filter(row => row.value !== null).length;
         const legend = panel.querySelector('.trend-legend');
         if (hasYoY && legend) {{
-          legend.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px"><span style="width:22px;border-top:3px solid #0f172a"></span>선택 기간 (TY)</span><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:22px;border-top:3px dashed #64748b"></span>전년 동기간 (LY)</span><span style="display:block;margin-top:4px">카드를 누르면 KPI 그래프로 전환됩니다.</span>';
+          legend.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px"><span style="width:18px;border-top:3px solid #0f172a"></span>올해(TY)</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:18px;border-top:3px dashed #64748b"></span>전년(LY)</span>';
         }}
         const vals = series.map(x => x.value).concat(lySeries.filter(x => x.value !== null).map(x => x.value));
         const min = Math.min(...vals);
         const max = Math.max(...vals);
         const range = (max - min) || (max === 0 ? 1 : Math.abs(max) * 0.15) || 1;
-        const padL = 60, padR = 28, padT = 24, padB = 112;
-        const dynamicStep = section === 'weekly'
-          ? (rangeKey === '2YEAR' ? 58 : rangeKey === '1YEAR' ? 64 : 84)
-          : (rangeKey === '2YEAR' ? 18 : rangeKey === '1YEAR' ? 26 : 58);
-        const W = Math.max(1200, padL + padR + Math.max(series.length - 1, 1) * dynamicStep);
-        const H = 420;
+        const mobileTrend = window.matchMedia('(max-width: 700px)').matches;
+        const padL = mobileTrend ? 20 : 60, padR = mobileTrend ? 20 : 28, padT = mobileTrend ? 16 : 24, padB = mobileTrend ? 46 : 112;
+        const dynamicStep = mobileTrend
+          ? (rangeKey === '2YEAR' ? 7 : rangeKey === '1YEAR' ? 12 : section === 'weekly' ? 58 : 44)
+          : (section === 'weekly' ? (rangeKey === '2YEAR' ? 58 : rangeKey === '1YEAR' ? 64 : 84) : (rangeKey === '2YEAR' ? 18 : rangeKey === '1YEAR' ? 26 : 58));
+        const W = Math.max(mobileTrend ? 320 : 1200, padL + padR + Math.max(series.length - 1, 1) * dynamicStep);
+        const H = mobileTrend ? 276 : 420;
         const innerW = W - padL - padR, innerH = H - padT - padB;
         const stepX = series.length > 1 ? innerW / (series.length - 1) : innerW / 2;
         svg.setAttribute('viewBox', `0 0 ${{W}} ${{H}}`);
         svg.style.width = `${{W}}px`;
+        svg.style.height = `${{H}}px`;
         const pts = series.map((p, i) => {{
           const x = padL + (series.length > 1 ? i * stepX : innerW / 2);
           const y = padT + innerH - (((p.value - min) / range) * innerH);
@@ -2103,7 +2127,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const line = pts.map(p => p.join(',')).join(' ');
         const area = `M ${{padL}} ${{H-padB}} L ${{pts.map(p=>p.join(' ')).join(' L ')}} L ${{pts[pts.length-1][0]}} ${{H-padB}} Z`;
         const grid = [0,1,2,3,4].map(i => {{ const y = padT + (innerH * i / 4); return `<line x1="${{padL}}" y1="${{y}}" x2="${{W-padR}}" y2="${{y}}" stroke="rgba(148,163,184,.26)" stroke-width="1" />`; }}).join('');
-        const weekendBands = (section === 'daily' || section === 'owned') ? series.map((x, i) => {{
+        const weekendBands = !mobileTrend && (section === 'daily' || section === 'owned') ? series.map((x, i) => {{
           if (x.weekend < 0) return '';
           const left = i === 0 ? pts[i][0] - stepX / 2 : (pts[i-1][0] + pts[i][0]) / 2;
           const right = i === series.length - 1 ? pts[i][0] + stepX / 2 : (pts[i][0] + pts[i+1][0]) / 2;
@@ -2118,6 +2142,10 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         }}).join('');
         const labels = pts.map((p, i) => {{
           if (!series[i].label) return '';
+          if (mobileTrend && series.length > 8) {{
+            const labelStep = rangeKey === '2YEAR' ? 60 : rangeKey === '1YEAR' ? 30 : rangeKey === '1MONTH' ? 4 : rangeKey === '14D' ? 2 : 2;
+            if (i !== series.length - 1 && i !== 0 && i % labelStep !== 0) return '';
+          }}
           const fill = section === 'weekly' ? '#475569' : series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : '#64748b';
           const bg = section === 'weekly' ? 'transparent' : series[i].weekend === 6 ? 'rgba(37,99,235,.18)' : series[i].weekend === 0 ? 'rgba(220,38,38,.18)' : 'transparent';
           const w = section === 'weekly' ? 36 : 44;
@@ -2136,6 +2164,10 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const startTxt = section === 'weekly' ? (series[0]?.tipLabel || series[0]?.date || '') : (series[0]?.date || '');
         const endTxt = section === 'weekly' ? currentWeekLabel(series.length-1) : (series[series.length-1]?.date || '');
         summaryEl.textContent = `${{startTxt}} ~ ${{endTxt}} · 최근값 ${{formatMetric(metric, last)}}${{delta == null ? '' : ` · 직전 대비 ${{delta >= 0 ? '+' : ''}}${{(delta * 100).toFixed(1)}}%`}} · ${{series.length}}포인트${{hasYoY ? ` · LY ${{lyCount}}/${{series.length}}${{section === "weekly" ? "주" : "일"}}${{lyCount < series.length ? " (일부 전년 데이터 없음)" : ""}}` : ""}}${{partialWeek ? " · 최근 주 부분 집계 (동일 요일 비교)" : ""}}`;
+        if (mobileTrend) {{
+          const compactPeriod = section === 'weekly' ? (series[0]?.rawLabel || '')+'–'+(series[series.length-1]?.rawLabel || '') : startTxt.slice(5)+'–'+endTxt.slice(5);
+          summaryEl.textContent = `${{compactPeriod}} · 최근 ${{formatMetric(metric,last)}}${{delta === null ? '' : ` · 직전 ${{delta >= 0 ? '+' : ''}}${{(delta*100).toFixed(1)}}%`}}${{hasYoY ? ` · LY ${{lyCount}}/${{series.length}}` : ''}}`;
+        }}
         const tip = panel.querySelector('[data-chart-tooltip]');
         const shell = panel.querySelector('.trend-svg-shell');
         const hideTip = () => {{ if (tip) tip.hidden = true; }};
