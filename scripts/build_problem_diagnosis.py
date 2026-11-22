@@ -21,6 +21,7 @@ INPUTS = {
     "calendar": "reports/competitor_sale_calendar/latest.json",
     "ga4_purchase": "reports/decision_health/ga4_purchase_diagnostics.json",
     "warehouse_metadata": "reports/decision_health/source_metadata.json",
+    "coupon": "reports/decision_health/ga4_coupon_usage.json",
 }
 TARGET = ROOT / "reports/decision_health/diagnoses.json"
 
@@ -120,7 +121,8 @@ def crawl_gaps(content: dict, quality: dict, limit: int = 8) -> list[dict]:
 
 def build(operations: dict, intelligence: dict, content: dict,
           quality: dict, calendar: dict, ga4_purchase: dict | None = None,
-          warehouse_metadata: dict | None = None) -> dict:
+          warehouse_metadata: dict | None = None,
+          ga4_coupon: dict | None = None) -> dict:
     report_day = day(intelligence.get("report_date") or operations.get("report_date"))
     weekly = operations.get("weekly") or {}
     current = (weekly.get("current") or {}).get("total") or {}
@@ -363,6 +365,39 @@ def build(operations: dict, intelligence: dict, content: dict,
             "how_to_verify":"쿼리 dry-run 처리량 및 GA4 구매 원천 상태를 확인. 비용 상한은 증액하지 않고 최소 날짜/컬럼으로 축소",
             "blocked_by":[ga4["status"]],"sources":[INPUTS["ga4_purchase"]],
         })
+    coupon = ga4_coupon or {}
+    coupon_ready = (
+        coupon.get("report_date") == (report_day.isoformat() if report_day else None)
+        and coupon.get("status")=="measured_coupon_presence"
+        and coupon.get("ga4_purchase_totals_aligned") is True
+    )
+    if coupon_ready:
+        now=(coupon.get("periods") or {}).get("current") or {}
+        before=(coupon.get("periods") or {}).get("previous") or {}
+        delta=coupon.get("coupon_presence_delta_pp")
+        problems.append({
+            "id":"GA4_COUPON_PRESENCE","priority":"P1","status":"observed_ga4_components",
+            "title":"상품 쿠폰 코드 사용 여부의 기간별 변화 확인",
+            "finding":(
+                f"GA4 상품 쿠폰코드 보유 주문 비중 "
+                f"{before.get('order_coupon_presence_pct',0):.1f}% → "
+                f"{now.get('order_coupon_presence_pct',0):.1f}% "
+                f"({delta:+.1f}%p)"
+            ),
+            "cause_component":(
+                "상품 구매 이벤트의 items.coupon 코드 존재 여부를 관측함. "
+                "실제 쿠폰 할인액이나 결제 적용 여부, 매출 기여금은 이 값으로 확정할 수 없음."
+            ),
+            "cause_hypotheses":[],
+            "hypothesis_status":"verified_coupon_presence_only",
+            "causal_confirmed":False,
+            "how_to_verify":(
+                "갱신된 주문상품마트의 order_use_coupon_price·product_promotion_sale_price를 "
+                "주문 grain으로 중복 제거하고 GA4와 기간/상품코드 기준으로 대조"
+            ),
+            "blocked_by":["2026년 6월 이후 갱신되지 않은 관리자 주문마트"],
+            "sources":[INPUTS["coupon"],INPUTS["warehouse_metadata"]],
+        })
     for problem in problems:
         problem["blocked_by"] = [v for v in problem.get("blocked_by", []) if v]
     return {
@@ -384,6 +419,14 @@ def build(operations: dict, intelligence: dict, content: dict,
             "order_mart_last_modified": order_schema.get("last_modified")
         },
         "weather_source_health": weather_health,
+        "ga4_coupon_evidence": {
+            "status": coupon.get("status","not_connected"),
+            "report_date": coupon.get("report_date"),
+            "periods": coupon.get("periods") if coupon_ready else None,
+            "delta_pp": coupon.get("coupon_presence_delta_pp") if coupon_ready else None,
+            "source": "GA4 items.coupon presence; not discount amount",
+            "cost": coupon.get("cost"),
+        },
         "warehouse_source_health": {
             "inspection_status": metadata.get("status","not_inspected"),
             "metadata_query_jobs": metadata.get("query_jobs_executed"),
@@ -412,7 +455,7 @@ def build(operations: dict, intelligence: dict, content: dict,
 def main() -> None:
     inputs = {k: read(ROOT / p) for k,p in INPUTS.items()}
     data = build(inputs["operations"],inputs["intelligence"],inputs["content"],
-                 inputs["quality"],inputs["calendar"],inputs["ga4_purchase"],inputs["warehouse_metadata"])
+                 inputs["quality"],inputs["calendar"],inputs["ga4_purchase"],inputs["warehouse_metadata"],inputs["coupon"])
     if not data["report_date"]:
         raise SystemExit("[ERROR] no consistent report date")
     TARGET.parent.mkdir(parents=True, exist_ok=True)
