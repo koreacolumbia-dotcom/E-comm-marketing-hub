@@ -67,6 +67,26 @@ jobs:
       - name: Validate 90 percent candidate coverage
         if: always()
         run: python scripts/competitor_intelligence/quality.py
+      - name: Guard candidate evidence against false verified claims
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('competitor-output/quality.json')
+          if not p.exists():
+              print('Quality output missing; publication will mark measurement unavailable')
+          else:
+              q=json.loads(p.read_text())
+              verified=q.get('verified_accuracy_pct')
+              samples=q.get('verified_sample_count')
+              if verified is not None:
+                  assert isinstance(samples,int) and samples>0, 'verified accuracy requires reviewed samples'
+                  assert 0<=verified<=100, 'invalid verified accuracy'
+              if samples in (None,0):
+                  assert verified is None, 'candidate data must not be presented as verified'
+              print('Candidate/verified provenance guard passed')
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
