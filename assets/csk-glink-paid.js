@@ -26,7 +26,7 @@
 #csk-agency-paid .ap-select button[aria-pressed=true]{background:#0b3b73;color:white;border-color:#0b3b73}
 #csk-agency-paid .ap-channel{display:grid;grid-template-columns:132px 1fr 86px 80px;gap:8px;align-items:center;font-size:11px;padding:7px 0;border-top:1px solid #f0f3f7}
 #csk-agency-paid .ap-channel b{text-align:right;color:#1b3a60;font-size:11px}
-#csk-agency-paid .ap-track{height:8px;border-radius:8px;background:#ebf1f7;overflow:hidden}
+#csk-agency-paid .ap-track{display:block;width:100%;height:8px;border-radius:8px;background:#ebf1f7;overflow:hidden}
 #csk-agency-paid .ap-bar{height:100%;background:linear-gradient(90deg,#2a69ad,#69a8d9);border-radius:8px}
 #csk-agency-paid .ap-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:13px}
 #csk-agency-paid .ap-insight{background:#f6f9fc;border:1px solid #e2eaf2;border-radius:13px;padding:12px}
@@ -39,7 +39,7 @@
   document.head.appendChild(style);
   const fmt = (x) => '₩' + Math.round(Number(x)||0).toLocaleString('ko-KR');
   const money = (x) => (Number(x)/1000000).toFixed(1) + '백만';
-  const roas = (rev,spend) => Number(spend) > 0 ? Math.round(rev/spend*100).toLocaleString('ko-KR')+'%' : '—';
+  const roas = (rev,spend) => Number(spend) > 0 && Number(rev) > 0 ? Math.round(rev/spend*100).toLocaleString('ko-KR')+'%' : '—';
   const lift = (a,b) => b ? ((a/b-1)*100>=0?'+':'')+((a/b-1)*100).toFixed(1)+'%' : '비교불가';
   const sel = (scope) => scope==='festival'?'행사 11/20–22':scope==='pre'?'사전 11/18–19':'11월 누적 11/1–22';
   let snapshot, current='festival';
