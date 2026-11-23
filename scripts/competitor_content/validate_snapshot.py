@@ -30,6 +30,7 @@ def validate_public_url(url, brand, kind):
 
 def self_test():
     assert validate_public_url("https://www.k2.co.kr/story?a=1", "K2", "pending")
+    assert validate_public_url("https://www.k2.co.kr:443/story", "K2", "pending")
     for bad in ("http://www.k2.co.kr/", "https://localhost/", "https://127.0.0.1/",
                 "https://10.0.0.1/", "https://www.k2.co.kr:8443/",
                 "https://user:pass@www.k2.co.kr/", "https://www.k2.co.kr/#frag",
@@ -79,10 +80,14 @@ def validate(root=ROOT):
         p = urlsplit(url)
         q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True) if not tracking.fullmatch(k)]
         return urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path or "/", urlencode(sorted(q)), ""))
+    canonical_owners = {}
     for brand, state in frontier_brands.items():
         pending = state.get("pending", [])
         normalized = [canonical_frontier(url) for url in pending]
         assert len(normalized) == len(set(normalized)), f"{brand}: tracking-only duplicate pending URLs"
+        for url in normalized:
+            previous_owner = canonical_owners.setdefault(url, brand)
+            assert previous_owner == brand, f"cross-brand canonical duplicate: {previous_owner} / {brand}: {url}"
     # Validate ledger state accounting independently of the dashboard's summary.
     # A blocked or timed-out page must never be counted as a successfully observed page.
     for brand, state in frontier_brands.items():
