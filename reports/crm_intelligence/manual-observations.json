@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-23",
+  "updated_at": "2026-11-24",
   "scope": "Official storefront direct tests; anonymous and signed-in flows distinguished. No order submitted or CRM message verified.",
   "observations": [
     {
@@ -374,6 +374,24 @@
       "result": "공식몰 홈 노출. 쿠폰 발급·주문 적용, 회원 CRM 발송은 미검증",
       "evidence": "공식몰 공개 홈 직접 확인 2026-11-23",
       "url": "https://www.k-village.co.kr/",
+      "message_verified": false
+    },
+    {
+      "brand": "DESCENTE KOREA",
+      "stage": "공식 멤버십 안내",
+      "offer": "신규 회원 15% 할인 쿠폰, 생일 10%, 상시 5%, 마케팅 수신 동의 최대 3,000P/월 안내",
+      "result": "공개 안내만 확인; 이 계정의 쿠폰 발급·적용 및 CRM 수신 미검증",
+      "evidence": "공식 멤버십 페이지 직접 확인",
+      "url": "https://m.dk-on.com/cs/membership",
+      "message_verified": false
+    },
+    {
+      "brand": "NEW BALANCE",
+      "stage": "공식 로그인 안내",
+      "offer": "신규가입 쿠폰·기념일 쿠폰·등급별 혜택 안내",
+      "result": "가입/쿠폰 적용과 메시지 수신 미검증",
+      "evidence": "공식 로그인 페이지 직접 확인",
+      "url": "https://pay.nbkorea.com/customer/direct.Login.action?returnURL=null",
       "message_verified": false
     }
   ],
@@ -785,6 +803,20 @@
       "status": "로그아웃 확인",
       "need": "마이페이지의 LOG IN 또는 회원가입",
       "note": "현재 브라우저에서 로그인 전 상태 확인."
+    },
+    {
+      "brand": "DESCENTE KOREA",
+      "url": "https://m.dk-on.com/login",
+      "status": "카카오 로그인 연결·신규 약관 동의 전",
+      "need": "서비스 이용약관 및 필수 개인정보 동의 제출 단계",
+      "note": "카카오 화면에서 문자·카카오톡과 이메일 마케팅 동의가 별도 선택지로 표시. 아직 저장/가입 완료 아님."
+    },
+    {
+      "brand": "NEW BALANCE",
+      "url": "https://pay.nbkorea.com/customer/direct.Login.action?returnURL=null",
+      "status": "네이버 계정 불일치로 중단",
+      "need": "본인 계정 인증",
+      "note": "소셜 인증 화면의 프로필이 사용자 계정으로 확인되지 않아 정보 제공 동의 전 중단."
     }
   ]
 }
