@@ -34,7 +34,10 @@ def self_test():
     for bad in ("http://www.k2.co.kr/", "https://localhost/", "https://127.0.0.1/",
                 "https://10.0.0.1/", "https://www.k2.co.kr:8443/",
                 "https://user:pass@www.k2.co.kr/", "https://www.k2.co.kr/#frag",
-                "https://[::1]/"):
+                "https://[::1]/", "https://www.k2.co.kr:bad/",
+                "https://192.168.1.10/", "https://169.254.169.254/",
+                "https://100.64.0.1/", "https://example.local/",
+                "https://example.internal/"):
         try:
             validate_public_url(bad, "K2", "pending")
         except AssertionError:
@@ -95,6 +98,19 @@ def validate(root=ROOT):
         for url, record in ledger.items():
             status = record.get("state")
             assert status in {"observed", "partial_observed", "unobserved", "timeout", "error", "not_found", "access_blocked", "policy_denied", "blocked", "policy_blocked", "skipped", "restricted"}, f"{brand}: unknown ledger state {status!r}"
+    # Expose independently audited crawl outcomes. A discovered URL is not a
+    # successful observation, and blocked/error URLs must remain visible.
+    from collections import Counter
+    audit = Counter(record["state"] for state in frontier_brands.values()
+                    for record in state.get("url_ledger", {}).values())
+    full = audit["observed"]
+    partial = audit["partial_observed"]
+    failures = sum(audit[key] for key in ("error", "timeout", "not_found",
+                                           "access_blocked", "policy_denied",
+                                           "blocked", "policy_blocked", "restricted"))
+    print(f"frontier audit: fully observed={full}, partial={partial}, "
+          f"unobserved={audit['unobserved']}, blocked/error={failures}; "
+          "partial/blocked are not full crawl success")
     # Coverage is observational, not proof that the source has no content.
     for item in summary_brands:
         coverage = item.get("url_coverage") or {}
