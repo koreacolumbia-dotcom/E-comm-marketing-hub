@@ -43,6 +43,12 @@ def validate_content_composition(item, brand):
         for feature in composition.get("features",[]):
             assert feature.get("kind") in {"image_blocks","video_blocks","product_links","cta_controls"}, f"{brand}: unsupported feature"
             assert isinstance(feature.get("count"),int) and feature["count"]>0, f"{brand}: invalid feature count"
+            expected_keys={"image_blocks":"images","video_blocks":"videos","product_links":"product_links","cta_controls":"cta_count"}
+            measured=metrics.get(expected_keys[feature["kind"]])
+            assert isinstance(measured,int) and not isinstance(measured,bool) and measured==feature["count"], f"{brand}: fabricated composition count for {feature['kind']}"
+        kinds=[f["kind"] for f in composition.get("features",[])]
+        assert len(kinds)==len(set(kinds)), f"{brand}: duplicate composition feature kinds"
+        assert set(kinds)=={kind for kind,key in {"image_blocks":"images","video_blocks":"videos","product_links":"product_links","cta_controls":"cta_count"}.items() if isinstance(metrics.get(key),int) and not isinstance(metrics.get(key),bool) and metrics[key]>0}, f"{brand}: missing measured composition features"
     else:
         assert not composition.get("features") and not composition.get("sequence"), f"{brand}: unverified structure cannot claim features"
     return True
