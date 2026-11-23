@@ -3,6 +3,24 @@
   "scope": "Official storefront direct tests; anonymous and signed-in flows distinguished. No order submitted or CRM message verified.",
   "observations": [
     {
+      "brand": "BLACKYAK",
+      "scenario": "checkout",
+      "status": "signed_in_flow",
+      "summary": "네이버 간편로그인 후 로그아웃·마이페이지 표시 확인. 상품 상세 조회, FREE 1개 담기·카트 확인, 회원 주문서 진입·쿠폰할인 0원·41,700원·미결제. 실제 오프사이트 CRM 수신 미확인.",
+      "source": "https://www.byn.kr/blackyak/shop/detail.php?pno=AE1233CD53887D2F958E893E1BFC0117",
+      "observed_at": "2026-11-23",
+      "message_verified": false
+    },
+    {
+      "brand": "MILLET",
+      "scenario": "checkout",
+      "status": "signed_in_flow",
+      "summary": "네이버 간편로그인 후 마이페이지 표시 확인. 상품 상세 조회, 사이즈 100 1개 담기·카트 확인, 회원 주문결제 화면 진입·사용 가능 쿠폰 0장·49,000원·미결제. 실제 오프사이트 CRM 수신 미확인.",
+      "source": "https://www.millet.co.kr/front/product/29479",
+      "observed_at": "2026-11-23",
+      "message_verified": false
+    },
+    {
       "brand": "K.VILLAGE (K2·EIDER)",
       "scenario": "checkout",
       "status": "signed_in_flow",
@@ -102,6 +120,38 @@
     }
   ],
   "experiments": [
+    {
+      "brand": "BLACKYAK",
+      "product": "스톤마스터비니 L/RED",
+      "product_url": "https://www.byn.kr/blackyak/shop/detail.php?pno=AE1233CD53887D2F958E893E1BFC0117",
+      "steps": {
+        "signup": "네이버 간편로그인 후 로그아웃·마이페이지 표시 확인",
+        "view": "상품 상세 조회",
+        "cart": "FREE 1개 담기·카트 확인",
+        "checkout": "회원 주문서 진입·쿠폰할인 0원·41,700원·미결제"
+      },
+      "date": "2026-11-23",
+      "session": "signed_in",
+      "message": "미확인",
+      "trigger": "미검증",
+      "confidence": "회원 로그인 및 화면 직접 확인"
+    },
+    {
+      "brand": "MILLET",
+      "product": "비오 써말 집업 티셔츠 D/NAVY",
+      "product_url": "https://www.millet.co.kr/front/product/29479",
+      "steps": {
+        "signup": "네이버 간편로그인 후 마이페이지 표시 확인",
+        "view": "상품 상세 조회",
+        "cart": "사이즈 100 1개 담기·카트 확인",
+        "checkout": "회원 주문결제 화면 진입·사용 가능 쿠폰 0장·49,000원·미결제"
+      },
+      "date": "2026-11-23",
+      "session": "signed_in",
+      "message": "미확인",
+      "trigger": "미검증",
+      "confidence": "회원 로그인 및 화면 직접 확인"
+    },
     {
       "brand": "EIDER",
       "product": "브라우니 Dark Beige",
@@ -589,33 +639,33 @@
       "brand": "BLACKYAK",
       "url": "https://www.byn.kr/member/login.php",
       "signup_url": "https://www.byn.kr/member/join.php?brand=BK&shop_cd=21018",
-      "status": "로그아웃 확인",
-      "need": "BYN 통합 멤버십 로그인 또는 가입",
-      "note": "공식몰에서 한국어 선택 후 로그인 화면 직접 확인."
+      "status": "네이버 로그인·행동 실험 완료",
+      "need": "수신동의와 실제 메시지 추가 검증",
+      "note": "회원 PDP·장바구니·주문서 진입 후 결제 전 중단."
     },
     {
       "brand": "NEPA",
       "url": "https://www.nplus.co.kr/member/login.asp",
       "signup_url": "https://www.nplus.co.kr/member/join.asp",
-      "status": "로그아웃 확인",
+      "status": "네이버 로그인 시도·회원 상태 미확인",
       "need": "아이디·비밀번호 또는 카카오·네이버 로그인",
-      "note": "Nplus 계정으로 네파 공식몰 조사."
+      "note": "네이버 로그인 버튼 후 연결 창이 열렸으나 새 마이페이지에서 로그인 요구가 남음."
     },
     {
       "brand": "KOLON SPORT",
       "url": "https://www.kolonsport.com/MembershipV2/Sign",
       "login_url": "https://www.kolonsport.com/Login",
       "status": "로그아웃 확인",
-      "need": "OLO 멤버십 가입 또는 카카오 간편가입·로그인",
+      "need": "네이버 로그인 선택지 없음. 카카오 간편가입 또는 아이디 로그인",
       "note": "공식몰 신규가입 10% 쿠폰 안내."
     },
     {
       "brand": "MILLET",
       "url": "https://www.millet.co.kr/front/auth/login",
       "signup_url": "https://www.millet.co.kr/front/member/join_certify",
-      "status": "로그아웃 확인",
-      "need": "아이디·비밀번호 또는 카카오·네이버 로그인; 신규 가입은 본인인증",
-      "note": "공식몰 로그인 화면 직접 확인."
+      "status": "네이버 로그인·행동 실험 완료",
+      "need": "수신동의와 실제 메시지 추가 검증",
+      "note": "회원 PDP·장바구니·주문서 진입 후 결제 전 중단."
     },
     {
       "brand": "DISCOVERY",
