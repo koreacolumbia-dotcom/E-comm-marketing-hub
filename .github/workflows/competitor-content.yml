@@ -226,6 +226,31 @@ jobs:
           PY
       - name: Validate 24-brand scope, crawl frontier and snapshot quality
         run: python scripts/competitor_content/validate_snapshot.py
+      - name: Cross-check brand identities across feed strategy and crawl frontier
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base=Path('reports/competitor_content')
+          feed=json.loads((base/'latest.json').read_text())
+          summary=json.loads((base/'strategy-summary.json').read_text())
+          frontier=json.loads((base/'crawl-frontier.json').read_text())
+          def brand_set(items, source):
+              names=[str(row.get('brand','')).strip() for row in items]
+              assert len(names)==24 and all(names), f'{source}: missing brands'
+              assert len(set(names))==24, f'{source}: duplicate brand identity'
+              return set(names)
+          observed=brand_set(feed['brands'],'latest feed')
+          analyzed=brand_set(summary['brands'],'strategy summary')
+          scheduled=set(frontier['brands'])
+          assert observed==analyzed==scheduled, (
+              f'brand mismatch: feed_only={sorted(observed-analyzed)} '
+              f'strategy_only={sorted(analyzed-observed)} '
+              f'frontier_only={sorted(scheduled-observed)} '
+              f'frontier_missing={sorted(observed-scheduled)}'
+          )
+          print('All 24 brand identities match across feed, strategy and frontier')
+          PY
       - name: Publish measured content feed without rebasing generated JSON
         if: success()
         run: python scripts/competitor_publish/safe_publish.py
