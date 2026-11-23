@@ -100,6 +100,23 @@ jobs:
           assert 'id="crawlHealth"' in page and 'id="classificationRules"' in page, 'crawler evidence sections missing'
           print('Hub-to-competitor route and visual redesign contracts OK')
           PY
+      - name: Validate unified hub JavaScript syntax and immutable content route
+        run: |
+          node --check assets/csk-unified-hub.js
+          node --check assets/csk-saas-unified.js
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('index.html').read_text(encoding='utf-8')
+          nav=Path('assets/csk-unified-hub.js').read_text(encoding='utf-8')
+          page=Path('reports/competitor_content/index.html').read_text(encoding='utf-8')
+          script=re.search(r'<script[^>]+src="(assets/csk-unified-hub\\.js\\?v=[^" ]+)"',root)
+          assert script, 'main hub must load versioned routing bundle'
+          route=re.search(r'\\["competitor_content","경쟁사 콘텐츠","(reports/competitor_content/index\\.html\\?v=[^" ]+)"',nav)
+          assert route, 'competitor tab must use versioned report route'
+          assert 'id="csk-visual-redesign-v3"' in page, 'redesigned report is missing'
+          print('Versioned hub and competitor route:',script.group(1),route.group(1))
+          PY
       - name: Validate dashboard inline JavaScript syntax
         run: |
           python - <<'PY'
