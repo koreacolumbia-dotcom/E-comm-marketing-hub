@@ -3,6 +3,16 @@
   "scope": "Official storefront direct tests; anonymous and signed-in flows distinguished. No order submitted or CRM message verified.",
   "observations": [
     {
+      "brand": "TNF",
+      "scenario": "checkout",
+      "status": "signed_in_flow",
+      "summary": "네이버 로그인 후 공식몰에 마이페이지·로그아웃 표시 확인. TNF MID BEANIE MILKY_BLUE ONE 1개(39,000원)를 PDP에서 선택하고 장바구니 추가 성공 메시지와 장바구니 1개를 확인. 주문하기를 누르면 로그인 요구 없이 회원 주문/결제 화면으로 진입. 배송지 입력·결제 전 중단. CRM 메시지 수신 미확인.",
+      "source": "https://www.thenorthfacekorea.co.kr/product/NE3BS53B",
+      "next_url": "https://www.thenorthfacekorea.co.kr/cart?promoBestOfferUse=true",
+      "observed_at": "2026-11-23",
+      "message_verified": false
+    },
+    {
       "brand": "MONTBELL",
       "scenario": "checkout",
       "status": "signed_in_flow",
@@ -52,6 +62,22 @@
     }
   ],
   "experiments": [
+    {
+      "brand": "TNF",
+      "date": "2026-11-23",
+      "session": "signed_in",
+      "product": "TNF MID BEANIE MILKY_BLUE",
+      "product_url": "https://www.thenorthfacekorea.co.kr/product/NE3BS53B",
+      "steps": {
+        "signup": "기존 네이버 계정 로그인 확인",
+        "view": "상품 상세 조회",
+        "cart": "ONE 1개 담기 성공·장바구니 1개 확인",
+        "checkout": "주문하기→회원 주문/결제 화면 진입·결제 전 중단"
+      },
+      "message": "미확인",
+      "trigger": "미검증",
+      "confidence": "회원 로그인 및 화면 직접 확인"
+    },
     {
       "brand": "MONTBELL",
       "date": "2026-11-23",
