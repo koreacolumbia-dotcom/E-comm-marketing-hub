@@ -458,7 +458,7 @@ async def scan(browser,session,brand,checked,old,frontier=None,plan=None):
     root=ROOTS[brand]; page_limit=plan["page_limit"]; row={"brand":brand,"root":root,"pages_checked":0,"items":[],"errors":[]}
     same=lambda u: scoped(brand,u)
     # robots retrieval is origin-level; allow only the official host.
-    policy=PolicyCache(session,UA,lambda u:urlsplit(u).scheme=="https" and official_host(brand,u))
+    policy=PolicyCache(session,UA,lambda u:allowed_link(brand,u))
     context=await browser.new_context(user_agent=UA,locale="ko-KR",service_workers="block")
     blocked=set()
     def origin(u): return urlsplit(u).netloc
@@ -713,6 +713,7 @@ def self_test():
     assert canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1894&utm_medium=cpc&fbclid=abc")=="https://www.byn.kr/story/blackyak/?gb=detail&no=1894"
     assert canonical("https://www.byn.kr/story/blackyak/?no=1894&gb=detail")=="https://www.byn.kr/story/blackyak/?gb=detail&no=1894"
     assert canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1895")!=canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
+    assert allowed_link("TNF","https://www.thenorthfacekorea.co.kr/robots.txt")
     assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr:8443/")
     assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr.evil.example/")
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
