@@ -122,7 +122,12 @@ def rebuild_strategy():
         "const r=analyze(JSON.parse(readFileSync(p+'latest.json','utf8')));"
         "delete r.items;delete r.history;"
         "writeFileSync(p+'strategy-summary.json',JSON.stringify(r,null,2));"
-        "console.log(JSON.stringify(r.quality));"
+        "const q={schema_version:1,source_checked_at:r.source_checked_at,"
+        "brand_count:(r.brands||[]).length,quality:r.quality};"
+        "if(!q.source_checked_at||q.brand_count!==24||!q.quality)"
+        "throw Error('Refusing incomplete quality snapshot');"
+        "writeFileSync(p+'latest-quality.json',JSON.stringify(q,null,2)+'\\n');"
+        "console.log(JSON.stringify(q));"
     )
     command("node", "--input-type=module", "-e", js)
 
@@ -181,7 +186,8 @@ def publish():
             command("git", "add", "reports/competitor_content/latest.json",
                     "reports/competitor_content/crawl-frontier.json",
                     "reports/competitor_content/calendar.json",
-                    "reports/competitor_content/strategy-summary.json")
+                    "reports/competitor_content/strategy-summary.json",
+                    "reports/competitor_content/latest-quality.json")
             if not command("git", "diff", "--cached", "--quiet", check=False).returncode:
                 print("Nothing changed; skip publication")
                 return
