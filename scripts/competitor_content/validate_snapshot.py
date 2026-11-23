@@ -70,6 +70,19 @@ def validate(root=ROOT):
             assert url not in seen_urls, f"cross-brand duplicate pending URL: {brand}: {url}"
             seen_urls.add(url)
             validate_public_url(url, brand, "pending")
+    # Frontier URLs must be unique after stripping tracking parameters, not only byte-identical.
+    # Distinct editorial IDs and functional query parameters are deliberately retained.
+    from urllib.parse import parse_qsl, urlencode, urlunsplit
+    import re
+    tracking = re.compile(r"^(?:utm_[a-z0-9_]+|gclid|dclid|gbraid|wbraid|fbclid|msclkid|igshid|mc_cid|mc_eid|_ga|_gl|ref|tracking)$", re.I)
+    def canonical_frontier(url):
+        p = urlsplit(url)
+        q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True) if not tracking.fullmatch(k)]
+        return urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path or "/", urlencode(sorted(q)), ""))
+    for brand, state in frontier_brands.items():
+        pending = state.get("pending", [])
+        normalized = [canonical_frontier(url) for url in pending]
+        assert len(normalized) == len(set(normalized)), f"{brand}: tracking-only duplicate pending URLs"
     # Validate ledger state accounting independently of the dashboard's summary.
     # A blocked or timed-out page must never be counted as a successfully observed page.
     for brand, state in frontier_brands.items():
