@@ -765,6 +765,14 @@ def aggregate(rows,prior,checked,prior_brands=None):
         summary.append({k:v for k,v in b.items() if k not in ("items","_pending","_url_ledger","_sitemap_state")}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
     return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
+    sample_plans={b:{"undercovered":True,"sample_target":50} for b in ("HOKA","MILLET","PATAGONIA","K2")}
+    sample_frontier={b:{"pending":[],"url_ledger":{}} for b in sample_plans}
+    sample_frontier["K2"]["pending"]=["https://www.k2.co.kr/story/"+str(i) for i in range(9)]
+    for minute in (0,30):
+        chosen=choose_extra_catchup(list(sample_plans),[],sample_plans,sample_frontier,
+            {"HOKA":0,"MILLET":0,"PATAGONIA":0,"K2":10},
+            f"2026-11-24T01:{minute:02d}:00+09:00",maximum=2)
+        assert len(chosen)==2 and all(x in {"HOKA","MILLET","PATAGONIA"} for x in chosen)
     composition=content_composition({"page_metrics":{"source":"rendered_dom","images":3,"videos":1,"product_links":2,"cta_count":1,"sequence":["HEADING","IMAGE","PRODUCT","CTA"]},"evidence_scope":"local_block"})
     assert composition["status"]=="dom_observed"
     assert composition["sequence"]==["HEADING","IMAGE","PRODUCT","CTA"]
@@ -919,30 +927,45 @@ def shard_selection(brand_order,checked,shards):
     return brand_order[slot::shards],slot
 
 def choose_extra_catchup(brand_order,selected,plans,frontier,counts,checked,maximum=1):
-    """Rotate one extra undercovered, policy-allowed official brand per run.
+    """Fair catch-up for zero-observation and undercovered official brands.
 
-    Base four-shard coverage remains unchanged. Never retry a blocked root or
-    ignore an access restriction simply to increase counts.
+    Do not treat a short frontier as proof that the site has no content:
+    zero-observation brands must be revisited for public root/sitemap discovery.
+    Respect policy-denied and access-blocked cooldowns.
     """
+    if maximum <= 0:
+        return []
     candidates=[]
     now=datetime.fromisoformat(checked)
     for brand in brand_order:
-        if brand in selected or not plans[brand].get("undercovered"):continue
-        pending=len(frontier.get(brand,{}).get("pending",[]))
-        if pending<8:continue
-        ledger=frontier.get(brand,{}).get("url_ledger",{})
+        if brand in selected or not plans[brand].get("undercovered"):
+            continue
+        state=frontier.get(brand,{})
+        ledger=state.get("url_ledger",{})
         root_entry=ledger.get(canonical(ROOTS[brand]),{})
         if retry_cooldown(root_entry,checked) and root_entry.get("state") in ("policy_denied","access_blocked"):
             continue
-        gap=max(0,plans[brand]["sample_target"]-counts.get(brand,0))
-        candidates.append((brand,gap,pending))
-    if not candidates or maximum<=0:return []
-    candidates.sort(key=lambda x:(-x[1],-x[2],x[0]))
-    # Rotate across the highest-priority backlog rather than repeatedly
-    # hammering the same undercovered site every 30 minutes.
-    pool=candidates[:min(8,len(candidates))]
-    slot=(now.hour*2+now.minute//30)%len(pool)
-    return [pool[(slot+i)%len(pool)][0] for i in range(min(maximum,len(pool)))]
+        pending=len(state.get("pending",[]))
+        observed=max(0,int(counts.get(brand,0)))
+        if pending<8 and observed>0:
+            continue
+        gap=max(0,plans[brand]["sample_target"]-observed)
+        candidates.append((brand,observed,gap,pending))
+    if not candidates:
+        return []
+    # Give unobserved brands first access to catch-up slots; rotate fairly
+    # across all candidates rather than only the first eight.
+    candidates.sort(key=lambda x:(x[1]>0,-x[2],-x[3],x[0]))
+    unseen=[x for x in candidates if x[1]==0]
+    backlog=[x for x in candidates if x[1]>0]
+    epoch_slot=int(now.timestamp()//1800)
+    def rotate(pool):
+        if not pool:
+            return []
+        start=epoch_slot%len(pool)
+        return pool[start:]+pool[:start]
+    ordered=rotate(unseen)+rotate(backlog)
+    return [x[0] for x in ordered[:min(maximum,len(ordered))]]
 
 async def main():
     checked=datetime.now(timezone(timedelta(hours=9))).isoformat()
