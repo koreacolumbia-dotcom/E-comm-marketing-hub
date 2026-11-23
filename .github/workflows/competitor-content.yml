@@ -85,6 +85,21 @@ jobs:
               assert all(not urlsplit(u).fragment for u in pending), f'fragment in crawl frontier: {brand}'
           print('Dashboard DOM, navigation, strategy order, coverage, and frontier contracts verified')
           PY
+      - name: Verify hub routing and redesigned content UI remain connected
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('index.html').read_text(encoding='utf-8')
+          nav=Path('assets/csk-unified-hub.js').read_text(encoding='utf-8')
+          page=Path('reports/competitor_content/index.html').read_text(encoding='utf-8')
+          assert re.search(r'assets/csk-unified-hub\\.js\\?v=[^"]+',root), 'hub navigation script not versioned'
+          assert re.search(r'\\["competitor_content","경쟁사 콘텐츠","reports/competitor_content/index\\.html\\?v=[^"]+',nav), 'competitor tab missing or unversioned'
+          assert 'id="csk-visual-redesign-v3"' in page, 'competitor visual redesign missing'
+          assert 'id="actionIntelligence"' in page and 'id="gapRadar"' in page, 'strategic dashboard sections missing'
+          assert 'id="crawlHealth"' in page and 'id="classificationRules"' in page, 'crawler evidence sections missing'
+          print('Hub-to-competitor route and visual redesign contracts OK')
+          PY
       - name: Validate dashboard inline JavaScript syntax
         run: |
           python - <<'PY'
