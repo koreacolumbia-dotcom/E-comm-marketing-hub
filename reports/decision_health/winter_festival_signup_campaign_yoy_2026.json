@@ -1,0 +1,171 @@
+{
+  "schema": 1,
+  "status": "ga4_measured_yoy",
+  "generated_utc": "2026-11-23T05:01:04.950367+00:00",
+  "ga4_property": "358593394",
+  "source": "Google Analytics Data API",
+  "scope": "Strict explicit membership-acquisition campaign names only, matching '회원가입/회원유치/signup/registration/member acquisition'",
+  "definition": {
+    "signup": "signup_complete eventCount by sessionManualCampaignName and sessionSourceMedium",
+    "campaign": "GA4 sessionManualCampaignName (utm_campaign), NOT ad platform objective",
+    "event_purchase": "ALL visitors' ecommercePurchases attributed to the same campaign; NOT a signup-to-purchase cohort",
+    "cvr": "signup_complete eventCount / sessions; event rate rather than unique joined members",
+    "yoy": "Corresponding Friday-to-Sunday event day windows"
+  },
+  "periods": {
+    "D1-D2": {
+      "period": {
+        "2025": [
+          "2025-11-21",
+          "2025-11-22"
+        ],
+        "2026": [
+          "2026-11-20",
+          "2026-11-21"
+        ]
+      },
+      "years": {
+        "2025": {
+          "rows": [],
+          "totals": {
+            "signups": 0,
+            "sessions": 0,
+            "orders": 0,
+            "revenue": 0
+          },
+          "number_of_distinct_campaign_source_pairs": 0
+        },
+        "2026": {
+          "rows": [
+            {
+              "source_medium": "meta / banner",
+              "campaign": "[PF]전환_회원가입(1865MF,브랜드관심사)",
+              "signups": 21,
+              "sessions": 582,
+              "orders": 1,
+              "revenue": 96600
+            },
+            {
+              "source_medium": "meta / banner",
+              "campaign": "[PF]전환_회원가입(1865MF,유사0-1%)",
+              "signups": 11,
+              "sessions": 450,
+              "orders": 2,
+              "revenue": 77829
+            },
+            {
+              "source_medium": "meta / banner",
+              "campaign": "[PF]전환_회원가입(1865MF,유사1-3%)",
+              "signups": 5,
+              "sessions": 473,
+              "orders": 0,
+              "revenue": 0
+            }
+          ],
+          "totals": {
+            "signups": 37,
+            "sessions": 1505,
+            "orders": 3,
+            "revenue": 174429
+          },
+          "number_of_distinct_campaign_source_pairs": 3
+        }
+      },
+      "source_yoy": [
+        {
+          "source_medium": "meta / banner",
+          "2025": {
+            "signups": 0,
+            "sessions": 0,
+            "orders": 0,
+            "revenue": 0
+          },
+          "2026": {
+            "signups": 37,
+            "sessions": 1505,
+            "orders": 3,
+            "revenue": 174429
+          }
+        }
+      ]
+    },
+    "D1-D3": {
+      "period": {
+        "2025": [
+          "2025-11-21",
+          "2025-11-23"
+        ],
+        "2026": [
+          "2026-11-20",
+          "2026-11-22"
+        ]
+      },
+      "years": {
+        "2025": {
+          "rows": [],
+          "totals": {
+            "signups": 0,
+            "sessions": 0,
+            "orders": 0,
+            "revenue": 0
+          },
+          "number_of_distinct_campaign_source_pairs": 0
+        },
+        "2026": {
+          "rows": [
+            {
+              "source_medium": "meta / banner",
+              "campaign": "[PF]전환_회원가입(1865MF,브랜드관심사)",
+              "signups": 25,
+              "sessions": 791,
+              "orders": 1,
+              "revenue": 96600
+            },
+            {
+              "source_medium": "meta / banner",
+              "campaign": "[PF]전환_회원가입(1865MF,유사1-3%)",
+              "signups": 12,
+              "sessions": 694,
+              "orders": 2,
+              "revenue": 96650
+            },
+            {
+              "source_medium": "meta / banner",
+              "campaign": "[PF]전환_회원가입(1865MF,유사0-1%)",
+              "signups": 11,
+              "sessions": 614,
+              "orders": 2,
+              "revenue": 77829
+            }
+          ],
+          "totals": {
+            "signups": 48,
+            "sessions": 2099,
+            "orders": 5,
+            "revenue": 271079
+          },
+          "number_of_distinct_campaign_source_pairs": 3
+        }
+      },
+      "source_yoy": [
+        {
+          "source_medium": "meta / banner",
+          "2025": {
+            "signups": 0,
+            "sessions": 0,
+            "orders": 0,
+            "revenue": 0
+          },
+          "2026": {
+            "signups": 48,
+            "sessions": 2099,
+            "orders": 5,
+            "revenue": 271079
+          }
+        }
+      ]
+    }
+  },
+  "contains_personal_data": false,
+  "causal": false
+}
