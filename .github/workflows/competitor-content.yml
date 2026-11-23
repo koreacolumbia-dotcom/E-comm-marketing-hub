@@ -68,10 +68,12 @@ jobs:
           anchors=re.findall(r'href="#([^"]+)"',html)
           missing=[key for key in anchors if key not in ids]
           assert not missing, f'broken in-page navigation: {missing}'
-          expected_sections=['gapRadar','brandPulse','benchmark','purposePanel','strategyPanel','dnaPanel','advancedPanel','discoveryPanel','archive','calendarPanel','classificationRules','evidencePanel','crawlHealth','observedPanel','coveragePanel']
+          expected_sections=['gapRadar','actionIntelligence','brandPulse','benchmark','purposePanel','strategyPanel','dnaPanel','advancedPanel','discoveryPanel','archive','calendarPanel','classificationRules','evidencePanel','crawlHealth','observedPanel','coveragePanel']
           positions=[html.index('id="'+key+'"') for key in expected_sections]
           assert positions==sorted(positions), 'dashboard strategic section order changed'
           assert 'coverageSummary=d;renderCrawlHealth()' in html, 'coverage summary is not wired to the view'
+          assert 'function renderActionIntelligence()' in html and 'compareOwnedContent({' in html, 'action intelligence must use benchmark model'
+          assert '높음·낮음 판정 기준' in html and '표본 충족 후 자동 판정' in html, 'observation threshold explanations missing'
           frontier=json.loads(Path('reports/competitor_content/crawl-frontier.json').read_text())
           assert len(frontier.get('brands',{}))==24, 'crawl frontier must track 24 brands'
           for brand,entry in frontier['brands'].items():
