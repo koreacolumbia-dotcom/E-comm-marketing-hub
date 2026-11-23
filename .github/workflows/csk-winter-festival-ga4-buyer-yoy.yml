@@ -1,6 +1,9 @@
 name: CSK Winter Festival GA4 Buyer Historical YoY
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["CSK Winter Festival Product YoY"]
+    types: [completed]
   push:
     branches: [main]
     paths:
@@ -17,6 +20,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   ga4-buyers:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 13
     steps:
