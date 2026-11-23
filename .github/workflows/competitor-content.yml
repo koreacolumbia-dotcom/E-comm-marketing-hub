@@ -62,7 +62,7 @@ jobs:
                   assert c['unobserved_urls']<=c['known_urls'], brand['brand']
           import re
           from collections import Counter
-          ids=re.findall(r'\\bid="([^"]+)"',html)
+          ids=re.findall(r'\bid="([^"]+)"',html)
           duplicates=[key for key,count in Counter(ids).items() if count>1]
           assert not duplicates, f'duplicate DOM ids: {duplicates}'
           anchors=re.findall(r'href="#([^"]+)"',html)
@@ -93,8 +93,8 @@ jobs:
           root=Path('index.html').read_text(encoding='utf-8')
           nav=Path('assets/csk-unified-hub.js').read_text(encoding='utf-8')
           page=Path('reports/competitor_content/index.html').read_text(encoding='utf-8')
-          assert re.search(r'assets/csk-unified-hub\\.js\\?v=[^"]+',root), 'hub navigation script not versioned'
-          assert re.search(r'\\["competitor_content","경쟁사 콘텐츠","reports/competitor_content/index\\.html\\?v=[^"]+',nav), 'competitor tab missing or unversioned'
+          assert re.search(r'assets/csk-unified-hub\.js\?v=[^"]+',root), 'hub navigation script not versioned'
+          assert re.search(r'\["competitor_content","경쟁사 콘텐츠","reports/competitor_content/index\.html\?v=[^"]+',nav), 'competitor tab missing or unversioned'
           assert 'id="csk-visual-redesign-v3"' in page, 'competitor visual redesign missing'
           assert 'id="actionIntelligence"' in page and 'id="gapRadar"' in page, 'strategic dashboard sections missing'
           assert 'id="crawlHealth"' in page and 'id="classificationRules"' in page, 'crawler evidence sections missing'
@@ -110,9 +110,9 @@ jobs:
           root=Path('index.html').read_text(encoding='utf-8')
           nav=Path('assets/csk-unified-hub.js').read_text(encoding='utf-8')
           page=Path('reports/competitor_content/index.html').read_text(encoding='utf-8')
-          script=re.search(r'<script[^>]+src="(assets/csk-unified-hub\\.js\\?v=[^" ]+)"',root)
+          script=re.search(r'<script[^>]+src="(assets/csk-unified-hub\.js\?v=[^" ]+)"',root)
           assert script, 'main hub must load versioned routing bundle'
-          route=re.search(r'\\["competitor_content","경쟁사 콘텐츠","(reports/competitor_content/index\\.html\\?v=[^" ]+)"',nav)
+          route=re.search(r'\["competitor_content","경쟁사 콘텐츠","(reports/competitor_content/index\.html\?v=[^" ]+)"',nav)
           assert route, 'competitor tab must use versioned report route'
           assert 'id="csk-visual-redesign-v3"' in page, 'redesigned report is missing'
           print('Versioned hub and competitor route:',script.group(1),route.group(1))
