@@ -53,13 +53,23 @@
     "source": "KMA Seoul ASOS 108 API, weather.go.kr public daily table fallback; NOAA GSOD secondary only when available; observations never forecasts"
   },
   "ga4_coupon_evidence": {
-    "status": "blocked_metadata",
+    "status": "partial_quality",
     "report_date": "2026-11-22",
     "periods": null,
     "delta_pp": null,
-    "quality_checks": null,
+    "quality_checks": {
+      "purchase_events_without_item_rows": {
+        "previous": 15,
+        "current": -321
+      },
+      "coupon_marker_present_in_all_item_rows": true,
+      "can_interpret_coupon_as_applied_discount": false,
+      "reason": "GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
+    },
     "source": "GA4 items.coupon presence; not discount amount",
     "cost": {
+      "estimated_bytes": 271555954,
+      "billed_bytes": 271581184,
       "maximum_bytes_billed": 536870912,
       "dry_run_required": true
     }
