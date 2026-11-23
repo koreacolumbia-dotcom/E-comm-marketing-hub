@@ -156,6 +156,15 @@ jobs:
           assert "CONTENT_EXTRA_CATCHUP_BRANDS: '2'" in workflow, 'catch-up disabled or too narrow'
           print('Catch-up scheduler available: two rotating extra brands per run')
           PY
+      - name: Run snapshot provenance regression tests before crawling
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0,'scripts/competitor_content')
+          from validate_snapshot import self_test
+          self_test()
+          print('Snapshot URL, placement, and DOM-composition regression tests passed')
+          PY
       - name: Crawl official editorial pages
         env:
           CONTENT_PAGE_LIMIT: '120'
