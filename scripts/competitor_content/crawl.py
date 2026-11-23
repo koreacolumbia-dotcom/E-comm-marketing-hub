@@ -89,16 +89,19 @@ CTA=re.compile(r"더\s*보기|자세히|바로\s*가기|제품\s*보기|컬렉�
 TYPES={"LOOKBOOK":r"lookbook|룩북|화보|스타일링","PRODUCT_STORY":r"technology|고어텍스|방수|보온|기술력|테크니컬|innovation|insulation|단열|기능성","AMBASSADOR":r"ambassador|athlete|앰배서더|애슬릿|크리에이터","COMMUNITY":r"community|클럽|커뮤니티|워크숍|클리닉","BRAND_STORY":r"heritage|history|스토리|헤리티지|환경|지속가능|history|innovation","CAMPAIGN":r"campaign|캠페인|collection|컬렉션|capsule|캡슐"}
 TPO={"하이킹":r"hiking|trekking|등산|하이킹|트레킹","캠핑":r"camping|캠핑","러닝":r"running|trail run|러닝|마라톤","설상":r"ski|snowboard|스키|스노보드","데일리":r"daily|urban|city|도심|일상|데일리","여행":r"travel|여행","낚시":r"fishing|angler|피싱|낚시","클라이밍":r"climb|boulder|클라이밍|암벽|등반","백패킹":r"backpacking|백패킹","사이클링":r"cycling|사이클|자전거","워터스포츠":r"water sport|kayak|surfing|수상스포츠|카약|서핑","트레일러닝":r"trail.?running|트레일.?러닝"}
 USP={"보온":r"warmth|insulat|보온|체온","방수":r"waterproof|방수|고어텍스|gore.tex","경량":r"lightweight|경량|가벼운","내구성":r"durab|내구성","통기성":r"breathab|통기|투습","지속가능성":r"recycl|재활용|지속가능"}
+# Remove analytics-only query parameters without dropping campaign/content identifiers.
+# Keep functional query keys (e.g. gb, no, cate) for distinct editorial pages.
+TRACKING_QUERY=re.compile(r"^(?:utm_[a-z0-9_]+|gclid|dclid|gbraid|wbraid|fbclid|msclkid|igshid|mc_cid|mc_eid|_ga|_gl|ref|tracking)$",re.I)
 def canonical(u):
     p=urlsplit(u)
-    q=[(k,v) for k,v in parse_qsl(p.query,keep_blank_values=True) if not re.match(r"utm_|^(?:gclid|fbclid|ref|tracking)$",k,re.I)]
+    q=[(k,v) for k,v in parse_qsl(p.query,keep_blank_values=True) if not TRACKING_QUERY.fullmatch(k)]
     return urlunsplit((p.scheme.lower(),p.netloc.lower(),p.path or "/",urlencode(sorted(q)),""))
 def host(u): return (urlsplit(u).hostname or "").removeprefix("www.").removeprefix("m.")
 def official_host(brand,u):
     return host(u)==host(ROOTS[brand]) or bool(ALTERNATE.get(brand) and host(u)==ALTERNATE[brand])
 def allowed_link(brand,u):
     p=urlsplit(u)
-    return p.scheme=="https" and not p.username and not p.password and official_host(brand,u) and not DENY.search(p.path+"?"+p.query)
+    return p.scheme=="https" and p.port in (None,443) and not p.username and not p.password and official_host(brand,u) and not DENY.search(p.path+"?"+p.query)
 def scoped(brand,u):
     p=urlsplit(u); path=p.path.lower()
     if re.search(r"/product/(?:detail|list|search)\.html|/product/[a-z0-9][^/]+/\d+/?$|/product/[A-Z0-9]{5,}/?$",p.path,re.I): return False
@@ -707,6 +710,11 @@ def aggregate(rows,prior,checked,prior_brands=None):
         summary.append({k:v for k,v in b.items() if k not in ("items","_pending","_url_ledger","_sitemap_state")}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
     return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
+    assert canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1894&utm_medium=cpc&fbclid=abc")=="https://www.byn.kr/story/blackyak/?gb=detail&no=1894"
+    assert canonical("https://www.byn.kr/story/blackyak/?no=1894&gb=detail")=="https://www.byn.kr/story/blackyak/?gb=detail&no=1894"
+    assert canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1895")!=canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
+    assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr:8443/")
+    assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr.evil.example/")
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
     assert scoped("HOKA","https://linktr.ee/hoka_korea")
     assert scoped("HOKA","https://brand.naver.com/hoka")
