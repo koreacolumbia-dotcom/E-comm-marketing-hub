@@ -197,7 +197,8 @@ def publish():
                     "reports/competitor_content/crawl-frontier.json",
                     "reports/competitor_content/calendar.json",
                     "reports/competitor_content/strategy-summary.json",
-                    "reports/competitor_content/latest-quality.json")
+                    "reports/competitor_content/latest-quality.json",
+                    "reports/competitor_content/crawl-health.json")
             if not command("git", "diff", "--cached", "--quiet", check=False).returncode:
                 print("Nothing changed; skip publication")
                 return
