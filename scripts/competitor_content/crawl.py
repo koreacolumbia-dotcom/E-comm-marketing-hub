@@ -102,7 +102,7 @@ def canonical(u):
     port = p.port  # ValueError on malformed ports; fail closed.
     if p.scheme.lower() != "https" or not hostname or port not in (None, 443):
         raise ValueError("canonical requires a public HTTPS URL on the standard port")
-    if p.username or p.password or p.fragment and not isinstance(p.fragment, str):
+    if p.username is not None or p.password is not None:
         raise ValueError("canonical requires an unauthenticated URL")
     q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True)
          if not TRACKING_QUERY.fullmatch(k)]
