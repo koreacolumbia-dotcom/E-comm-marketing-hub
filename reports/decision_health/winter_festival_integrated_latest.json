@@ -1,10 +1,10 @@
 {
   "schema": 2,
-  "generated_at_kst": "2026-11-23T00:32:16+09:00",
-  "report_date": "2026-11-21",
+  "generated_at_kst": "2026-11-23T17:50:15+09:00",
+  "report_date": "2026-11-22",
   "event": {
     "status": "verified_ga4",
-    "days": 2,
+    "days": 3,
     "daily": [
       {
         "day": 1,
@@ -39,24 +39,41 @@
           "revenue": 25789285,
           "cvr_pct": 0.611
         }
+      },
+      {
+        "day": 3,
+        "current_date": "2026-11-22",
+        "previous_date": "2025-11-23",
+        "current": {
+          "sessions": 26861,
+          "orders": 325,
+          "revenue": 48544799,
+          "cvr_pct": 1.21
+        },
+        "previous": {
+          "sessions": 27023,
+          "orders": 221,
+          "revenue": 31057950,
+          "cvr_pct": 0.818
+        }
       }
     ],
     "totals": {
       "current": {
-        "sessions": 63179,
-        "orders": 605,
-        "revenue": 94452556,
-        "cvr_pct": 0.958
+        "sessions": 90040,
+        "orders": 930,
+        "revenue": 142997355,
+        "cvr_pct": 1.033
       },
       "previous": {
-        "sessions": 58560,
-        "orders": 427,
-        "revenue": 68716525,
-        "cvr_pct": 0.729
+        "sessions": 85583,
+        "orders": 648,
+        "revenue": 99774475,
+        "cvr_pct": 0.757
       }
     },
     "comparison": "same_event_day_same_weekday_364_offset",
-    "source_report_date": "2026-11-21",
+    "source_report_date": "2026-11-22",
     "causal": false
   },
   "weekly_media": {
@@ -302,7 +319,7 @@
         "revenue_delta": 295089
       }
     ],
-    "date_aligned_with_daily_kpi": true,
+    "date_aligned_with_daily_kpi": false,
     "source_type": "ga4_session_source_medium",
     "comparison": "current_7d_vs_previous_7d_NOT_year_over_year",
     "caveat": "GA4 session-attributed metrics. This 7-day period is not a festival-only D1-D3 cohort."
@@ -1168,119 +1185,58 @@
   },
   "diagnosis": {
     "schema": 1,
-    "status": "reconciled",
+    "status": "funnel_only",
     "causal": false,
-    "event_days": 2,
+    "event_days": 3,
     "compared_dates": {
       "current": [
         "2026-11-20",
-        "2026-11-21"
+        "2026-11-22"
       ],
       "previous": [
         "2025-11-21",
-        "2025-11-22"
+        "2025-11-23"
       ]
     },
-    "net_revenue_change_krw": 25736031,
-    "net_revenue_yoy_pct": 37.45,
+    "net_revenue_change_krw": 43222880,
+    "net_revenue_yoy_pct": 43.32,
     "funnel": {
       "status": "reconciled",
       "terms": {
         "sessions": {
-          "amount_krw": 6171212,
-          "value_before": 58560,
-          "value_after": 63179
+          "amount_krw": 6137668,
+          "value_before": 85583,
+          "value_after": 90040
         },
         "cvr": {
-          "amount_krw": 22037653,
-          "value_before": 0.007291666666666667,
-          "value_after": 0.009575966697795153
+          "amount_krw": 37252328,
+          "value_before": 0.007571597162987977,
+          "value_after": 0.010328742780986229
         },
         "aov": {
-          "amount_krw": -2472834,
-          "value_before": 160928.6299765808,
-          "value_after": 156119.92727272728
+          "amount_krw": -167116,
+          "value_before": 153972.95524691357,
+          "value_after": 153760.59677419355
         }
       },
       "note": "Shapley 6-order arithmetic decomposition, not causal effects."
     },
-    "event_media_aligned": true,
+    "event_media_aligned": false,
     "strengths": [
       {
         "id": "conversion",
         "axis": "funnel",
         "title": "구매전환 효율 변화",
-        "headline": 22037653,
+        "headline": 37252328,
         "subtitle": "CVR 변화의 매출 산술 배분액 (원)",
-        "evidence": "CVR 0.73% → 0.96%; 주문 427 → 605; 세션 58,560 → 63,179",
+        "evidence": "CVR 0.76% → 1.03%; 주문 648 → 930; 세션 85,583 → 90,040",
         "interpretation": "유입 증가만으로 설명되지 않는 전환율 변화가 관측됐습니다. 판촉 자체의 인과 기여로 단정할 수 없습니다.",
         "verify_next": "제품상세→장바구니→결제 퍼널, 신규·기존 구매자, 가격/쿠폰 및 디바이스별 전환을 전년 동일 구간으로 대조",
         "confidence": "measured_descriptive",
         "causal": false
-      },
-      {
-        "id": "brand_search",
-        "axis": "media",
-        "title": "네이버 브랜드검색 성장",
-        "headline": 22399344,
-        "subtitle": "동일 행사일 GA4 브랜드검색 매출 증감 (원)",
-        "evidence": "세션 5,797 → 9,111; 구매 106 → 229; CVR 1.83% → 2.51%",
-        "interpretation": "브랜드를 찾는 유입의 구매·전환이 동시에 증가했습니다. 검색 수요 증가인지 검색광고 개선인지는 구분되지 않습니다.",
-        "verify_next": "검색어·브랜드검색 노출/클릭·점유율·랜딩과 프로모션 노출 확인",
-        "confidence": "measured_descriptive",
-        "causal": false
-      },
-      {
-        "id": "meta_banner",
-        "axis": "media",
-        "title": "Meta 배너 구매 확대",
-        "headline": 3572258,
-        "subtitle": "동일 행사일 Meta/Facebook 배너 귀속 매출 증감 (원)",
-        "evidence": "세션 5,473 → 7,849; 구매 16 → 38; CVR 0.29% → 0.48%",
-        "interpretation": "Meta 배너 태그로 들어온 세션의 구매가 증가했습니다. 광고 집행비·캠페인 목적 데이터 없이 ROAS 개선으로 판단하지 않습니다.",
-        "verify_next": "Meta 광고관리자 캠페인별 실제 지출·목적·소재/세트·구매 전환 데이터 대조",
-        "confidence": "measured_descriptive",
-        "causal": false
       }
     ],
-    "weaknesses": [
-      {
-        "id": "referral",
-        "axis": "media",
-        "title": "레퍼럴 전환 약화",
-        "headline": -3568927,
-        "subtitle": "동일 행사일 레퍼럴 귀속 매출 증감 (원)",
-        "evidence": "세션 2,309 → 2,526; 구매 40 → 31; CVR 1.73% → 1.23%",
-        "interpretation": "레퍼럴 유입은 늘었지만 구매 효율이 악화됐습니다. 어떤 추천 사이트 또는 랜딩에서 이탈하는지는 추가 분석이 필요합니다.",
-        "verify_next": "추천 도메인/랜딩/PDP/주문 세그먼트별 전년 차이 확인",
-        "confidence": "measured_descriptive",
-        "causal": false
-      },
-      {
-        "id": "nonbrand_search",
-        "axis": "media",
-        "title": "네이버 일반검색 유입 감소",
-        "headline": -1747186,
-        "subtitle": "동일 행사일 일반검색 귀속 매출 증감 (원)",
-        "evidence": "세션 1,795 → 851; 구매 15 → 9; CVR 0.84% → 1.06%",
-        "interpretation": "CVR은 개선됐지만 방문 규모가 줄어 매출이 감소했습니다. 검색 수요·노출·입찰의 어느 요인 때문인지는 미확인입니다.",
-        "verify_next": "일반검색 키워드 노출수/클릭수, 품절/랜딩 품질, 예산·입찰 변동 확인",
-        "confidence": "measured_descriptive",
-        "causal": false
-      },
-      {
-        "id": "crm",
-        "axis": "media",
-        "title": "CRM·Owned 구매 유입 약세",
-        "headline": -968452,
-        "subtitle": "동일 행사일 카카오·LMS·EDM 귀속 매출 증감 (원)",
-        "evidence": "세션 10,470 → 9,668; 구매 143 → 136; CVR 1.37% → 1.41%",
-        "interpretation": "유입·구매건수가 소폭 감소했습니다. 전년/올해 UTM 명명체계가 달라 캠페인 태그 한 종류만으로 CRM 효과를 판단하지 않습니다.",
-        "verify_next": "LMS·EDM·카카오 발송수/수신모수, 미구매자/기존 구매자, 발송 시점별 세션 확인",
-        "confidence": "measured_descriptive",
-        "causal": false
-      }
-    ],
+    "weaknesses": [],
     "caveats": [
       "전환율·세션·객단가 분해와 채널 매출 증감은 서로 겹치는 설명 관점입니다. 둘을 합산하지 않습니다.",
       "관측된 GA4 귀속 매출은 프로모션·광고의 순증 인과 효과가 아닙니다.",
@@ -1290,14 +1246,15 @@
       "id": "aov",
       "axis": "funnel",
       "title": "객단가·구매 구성 점검",
-      "headline": -2472834,
+      "headline": -167116,
       "subtitle": "객단가 변화의 매출 산술 배분액 (원)",
-      "evidence": "AOV 160,929원 → 156,120원",
+      "evidence": "AOV 153,973원 → 153,761원",
       "interpretation": "주문수 증가와 별개로 객단가가 하락했습니다. 할인율·SKU 믹스·수량 구성이 원인인지는 아직 미검증입니다.",
       "verify_next": "스타일·카테고리·할인율별 구매수량, 주문당 상품수와 객단가 비교",
       "confidence": "measured_descriptive",
       "causal": false
     },
+    "media_unavailable_reason": "행사 채널 원본 기간과 누적 KPI 집계 기간 불일치",
     "media_period": {
       "2025": [
         "2025-11-21",
@@ -1307,452 +1264,6 @@
         "2026-11-20",
         "2026-11-21"
       ]
-    },
-    "channel_bridge": [
-      {
-        "id": "criteo",
-        "label": "Criteo 배너",
-        "previous": {
-          "revenue": 1051320,
-          "orders": 9,
-          "sessions": 1604,
-          "cvr_pct": 0.561
-        },
-        "current": {
-          "revenue": 2180710,
-          "orders": 12,
-          "sessions": 1632,
-          "cvr_pct": 0.735
-        },
-        "delta_krw": 1129390
-      },
-      {
-        "id": "direct",
-        "label": "직접 유입",
-        "previous": {
-          "revenue": 5092060,
-          "orders": 34,
-          "sessions": 3521,
-          "cvr_pct": 0.966
-        },
-        "current": {
-          "revenue": 6980370,
-          "orders": 47,
-          "sessions": 4135,
-          "cvr_pct": 1.137
-        },
-        "delta_krw": 1888310
-      },
-      {
-        "id": "google_paid",
-        "label": "Google 유료 유입",
-        "previous": {
-          "revenue": 7696540,
-          "orders": 33,
-          "sessions": 7443,
-          "cvr_pct": 0.443
-        },
-        "current": {
-          "revenue": 9558226,
-          "orders": 57,
-          "sessions": 4509,
-          "cvr_pct": 1.264
-        },
-        "delta_krw": 1861686
-      },
-      {
-        "id": "instagram_paid_tagged",
-        "label": "Instagram / paid (별도 태그)",
-        "previous": {
-          "revenue": 0,
-          "orders": 0,
-          "sessions": 367,
-          "cvr_pct": 0.0
-        },
-        "current": {
-          "revenue": 0,
-          "orders": 0,
-          "sessions": 2231,
-          "cvr_pct": 0.0
-        },
-        "delta_krw": 0
-      },
-      {
-        "id": "meta_bd_tagged",
-        "label": "META_BD / META_BD (별도 태그)",
-        "previous": {
-          "revenue": 426200,
-          "orders": 2,
-          "sessions": 14305,
-          "cvr_pct": 0.014
-        },
-        "current": {
-          "revenue": 64550,
-          "orders": 1,
-          "sessions": 15060,
-          "cvr_pct": 0.007
-        },
-        "delta_krw": -361650
-      },
-      {
-        "id": "meta_conversion_tagged",
-        "label": "Meta / banner·Facebook 배너",
-        "previous": {
-          "revenue": 2441630,
-          "orders": 16,
-          "sessions": 5473,
-          "cvr_pct": 0.292
-        },
-        "current": {
-          "revenue": 6013888,
-          "orders": 38,
-          "sessions": 7849,
-          "cvr_pct": 0.484
-        },
-        "delta_krw": 3572258
-      },
-      {
-        "id": "naver_brand_search",
-        "label": "네이버 브랜드검색 CPC",
-        "previous": {
-          "revenue": 18652720,
-          "orders": 106,
-          "sessions": 5797,
-          "cvr_pct": 1.829
-        },
-        "current": {
-          "revenue": 41052064,
-          "orders": 229,
-          "sessions": 9111,
-          "cvr_pct": 2.513
-        },
-        "delta_krw": 22399344
-      },
-      {
-        "id": "naver_search_other",
-        "label": "네이버 일반검색 CPC",
-        "previous": {
-          "revenue": 3076250,
-          "orders": 15,
-          "sessions": 1795,
-          "cvr_pct": 0.836
-        },
-        "current": {
-          "revenue": 1329064,
-          "orders": 9,
-          "sessions": 851,
-          "cvr_pct": 1.058
-        },
-        "delta_krw": -1747186
-      },
-      {
-        "id": "organic_search",
-        "label": "자연검색",
-        "previous": {
-          "revenue": 3829050,
-          "orders": 21,
-          "sessions": 1767,
-          "cvr_pct": 1.188
-        },
-        "current": {
-          "revenue": 3367039,
-          "orders": 21,
-          "sessions": 1724,
-          "cvr_pct": 1.218
-        },
-        "delta_krw": -462011
-      },
-      {
-        "id": "other",
-        "label": "기타·분류 미확정",
-        "previous": {
-          "revenue": 287650,
-          "orders": 5,
-          "sessions": 2151,
-          "cvr_pct": 0.232
-        },
-        "current": {
-          "revenue": 2395829,
-          "orders": 19,
-          "sessions": 790,
-          "cvr_pct": 2.405
-        },
-        "delta_krw": 2108179
-      },
-      {
-        "id": "other_display",
-        "label": "기타 DA·쇼핑광고 (카카오·네이버 등)",
-        "previous": {
-          "revenue": 844200,
-          "orders": 3,
-          "sessions": 1559,
-          "cvr_pct": 0.192
-        },
-        "current": {
-          "revenue": 729290,
-          "orders": 5,
-          "sessions": 3094,
-          "cvr_pct": 0.162
-        },
-        "delta_krw": -114910
-      },
-      {
-        "id": "owned_crm_tagged",
-        "label": "카카오·LMS·EDM Owned",
-        "previous": {
-          "revenue": 17217140,
-          "orders": 143,
-          "sessions": 10470,
-          "cvr_pct": 1.366
-        },
-        "current": {
-          "revenue": 16248688,
-          "orders": 136,
-          "sessions": 9668,
-          "cvr_pct": 1.407
-        },
-        "delta_krw": -968452
-      },
-      {
-        "id": "referral",
-        "label": "레퍼럴",
-        "previous": {
-          "revenue": 8101765,
-          "orders": 40,
-          "sessions": 2309,
-          "cvr_pct": 1.732
-        },
-        "current": {
-          "revenue": 4532838,
-          "orders": 31,
-          "sessions": 2526,
-          "cvr_pct": 1.227
-        },
-        "delta_krw": -3568927
-      }
-    ],
-    "channel_total_change_krw": 25736031,
-    "channel_gains": [
-      {
-        "id": "naver_brand_search",
-        "label": "네이버 브랜드검색 CPC",
-        "previous": {
-          "revenue": 18652720,
-          "orders": 106,
-          "sessions": 5797,
-          "cvr_pct": 1.829
-        },
-        "current": {
-          "revenue": 41052064,
-          "orders": 229,
-          "sessions": 9111,
-          "cvr_pct": 2.513
-        },
-        "delta_krw": 22399344
-      },
-      {
-        "id": "meta_conversion_tagged",
-        "label": "Meta / banner·Facebook 배너",
-        "previous": {
-          "revenue": 2441630,
-          "orders": 16,
-          "sessions": 5473,
-          "cvr_pct": 0.292
-        },
-        "current": {
-          "revenue": 6013888,
-          "orders": 38,
-          "sessions": 7849,
-          "cvr_pct": 0.484
-        },
-        "delta_krw": 3572258
-      },
-      {
-        "id": "other",
-        "label": "기타·분류 미확정",
-        "previous": {
-          "revenue": 287650,
-          "orders": 5,
-          "sessions": 2151,
-          "cvr_pct": 0.232
-        },
-        "current": {
-          "revenue": 2395829,
-          "orders": 19,
-          "sessions": 790,
-          "cvr_pct": 2.405
-        },
-        "delta_krw": 2108179
-      },
-      {
-        "id": "direct",
-        "label": "직접 유입",
-        "previous": {
-          "revenue": 5092060,
-          "orders": 34,
-          "sessions": 3521,
-          "cvr_pct": 0.966
-        },
-        "current": {
-          "revenue": 6980370,
-          "orders": 47,
-          "sessions": 4135,
-          "cvr_pct": 1.137
-        },
-        "delta_krw": 1888310
-      },
-      {
-        "id": "google_paid",
-        "label": "Google 유료 유입",
-        "previous": {
-          "revenue": 7696540,
-          "orders": 33,
-          "sessions": 7443,
-          "cvr_pct": 0.443
-        },
-        "current": {
-          "revenue": 9558226,
-          "orders": 57,
-          "sessions": 4509,
-          "cvr_pct": 1.264
-        },
-        "delta_krw": 1861686
-      },
-      {
-        "id": "criteo",
-        "label": "Criteo 배너",
-        "previous": {
-          "revenue": 1051320,
-          "orders": 9,
-          "sessions": 1604,
-          "cvr_pct": 0.561
-        },
-        "current": {
-          "revenue": 2180710,
-          "orders": 12,
-          "sessions": 1632,
-          "cvr_pct": 0.735
-        },
-        "delta_krw": 1129390
-      }
-    ],
-    "channel_losses": [
-      {
-        "id": "referral",
-        "label": "레퍼럴",
-        "previous": {
-          "revenue": 8101765,
-          "orders": 40,
-          "sessions": 2309,
-          "cvr_pct": 1.732
-        },
-        "current": {
-          "revenue": 4532838,
-          "orders": 31,
-          "sessions": 2526,
-          "cvr_pct": 1.227
-        },
-        "delta_krw": -3568927
-      },
-      {
-        "id": "naver_search_other",
-        "label": "네이버 일반검색 CPC",
-        "previous": {
-          "revenue": 3076250,
-          "orders": 15,
-          "sessions": 1795,
-          "cvr_pct": 0.836
-        },
-        "current": {
-          "revenue": 1329064,
-          "orders": 9,
-          "sessions": 851,
-          "cvr_pct": 1.058
-        },
-        "delta_krw": -1747186
-      },
-      {
-        "id": "owned_crm_tagged",
-        "label": "카카오·LMS·EDM Owned",
-        "previous": {
-          "revenue": 17217140,
-          "orders": 143,
-          "sessions": 10470,
-          "cvr_pct": 1.366
-        },
-        "current": {
-          "revenue": 16248688,
-          "orders": 136,
-          "sessions": 9668,
-          "cvr_pct": 1.407
-        },
-        "delta_krw": -968452
-      },
-      {
-        "id": "organic_search",
-        "label": "자연검색",
-        "previous": {
-          "revenue": 3829050,
-          "orders": 21,
-          "sessions": 1767,
-          "cvr_pct": 1.188
-        },
-        "current": {
-          "revenue": 3367039,
-          "orders": 21,
-          "sessions": 1724,
-          "cvr_pct": 1.218
-        },
-        "delta_krw": -462011
-      },
-      {
-        "id": "meta_bd_tagged",
-        "label": "META_BD / META_BD (별도 태그)",
-        "previous": {
-          "revenue": 426200,
-          "orders": 2,
-          "sessions": 14305,
-          "cvr_pct": 0.014
-        },
-        "current": {
-          "revenue": 64550,
-          "orders": 1,
-          "sessions": 15060,
-          "cvr_pct": 0.007
-        },
-        "delta_krw": -361650
-      },
-      {
-        "id": "other_display",
-        "label": "기타 DA·쇼핑광고 (카카오·네이버 등)",
-        "previous": {
-          "revenue": 844200,
-          "orders": 3,
-          "sessions": 1559,
-          "cvr_pct": 0.192
-        },
-        "current": {
-          "revenue": 729290,
-          "orders": 5,
-          "sessions": 3094,
-          "cvr_pct": 0.162
-        },
-        "delta_krw": -114910
-      }
-    ],
-    "unclassified": {
-      "current": 2395829,
-      "previous": 287650
-    },
-    "paid_roas_eligible": false,
-    "traffic_watch": {
-      "title": "META_BD 대량 유입·구매 분리",
-      "sessions": 15060,
-      "orders": 1,
-      "revenue": 64550,
-      "cvr_pct": 0.007,
-      "note": "인지·트래픽 목적 태그는 판매 목적 Meta 배너와 분리. 인지도 목적의 실패를 구매 지표만으로 판정하지 않음.",
-      "verify_next": "노출·도달·CPM·빈도·랜딩 이후 전환 경로"
     }
   },
   "owned_utm": {
@@ -1810,9 +1321,9 @@
     "reports/marketing_intelligence_v2/latest.json"
   ],
   "quality": {
-    "reliable_event_days": 2,
+    "reliable_event_days": 3,
     "event_media_measured": true,
-    "weekly_media_date_aligned": true,
+    "weekly_media_date_aligned": false,
     "roas_eligible": false,
     "caution": "GA4 attribution is descriptive, not causal. Media costs are separately verified. No ad-platform campaign spend is implied."
   }
