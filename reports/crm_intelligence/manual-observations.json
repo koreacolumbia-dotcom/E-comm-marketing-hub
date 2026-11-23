@@ -1,7 +1,17 @@
 {
   "updated_at": "2026-11-23",
-  "scope": "Direct navigation on official storefront without registration or order submission",
+  "scope": "Official storefront direct tests; anonymous and signed-in flows distinguished. No order submitted or CRM message verified.",
   "observations": [
+    {
+      "brand": "MONTBELL",
+      "scenario": "checkout",
+      "status": "signed_in_flow",
+      "summary": "회원 로그인 표시(계정 메뉴·로그아웃)를 확인한 뒤 포켓터블 라이트 숄더백 S I BLACK(65,000원) 상품 상세에서 XXX 옵션 1개 선택 후 바로구매. 수량 제한 상품으로 장바구니 버튼은 노출되지 않음. 로그인 요구 없이 회원 주문서로 이동하고 주문자 정보 자동 입력·보유 포인트 5,000점·쿠폰 적용 불가를 확인. 결제 및 주문 제출은 하지 않음.",
+      "source": "https://www.montbell.co.kr/shop/item.php?it_id=JBEJXUES261",
+      "next_url": "https://www.montbell.co.kr/shop/orderform.php?sw_direct=1",
+      "observed_at": "2026-11-23",
+      "message_verified": false
+    },
     {
       "brand": "MONTBELL",
       "scenario": "checkout",
@@ -42,6 +52,22 @@
     }
   ],
   "experiments": [
+    {
+      "brand": "MONTBELL",
+      "date": "2026-11-23",
+      "session": "signed_in",
+      "product": "포켓터블 라이트 숄더백 S I BLACK",
+      "product_url": "https://www.montbell.co.kr/shop/item.php?it_id=JBEJXUES261",
+      "steps": {
+        "signup": "기존 가입 계정 로그인 확인",
+        "view": "동일 상품 PDP 조회",
+        "cart": "수량 제한으로 장바구니 버튼 없음·미실행",
+        "checkout": "XXX 1개 선택→바로구매→회원 주문서 진입·미제출"
+      },
+      "message": "미확인",
+      "trigger": "미검증",
+      "confidence": "회원 로그인 및 화면 직접 확인"
+    },
     {
       "brand": "MONTBELL",
       "date": "2026-11-22",
