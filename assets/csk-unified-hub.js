@@ -22,7 +22,7 @@ const GROUPS=[
   ["crm_intelligence","경쟁사 CRM","reports/crm_intelligence/index.html?v=20261119","fa-diagram-project"]]],
  ["competitors","경쟁사·콘텐츠","경쟁사","fa-binoculars",[
   ["sale_calendar","경쟁사 세일 캘린더","reports/competitor_sale_calendar/index.html?v=20261118-editorial","fa-calendar-days"],
-  ["competitor_content","경쟁사 콘텐츠","reports/competitor_content/index.html?v=20261118-purpose-v6","fa-book-open"],
+  ["competitor_content","경쟁사 콘텐츠","reports/competitor_content/index.html?v=20261123-layout-v3-03cbeac","fa-book-open"],
   ["competitor","경쟁사 상품 비교","reports/competitor_intel/dashboard.html","fa-chart-column"],
   ["price","네이버 최저가","reports/naver_lowest_price.html","fa-won-sign"],
   ["hero","기획전·배너","reports/hero_main.html","fa-image"]]],
