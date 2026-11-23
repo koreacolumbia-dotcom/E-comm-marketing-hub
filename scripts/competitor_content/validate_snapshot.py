@@ -2,9 +2,44 @@
 import json
 import sys
 from urllib.parse import urlsplit
+import ipaddress
 from pathlib import Path
 
 ROOT = Path("reports/competitor_content")
+
+def validate_public_url(url, brand, kind):
+    """Reject unsafe authority, local addresses, and non-standard HTTPS ports."""
+    try:
+        parsed = urlsplit(url)
+        hostname = parsed.hostname
+        port = parsed.port
+    except ValueError as exc:
+        raise AssertionError(f"{brand}: malformed {kind} URL") from exc
+    assert parsed.scheme == "https" and hostname, f"{brand}: unsafe {kind} URL"
+    assert port in (None, 443), f"{brand}: nonstandard HTTPS port in {kind}"
+    assert not parsed.username and not parsed.password and not parsed.fragment, f"{brand}: unsafe {kind} authority"
+    assert not hostname.endswith((".local", ".internal", ".localhost", ".test", ".invalid")), f"{brand}: local {kind} host"
+    assert hostname != "localhost", f"{brand}: localhost {kind} host"
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        pass
+    else:
+        assert ip.is_global, f"{brand}: non-public IP in {kind}"
+    return True
+
+def self_test():
+    assert validate_public_url("https://www.k2.co.kr/story?a=1", "K2", "pending")
+    for bad in ("http://www.k2.co.kr/", "https://localhost/", "https://127.0.0.1/",
+                "https://10.0.0.1/", "https://www.k2.co.kr:8443/",
+                "https://user:pass@www.k2.co.kr/", "https://www.k2.co.kr/#frag",
+                "https://[::1]/"):
+        try:
+            validate_public_url(bad, "K2", "pending")
+        except AssertionError:
+            continue
+        raise AssertionError(f"unsafe URL accepted: {bad}")
+
 
 def validate(root=ROOT):
     feed = json.loads((root / "latest.json").read_text(encoding="utf-8"))
@@ -27,18 +62,14 @@ def validate(root=ROOT):
         assert isinstance(state.get("pending", []), list), f"{brand}: invalid queue"
         assert isinstance(state.get("url_ledger", {}), dict), f"{brand}: invalid ledger"
         for url, record in state.get("url_ledger", {}).items():
-            parsed = urlsplit(url)
-            assert parsed.scheme == "https" and parsed.hostname, f"{brand}: unsafe ledger URL"
-            assert not parsed.username and not parsed.password and not parsed.fragment, f"{brand}: unsafe ledger authority"
+            validate_public_url(url, brand, "ledger")
             assert isinstance(record, dict) and isinstance(record.get("state"), str), f"{brand}: invalid ledger entry"
         pending = state.get("pending", [])
         assert len(pending) == len(set(pending)), f"{brand}: duplicate pending URLs"
         for url in pending:
             assert url not in seen_urls, f"cross-brand duplicate pending URL: {brand}: {url}"
             seen_urls.add(url)
-            parsed = urlsplit(url)
-            assert parsed.scheme == "https" and parsed.hostname, f"{brand}: unsafe pending URL"
-            assert not parsed.username and not parsed.password and not parsed.fragment, f"{brand}: unsafe URL authority or fragment"
+            validate_public_url(url, brand, "pending")
     # Validate ledger state accounting independently of the dashboard's summary.
     # A blocked or timed-out page must never be counted as a successfully observed page.
     for brand, state in frontier_brands.items():
@@ -62,6 +93,7 @@ def validate(root=ROOT):
 
 if __name__ == "__main__":
     try:
+        self_test()
         validate()
     except (AssertionError, KeyError, ValueError, OSError) as exc:
         print(f"snapshot validation failed: {exc}", file=sys.stderr)
