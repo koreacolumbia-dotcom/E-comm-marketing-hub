@@ -66,10 +66,10 @@ def run_report(session, year, kind):
 
 def summarize(raw):
     result = {}
-    for label, end_index in (("D1-D2", 1), ("D1-D3", 2)):
+    for label, days in (("D1-D2", 2), ("D1-D3", 3)):
         rows = {}
         for year in ("2025","2026"):
-            window_end = PERIODS[year][end_index].replace("-","")
+            window_end = (dt.date.fromisoformat(PERIODS[year][0]) + dt.timedelta(days=days-1)).strftime('%Y%m%d')
             tmp = {}
             for d, src, event, count in raw[year]["signup"]:
                 if d > window_end: continue
@@ -102,8 +102,8 @@ def summarize(raw):
                 for k in ("signup_complete","sign_up","sign_up_complete","sessions","orders","revenue")}
                 for y in ("2025","2026")}
         result[label] = {
-            "period":{"2025":[PERIODS["2025"][0],PERIODS["2025"][end_index]],
-                      "2026":[PERIODS["2026"][0],PERIODS["2026"][end_index]]},
+            "period":{"2025":[PERIODS["2025"][0],(dt.date.fromisoformat(PERIODS['2025'][0])+dt.timedelta(days=days-1)).isoformat()],
+                      "2026":[PERIODS["2026"][0],(dt.date.fromisoformat(PERIODS['2026'][0])+dt.timedelta(days=days-1)).isoformat()]},
             "rows":report_rows,"totals":totals,
             "matched_signup_complete_in_both_years":totals["2025"]["signup_complete"] > 0 and totals["2026"]["signup_complete"] > 0
         }
