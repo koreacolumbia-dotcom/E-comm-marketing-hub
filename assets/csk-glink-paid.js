@@ -46,7 +46,7 @@
   const root=document.createElement('section'); root.id='csk-agency-paid'; root.setAttribute('aria-label','Glink 대행사 Paid 데이터');
   const container=document.querySelector('main') || document.body;
   container.insertBefore(root,container.firstChild);
-  function sync(){root.style.display=(location.hash.replace('#','')==='performance')?'block':'none';}
+  function sync(){root.style.display=(['performance','winter_festival'].includes(location.hash.replace('#','')))?'block':'none';}
   function card(label,value,detail){return `<div class="ap-kpi"><div class="ap-lab">${label}</div><div class="ap-big">${value}</div><div class="ap-sub">${detail}</div></div>`;}
   function render(scope){
     if(!snapshot)return;current=scope;
