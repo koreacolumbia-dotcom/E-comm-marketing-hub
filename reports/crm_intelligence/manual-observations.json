@@ -3,6 +3,16 @@
   "scope": "Official storefront direct tests; anonymous and signed-in flows distinguished. No order submitted or CRM message verified.",
   "observations": [
     {
+      "brand": "NATIONAL GEOGRAPHIC",
+      "scenario": "checkout",
+      "status": "signed_in_flow",
+      "summary": "N.STATION 공식몰 로그아웃·마이페이지 표시로 회원 로그인 확인. 코스토니 후드 플리스 자켓 BLACK 090 1개(표시가 169,000원)를 PDP에서 컬러 BLACK→사이즈 090 선택 후 장바구니에 추가. 카트 1개 확인 후 주문하기로 회원 주문/결제 화면 진입. 최대할인 적용 체크와 쿠폰 1개로 상품금액 160,550원(5% 할인) 표시. 배송지 등록·결제 전 중단. CRM 메시지 수신 미확인.",
+      "source": "https://www.nstationmall.com/goods/detail/26802",
+      "next_url": "https://www.nstationmall.com/order",
+      "observed_at": "2026-11-23",
+      "message_verified": false
+    },
+    {
       "brand": "SALOMON",
       "scenario": "checkout",
       "status": "signed_in_flow",
@@ -72,6 +82,22 @@
     }
   ],
   "experiments": [
+    {
+      "brand": "NATIONAL GEOGRAPHIC",
+      "date": "2026-11-23",
+      "session": "signed_in",
+      "product": "코스토니 후드 플리스 자켓 BLACK",
+      "product_url": "https://www.nstationmall.com/goods/detail/26802",
+      "steps": {
+        "signup": "기존 회원 계정 로그인 확인",
+        "view": "상품 상세 조회",
+        "cart": "BLACK 090 1개 담기·카트 1개 확인",
+        "checkout": "주문하기→회원 주문/결제 화면·5% 쿠폰 적용 160,550원·미결제"
+      },
+      "message": "미확인",
+      "trigger": "미검증",
+      "confidence": "회원 로그인 및 화면 직접 확인"
+    },
     {
       "brand": "SALOMON",
       "date": "2026-11-23",
