@@ -100,8 +100,17 @@ def host(u): return (urlsplit(u).hostname or "").removeprefix("www.").removepref
 def official_host(brand,u):
     return host(u)==host(ROOTS[brand]) or bool(ALTERNATE.get(brand) and host(u)==ALTERNATE[brand])
 def allowed_link(brand,u):
-    p=urlsplit(u)
-    return p.scheme=="https" and p.port in (None,443) and not p.username and not p.password and official_host(brand,u) and not DENY.search(p.path+"?"+p.query)
+    # Malformed authorities (including invalid ports/IPv6) must fail closed.
+    # This is a public-source crawler, never a general-purpose URL fetcher.
+    try:
+        p=urlsplit(u)
+        hostname=p.hostname
+        port=p.port
+    except (ValueError, TypeError):
+        return False
+    return bool(p.scheme=="https" and hostname and port in (None,443)
+                and not p.username and not p.password and official_host(brand,u)
+                and not DENY.search(p.path+"?"+p.query))
 def scoped(brand,u):
     p=urlsplit(u); path=p.path.lower()
     if re.search(r"/product/(?:detail|list|search)\.html|/product/[a-z0-9][^/]+/\d+/?$|/product/[A-Z0-9]{5,}/?$",p.path,re.I): return False
@@ -715,6 +724,8 @@ def self_test():
     assert canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1895")!=canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
     assert allowed_link("TNF","https://www.thenorthfacekorea.co.kr/robots.txt")
     assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr:8443/")
+    assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr:invalid/")
+    assert not allowed_link("TNF","https://[::1/")
     assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr.evil.example/")
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
     assert scoped("HOKA","https://linktr.ee/hoka_korea")
