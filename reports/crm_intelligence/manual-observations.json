@@ -3,6 +3,16 @@
   "scope": "Official storefront direct tests; anonymous and signed-in flows distinguished. No order submitted or CRM message verified.",
   "observations": [
     {
+      "brand": "K.VILLAGE (K2·EIDER)",
+      "scenario": "checkout",
+      "status": "signed_in_flow",
+      "summary": "K.VILLAGE 회원 로그인·마이페이지 확인(마일리지 5,000원, 내 쿠폰 41장). K2 폴라텍 파워스트레치 글러브 Carbon Blue L 1개 14,000원과 EIDER 브라우니 Dark Beige 250 1개 139,000원을 각각 PDP 조회·장바구니 담기·회원 주문서 진입. K2 주문서 적용 가능 쿠폰 0장, 아이더 주문서 15,000원 쿠폰 적용으로 124,000원. 두 주문 모두 미제출. 회원정보 수신동의 화면은 비밀번호 재확인 단계에서 중단. 오프사이트 발송 미확인.",
+      "source": "https://www.k-village.co.kr/goods/KUF23V101A",
+      "next_url": "https://www.k-village.co.kr/goods/DWF26N22E4",
+      "observed_at": "2026-11-23",
+      "message_verified": false
+    },
+    {
       "brand": "DISCOVERY",
       "scenario": "account_and_consent",
       "status": "login_required",
@@ -92,6 +102,38 @@
     }
   ],
   "experiments": [
+    {
+      "brand": "EIDER",
+      "product": "브라우니 Dark Beige",
+      "product_url": "https://www.k-village.co.kr/goods/DWF26N22E4",
+      "steps": {
+        "signup": "기존 K.VILLAGE 회원 로그인 확인",
+        "view": "상품 상세 조회",
+        "cart": "Dark Beige 250 1개 담기·카트 확인",
+        "checkout": "회원 주문서 진입·15,000원 쿠폰 적용·미결제"
+      },
+      "date": "2026-11-23",
+      "session": "signed_in",
+      "message": "미확인",
+      "trigger": "미검증",
+      "confidence": "회원 로그인 및 화면 직접 확인"
+    },
+    {
+      "brand": "K2",
+      "product": "폴라텍 파워스트레치 글러브 Carbon Blue",
+      "product_url": "https://www.k-village.co.kr/goods/KUF23V101A",
+      "steps": {
+        "signup": "기존 K.VILLAGE 회원 로그인 확인",
+        "view": "상품 상세 조회",
+        "cart": "Carbon Blue L 1개 담기·카트 확인",
+        "checkout": "회원 주문서 진입·적용 쿠폰 0장·미결제"
+      },
+      "date": "2026-11-23",
+      "session": "signed_in",
+      "message": "미확인",
+      "trigger": "미검증",
+      "confidence": "회원 로그인 및 화면 직접 확인"
+    },
     {
       "brand": "NATIONAL GEOGRAPHIC",
       "date": "2026-11-23",
@@ -203,6 +245,24 @@
     }
   ],
   "offers": [
+    {
+      "brand": "K2",
+      "stage": "회원 주문",
+      "offer": "보유 쿠폰 41장 중 테스트 상품 적용 가능 0장",
+      "result": "14,000원 상품·2,500원 배송비, 주문서 16,500원 표시",
+      "evidence": "회원 주문서 직접 확인",
+      "url": "https://www.k-village.co.kr/goods/KUF23V101A",
+      "message_verified": false
+    },
+    {
+      "brand": "EIDER",
+      "stage": "회원 주문",
+      "offer": "15,000원 쿠폰 자동 적용",
+      "result": "139,000원→124,000원, 주문서 적용 가능 쿠폰 1장",
+      "evidence": "회원 주문서 직접 확인",
+      "url": "https://www.k-village.co.kr/goods/DWF26N22E4",
+      "message_verified": false
+    },
     {
       "brand": "DISCOVERY",
       "stage": "마케팅 수신동의",
@@ -521,9 +581,9 @@
       "brand": "K.VILLAGE (K2·EIDER)",
       "url": "https://www.k-village.co.kr/joinInfo",
       "login_url": "https://www.k-village.co.kr/joinInfo",
-      "status": "로그아웃 확인",
-      "need": "회원가입 또는 SNS 로그인·본인인증",
-      "note": "한 계정으로 K2·아이더 상품 시나리오 조사. 가입 화면에 마케팅 동의/사이즈 입력 6,000M 안내."
+      "status": "회원 로그인·K2/아이더 행동 실험 완료",
+      "need": "회원정보 수신동의 확인은 비밀번호 재확인 필요",
+      "note": "두 브랜드 상품 조회·장바구니·주문서 진입 완료. 실제 메시지 수신은 추후 확인."
     },
     {
       "brand": "BLACKYAK",
