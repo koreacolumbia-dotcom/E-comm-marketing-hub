@@ -11,8 +11,8 @@ OUT=ROOT/"reports/decision_health/winter_festival_signup_campaign_yoy_2026.json"
 PROPERTY="358593394"
 PERIODS={"2025":("2025-11-21","2025-11-23"),"2026":("2026-11-20","2026-11-22")}
 # Deliberately strict: discounts/welcome/remarketing are NOT membership recruitment.
-STRICT=re.compile(r"회원\\s*가입|회원\\s*유치|회원획득|신규\\s*회원\\s*모집|sign[ _-]?up|registr(?:ation|ation)|member[ _-]?acq|membership[ _-]?(?:join|sign|registration)",re.I)
-UNSAFE=re.compile(r"@|https?://|[?&](?:uid|user_id|email|phone|token)=|(?:\\+?\\d[\\d\\s().-]{9,}\\d)",re.I)
+STRICT=re.compile(r"회원\s*가입|회원\s*유치|회원획득|신규\s*회원\s*모집|sign[ _-]?up|registr(?:ation|ation)|member[ _-]?acq|membership[ _-]?(?:join|sign|registration)",re.I)
+UNSAFE=re.compile(r"@|https?://|[?&](?:uid|user_id|email|phone|token)=|(?:\+?\d[\d\s().-]{9,}\d)",re.I)
 
 def clean(s,limit=160):
     s=str(s or "(not set)").strip()
@@ -20,7 +20,7 @@ def clean(s,limit=160):
 
 def write(data):
     OUT.parent.mkdir(parents=True,exist_ok=True)
-    OUT.write_text(json.dumps(data,ensure_ascii=False,indent=2,allow_nan=False)+"\\n",encoding="utf-8")
+    OUT.write_text(json.dumps(data,ensure_ascii=False,indent=2,allow_nan=False)+"\n",encoding="utf-8")
 
 def call(session,year,mode):
     start,end=PERIODS[year]
