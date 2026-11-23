@@ -199,6 +199,48 @@ def validate(root=ROOT):
             expected = round(100 * observed / known, 1)
             assert abs(coverage.get("observed_pct", 0) - expected) <= 0.11, f"{item['brand']}: coverage percentage mismatch"
         assert coverage.get("unobserved_urls", 0) <= known, f"{item['brand']}: invalid unobserved count"
+    # Persist a per-brand operational diagnosis rather than hiding 24-brand failures
+    # behind the aggregate registration count. These are observations, not success claims.
+    health = []
+    summary_by_brand = {row["brand"]: row for row in summary_brands}
+    for brand, state in sorted(frontier_brands.items()):
+        counts = Counter(record["state"] for record in state.get("url_ledger", {}).values())
+        coverage = summary_by_brand[brand].get("url_coverage") or {}
+        pending_count = len(state.get("pending", []))
+        observed_count = counts["observed"]
+        partial_count = counts["partial_observed"]
+        blocked_count = sum(counts[k] for k in ("access_blocked", "policy_denied", "blocked", "policy_blocked", "restricted"))
+        error_count = sum(counts[k] for k in ("error", "timeout", "not_found"))
+        health.append({
+            "brand": brand,
+            "pending_urls": pending_count,
+            "observed_urls_in_ledger": observed_count,
+            "partial_urls_in_ledger": partial_count,
+            "blocked_urls_in_ledger": blocked_count,
+            "error_urls_in_ledger": error_count,
+            "known_urls": coverage.get("known_urls"),
+            "observed_urls": coverage.get("observed_urls"),
+            "observed_pct": coverage.get("observed_pct"),
+            "status": ("blocked" if blocked_count and not observed_count else
+                       "no_observation" if not observed_count and not partial_count else
+                       "backlog" if pending_count else "observed"),
+        })
+    health.sort(key=lambda row: (
+        0 if row["status"] in ("blocked", "no_observation") else 1,
+        -row["pending_urls"], row["brand"]))
+    diagnostic = {
+        "schema_version": 1,
+        "source_checked_at": feed["checked_at_kst"],
+        "scope_brands": len(health),
+        "pending_urls": sum(row["pending_urls"] for row in health),
+        "brands_without_full_observation": sum(not row["observed_urls_in_ledger"] for row in health),
+        "brands": health,
+        "note": "Ledger states are observed crawl outcomes; missing observations do not prove absent content.",
+    }
+    (root / "crawl-health.json").write_text(
+        json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    print("priority crawl gaps:", [(row["brand"], row["status"], row["pending_urls"])
+                                  for row in health[:8]])
     print(f"snapshot OK: {len(brands)} brands, {summary['quality']['retained_unique_count']} retained items")
     return True
 
