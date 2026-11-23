@@ -178,8 +178,8 @@ def placement_evidence(source, placement, block):
                  "campaign_page" if re.search(r"/(?:event|events|promotion|campaign|exhibition|special)(?:/|$)", path) else
                  "editorial_page" if re.search(r"/(?:story|stories|journal|editorial|magazine|contents|content)(?:/|$)", path) else
                  "unknown")
-    if placement == "main_visual":
-        page_kind = "homepage"
+    # The extraction label describes the block, not the URL of its parent page.
+    # A hero on an event or PDP page must not be relabelled as homepage.
     # Text and links alone cannot establish a gallery or a PDP module.
     return {"page_kind": page_kind, "page_kind_confidence": "url_inferred",
             "module_kind": "unverified", "module_verified": False,
@@ -780,6 +780,8 @@ def self_test():
     assert content_composition({"page_metrics":{"images":9}})["status"]=="unverified"
     assert placement_evidence("https://example.com/product/detail/123","editorial_page",{})["page_kind"]=="pdp_page"
     assert placement_evidence("https://example.com/event/winter","editorial_page",{})["page_kind"]=="campaign_page"
+    assert placement_evidence("https://example.com/event/winter","main_visual",{})["page_kind"]=="campaign_page"
+    assert placement_evidence("https://example.com/product/detail/123","main_visual",{})["page_kind"]=="pdp_page"
     assert placement_evidence("https://example.com/story/abc","editorial_page",{})["page_kind"]=="editorial_page"
     assert not placement_evidence("https://example.com/product/detail/123","editorial_page",{})["module_verified"]
     assert canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1894&utm_medium=cpc&fbclid=abc")=="https://www.byn.kr/story/blackyak/?gb=detail&no=1894"
