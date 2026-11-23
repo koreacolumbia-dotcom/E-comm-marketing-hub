@@ -121,6 +121,57 @@
   ],
   "experiments": [
     {
+      "brand": "SALOMON",
+      "date": "2026-11-24",
+      "time_window_kst": "00:40–00:53",
+      "session": "signed_in",
+      "product": "트레일블레이저 10 블랙",
+      "product_url": "https://salomon.co.kr/products/lc2182900",
+      "steps": {
+        "signup": "기존 회원 로그인·휴대폰 번호와 수신동의 저장 상태 사전 확인",
+        "view": "상품 상세 재조회",
+        "cart": "NS 1개 추가·기존 1개와 합산 2개를 다시 1개로 조정",
+        "checkout": "회원 체크아웃 1개·100,000원·문자 카트 알림 선택 표시·미결제"
+      },
+      "message": "관찰 시작·미확인",
+      "trigger": "장바구니/결제 이탈 관찰 시작",
+      "confidence": "회원 화면·카트·주문서 직접 확인"
+    },
+    {
+      "brand": "BLACKYAK",
+      "date": "2026-11-24",
+      "time_window_kst": "00:40–00:53",
+      "session": "signed_in",
+      "product": "스톤마스터비니 L/RED",
+      "product_url": "https://www.byn.kr/blackyak/shop/detail.php?pno=AE1233CD53887D2F958E893E1BFC0117",
+      "steps": {
+        "signup": "기존 회원 로그인·휴대폰 번호와 수신동의 저장 상태 사전 확인",
+        "view": "상품 상세 재조회",
+        "cart": "FREE 1개 담기·카트 1개 확인",
+        "checkout": "회원 주문서 1개·41,700원·쿠폰할인 0원·미결제"
+      },
+      "message": "관찰 시작·미확인",
+      "trigger": "장바구니/결제 이탈 관찰 시작",
+      "confidence": "회원 화면·카트·주문서 직접 확인"
+    },
+    {
+      "brand": "MILLET",
+      "date": "2026-11-24",
+      "time_window_kst": "00:40–00:53",
+      "session": "signed_in",
+      "product": "비오 써말 집업 티셔츠 D/NAVY",
+      "product_url": "https://www.millet.co.kr/front/product/29479",
+      "steps": {
+        "signup": "기존 회원 로그인·휴대폰 번호와 수신동의 저장 상태 사전 확인",
+        "view": "상품 상세 재조회",
+        "cart": "100 1개 담기·기존 1개와 합산 2개를 다시 1개로 조정",
+        "checkout": "회원 주문서 1개·49,000원·사용 가능 쿠폰 0장·미결제"
+      },
+      "message": "관찰 시작·미확인",
+      "trigger": "장바구니/결제 이탈 관찰 시작",
+      "confidence": "회원 화면·카트·주문서 직접 확인"
+    },
+    {
       "brand": "BLACKYAK",
       "product": "스톤마스터비니 L/RED",
       "product_url": "https://www.byn.kr/blackyak/shop/detail.php?pno=AE1233CD53887D2F958E893E1BFC0117",
@@ -544,11 +595,11 @@
     }
   ],
   "offsite_audit": {
-    "checked_at": "2026-11-23",
+    "checked_at": "2026-11-24",
     "connected_mailbox": "dmkt.kbh@gmail.com",
     "scope": "11월 20일 이후 기존 4개 브랜드, 10월 1일 이후 디스커버리·블랙야크·K2·아이더·네파·코오롱스포츠의 브랜드명/도메인 Gmail 검색",
-    "result": "연결된 Gmail에서 이번 조사 대상 브랜드의 행동 유발 CRM 원본 0건",
-    "limitations": "N.STATION 계정은 다른 이메일. 노스페이스·몽벨 계정도 연결 Gmail과 일치 여부 미확인. 문자·카카오 수신함 접근 불가. 미수신을 미발송으로 해석하지 않음."
+    "result": "2026-11-24 새 실험 3개 브랜드 실행. 이후 발송 원본은 아직 확인하지 않음",
+    "limitations": "밀레·블랙야크·살로몬 계정 이메일과 연결 Gmail 일치 여부 대조 필요. 문자·카카오 수신함 접근 불가. 미수신을 미발송으로 해석하지 않음."
   },
   "scenario_matrix": [
     {
@@ -589,6 +640,69 @@
     }
   ],
   "scenario_results": [
+    {
+      "brand": "SALOMON",
+      "scenario": "결제 이탈",
+      "action": "2026-11-24 00:40–00:53 KST 재실행 · 회원 체크아웃 1개·100,000원·문자 카트 알림 선택 표시·미결제",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "연결 Gmail은 추후 대조·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "SALOMON",
+      "scenario": "장바구니 이탈",
+      "action": "2026-11-24 00:40–00:53 KST 재실행 · NS 1개 추가·기존 1개와 합산 2개를 다시 1개로 조정",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "연결 Gmail은 추후 대조·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "SALOMON",
+      "scenario": "상품 조회 이탈",
+      "action": "2026-11-24 00:40–00:53 KST 재실행 · 회원 PDP 조회",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "연결 Gmail은 추후 대조·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "BLACKYAK",
+      "scenario": "결제 이탈",
+      "action": "2026-11-24 00:40–00:53 KST 재실행 · 회원 주문서 1개·41,700원·쿠폰할인 0원·미결제",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "연결 Gmail은 추후 대조·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "BLACKYAK",
+      "scenario": "장바구니 이탈",
+      "action": "2026-11-24 00:40–00:53 KST 재실행 · FREE 1개 담기·카트 1개 확인",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "연결 Gmail은 추후 대조·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "BLACKYAK",
+      "scenario": "상품 조회 이탈",
+      "action": "2026-11-24 00:40–00:53 KST 재실행 · 회원 PDP 조회",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "연결 Gmail은 추후 대조·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "MILLET",
+      "scenario": "결제 이탈",
+      "action": "2026-11-24 00:40–00:53 KST 재실행 · 회원 주문서 1개·49,000원·사용 가능 쿠폰 0장·미결제",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "연결 Gmail은 추후 대조·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "MILLET",
+      "scenario": "장바구니 이탈",
+      "action": "2026-11-24 00:40–00:53 KST 재실행 · 100 1개 담기·기존 1개와 합산 2개를 다시 1개로 조정",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "연결 Gmail은 추후 대조·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "MILLET",
+      "scenario": "상품 조회 이탈",
+      "action": "2026-11-24 00:40–00:53 KST 재실행 · 회원 PDP 조회",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "연결 Gmail은 추후 대조·문자/카카오 원본 접근 전"
+    },
     {
       "brand": "TNF",
       "scenario": "가입 직후",
