@@ -143,6 +143,19 @@ jobs:
           for script in /tmp/csk-competitor-inline-*.mjs; do node --check "$script"; done
       - name: Test interactive drilldowns in Chromium
         run: python scripts/competitor_content/drilldown_test.py
+      - name: Audit catch-up scheduling before crawling
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          source=Path('scripts/competitor_content/crawl.py').read_text()
+          tree=ast.parse(source)
+          functions={n.name for n in ast.walk(tree) if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))}
+          assert {'choose_extra_catchup','shard_selection','coverage_plan'} <= functions, 'missing coverage scheduler'
+          workflow=Path('.github/workflows/competitor-content.yml').read_text()
+          assert "CONTENT_EXTRA_CATCHUP_BRANDS: '2'" in workflow, 'catch-up disabled or too narrow'
+          print('Catch-up scheduler available: two rotating extra brands per run')
+          PY
       - name: Crawl official editorial pages
         env:
           CONTENT_PAGE_LIMIT: '120'
@@ -151,7 +164,7 @@ jobs:
           CONTENT_SCROLL_LIMIT: '80'
           CONTENT_CRAWL_SLICE_SECONDS: '110'
           CONTENT_CRAWL_SHARDS: '4'
-          CONTENT_EXTRA_CATCHUP_BRANDS: '1'
+          CONTENT_EXTRA_CATCHUP_BRANDS: '2'
           CONTENT_TARGET_SAMPLE: '50'
           CONTENT_MAINTENANCE_PAGE_LIMIT: '40'
           CONTENT_MAINTENANCE_SECONDS: '300'
