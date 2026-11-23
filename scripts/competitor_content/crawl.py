@@ -93,9 +93,23 @@ USP={"보온":r"warmth|insulat|보온|체온","방수":r"waterproof|방수|고�
 # Keep functional query keys (e.g. gb, no, cate) for distinct editorial pages.
 TRACKING_QUERY=re.compile(r"^(?:utm_[a-z0-9_]+|gclid|dclid|gbraid|wbraid|fbclid|msclkid|igshid|mc_cid|mc_eid|_ga|_gl|ref|tracking)$",re.I)
 def canonical(u):
-    p=urlsplit(u)
-    q=[(k,v) for k,v in parse_qsl(p.query,keep_blank_values=True) if not TRACKING_QUERY.fullmatch(k)]
-    return urlunsplit((p.scheme.lower(),p.netloc.lower(),p.path or "/",urlencode(sorted(q)),""))
+    """Normalize editorial URLs without collapsing distinct campaign identifiers.
+
+    Reject malformed authorities before the URL can enter the frontier ledger.
+    """
+    p = urlsplit(u)
+    hostname = p.hostname
+    port = p.port  # ValueError on malformed ports; fail closed.
+    if p.scheme.lower() != "https" or not hostname or port not in (None, 443):
+        raise ValueError("canonical requires a public HTTPS URL on the standard port")
+    if p.username or p.password or p.fragment and not isinstance(p.fragment, str):
+        raise ValueError("canonical requires an unauthenticated URL")
+    q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True)
+         if not TRACKING_QUERY.fullmatch(k)]
+    authority = hostname.lower()
+    if ":" in authority:
+        authority = "[" + authority + "]"
+    return urlunsplit(("https", authority, p.path or "/", urlencode(sorted(q)), ""))
 def host(u): return (urlsplit(u).hostname or "").removeprefix("www.").removeprefix("m.")
 def official_host(brand,u):
     return host(u)==host(ROOTS[brand]) or bool(ALTERNATE.get(brand) and host(u)==ALTERNATE[brand])
@@ -730,6 +744,15 @@ def self_test():
     assert not allowed_link("TNF","https://[::1/")
     assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr.evil.example/")
     assert canonical("https://arcteryx.co.kr/lp?utm_source=a&x=2#h")=="https://arcteryx.co.kr/lp?x=2"
+    assert canonical("https://www.byn.kr:443/story?no=1894&utm_source=x")=="https://www.byn.kr/story?no=1894"
+    for bad in ("http://www.byn.kr/story", "https://www.byn.kr:8443/story",
+                "https://www.byn.kr:invalid/story", "https://user:pass@www.byn.kr/story"):
+        try:
+            canonical(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unsafe URL canonicalized: " + bad)
     assert scoped("HOKA","https://linktr.ee/hoka_korea")
     assert scoped("HOKA","https://brand.naver.com/hoka")
     assert not scoped("HOKA","https://brand.naver.com/other")
