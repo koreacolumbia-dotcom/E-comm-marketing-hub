@@ -183,6 +183,16 @@ def publish():
             from calendar_archive import build
             write_json(REPORT / "calendar.json", build(merged, read_json(REPORT / "calendar.json")))
             rebuild_strategy()
+            # Validate the *merged* snapshot, not only the pre-merge crawl artifact.
+            # Refuse publication if concurrent writers introduced unsafe URLs,
+            # inconsistent brand coverage, or mismatched analysis timestamps.
+            from validate_snapshot import validate
+            validate(REPORT)
+            quality_snapshot = read_json(REPORT / "latest-quality.json")
+            if (quality_snapshot.get("source_checked_at") != merged.get("checked_at_kst")
+                    or quality_snapshot.get("brand_count") != 24
+                    or quality_snapshot.get("quality") != read_json(REPORT / "strategy-summary.json").get("quality")):
+                raise RuntimeError("Merged quality snapshot does not match source feed")
             command("git", "add", "reports/competitor_content/latest.json",
                     "reports/competitor_content/crawl-frontier.json",
                     "reports/competitor_content/calendar.json",
