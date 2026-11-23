@@ -204,6 +204,26 @@ jobs:
           assert len(feed['brands'])==len(summary['brands'])==feed['coverage']['target'], 'brand scope mismatch'
           assert feed['coverage']['accessible']>0, 'no observed brands'
           PY
+      - name: Validate crawl provenance and fresh observation timestamps
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+          p=Path('reports/competitor_content')
+          feed=json.loads((p/'latest.json').read_text())
+          summary=json.loads((p/'strategy-summary.json').read_text())
+          stamp=feed.get('checked_at_kst')
+          assert stamp and stamp==summary.get('source_checked_at'), 'feed and strategy timestamps disagree'
+          checked=datetime.fromisoformat(stamp)
+          assert checked.tzinfo is not None, 'crawl timestamp must include timezone'
+          age=datetime.now(timezone.utc)-checked.astimezone(timezone.utc)
+          assert timedelta(minutes=-10)<=age<timedelta(hours=3), f'stale crawl snapshot: {age}'
+          assert len(feed.get('brands',[]))==24, '24-brand observation scope required'
+          assert len({b.get('brand') for b in feed['brands']})==24, 'duplicate brand in feed'
+          assert len({b.get('brand') for b in summary.get('brands',[])})==24, 'duplicate brand in strategy'
+          print('Fresh crawl provenance and unique 24-brand scope verified')
+          PY
       - name: Validate 24-brand scope, crawl frontier and snapshot quality
         run: python scripts/competitor_content/validate_snapshot.py
       - name: Publish measured content feed without rebasing generated JSON
