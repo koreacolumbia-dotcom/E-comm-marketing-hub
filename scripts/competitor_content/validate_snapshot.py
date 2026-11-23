@@ -77,7 +77,13 @@ def validate_placement_record(item, brand):
     return True
 
 def self_test():
-    assert validate_content_composition({"content_composition":{"status":"dom_observed","source":"rendered_dom","sequence":["IMAGE"],"features":[{"kind":"image_blocks","count":2}]},"page_metrics":{"source":"rendered_dom","sequence":["IMAGE"]}},"K2")
+    assert validate_content_composition({"content_composition":{"status":"dom_observed","source":"rendered_dom","sequence":["IMAGE"],"features":[{"kind":"image_blocks","count":2}]},"page_metrics":{"source":"rendered_dom","sequence":["IMAGE"],"images":2}},"K2")
+    try:
+        validate_content_composition({"content_composition":{"status":"dom_observed","source":"rendered_dom","sequence":["IMAGE"],"features":[{"kind":"image_blocks","count":9}]},"page_metrics":{"source":"rendered_dom","sequence":["IMAGE"],"images":2}},"K2")
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("fabricated image count accepted")
     try:
         validate_content_composition({"content_composition":{"status":"dom_observed","source":"rendered_dom","sequence":["IMAGE"],"features":[]},"page_metrics":{}},"K2")
     except AssertionError:
