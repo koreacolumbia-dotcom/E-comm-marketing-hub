@@ -155,6 +155,20 @@ def published(raw):
             if 2000<=d.year<=datetime.now().year and d.date()<=datetime.now().date(): return d.date().isoformat()
         except (ValueError,TypeError,AttributeError): pass
     return None
+def content_composition(block):
+    """Summarize actual rendered structure; never infer in-page UGC from keywords."""
+    m=block.get("page_metrics") or {}
+    if m.get("source") != "rendered_dom":
+        return {"status":"unverified","features":[],"sequence":[],"source":"none"}
+    seq=[x for x in m.get("sequence",[]) if x in {"HEADING","IMAGE","VIDEO","PRODUCT","COPY","CTA"}][:16]
+    features=[]
+    for key,label in (("images","image_blocks"),("videos","video_blocks"),
+                      ("product_links","product_links"),("cta_count","cta_controls")):
+        if isinstance(m.get(key),int) and m[key]>0:
+            features.append({"kind":label,"count":m[key]})
+    return {"status":"dom_observed","features":features,"sequence":seq,
+            "source":"rendered_dom","scope":block.get("evidence_scope") or "unknown"}
+
 def placement_evidence(source, placement, block):
     """Keep page location distinct from confirmed in-page module placement."""
     from urllib.parse import urlsplit
@@ -190,7 +204,7 @@ def item(brand, source, block, checked, old, placement):
     prior=old.get(identity,{})
     date_info=publication(block,checked) if placement!="main_visual" else {"date":None,"status":"unknown","evidence":[]}
     scope="official_brand_editorial" if (brand=="SNOW PEAK" and host(source)=="snowpeak.co.kr") or (brand=="HOKA" and host(source)=="linktr.ee") else "official_mall"
-    return dict(**placement_evidence(source, placement, block),page_metrics=block.get("page_metrics") or None,evidence_scope=block.get("evidence_scope"),source_scope=scope,publication_status=date_info["status"],publication_evidence=date_info["evidence"],id=identity,brand=brand,title=title,url=dest,source_url=source,placement=placement,type=ty[0] if ty else ("MAIN_VISUAL" if placement=="main_visual" else "EDITORIAL_CANDIDATE"),type_tags=ty,tpo=tags(TPO,txt),selling_points=tags(USP,txt),classification_status="text_inferred",summary=body,thumbnail=assets[0]["url"] if assets else None,images=assets,image_status="rendered_candidates" if assets else "unverified",cta=[x[:80] for x in block.get("cta",[]) if CTA.search(x)][:5],cta_urls=list(dict.fromkeys(urls))[:8],influencer=people or None,products=products or None,published_at=date_info["date"],first_seen_at=prior.get("first_seen_at") or checked,last_seen_at=checked,collected_at=checked,fingerprint=fp,change="newly_observed" if not prior else "unchanged" if prior.get("fingerprint")==fp else "changed",status="candidate")
+    return dict(**placement_evidence(source, placement, block),content_composition=content_composition(block),page_metrics=block.get("page_metrics") or None,evidence_scope=block.get("evidence_scope"),source_scope=scope,publication_status=date_info["status"],publication_evidence=date_info["evidence"],id=identity,brand=brand,title=title,url=dest,source_url=source,placement=placement,type=ty[0] if ty else ("MAIN_VISUAL" if placement=="main_visual" else "EDITORIAL_CANDIDATE"),type_tags=ty,tpo=tags(TPO,txt),selling_points=tags(USP,txt),classification_status="text_inferred",summary=body,thumbnail=assets[0]["url"] if assets else None,images=assets,image_status="rendered_candidates" if assets else "unverified",cta=[x[:80] for x in block.get("cta",[]) if CTA.search(x)][:5],cta_urls=list(dict.fromkeys(urls))[:8],influencer=people or None,products=products or None,published_at=date_info["date"],first_seen_at=prior.get("first_seen_at") or checked,last_seen_at=checked,collected_at=checked,fingerprint=fp,change="newly_observed" if not prior else "unchanged" if prior.get("fingerprint")==fp else "changed",status="candidate")
 EXTRACT=r"""() => {
 const clean=s=>(s||'').replace(/\s+/g,' ').trim();
 const visible=e=>{const r=e.getBoundingClientRect();return r.width>10&&r.height>10&&getComputedStyle(e).visibility!=='hidden'};
@@ -751,6 +765,11 @@ def aggregate(rows,prior,checked,prior_brands=None):
         summary.append({k:v for k,v in b.items() if k not in ("items","_pending","_url_ledger","_sitemap_state")}|{"last_success_at":checked if b["pages_checked"] else prior_brands.get(b["brand"],{}).get("last_success_at") or max((x.get("last_seen_at") or "" for x in hist),default="") or None,"candidate_count":len(b["items"]),"newly_observed":sum(x["change"]=="newly_observed" for x in b["items"]),"changed":sum(x["change"]=="changed" for x in b["items"]),"discovered_30d":sum(cutoff<=x["first_seen_at"][:10]<=today for x in hist),"published_30d":sum(cutoff<=x["published_at"]<=today for x in known) if known else None,"unknown_publication":len(hist)-len(known)})
     return {"checked_at_kst":checked,"scope":"public official sites; editorial candidates, not verified publications","brands":summary,"items":current,"history":history,"coverage":{"target":len(rows),"accessible":sum(b["pages_checked"]>0 for b in rows),"with_candidates":sum(bool(b["items"]) for b in rows),"items":len(current),"with_rendered_images":sum(bool(x.get("images")) for x in current),"with_product_evidence":sum(bool(x.get("products")) for x in current),"with_person_evidence":sum(bool(x.get("influencer")) for x in current),"with_confirmed_publication_date":sum(bool(x.get("published_at")) for x in current),"with_conflicting_publication_dates":sum(x.get("publication_status")=="conflicting" for x in current),"official_mall_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_mall"}),"official_brand_editorial_brands":len({x["brand"] for x in current if x.get("source_scope")=="official_brand_editorial"}),"archived_image_count":sum(bool(x.get("image_evidence_file")) for x in current)}}
 def self_test():
+    composition=content_composition({"page_metrics":{"source":"rendered_dom","images":3,"videos":1,"product_links":2,"cta_count":1,"sequence":["HEADING","IMAGE","PRODUCT","CTA"]},"evidence_scope":"local_block"})
+    assert composition["status"]=="dom_observed"
+    assert composition["sequence"]==["HEADING","IMAGE","PRODUCT","CTA"]
+    assert len(composition["features"])==4
+    assert content_composition({"page_metrics":{"images":9}})["status"]=="unverified"
     assert placement_evidence("https://example.com/product/detail/123","editorial_page",{})["page_kind"]=="pdp_page"
     assert placement_evidence("https://example.com/event/winter","editorial_page",{})["page_kind"]=="campaign_page"
     assert placement_evidence("https://example.com/story/abc","editorial_page",{})["page_kind"]=="editorial_page"
