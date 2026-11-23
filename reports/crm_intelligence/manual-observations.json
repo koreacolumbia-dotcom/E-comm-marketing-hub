@@ -275,11 +275,56 @@
     },
     {
       "brand": "NATIONAL GEOGRAPHIC",
-      "status": "재인증 필요",
-      "email": "미확인",
-      "sms": "미확인",
-      "note": "회원정보 수정 진입 시 네이버 재로그인 요구",
-      "url": "https://www.nstationmall.com/mypage/myinfo/enter-password"
+      "status": "계정 저장 화면",
+      "email": "체크",
+      "sms": "SMS/카카오톡 체크",
+      "note": "네이버 재인증 후 회원정보 수정에서 이메일·SMS/카카오톡 모두 선택 확인. 가입 주소는 연결된 Gmail과 다름.",
+      "url": "https://www.nstationmall.com/mypage/myinfo/edit"
+    }
+  ],
+  "offsite_audit": {
+    "checked_at": "2026-11-23",
+    "connected_mailbox": "dmkt.kbh@gmail.com",
+    "scope": "11월 20일 이후 브랜드명·공식 도메인 Gmail 검색",
+    "result": "해당 브랜드 수신 메일 0건",
+    "limitations": "N.STATION 계정은 다른 이메일. 노스페이스·몽벨 계정도 연결 Gmail과 일치 여부 미확인. 문자·카카오 수신함 접근 불가. 미수신을 미발송으로 해석하지 않음."
+  },
+  "scenario_matrix": [
+    {
+      "scenario": "가입 직후",
+      "trigger": "회원가입 완료·동의",
+      "tested": "기존 계정 로그인 확인, 가입 시각·초기 수신 미기록",
+      "receipt": "미검증"
+    },
+    {
+      "scenario": "상품 조회 이탈",
+      "trigger": "회원 PDP 조회 후 이탈",
+      "tested": "4개 브랜드 상품 상세 조회",
+      "receipt": "미검증"
+    },
+    {
+      "scenario": "장바구니 이탈",
+      "trigger": "회원 장바구니 담기 후 미구매",
+      "tested": "TNF·SALOMON·N.STATION 담기 확인; 몽벨 테스트 상품 담기 불가",
+      "receipt": "미검증"
+    },
+    {
+      "scenario": "결제 이탈",
+      "trigger": "회원 주문서 진입 후 미결제",
+      "tested": "4개 브랜드 주문서 진입",
+      "receipt": "미검증"
+    },
+    {
+      "scenario": "쿠폰 만료",
+      "trigger": "쿠폰 발급 후 만료 임박",
+      "tested": "쿠폰 보유·적용 화면 일부 확인, 만료 전후 수신 미관찰",
+      "receipt": "미검증"
+    },
+    {
+      "scenario": "재구매",
+      "trigger": "첫 구매 완료 후 경과",
+      "tested": "구매 미실행",
+      "receipt": "실험 대상 아님"
     }
   ]
 }
