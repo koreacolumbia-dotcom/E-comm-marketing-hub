@@ -725,6 +725,7 @@ def self_test():
     assert canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1895")!=canonical("https://www.byn.kr/story/blackyak/?gb=detail&no=1894")
     assert allowed_link("TNF","https://www.thenorthfacekorea.co.kr/robots.txt")
     assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr:8443/")
+    assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr/story#private")
     assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr:invalid/")
     assert not allowed_link("TNF","https://[::1/")
     assert not allowed_link("TNF","https://www.thenorthfacekorea.co.kr.evil.example/")
