@@ -3,6 +3,16 @@
   "scope": "Official storefront direct tests; anonymous and signed-in flows distinguished. No order submitted or CRM message verified.",
   "observations": [
     {
+      "brand": "DESCENTE KOREA",
+      "scenario": "checkout",
+      "status": "signed_in_flow",
+      "summary": "2026-11-24 NAVER 간편가입 계정 로그인·마이페이지에서 쿠폰 12장과 통합포인트 2,000P 확인. 데상트 크레이프 3.0 BEIGE 265 1개 PDP 조회→장바구니→회원 주문서 진입. 상품/플러스 5% 할인 8,450원 자동 적용, 169,000원→160,550원. 신규회원 15% 장바구니 쿠폰은 보유·주문서에서 선택 가능하지만 기존 쿠폰 초기화 확인창에서 취소해 실제 적용액 미확인. 배송지·결제 미제출. 오프사이트 수신 미확인.",
+      "source": "https://m.dk-on.com/product/SS123LCR18/BEG0",
+      "next_url": "https://m.dk-on.com/order/payment",
+      "observed_at": "2026-11-24",
+      "message_verified": false
+    },
+    {
       "brand": "BLACKYAK",
       "scenario": "checkout",
       "status": "signed_in_flow",
@@ -120,6 +130,23 @@
     }
   ],
   "experiments": [
+    {
+      "brand": "DESCENTE KOREA",
+      "date": "2026-11-24",
+      "time_window_kst": "07시대",
+      "session": "signed_in",
+      "product": "크레이프 3.0 BEIGE",
+      "product_url": "https://m.dk-on.com/product/SS123LCR18/BEG0",
+      "steps": {
+        "signup": "계정 정보에 2026-11-24 NAVER 간편가입 표시·마케팅 목적 개인정보·카카오톡/SMS·E-mail 수신 체크 확인",
+        "view": "회원 PDP 조회·169,000원·상품 화면 5% 160,550원",
+        "cart": "BEIGE 265 1개 담기·장바구니 1개 확인",
+        "checkout": "회원 주문서 1개·상품/플러스 쿠폰 8,450원 자동 할인·160,550원·신규회원 15% 장바구니 쿠폰 선택 가능, 교체 미실행·미결제"
+      },
+      "message": "연결 Gmail 데상트 검색 0건·문자/카카오 수신함 미검증",
+      "trigger": "신규가입·조회·카트·결제 이탈 관찰 시작",
+      "confidence": "회원정보·쿠폰함·PDP·카트·주문서 직접 확인"
+    },
     {
       "brand": "NATIONAL GEOGRAPHIC",
       "date": "2026-11-24",
@@ -364,6 +391,15 @@
   ],
   "offers": [
     {
+      "brand": "DESCENTE KOREA",
+      "stage": "신규가입→회원 주문",
+      "offer": "가입 당일 쿠폰 12장·통합포인트 2,000P, 데상트 신규회원 15% 쿠폰(10만원 이상, 최대 3만원, 12/24까지) 보유",
+      "result": "크레이프 3.0 169,000원 주문서에서 5% 8,450원 자동 적용→160,550원. 15% 장바구니 쿠폰은 선택 가능하나 기존 쿠폰 초기화 확인 단계에서 취소, 실제 할인액 미확인.",
+      "evidence": "회원 쿠폰함·장바구니·주문서 직접 확인 2026-11-24",
+      "url": "https://m.dk-on.com/product/SS123LCR18/BEG0",
+      "message_verified": false
+    },
+    {
       "brand": "K2",
       "stage": "회원 주문",
       "offer": "보유 쿠폰 41장 중 테스트 상품 적용 가능 0장",
@@ -555,6 +591,14 @@
   ],
   "consent_audit": [
     {
+      "brand": "DESCENTE KOREA",
+      "status": "계정 저장 화면·2026-11-24 직접 확인",
+      "email": "E-mail 마케팅 체크",
+      "sms": "카카오톡·SMS 마케팅 체크",
+      "note": "마케팅 목적 개인정보 수집 및 이용동의도 체크. 휴대폰 번호 저장 표시, 본인인증 완료 여부는 계정 화면만으로 판정 불가. 연결 Gmail과 가입 메일 주소 일치 확인.",
+      "url": "https://m.dk-on.com/my/updateSnsMember"
+    },
+    {
       "brand": "TNF",
       "status": "로그인 세션 만료",
       "email": "재조회 불가",
@@ -614,8 +658,8 @@
   "offsite_audit": {
     "checked_at": "2026-11-24",
     "connected_mailbox": "dmkt.kbh@gmail.com",
-    "scope": "11월 20일 이후 기존 4개 브랜드, 10월 1일 이후 디스커버리·블랙야크·K2·아이더·네파·코오롱스포츠의 브랜드명/도메인 Gmail 검색",
-    "result": "2026-11-24 밀레·블랙야크·살로몬 00시대 재실행 후 연결 Gmail 검색 0건. 06시대 내셔널지오그래픽 재실행; 해당 가입 메일은 연결 Gmail과 달라 수신 미판정.",
+    "scope": "11월 20일 이후 기존 4개 브랜드, 10월 1일 이후 디스커버리·블랙야크·K2·아이더·네파·코오롱스포츠의 브랜드명/도메인 Gmail 검색; 2026-11-24 데상트 가입 메일과 연결 Gmail 일치 확인 후 브랜드명/도메인 검색",
+    "result": "2026-11-24 밀레·블랙야크·살로몬 00시대 재실행 후 연결 Gmail 검색 0건. 06시대 내셔널지오그래픽 재실행; 해당 가입 메일은 연결 Gmail과 달라 수신 미판정. 데상트 NAVER 간편가입 후 당일 연결 Gmail 검색 0건(조회 시점); 문자/카카오 원본은 미검증.",
     "limitations": "브랜드별 가입 이메일과 연결 Gmail 일치 여부 확인 필요. 내셔널지오그래픽 가입 이메일은 연결 Gmail과 다름. 문자·카카오 수신함 접근 불가. 미수신을 미발송으로 해석하지 않음."
   },
   "scenario_matrix": [
@@ -657,6 +701,34 @@
     }
   ],
   "scenario_results": [
+    {
+      "brand": "DESCENTE KOREA",
+      "scenario": "가입 직후",
+      "action": "2026-11-24 NAVER 간편가입 표시·쿠폰 12장·2,000P·마케팅 목적/카카오톡·SMS/이메일 동의 체크",
+      "offsite": "연결 Gmail 당일 검색 0건·문자/카카오 미검증",
+      "channel": "가입 메일과 연결 Gmail 일치·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "DESCENTE KOREA",
+      "scenario": "상품 조회 이탈",
+      "action": "2026-11-24 07시대 회원 크레이프 3.0 BEIGE PDP 조회·169,000원",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "가입 메일과 연결 Gmail 일치·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "DESCENTE KOREA",
+      "scenario": "장바구니 이탈",
+      "action": "2026-11-24 07시대 BEIGE 265 1개 담기·카트 1개 확인",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "가입 메일과 연결 Gmail 일치·문자/카카오 원본 접근 전"
+    },
+    {
+      "brand": "DESCENTE KOREA",
+      "scenario": "결제 이탈",
+      "action": "2026-11-24 07시대 회원 주문서 1개·5% 8,450원 적용·160,550원·15% 쿠폰 보유·미결제",
+      "offsite": "수신 관찰 중·미검증",
+      "channel": "가입 메일과 연결 Gmail 일치·문자/카카오 원본 접근 전"
+    },
     {
       "brand": "NATIONAL GEOGRAPHIC",
       "scenario": "결제 이탈",
@@ -1073,9 +1145,9 @@
     {
       "brand": "DESCENTE KOREA",
       "url": "https://m.dk-on.com/login",
-      "status": "카카오 로그인 연결·신규 약관 동의 전",
-      "need": "서비스 이용약관 및 필수 개인정보 동의 제출 단계",
-      "note": "카카오 화면에서 문자·카카오톡과 이메일 마케팅 동의가 별도 선택지로 표시. 아직 저장/가입 완료 아님."
+      "status": "NAVER 간편가입·회원 행동 실험 완료",
+      "need": "실제 오프사이트 CRM 수신 추적",
+      "note": "2026-11-24 가입 표시, 수신동의 3항목 체크. 크레이프 3.0 PDP→장바구니→주문서 진입, 미결제. 신규회원 쿠폰 12장 중 데상트 15% 보유."
     },
     {
       "brand": "NEW BALANCE",
