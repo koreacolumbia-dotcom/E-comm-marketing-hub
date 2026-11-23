@@ -3,6 +3,16 @@
   "scope": "Official storefront direct tests; anonymous and signed-in flows distinguished. No order submitted or CRM message verified.",
   "observations": [
     {
+      "brand": "DISCOVERY",
+      "scenario": "account_and_consent",
+      "status": "login_required",
+      "summary": "공식몰 멤버십 페이지에서 마이페이지 진입 시 회원가입/LOG IN 메뉴가 나타나 기존 로그인 세션을 확인할 수 없음. 개인정보처리방침상 선택 마케팅 동의의 광고 채널은 문자·카카오톡·이메일. 실제 계정 동의 상태와 행동 후 발송은 미검증.",
+      "source": "https://www.discovery-expedition.com/information/external/privacy-policy",
+      "next_url": "https://www.discovery-expedition.com/display/promotions/event/641",
+      "observed_at": "2026-11-23",
+      "message_verified": false
+    },
+    {
       "brand": "NATIONAL GEOGRAPHIC",
       "scenario": "checkout",
       "status": "signed_in_flow",
@@ -194,6 +204,15 @@
   ],
   "offers": [
     {
+      "brand": "DISCOVERY",
+      "stage": "마케팅 수신동의",
+      "offer": "카카오 마케팅 동의 시 2,000P",
+      "result": "공식 이벤트 페이지 안내. 로그인 세션·계정 포인트 지급·메시지 발송은 미확인",
+      "evidence": "공식몰 공개 이벤트 페이지",
+      "url": "https://www.discovery-expedition.com/display/promotions/event/1411",
+      "message_verified": false
+    },
+    {
       "brand": "MONTBELL",
       "stage": "가입→주문",
       "offer": "가입 5% 쿠폰·5,000P 안내",
@@ -285,8 +304,8 @@
   "offsite_audit": {
     "checked_at": "2026-11-23",
     "connected_mailbox": "dmkt.kbh@gmail.com",
-    "scope": "11월 20일 이후 브랜드명·공식 도메인 Gmail 검색",
-    "result": "해당 브랜드 수신 메일 0건",
+    "scope": "11월 20일 이후 기존 4개 브랜드, 10월 1일 이후 디스커버리·블랙야크·K2·아이더·네파·코오롱스포츠의 브랜드명/도메인 Gmail 검색",
+    "result": "연결된 Gmail에서 이번 조사 대상 브랜드의 행동 유발 CRM 원본 0건",
     "limitations": "N.STATION 계정은 다른 이메일. 노스페이스·몽벨 계정도 연결 Gmail과 일치 여부 미확인. 문자·카카오 수신함 접근 불가. 미수신을 미발송으로 해석하지 않음."
   },
   "scenario_matrix": [
