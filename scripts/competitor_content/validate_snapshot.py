@@ -238,7 +238,7 @@ def validate(root=ROOT):
         "note": "Ledger states are observed crawl outcomes; missing observations do not prove absent content.",
     }
     (root / "crawl-health.json").write_text(
-        json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+        json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("priority crawl gaps:", [(row["brand"], row["status"], row["pending_urls"])
                                   for row in health[:8]])
     print(f"snapshot OK: {len(brands)} brands, {summary['quality']['retained_unique_count']} retained items")
