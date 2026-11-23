@@ -28,6 +28,25 @@ def validate_public_url(url, brand, kind):
         assert ip.is_global, f"{brand}: non-public IP in {kind}"
     return True
 
+def validate_content_composition(item, brand):
+    composition=item.get("content_composition")
+    if composition is None:
+        return True  # Existing retained observations may predate this field.
+    assert isinstance(composition,dict), f"{brand}: malformed content composition"
+    status=composition.get("status")
+    assert status in {"unverified","dom_observed"}, f"{brand}: invalid composition status"
+    if status=="dom_observed":
+        assert composition.get("source")=="rendered_dom", f"{brand}: DOM claim without DOM source"
+        metrics=item.get("page_metrics") or {}
+        assert metrics.get("source")=="rendered_dom", f"{brand}: DOM claim without measured metrics"
+        assert composition.get("sequence",[])==[x for x in metrics.get("sequence",[]) if x in {"HEADING","IMAGE","VIDEO","PRODUCT","COPY","CTA"}][:16], f"{brand}: composition sequence mismatch"
+        for feature in composition.get("features",[]):
+            assert feature.get("kind") in {"image_blocks","video_blocks","product_links","cta_controls"}, f"{brand}: unsupported feature"
+            assert isinstance(feature.get("count"),int) and feature["count"]>0, f"{brand}: invalid feature count"
+    else:
+        assert not composition.get("features") and not composition.get("sequence"), f"{brand}: unverified structure cannot claim features"
+    return True
+
 def validate_placement_record(item, brand):
     """Reject unsupported claims that a page URL proves an in-page content module."""
     evidence = item.get("module_verified")
@@ -52,6 +71,13 @@ def validate_placement_record(item, brand):
     return True
 
 def self_test():
+    assert validate_content_composition({"content_composition":{"status":"dom_observed","source":"rendered_dom","sequence":["IMAGE"],"features":[{"kind":"image_blocks","count":2}]},"page_metrics":{"source":"rendered_dom","sequence":["IMAGE"]}},"K2")
+    try:
+        validate_content_composition({"content_composition":{"status":"dom_observed","source":"rendered_dom","sequence":["IMAGE"],"features":[]},"page_metrics":{}},"K2")
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("unsupported DOM composition accepted")
     assert validate_placement_record({"page_kind":"pdp_page","page_kind_confidence":"url_inferred","module_verified":False,"module_kind":"unverified","evidence_method":"url_path_only"},"K2")
     for invalid in (
         {"page_kind":"pdp_page","page_kind_confidence":"url_inferred","module_verified":True,"module_kind":"ugc_gallery","evidence_method":"url_path_only"},
@@ -99,6 +125,7 @@ def validate(root=ROOT):
         for item in b.get("items", []):
             assert isinstance(item, dict), f"{b['brand']}: invalid content item"
             validate_placement_record(item, b["brand"])
+            validate_content_composition(item, b["brand"])
     seen_urls = set()
     for brand, state in frontier_brands.items():
         assert isinstance(state.get("pending", []), list), f"{brand}: invalid queue"
