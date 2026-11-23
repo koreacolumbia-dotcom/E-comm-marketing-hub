@@ -109,7 +109,8 @@ def allowed_link(brand,u):
     except (ValueError, TypeError):
         return False
     return bool(p.scheme=="https" and hostname and port in (None,443)
-                and not p.username and not p.password and official_host(brand,u)
+                and not p.username and not p.password and not p.fragment
+                and official_host(brand,u)
                 and not DENY.search(p.path+"?"+p.query))
 def scoped(brand,u):
     p=urlsplit(u); path=p.path.lower()
