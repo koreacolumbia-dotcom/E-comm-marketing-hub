@@ -28,7 +28,41 @@ def validate_public_url(url, brand, kind):
         assert ip.is_global, f"{brand}: non-public IP in {kind}"
     return True
 
+def validate_placement_record(item, brand):
+    """Reject unsupported claims that a page URL proves an in-page content module."""
+    evidence = item.get("module_verified")
+    kind = item.get("page_kind")
+    confidence = item.get("page_kind_confidence")
+    method = item.get("evidence_method")
+    if kind is None and evidence is None:
+        return True  # Legacy retained records predate placement metadata.
+    assert kind in {"homepage", "pdp_page", "campaign_page", "editorial_page", "unknown"}, (
+        f"{brand}: unknown page placement {kind!r}")
+    assert confidence in {"url_inferred", "dom_observed", "manual_verified"}, (
+        f"{brand}: unknown placement confidence")
+    assert isinstance(evidence, bool), f"{brand}: module verification must be boolean"
+    if evidence:
+        assert method in {"dom_module_observed", "screenshot_verified", "manual_review"}, (
+            f"{brand}: module verified without page evidence")
+        assert item.get("module_kind") not in (None, "", "unverified"), (
+            f"{brand}: verified module lacks type")
+    if method == "url_path_only":
+        assert not evidence, f"{brand}: URL-only evidence cannot prove a module"
+        assert confidence == "url_inferred", f"{brand}: URL-only confidence overstated"
+    return True
+
 def self_test():
+    assert validate_placement_record({"page_kind":"pdp_page","page_kind_confidence":"url_inferred","module_verified":False,"module_kind":"unverified","evidence_method":"url_path_only"},"K2")
+    for invalid in (
+        {"page_kind":"pdp_page","page_kind_confidence":"url_inferred","module_verified":True,"module_kind":"ugc_gallery","evidence_method":"url_path_only"},
+        {"page_kind":"unknown","page_kind_confidence":"url_inferred","module_verified":True,"module_kind":"ugc_gallery","evidence_method":"dom_module_observed"},
+    ):
+        try:
+            validate_placement_record(invalid,"K2")
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("unsupported placement verification accepted")
     assert validate_public_url("https://www.k2.co.kr/story?a=1", "K2", "pending")
     assert validate_public_url("https://www.k2.co.kr:443/story", "K2", "pending")
     for bad in ("http://www.k2.co.kr/", "https://localhost/", "https://127.0.0.1/",
@@ -61,6 +95,10 @@ def validate(root=ROOT):
     quality = summary.get("quality", {})
     assert quality.get("retained_unique_count", 0) >= quality.get("unique_count", 0), "retained archive smaller than current unique sample"
     assert quality.get("unique_count", 0) <= quality.get("raw_count", 0), "deduplication increased current item count"
+    for b in brands:
+        for item in b.get("items", []):
+            assert isinstance(item, dict), f"{b['brand']}: invalid content item"
+            validate_placement_record(item, b["brand"])
     seen_urls = set()
     for brand, state in frontier_brands.items():
         assert isinstance(state.get("pending", []), list), f"{brand}: invalid queue"
