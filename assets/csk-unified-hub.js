@@ -289,7 +289,7 @@ document.body.classList.add("csk-unified-hub");document.body.dataset.unifiedHub=
       if (!host || host.dataset.extras === "1") return;
       host.dataset.extras = "1";
       const q = s => host.querySelector(s);
-      let initialData = null, fullPromise = null, currentRows = [];
+      let initialData = null, fullPromise = null, currentRows = [], agencyData = null, agencyScope = 'mtd';
       const addDays = (s,n) => { const d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
       const addMonths = (s,n) => { const d=new Date(s+"T00:00:00"); d.setMonth(d.getMonth()+n); return d.toISOString().slice(0,10); };
       const dates = (s,e) => { const a=[]; for(let d=s;d<=e;d=addDays(d,1))a.push(d); return a; };
@@ -319,8 +319,45 @@ document.body.classList.add("csk-unified-hub");document.body.dataset.unifiedHub=
       const aggregate=rows=>rows.reduce((a,r)=>{for(const k of ["sessions","users","page_views","purchases","revenue"])a[k]+=Number(r[k])||0;return a;},{sessions:0,users:0,page_views:0,purchases:0,revenue:0});
       const topFromFull=(data,s,e,metric)=>{const ty=(data.ty||[]).filter(r=>r.date>=s&&r.date<=e),ly=(data.ly||[]).filter(r=>r.date>=s&&r.date<=e),tm=new Map(),lm=new Map(),blank=()=>({sessions:0,users:0,page_views:0,purchases:0,revenue:0}),add=(m,r)=>{const x=m.get(r.sm)||blank();for(const k of ["sessions","users","page_views","purchases","revenue"])x[k]+=Number(r[k])||0;m.set(r.sm,x)};ty.forEach(r=>add(tm,r));ly.forEach(r=>add(lm,r));const ds=dates(s,e),vals=(rows,sm)=>{const m=new Map();rows.filter(r=>r.sm===sm).forEach(r=>{const x=m.get(r.date)||blank();for(const k of ["sessions","users","page_views","purchases","revenue"])x[k]+=Number(r[k])||0;m.set(r.date,x)});return ds.map(d=>{const x=m.get(d)||blank();return metric==="pv_per_user"?(x.users?x.page_views/x.users:0):Number(x[metric])||0})};return {totals:{ty:aggregate(ty),ly:aggregate(ly)},ads:(data.ads||[]).filter(r=>r.date>=s&&r.date<=e),items:[...tm.entries()].sort((x,y)=>y[1].revenue-x[1].revenue).slice(0,20).map(([sm,x])=>({sm,ty:x,ly:lm.get(sm)||blank(),a:vals(ty,sm),b:vals(ly,sm)})),ds}};
       const topFromInitial=(data,s,e,metric)=>{const i0=data.dates.indexOf(s),i1=data.dates.indexOf(e),ds=data.dates.slice(i0,i1+1),sum=v=>v.reduce((x,y)=>x+(Number(y)||0),0),tot=ser=>({revenue:sum(ser.revenue.slice(i0,i1+1)),sessions:sum(ser.sessions.slice(i0,i1+1)),users:sum(ser.users.slice(i0,i1+1)),page_views:sum(ser.page_views.slice(i0,i1+1)),purchases:sum(ser.purchases.slice(i0,i1+1))}),series=(x,k)=>metric==="pv_per_user"?x.series[k].page_views.slice(i0,i1+1).map((v,j)=>{const u=Number(x.series[k].users[i0+j])||0;return u?(Number(v)||0)/u:0}):x.series[k][metric].slice(i0,i1+1),items=data.top.map(x=>({sm:x.sm,ty:tot(x.series.ty),ly:tot(x.series.ly),a:series(x,"ty"),b:series(x,"ly")})).sort((x,y)=>y.ty.revenue-x.ty.revenue).slice(0,20),total=k=>items.reduce((z,x)=>{for(const n of ["revenue","sessions","users","page_views","purchases"])z[n]+=Number(x[k][n])||0;return z},{revenue:0,sessions:0,users:0,page_views:0,purchases:0});return {totals:{ty:total("ty"),ly:total("ly")},ads:(data.ads||[]).filter(r=>r.date>=s&&r.date<=e),items,ds}};
-      const renderPaid=ads=>{const calc=rows=>rows.reduce((z,r)=>{z.spend+=Number(r.spend)||0;z.ga+=Number(r.report_ga_revenue)||0;z.media+=Number(r.platform_revenue)||0;return z},{spend:0,ga:0,media:0}),sum=calc(ads.filter(r=>(r.period||"ty")==="ty")),groups=new Map();q("#totalSpend").textContent=won(sum.spend);q("#gaRoas").textContent=sum.spend?Math.round(sum.ga/sum.spend*100)+"%":"-";q("#mediaRoas").textContent=sum.spend?Math.round(sum.media/sum.spend*100)+"%":"-";ads.forEach(r=>{const x=groups.get(r.channel)||{ty:[],ly:[]};x[r.period==="ly"?"ly":"ty"].push(r);groups.set(r.channel,x)});q("#paidGrid").innerHTML=[...groups.entries()].map(([n,x])=>[n,calc(x.ty),calc(x.ly)]).sort((x,y)=>y[1].spend-x[1].spend).map(([n,x,y])=>'<div class="paid-card"><h3>'+esc(n)+'</h3><div class="paid-row"><span>Ad Spend TY / LY</span><b>'+won(x.spend)+' / '+won(y.spend)+'</b></div><div class="paid-row"><span>GA ROAS TY / LY</span><b>'+(x.spend?Math.round(x.ga/x.spend*100):0)+'% / '+(y.spend?Math.round(y.ga/y.spend*100):0)+'%</b></div><div class="paid-row"><span>Media ROAS TY / LY</span><b>'+(x.spend?Math.round(x.media/x.spend*100):0)+'% / '+(y.spend?Math.round(y.media/y.spend*100):0)+'%</b></div></div>').join("")};
-      const renderRoas=(ads,ds)=>{const build=p=>{const m=new Map();ads.filter(r=>(r.period||"ty")===p).forEach(r=>{const x=m.get(r.date)||{spend:0,ga:0};x.spend+=Number(r.spend)||0;x.ga+=Number(r.report_ga_revenue)||0;m.set(r.date,x)});return ds.map(d=>{const x=m.get(d);return x&&x.spend?x.ga/x.spend*100:0})},ty=build("ty"),ly=build("ly"),box=q("#paidRoasChart");box.innerHTML=chartHtml(ty,ly,ds[0],ds.at(-1),{a:"GA ROAS TY",b:"GA ROAS LY",percent:true});bindTip(box,ty,ly,ds,{a:"GA ROAS TY",b:"GA ROAS LY"},v=>Math.round(v||0)+"%")};
+      const renderPaidLegacy=ads=>{const calc=rows=>rows.reduce((z,r)=>{z.spend+=Number(r.spend)||0;z.ga+=Number(r.report_ga_revenue)||0;z.media+=Number(r.platform_revenue)||0;return z},{spend:0,ga:0,media:0}),sum=calc(ads.filter(r=>(r.period||"ty")==="ty")),groups=new Map();q("#totalSpend").textContent=won(sum.spend);q("#gaRoas").textContent=sum.spend?Math.round(sum.ga/sum.spend*100)+"%":"-";q("#mediaRoas").textContent=sum.spend?Math.round(sum.media/sum.spend*100)+"%":"-";ads.forEach(r=>{const x=groups.get(r.channel)||{ty:[],ly:[]};x[r.period==="ly"?"ly":"ty"].push(r);groups.set(r.channel,x)});q("#paidGrid").innerHTML=[...groups.entries()].map(([n,x])=>[n,calc(x.ty),calc(x.ly)]).sort((x,y)=>y[1].spend-x[1].spend).map(([n,x,y])=>'<div class="paid-card"><h3>'+esc(n)+'</h3><div class="paid-row"><span>Ad Spend TY / LY</span><b>'+won(x.spend)+' / '+won(y.spend)+'</b></div><div class="paid-row"><span>GA ROAS TY / LY</span><b>'+(x.spend?Math.round(x.ga/x.spend*100):0)+'% / '+(y.spend?Math.round(y.ga/y.spend*100):0)+'%</b></div><div class="paid-row"><span>Media ROAS TY / LY</span><b>'+(x.spend?Math.round(x.media/x.spend*100):0)+'% / '+(y.spend?Math.round(y.media/y.spend*100):0)+'%</b></div></div>').join("")};
+      const renderRoasLegacy=(ads,ds)=>{const build=p=>{const m=new Map();ads.filter(r=>(r.period||"ty")===p).forEach(r=>{const x=m.get(r.date)||{spend:0,ga:0};x.spend+=Number(r.spend)||0;x.ga+=Number(r.report_ga_revenue)||0;m.set(r.date,x)});return ds.map(d=>{const x=m.get(d);return x&&x.spend?x.ga/x.spend*100:0})},ty=build("ty"),ly=build("ly"),box=q("#paidRoasChart");box.innerHTML=chartHtml(ty,ly,ds[0],ds.at(-1),{a:"GA ROAS TY",b:"GA ROAS LY",percent:true});bindTip(box,ty,ly,ds,{a:"GA ROAS TY",b:"GA ROAS LY"},v=>Math.round(v||0)+"%")};
+
+      // Glink is an independent agency attribution source. Do not sum with GA4 sales.
+      const agencySpec=()=>({mtd:['nov_mtd','mtd','11/01–11/22'],pre:['pre_18_19','pre','11/18–11/19'],festival:['festival_20_22','festival','11/20–11/22']})[agencyScope];
+      const agencyPct=(n,d)=>Number(d)>0&&Number(n)>0?Math.round(n/d*100).toLocaleString('ko-KR')+'%':'미귀속';
+      const renderPaid=ads=>{
+        if(!agencyData)return renderPaidLegacy(ads);
+        const [totalKey,scope,label]=agencySpec(),v=agencyData.summary[totalKey];
+        if(!v)return renderPaidLegacy(ads);
+        q('#totalSpend').textContent=won(v.spend);
+        q('#gaRoas').textContent=agencyPct(v.ga_revenue,v.spend);
+        q('#mediaRoas').textContent=agencyPct(v.media_revenue,v.spend);
+        [['#totalSpend','Glink 2026 '+label+' · VAT 제외 · MSG 제외'],
+         ['#gaRoas','GA 귀속매출 ÷ 대행사 광고비'],
+         ['#mediaRoas','매체 전환매출 ÷ 대행사 광고비']
+        ].forEach(([k,d])=>{const x=q(k)?.closest('.card')?.querySelector('.yoy');if(x)x.textContent=d;});
+        const items=Object.entries(agencyData.channels||{}).map(([name,periods])=>({name,v:periods[scope]})).filter(x=>x.v&&Number(x.v[1])>0).sort((a,b)=>b.v[1]-a.v[1]);
+        q('#paidGrid').innerHTML=items.map(({name,v})=>'<div class="paid-card"><h3>'+esc(name)+'</h3>'
+        +'<div class="paid-row"><span>광고비 (VAT 제외)</span><b>'+won(v[1])+'</b></div>'
+        +'<div class="paid-row"><span>GA 귀속매출</span><b>'+won(v[3])+'</b></div>'
+        +'<div class="paid-row"><span>GA 귀속 ROAS</span><b>'+agencyPct(v[3],v[1])+'</b></div>'
+        +'<div class="paid-row"><span>매체 ROAS</span><b>'+agencyPct(v[2],v[1])+'</b></div>'
+        +'<div class="paid-row"><span>Clicks / GA 거래</span><b>'+num(v[0])+' / '+num(v[5])+'</b></div>'
+        +'</div>').join('');
+        const ctrl=q('#agencyPaidControls');if(ctrl){ctrl.querySelector('.agency-period-note').textContent='Glink · 2026 '+label+' · 별도 귀속 기준';ctrl.querySelectorAll('[data-agency-scope]').forEach(b=>{const active=b.dataset.agencyScope===agencyScope;b.setAttribute('aria-pressed',String(active));b.style.background=active?'#0b4b91':'#fff';b.style.color=active?'#fff':'#16426e';});}
+      };
+      const renderRoas=(ads,ds)=>{
+        if(!agencyData?.daily)return renderRoasLegacy(ads,ds);
+        const start=agencyScope==='festival'?'2026-11-20':agencyScope==='pre'?'2026-11-18':'2026-11-01';
+        const end=agencyScope==='pre'?'2026-11-19':'2026-11-22';
+        const rows=Object.entries(agencyData.daily).filter(([date,v])=>date>=start&&date<=end&&Array.isArray(v)).sort((a,b)=>a[0].localeCompare(b[0]));
+        if(!rows.length)return renderRoasLegacy(ads,ds);
+        const dates=rows.map(x=>x[0]),ga=rows.map(x=>x[1][1]?x[1][3]/x[1][1]*100:0),media=rows.map(x=>x[1][1]?x[1][2]/x[1][1]*100:0);
+        const box=q('#paidRoasChart');box.innerHTML=chartHtml(ga,media,dates[0],dates.at(-1),{a:'GA 귀속 ROAS',b:'매체 ROAS',percent:true});
+        bindTip(box,ga,media,dates,{a:'GA 귀속 ROAS',b:'매체 ROAS'},x=>Math.round(x||0)+'%');
+        const head=q('#paidRoasPanel h2');if(head)head.textContent='Glink 일별 ROAS · '+start.slice(5)+'–'+end.slice(5);
+        const mini=q('#paidRoasPanel .mini');if(mini)mini.textContent='GA / 매체 귀속 · VAT 제외';
+      };
       const channelFor = sm => {
         const x=String(sm||"").toLowerCase();
         if(x.includes("naverbs"))return "Naver Brand Search";
@@ -344,15 +381,15 @@ document.body.classList.add("csk-unified-hub");document.body.dataset.unifiedHub=
         if(!useInitial)q("#periodText").textContent="6개월 그래프 준비 중...";
         const baseMetric=(metric==="roas"||metric==="pv_per_user")?"revenue":metric;
         const data=useInitial?topFromInitial(initialData,s,e,baseMetric):topFromFull(await loadFull(),s,e,baseMetric);
-        if(metric==="roas"){data.items.forEach(x=>{x.adChannel=channelFor(x.sm);if(x.adChannel){const rs=roasSeries(data.ads,data.ds,x.adChannel);x.a=rs.ty;x.b=rs.ly;}});}
+        if(metric==="roas"){data.items.forEach(x=>{x.adChannel=channelFor(x.sm);if(x.adChannel&&data.ads.some(r=>r.channel===x.adChannel&&(r.period||"ty")==="ty"&&r.date===e)){const rs=roasSeries(data.ads,data.ds,x.adChannel);x.a=rs.ty;x.b=rs.ly;}else{x.adChannel=null;}});}
         currentRows=data.items;
         const t=data.totals.ty,l=data.totals.ly,tc=t.sessions?t.purchases/t.sessions:0,lc=l.sessions?l.purchases/l.sessions:0;
         q("#totalRevenue").textContent=won(t.revenue);q("#totalSessions").textContent=num(t.sessions);q("#totalPurchases").textContent=num(t.purchases);q("#totalPvPerUser").textContent=ratio(t.users?t.page_views/t.users:0);q("#pvPerUserYoy").textContent=pctText(pct(t.users?t.page_views/t.users:0,l.users?l.page_views/l.users:0));q("#totalCvr").textContent=(tc*100).toFixed(2)+"%";
         q("#revYoy").textContent=pctText(pct(t.revenue,l.revenue));q("#sesYoy").textContent=pctText(pct(t.sessions,l.sessions));q("#purYoy").textContent=pctText(pct(t.purchases,l.purchases));q("#cvrYoy").textContent="YoY "+((tc-lc)*100>=0?"+":"")+((tc-lc)*100).toFixed(2)+"pp";
-        q("#periodText").textContent="선택 기간: "+s+" ~ "+e+" · "+(metric==="roas"?"ROAS":metric==="pv_per_user"?"PV/인":metric[0].toUpperCase()+metric.slice(1))+" · Top 20";
+        q("#periodText").textContent="GA4 선택 기간: "+s+" ~ "+e+" · "+(metric==="roas"?"ROAS":metric==="pv_per_user"?"PV/인":metric[0].toUpperCase()+metric.slice(1))+" · Source/Medium Top 20 · Paid는 별도 기간";
         renderPaid(data.ads);renderRoas(data.ads,data.ds);
         const grid=q("#grid"),pager=q("#pager"),size=10,pages=Math.ceil(data.items.length/size);
-        const draw=page=>{grid.innerHTML="";data.items.slice(page*size,(page+1)*size).forEach((x,j)=>{const rank=page*size+j+1,cvr=x.ty.sessions?x.ty.purchases/x.ty.sessions:0,sec=document.createElement("section");sec.className="panel source-panel";const isRoas=metric==="roas",chart=isRoas&&!x.adChannel?'<div class="no-roas">광고비 매핑 없음</div>':'<div class="chartbox">'+chartHtml(x.a,x.b,s,e,isRoas?{a:"GA ROAS TY",b:"GA ROAS LY",percent:true}:{a:"TY",b:"LY",percent:false})+'</div>';sec.innerHTML='<div class="head"><div><div class="rank">#'+rank+'</div><h2 class="sm-title">'+logoFor(x.sm)+'<span>'+esc(x.sm)+'</span></h2></div><div class="mini">Revenue '+won(x.ty.revenue)+' · '+pctText(pct(x.ty.revenue,x.ly.revenue))+(isRoas&&x.adChannel?'<br>'+esc(x.adChannel):'')+'</div></div><div class="stats"><span>Sessions <b>'+num(x.ty.sessions)+'</b></span><span>Users <b>'+num(x.ty.users)+'</b></span><span>PV <b>'+num(x.ty.page_views)+'</b></span><span>PV/인 <b>'+ratio(x.ty.users?x.ty.page_views/x.ty.users:0)+'</b></span><span>Purchases <b>'+num(x.ty.purchases)+'</b></span><span>CVR <b>'+(cvr*100).toFixed(2)+'%</b></span></div>'+chart;grid.appendChild(sec);if(!isRoas||x.adChannel){const box=sec.querySelector(".chartbox");bindTip(box,x.a,x.b,data.ds,isRoas?{a:"GA ROAS",b:"Media ROAS"}:{a:"TY",b:"LY"},v=>isRoas?Math.round(v||0)+"%":metric==="revenue"?won(v):metric==="pv_per_user"?ratio(v):num(v));}});pager.innerHTML="";for(let p=0;p<pages;p++){const b=document.createElement("button");b.textContent=p+1;if(p===page)b.className="active";b.onclick=()=>draw(p);pager.appendChild(b);}};
+        const draw=page=>{grid.innerHTML="";data.items.slice(page*size,(page+1)*size).forEach((x,j)=>{const rank=page*size+j+1,cvr=x.ty.sessions?x.ty.purchases/x.ty.sessions:0,sec=document.createElement("section");sec.className="panel source-panel";const isRoas=metric==="roas",chart=isRoas&&!x.adChannel?'<div class="no-roas">선택 기간 광고비 미확보 · 위 Glink Paid 성과 참고</div>':'<div class="chartbox">'+chartHtml(x.a,x.b,s,e,isRoas?{a:"GA ROAS TY",b:"GA ROAS LY",percent:true}:{a:"TY",b:"LY",percent:false})+'</div>';sec.innerHTML='<div class="head"><div><div class="rank">#'+rank+'</div><h2 class="sm-title">'+logoFor(x.sm)+'<span>'+esc(x.sm)+'</span></h2></div><div class="mini">Revenue '+won(x.ty.revenue)+' · '+pctText(pct(x.ty.revenue,x.ly.revenue))+(isRoas&&x.adChannel?'<br>'+esc(x.adChannel):'')+'</div></div><div class="stats"><span>Sessions <b>'+num(x.ty.sessions)+'</b></span><span>Users <b>'+num(x.ty.users)+'</b></span><span>PV <b>'+num(x.ty.page_views)+'</b></span><span>PV/인 <b>'+ratio(x.ty.users?x.ty.page_views/x.ty.users:0)+'</b></span><span>Purchases <b>'+num(x.ty.purchases)+'</b></span><span>CVR <b>'+(cvr*100).toFixed(2)+'%</b></span></div>'+chart;grid.appendChild(sec);if(!isRoas||x.adChannel){const box=sec.querySelector(".chartbox");bindTip(box,x.a,x.b,data.ds,isRoas?{a:"GA ROAS",b:"Media ROAS"}:{a:"TY",b:"LY"},v=>isRoas?Math.round(v||0)+"%":metric==="revenue"?won(v):metric==="pv_per_user"?ratio(v):num(v));}});pager.innerHTML="";for(let p=0;p<pages;p++){const b=document.createElement("button");b.textContent=p+1;if(p===page)b.className="active";b.onclick=()=>draw(p);pager.appendChild(b);}};
         draw(0);
       };
       const exportExcel = async () => {
@@ -362,6 +399,17 @@ document.body.classList.add("csk-unified-hub");document.body.dataset.unifiedHub=
       };
       const start = async () => {
         initialData=await loadJson("performance_initial");
+        try{const r=await fetch('reports/agency_paid_glink_20261123.json?v=20261123',{cache:'no-store'});if(r.ok)agencyData=await r.json();}catch(e){console.warn('Glink snapshot unavailable',e);}
+        if(agencyData){
+          const grid=q('#paidGrid'),c=document.createElement('div');c.id='agencyPaidControls';
+          c.style.cssText='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;background:#f6f9fd;border:1px solid #dce8f3;border-radius:12px;padding:12px;margin:10px 0 14px;color:#24466b';
+          c.innerHTML='<span class="agency-period-note" style="font-size:12px;font-weight:700"></span><div role="group" aria-label="대행사 광고 기간" style="display:flex;flex-wrap:wrap;gap:6px"><button type="button" data-agency-scope="mtd">11월 누적</button><button type="button" data-agency-scope="pre">사전알림</button><button type="button" data-agency-scope="festival">윈터페스티벌</button></div>';
+          grid.before(c);
+          c.querySelectorAll('[data-agency-scope]').forEach(btn=>{btn.style.cssText='font-size:11px;font-weight:700;padding:8px 12px;background:#fff;color:#16426e;border:1px solid #c2d3e8;border-radius:16px;cursor:pointer';btn.onclick=()=>{agencyScope=btn.dataset.agencyScope;renderPaid([]);renderRoas([],[]);};});
+          const disclosure=document.createElement('div');disclosure.style.cssText='font-size:11px;color:#64748b;margin:-8px 0 16px;line-height:1.5';
+          disclosure.textContent='Glink Paid는 11/22 기준 별도 집계. 위 GA4 KPI 기간 필터와 독립적이며 9/17–10/31 광고비 공백은 0으로 가정하지 않음.';
+          grid.after(disclosure);
+        }
         const latestEnd=initialData.end, latestStart=addDays(addMonths(latestEnd,-3),1);
         q("#endDate").value=latestEnd;q("#endDate").max=latestEnd;
         q("#startDate").value=latestStart;q("#startDate").max=latestEnd;
