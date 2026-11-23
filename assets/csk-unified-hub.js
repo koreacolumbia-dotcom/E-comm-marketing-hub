@@ -18,7 +18,7 @@ const GROUPS=[
  ["customer","고객·CRM","고객","fa-users",[
   ["member","회원·코호트","reports/member_funnel/index.html","fa-users"],
   ["owned","Owned 메시지","reports/owned_portal/index.html","fa-envelope"],
-  ["edm_intelligence","경쟁사 EDM","edm-intelligence.html?v=20261118","fa-envelope-open-text"],
+  ["edm_intelligence","경쟁사 EDM","edm-intelligence.html?v=20261122","fa-envelope-open-text"],
   ["crm_intelligence","경쟁사 CRM","reports/crm_intelligence/index.html?v=20261119","fa-diagram-project"]]],
  ["competitors","경쟁사·콘텐츠","경쟁사","fa-binoculars",[
   ["sale_calendar","경쟁사 세일 캘린더","reports/competitor_sale_calendar/index.html?v=20261118-editorial","fa-calendar-days"],
