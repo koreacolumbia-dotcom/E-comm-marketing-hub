@@ -17,6 +17,14 @@ class ProductYoYTests(unittest.TestCase):
         self.assertNotIn(chr(92)+chr(96),sql)
         with self.assertRaises(ValueError):
             sql_for("2026-11-20' OR TRUE","2026-11-21")
+    def test_intraday_partition_is_selected_without_double_counting_daily(self):
+        sql=sql_for("2026-11-20","2026-11-21",
+                    suffixes=["20261120","intraday_20261121"])
+        self.assertIn("_TABLE_SUFFIX IN ('20261120','intraday_20261121')",sql)
+        self.assertNotIn("_TABLE_SUFFIX BETWEEN",sql)
+        with self.assertRaises(ValueError):
+            sql_for("2026-11-20","2026-11-21",suffixes=["20261120','OR TRUE"])
+
     def test_d3_requires_same_weekday_verified_source(self):
         self.assertEqual(period_from_ops({"report_date":"2026-11-21"}),DEFAULT)
         ops={"report_date":"2026-11-22","weekly":{"yoy":{
