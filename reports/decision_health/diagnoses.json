@@ -169,13 +169,23 @@
     "source": "KMA Seoul ASOS 108 API, weather.go.kr public daily table fallback; NOAA GSOD secondary only when available; observations never forecasts"
   },
   "ga4_coupon_evidence": {
-    "status": "blocked_metadata",
+    "status": "partial_quality",
     "report_date": "2026-11-23",
     "periods": null,
     "delta_pp": null,
-    "quality_checks": null,
+    "quality_checks": {
+      "purchase_events_without_item_rows": {
+        "previous": 16,
+        "current": -223
+      },
+      "coupon_marker_present_in_all_item_rows": true,
+      "can_interpret_coupon_as_applied_discount": false,
+      "reason": "GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
+    },
     "source": "GA4 items.coupon presence; not discount amount",
     "cost": {
+      "estimated_bytes": 278007661,
+      "billed_bytes": 278921216,
       "maximum_bytes_billed": 536870912,
       "dry_run_required": true
     }
@@ -337,6 +347,26 @@
       ]
     },
     {
+      "id": "GA4_COUPON_QUALITY",
+      "priority": "P1",
+      "status": "source_error_confirmed",
+      "title": "GA4 쿠폰코드 지표의 모집단/적용 여부 검증 실패",
+      "finding": "상품행 없는 purchase 이벤트 16건 · 모든 상품행에 coupon 필드 값 존재",
+      "cause_component": "구매 이벤트 중 일부에 상품행이 없고 쿠폰 필드가 일률적으로 채워져 실제 쿠폰 사용률/할인금액을 확정할 수 없음. 결측·스키마 범위 문제는 실측으로 확인.",
+      "cause_hypotheses": [],
+      "hypothesis_status": "confirmed_data_quality_limitation",
+      "causal_confirmed": false,
+      "how_to_verify": "누락된 item 배열의 원인과 coupon 필드 매핑을 GTM/GA4 이벤트 스키마에서 확인. 쿠폰 금액은 최신 관리자 주문마트 적재 이후 별도 재계산",
+      "blocked_by": [
+        "GA4 상품행 완전성",
+        "관리자 주문상품마트 장기 지연"
+      ],
+      "sources": [
+        "reports/decision_health/ga4_coupon_usage.json",
+        "reports/decision_health/source_metadata.json"
+      ]
+    },
+    {
       "id": "PRODUCT_DIVERGENCE_0",
       "priority": "P1",
       "status": "observed_product_divergence",
@@ -429,7 +459,7 @@
         "pages_checked_this_run": 0,
         "run_status": "not_scheduled",
         "error_types": {
-          "navigation_race": 1
+          "navigation_race": 8
         },
         "policy_or_access_blockers": [],
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
