@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-23T01:10:05.603772+00:00",
+  "generated_at": "2026-11-24T05:01:03.640916+00:00",
   "scope": "KR public HTML and first-party script; no runtime send confirmation",
   "stages": [
     {
@@ -60,17 +60,41 @@
     {
       "brand": "TNF",
       "url": "https://www.thenorthfacekorea.co.kr/",
-      "pages": [],
+      "pages": [
+        "https://www.thenorthfacekorea.co.kr/",
+        "https://www.thenorthfacekorea.co.kr/event/view/eventlistnf/93003"
+      ],
       "scripts": [],
       "evidence": [],
-      "vendors": [],
-      "failures": [
+      "vendors": [
         {
+          "name": "GA4/GTM",
           "source": "https://www.thenorthfacekorea.co.kr/",
-          "reason": "robots HTTP 403"
+          "kind": "inline_script"
+        },
+        {
+          "name": "Groobee",
+          "source": "https://www.thenorthfacekorea.co.kr/",
+          "kind": "inline_script"
+        },
+        {
+          "name": "Meta Pixel",
+          "source": "https://www.thenorthfacekorea.co.kr/",
+          "kind": "inline_script"
+        },
+        {
+          "name": "CREMA",
+          "source": "https://www.thenorthfacekorea.co.kr/",
+          "kind": "inline_script"
+        },
+        {
+          "name": "Clarity",
+          "source": "https://www.thenorthfacekorea.co.kr/",
+          "kind": "inline_script"
         }
       ],
-      "status": "blocked_or_unavailable"
+      "failures": [],
+      "status": "scanned"
     },
     {
       "brand": "KOLON SPORT",
@@ -204,9 +228,67 @@
       "pages": [
         "https://www.discovery-expedition.com/"
       ],
-      "scripts": [],
-      "evidence": [],
-      "vendors": [],
+      "scripts": [
+        "https://www.discovery-expedition.com/_next/static/18pQSb8nAomNVRPpd7jU-/_buildManifest.js",
+        "https://www.discovery-expedition.com/_next/static/18pQSb8nAomNVRPpd7jU-/_ssgManifest.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/1641-7954f07dcad74c01.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/1670-78735f9ef5c9d67b.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/282-e98c60ef58864d58.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/3439-64e6d0ee6eae1df1.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/7688-3f60cdfa5e2debc9.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/8070-4759b60c2ffcf517.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/framework-2f5b01d9e38e1db3.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/main-fbbf3b315dc1aa94.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/pages/_app-b260d3598a16d4d9.js",
+        "https://www.discovery-expedition.com/_next/static/chunks/pages/index-9313c254925fe427.js"
+      ],
+      "evidence": [
+        {
+          "scenario": "welcome",
+          "kind": "external_script",
+          "source": "https://www.discovery-expedition.com/_next/static/chunks/3439-64e6d0ee6eae1df1.js",
+          "signal": "SIGN_UP",
+          "status": "technical_signal"
+        },
+        {
+          "scenario": "wishlist",
+          "kind": "external_script",
+          "source": "https://www.discovery-expedition.com/_next/static/chunks/3439-64e6d0ee6eae1df1.js",
+          "signal": "재입고 알림",
+          "status": "technical_signal"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "external_script",
+          "source": "https://www.discovery-expedition.com/_next/static/chunks/pages/_app-b260d3598a16d4d9.js",
+          "signal": "회원가입",
+          "status": "technical_signal"
+        },
+        {
+          "scenario": "review",
+          "kind": "external_script",
+          "source": "https://www.discovery-expedition.com/_next/static/chunks/pages/_app-b260d3598a16d4d9.js",
+          "signal": "리뷰 작성",
+          "status": "technical_signal"
+        }
+      ],
+      "vendors": [
+        {
+          "name": "Kakao",
+          "source": "https://www.discovery-expedition.com/",
+          "kind": "script_reference"
+        },
+        {
+          "name": "Datarize",
+          "source": "https://www.discovery-expedition.com/",
+          "kind": "inline_script"
+        },
+        {
+          "name": "CREMA",
+          "source": "https://www.discovery-expedition.com/_next/static/chunks/1670-78735f9ef5c9d67b.js",
+          "kind": "external_script"
+        }
+      ],
       "failures": [],
       "status": "scanned"
     },
@@ -214,73 +296,13 @@
       "brand": "SALOMON",
       "url": "https://salomon.co.kr/",
       "pages": [
-        "https://salomon.co.kr/",
-        "https://salomon.co.kr/pages/membership"
+        "https://salomon.co.kr/"
       ],
-      "scripts": [
-        "https://salomon.co.kr/cdn/shopifycloud/perf-kit/shopify-perf-kit-3.16.1.min.js",
-        "https://salomon.co.kr/cdn/shopifycloud/storefront/assets/storefront/load_feature-ed94c51f.js"
-      ],
-      "evidence": [
-        {
-          "scenario": "welcome",
-          "kind": "visible_text",
-          "source": "https://salomon.co.kr/",
-          "signal": "신규회원",
-          "status": "public_clue"
-        },
-        {
-          "scenario": "first_order",
-          "kind": "visible_text",
-          "source": "https://salomon.co.kr/",
-          "signal": "첫구매",
-          "status": "public_clue"
-        },
-        {
-          "scenario": "recommend",
-          "kind": "visible_text",
-          "source": "https://salomon.co.kr/",
-          "signal": "추천 상품",
-          "status": "public_clue"
-        },
-        {
-          "scenario": "review",
-          "kind": "inline_script",
-          "source": "https://salomon.co.kr/",
-          "signal": "post_purchase",
-          "status": "technical_signal"
-        },
-        {
-          "scenario": "checkout",
-          "kind": "inline_script",
-          "source": "https://salomon.co.kr/",
-          "signal": "Checkout abandon",
-          "status": "technical_signal"
-        }
-      ],
+      "scripts": [],
+      "evidence": [],
       "vendors": [
         {
           "name": "Shopify",
-          "source": "https://salomon.co.kr/",
-          "kind": "inline_script"
-        },
-        {
-          "name": "ChannelTalk",
-          "source": "https://salomon.co.kr/",
-          "kind": "inline_script"
-        },
-        {
-          "name": "GA4/GTM",
-          "source": "https://salomon.co.kr/",
-          "kind": "inline_script"
-        },
-        {
-          "name": "Datarize",
-          "source": "https://salomon.co.kr/",
-          "kind": "script_reference"
-        },
-        {
-          "name": "Clarity",
           "source": "https://salomon.co.kr/",
           "kind": "inline_script"
         }
@@ -357,10 +379,41 @@
       "brand": "K2",
       "url": "https://www.k-village.co.kr/k2",
       "pages": [
-        "https://www.k-village.co.kr/k2"
+        "https://www.k-village.co.kr/k2",
+        "https://www.k-village.co.kr/policies/useTerms",
+        "https://www.k-village.co.kr/policies/privacy"
       ],
       "scripts": [],
-      "evidence": [],
+      "evidence": [
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://www.k-village.co.kr/k2",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://www.k-village.co.kr/policies/useTerms",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://www.k-village.co.kr/policies/privacy",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "recommend",
+          "kind": "visible_text",
+          "source": "https://www.k-village.co.kr/policies/privacy",
+          "signal": "추천 상품",
+          "status": "public_clue"
+        }
+      ],
       "vendors": [
         {
           "name": "Airbridge",
@@ -448,7 +501,8 @@
         "https://www.nplus.co.kr/customer/membership.asp",
         "https://www.nplus.co.kr/customer/policy.asp",
         "https://www.nplus.co.kr/customer/faq.asp",
-        "https://www.nplus.co.kr/customer/notice.asp"
+        "https://www.nplus.co.kr/customer/notice.asp",
+        "https://www.nplus.co.kr/customer/membership2.asp"
       ],
       "scripts": [
         "https://www.nplus.co.kr/pc/resource/js/pages/filter.js",
@@ -468,8 +522,71 @@
         {
           "scenario": "welcome",
           "kind": "visible_text",
-          "source": "https://www.nplus.co.kr/customer/faq.asp",
+          "source": "https://www.nplus.co.kr/customer/membership.asp",
           "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "first_order",
+          "kind": "visible_text",
+          "source": "https://www.nplus.co.kr/customer/membership.asp",
+          "signal": "첫구매",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "coupon",
+          "kind": "visible_text",
+          "source": "https://www.nplus.co.kr/customer/membership.asp",
+          "signal": "쿠폰 유효기간",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "review",
+          "kind": "visible_text",
+          "source": "https://www.nplus.co.kr/customer/membership.asp",
+          "signal": "구매 후",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "loyalty",
+          "kind": "visible_text",
+          "source": "https://www.nplus.co.kr/customer/membership.asp",
+          "signal": "생일쿠폰",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://www.nplus.co.kr/customer/policy.asp",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "winback",
+          "kind": "visible_text",
+          "source": "https://www.nplus.co.kr/customer/policy.asp",
+          "signal": "휴면회원",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "loyalty",
+          "kind": "visible_text",
+          "source": "https://www.nplus.co.kr/customer/policy.asp",
+          "signal": "마일리지 적립",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://www.nplus.co.kr/customer/membership2.asp",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "loyalty",
+          "kind": "visible_text",
+          "source": "https://www.nplus.co.kr/customer/membership2.asp",
+          "signal": "마일리지 적립",
           "status": "public_clue"
         }
       ],
@@ -512,10 +629,80 @@
       "brand": "ARC'TERYX",
       "url": "https://arcteryx.co.kr/",
       "pages": [
-        "https://arcteryx.co.kr/"
+        "https://arcteryx.co.kr/",
+        "https://arcteryx.co.kr/board/faq",
+        "https://arcteryx.co.kr/board/faq/delivery",
+        "https://arcteryx.co.kr/board/notice",
+        "https://arcteryx.co.kr/contents/terms",
+        "https://arcteryx.co.kr/contents/privacy",
+        "https://arcteryx.co.kr/board/faq/product"
       ],
       "scripts": [],
-      "evidence": [],
+      "evidence": [
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://arcteryx.co.kr/",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "repeat",
+          "kind": "inline_script",
+          "source": "https://arcteryx.co.kr/",
+          "signal": "재구매",
+          "status": "technical_signal"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://arcteryx.co.kr/board/faq",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "repeat",
+          "kind": "inline_script",
+          "source": "https://arcteryx.co.kr/board/faq",
+          "signal": "재구매",
+          "status": "technical_signal"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://arcteryx.co.kr/board/faq/delivery",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://arcteryx.co.kr/board/notice",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://arcteryx.co.kr/contents/terms",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://arcteryx.co.kr/contents/privacy",
+          "signal": "회원가입",
+          "status": "public_clue"
+        },
+        {
+          "scenario": "welcome",
+          "kind": "visible_text",
+          "source": "https://arcteryx.co.kr/board/faq/product",
+          "signal": "회원가입",
+          "status": "public_clue"
+        }
+      ],
       "vendors": [
         {
           "name": "GA4/GTM",
@@ -767,7 +954,7 @@
         },
         {
           "name": "Kakao",
-          "source": "https://www.columbiakorea.co.kr/about/notice.asp",
+          "source": "https://www.columbiakorea.co.kr/customer/faq.asp",
           "kind": "inline_script"
         }
       ],
