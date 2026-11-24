@@ -2,15 +2,17 @@ name: CSK Winter Festival Live Report
 on:
   workflow_dispatch:
   workflow_run:
-    workflows: ["CSK Winter Festival UTM Owned Comparison", "CSK Marketing Operations 3.0"]
+    workflows: ["CSK Winter Festival UTM Owned Comparison", "CSK Marketing Operations 3.0", "Daily Digest"]
     types: [completed]
   schedule:
-    # Every day 11:50 KST, after GA4, marketing operations and budgeted UTM.
+    # 07:20 KST: yesterday's already-generated GA4 daily snapshot, plus midday verification.
+    - cron: '20 22 * * *'
     - cron: '50 2 * * *'
   push:
     branches: [main]
     paths:
       - 'scripts/build_festival_report_snapshot.py'
+      - 'scripts/build_festival_daily_page.py'
       - 'tests/test_festival_report_snapshot.py'
       - '.github/workflows/csk-festival-report-live.yml'
 
@@ -34,7 +36,9 @@ jobs:
           fetch-depth: 0
           sparse-checkout: |
             scripts/build_festival_report_snapshot.py
+            scripts/build_festival_daily_page.py
             tests/test_festival_report_snapshot.py
+            reports/daily_digest/data/daily
             reports/marketing_operations/latest.json
             reports/decision_health
             reports/marketing_intelligence_v2/latest.json
@@ -57,7 +61,7 @@ jobs:
           assert j['schema']==2 and j['quality']['roas_eligible'] is False or (
               j['schema']==2 and j['paid_cost']['roas_eligible'] is True
           )
-          assert j['event']['days'] in (0,2,3)
+          assert j['event']['days'] == 0 or 2 <= j['event']['days'] <= 45
           assert j['event']['causal'] is False
           assert j['weekly_media']['comparison'].endswith('NOT_year_over_year')
           assert not any(x in str(j).lower() for x in ('user_pseudo_id','phone_number','customer_id'))
@@ -65,12 +69,28 @@ jobs:
                 'media',j['event_media']['status'],
                 'paid_cost',j['paid_cost']['status'])
           PY
+      - name: Refresh visible event dashboard with verified latest daily data
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/build_festival_daily_page.py
+          python scripts/build_festival_daily_page.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          j=json.loads(Path('reports/decision_health/winter_festival_integrated_latest.json').read_text())
+          event=j['event']
+          if event['status']=='verified_ga4' and event['days']>3:
+              page=Path('reports/decision_health/winter_festival_comparison_2026.html').read_text()
+              latest=event['daily'][-1]['current_date']
+              assert 'id="fm-live-daily"' in page
+              assert 'data-live-date="'+latest+'"' in page
+          PY
       - name: Commit only public aggregate report evidence
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add reports/decision_health/winter_festival_integrated_latest.json
+          git add reports/decision_health/winter_festival_integrated_latest.json reports/decision_health/winter_festival_comparison_2026.html
           if git diff --cached --quiet; then
             echo 'No new GA4 evidence available'
             exit 0
