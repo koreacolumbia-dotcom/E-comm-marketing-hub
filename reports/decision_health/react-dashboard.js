@@ -818,6 +818,48 @@
     );
   }
 
+
+  // Lead with the largest negative revenue movements, not the biggest traffic sources.
+  function ChannelIssueBoard(props) {
+    var source=props.source||{}, di=props.di||{}, ops=props.ops||{};
+    var weekly=source.status==="ga4_measured"&&alignedSource(source,ops)&&Array.isArray(source.rows)&&source.rows.length>0;
+    var daily=(di.sections||[]).find(function(x){return x.number===11;})||{};
+    var rows=[], low=[];
+    function cause(a,b) {
+      if(!a||!b||![a.sessions,a.transactions,a.revenue,b.sessions,b.transactions,b.revenue].every(num)||
+         Math.min(a.sessions,b.sessions)<100||Math.min(a.transactions,b.transactions)<5) return "표본 부족 · 원인 미확정";
+      var start=[b.sessions,b.transactions/b.sessions,b.revenue/b.transactions],
+          end=[a.sessions,a.transactions/a.sessions,a.revenue/a.transactions], t=[0,0,0];
+      permutations.forEach(function(p){var v=start.slice();p.forEach(function(i){var before=v[0]*v[1]*v[2];v[i]=end[i];t[i]+=(v[0]*v[1]*v[2]-before)/6;});});
+      var i=t.indexOf(Math.min.apply(null,t));
+      return t[i]<0?["유입 감소","구매전환율 하락","객단가 하락"][i]+" · "+krw(t[i]):"원인 미확정";
+    }
+    if(weekly){
+      rows=source.rows.filter(function(x){return x.current&&x.previous&&num(x.revenue_delta)&&x.revenue_delta<0;})
+        .map(function(x){var a=x.current,b=x.previous;return {name:x.source_medium,amount:x.revenue_delta,change:percent(a.revenue,b.revenue),sessions:a.sessions,sessionChange:percent(a.sessions,b.sessions),orders:a.transactions,orderChange:percent(a.transactions,b.transactions),cvr:a.cvr_pct,cvrChange:num(a.cvr_pct)&&num(b.cvr_pct)?a.cvr_pct-b.cvr_pct:null,aov:a.transactions>0?a.revenue/a.transactions:null,aovChange:a.transactions>0&&b.transactions>0?percent(a.revenue/a.transactions,b.revenue/b.transactions):null,reason:cause(a,b)};});
+    }else{
+      rows=(daily.paid||[]).filter(function(x){return num(x.revenue_yoy_pct)&&x.revenue_yoy_pct<0&&x.revenue_yoy_pct>-100&&x.revenue>0;})
+        .map(function(x){return {name:x.channel,amount:x.revenue-x.revenue/(1+x.revenue_yoy_pct/100),change:x.revenue_yoy_pct,sessions:x.sessions,orders:x.orders,cvr:x.cvr_pct,aov:x.orders>0?x.revenue/x.orders:null,reason:"유입·CVR·객단가 전년값 미확보"};});
+      low=(daily.paid||[]).filter(function(x){return num(x.sessions)&&x.sessions>=500&&num(x.cvr_pct)&&x.cvr_pct<0.5;})
+        .sort(function(a,b){return a.cvr_pct-b.cvr_pct;});
+    }
+    rows.sort(function(a,b){return a.amount-b.amount;});
+    function metric(label,value,change,unit){return h("div",{className:"issue-metric"},h("small",null,label),h("b",null,value),num(change)?h("span",{className:change<0?"negative":"positive"},delta(change,unit)):null);}
+    return h("section",{className:"csk-bottom-records issue-board","aria-label":"매체 문제 우선순위"},
+      h("style",null,".issue-board{margin:0 0 16px!important}.issue-board .issue-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;margin:12px 0}.issue-board .issue-card{display:block;text-align:left;border:1px solid #dce4eb;border-radius:12px;padding:12px;background:var(--card,#fff);min-width:0;color:#172b40}.issue-board .issue-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.issue-board .issue-top strong{overflow-wrap:anywhere;font-size:15px}.issue-board .issue-loss{color:#b42318;font-size:18px;font-weight:750;margin:8px 0 3px}.issue-board .issue-reason{font-size:12px;color:#475569;margin:4px 0 10px}.issue-board .issue-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;border-top:1px solid #e5eaf0;padding-top:9px}.issue-board .issue-metric{display:flex;flex-direction:column;gap:2px}.issue-board .issue-metric small,.issue-board .issue-metric span{font-size:11px}.issue-board .issue-note{font-size:12px;color:#52677a;line-height:1.5}.issue-board .issue-low{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.issue-board .issue-low span{padding:5px 8px;border-radius:6px;background:#edf2f6;font-size:12px;color:#30485f}"),
+      h("div",{className:"csk-section-head"},h("div",null,h("small",null,"PRIORITY / CHANNEL DIAGNOSIS"),h("h2",null,"지금 문제가 되는 "+(weekly?"소스 / 매체":"광고 세부채널"))),h("button",{type:"button",onClick:function(){props.onInspect(null);}},"유입·전환 상세 →")),
+      h("p",{className:"issue-note"},weekly?ops.weekly.period+" · 직전 7일 대비 · 매출 감소액 순":(di.report_date||"일자 미확보")+" · 전년 동기 대비 Daily 세부채널 참고 · 주간 원본 source/medium "+(source.status==="blocked_budget"?"쿼리 비용 상한 초과":"미확보")),
+      rows.length?h("div",{className:"issue-grid"},rows.slice(0,3).map(function(x,i){return h("div",{className:"issue-card",key:x.name},
+        h("div",{className:"issue-top"},h("strong",null,(i+1)+". "+x.name),weekly?h("button",{type:"button",onClick:function(){props.onInspect(x.name);}},"상세"):null),
+        h("div",{className:"issue-loss"},krw(x.amount)+" "+(weekly?"":"(추정)")),h("small",{className:"negative"},"매출 "+delta(x.change)),
+        h("p",{className:"issue-reason"},x.reason),
+        h("div",{className:"issue-metrics"},metric("세션",fmt(x.sessions),x.sessionChange),metric("구매",fmt(x.orders),x.orderChange),metric("CVR",num(x.cvr)?x.cvr.toFixed(2)+"%":"—",x.cvrChange,"pp"),metric("객단가",krw(x.aov),x.aovChange))
+      );})):h(EmptyState,{title:weekly?"매출 감소 소스 없음":"비교 가능한 매체 감소 자료 없음"}),
+      low.length?h("div",null,h("strong",null,"추가 점검 · 당일 CVR 0.5% 미만 / 세션 500 이상"),h("div",{className:"issue-low"},low.map(function(x){return h("span",{key:x.channel},x.channel+" "+x.cvr_pct.toFixed(2)+"% · "+fmt(x.sessions)+" 세션");}))):null,
+      h("p",{className:"issue-note"},weekly?"영향액은 GA4 귀속 매출 차이이며 원인명은 유입·CVR·객단가 산술분해입니다. 광고 인과 효과는 별도 검증 필요.":"Daily 자료의 전년 매출은 표시된 증감률로 역산한 추정치입니다. 주간 전체 매출과 합산하지 않으며 낮은 CVR은 점검 신호일 뿐 악화 확정이 아닙니다.")
+    );
+  }
+
   function Dashboard(props) {
     var data=props.data,ops=data.ops,di=data.di||{},dx=data.dx||{},source=data.source||{},funnel=data.funnel||{};
     var [tab,setTab]=useState("overview");
@@ -874,7 +916,7 @@
         metrics.length?metrics.map(function(m){return h(KpiCard,{key:m.key,item:m});}):
           h(EmptyState,{title:"운영 KPI 근거 없음",note:"완전한 주간 세션·주문·매출 합계를 확인할 수 없습니다."})
       ),
-      tab==="overview"?h(SourceDriverHighlight,{drivers:data.sourceDrivers,ops:ops,
+      (tab==="overview"||tab==="acquisition")?h(ChannelIssueBoard,{source:source,di:di,ops:ops,
         onInspect:function(name){setSource(name);setGroup("all");setSearch("");setTab("acquisition");}}):null,
       tab==="overview"?h(DataReadiness,{ops:ops}):null,
       tab==="market"?h(CompetitorEvidenceCoverage,{quality:data.competitiveQuality,content:data.contentStrategy}):null,
@@ -893,7 +935,7 @@
         h(EventWorkspace,{events:events,ops:ops,selected:selectedEvent,onSelect:setEvent})
       ),
       h(ContextCards,{di:di,ops:ops,dx:dx,events:events,products:products}),
-      tab==="overview"?h(SourcePreview,{source:source,ops:ops,onTab:setTab}):null,
+      
       tab==="overview"?h(ExecutionProgress,{outcomes:data.outcomes,ops:ops}):null,
       h("div",{className:"csk-footer-actions"},
         h("button",{type:"button",className:"csk-legacy-toggle",onClick:function(){setLegacy(!showLegacy);}},showLegacy?"기존 상세 분석 접기 −":"기존 상세 분석·검증 근거 펼치기 +"),
