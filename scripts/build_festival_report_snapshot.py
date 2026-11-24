@@ -406,6 +406,7 @@ def extend_festival_from_daily(report, old=None):
     report["quality"]["source_report_date"]=measured["source_report_date"]
     report["quality"]["latest_day_finality"]=measured["last_day_finality"]
     report["quality"]["marketing_ops_date"]=report["weekly_media"].get("report_date")
+    report["quality"]["weekly_media_date_aligned"]=(report["weekly_media"].get("report_date")==report["report_date"])
     report["updated_from"].append("reports/daily_digest/data/daily/YYYY-MM-DD.json")
     return report
 
