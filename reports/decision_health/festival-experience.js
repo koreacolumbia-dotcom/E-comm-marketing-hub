@@ -102,7 +102,7 @@ function renderDiagnosis(){
     "매출 "+fmSigned(revenue)+" ("+(netPct>=0?"+":"")+netPct.toFixed(1)+"% YoY) · "+
     "CVR 산술기여 "+fmSigned(term.amount_krw)+" · 인과 효과 미확정"
  ):"행사 KPI는 확인됐지만 세션·전환율·객단가 분해는 아직 검증 중입니다.";
- thesis.innerHTML='<strong>핵심 결론 · 확정 행사 D1~D'+esc(diag.event_days)+'</strong><p>'+esc(line)+'</p>';
+ thesis.innerHTML='<strong>핵심 결론 · 최신 행사 D1~D'+esc(diag.event_days)+'</strong><p>'+esc(line)+'</p>';
  var goods=Array.isArray(diag.strengths)?diag.strengths:[],bads=Array.isArray(diag.weaknesses)?diag.weaknesses:[];
  var aligned=diag.event_media_aligned===true;
  var sectionNote='<article class="fm-cause"><div class="fm-cause-kicker">추가 근거 대기</div>'+
@@ -123,7 +123,7 @@ function renderDiagnosis(){
  if(!aligned||!Array.isArray(diag.channel_bridge)){
   place.innerHTML='<div class="fm-state warn">'+esc(diag.media_unavailable_reason||"매체별 동일 행사일 비교 대기")+
     ' · 채널별 변화가 해당 기간과 일치할 때만 증감 그래프를 표시합니다.</div>';
-  section.querySelector("#fm-diagnosis-foot").textContent="세션·CVR·객단가의 산술 분해만 확정됐습니다. 매체별 원인 판단은 동일 날짜 원본 검증 전까지 보류합니다.";
+  section.querySelector("#fm-diagnosis-foot").textContent="세션·CVR·객단가의 산술 분해만 확인됐습니다. 잠정치가 포함될 수 있습니다. 매체별 원인 판단은 동일 날짜 원본 검증 전까지 보류합니다.";
   return;
  }
  var rows=diag.channel_bridge.filter(function(x){return Number.isFinite(Number(x.delta_krw))})
@@ -690,15 +690,22 @@ async function loadCustomerCohorts(){
  renderCustomerComparison(admin);
 }
 
+function eventDays(period){var a=period?.["2026"];if(!Array.isArray(a)||a.length!==2)return null;var n=Math.round((Date.parse(a[1])-Date.parse(a[0]))/86400000)+1;return Number.isFinite(n)&&n>0?n:null;}
 function renderLiveAggregate(){
  var rootEl=$("#fm-live-aggregate"),d=app.data||{},e=d.event||{};
- if(!rootEl)return;
  if(e.status!=="verified_ga4"||!e.totals?.current||!e.totals?.previous){
-  rootEl.innerHTML='<span>행사 누적 GA4 확정 데이터를 확인하는 중입니다. 기존 D1~D2 검증표는 유지합니다.</span>';
+  if(rootEl)rootEl.innerHTML='<span>행사 누적 GA4 데이터를 확인하는 중입니다.</span>';
   return;
  }
  var a=e.totals.previous,b=e.totals.current,rev=percent(a.revenue,b.revenue,"revenue");
- rootEl.innerHTML='<div class="fm-live-label">현재 확정된 누적 구간 · D1~D'+esc(e.days)+
+ var first=e.daily?.[0],last=e.daily?.at(-1),prior=e.daily?.at(-2),pending=e.last_day_finality==="provisional_intraday"||e.daily?.some(function(x){return x.data_finality==="provisional_intraday"}),range="D1–D"+e.days,flag=pending?"잠정치 포함":"일별 적재 검증치";
+ var head=document.querySelector("main > header .meta");if(head&&first&&last)head.innerHTML="본행사 "+esc(range)+" · 동일 요일 / 행사 경과일<br>"+esc(first.current_date+" ~ "+last.current_date+" vs "+first.previous_date+" ~ "+last.previous_date)+" · "+esc(flag);
+ var cards=document.getElementById("fm-head-kpis");if(cards){cards.dataset.verifiedDate=last?.current_date||"";cards.innerHTML=[["매출","revenue"],["주문","orders"],["세션","sessions"],["CVR","cvr"]].map(function(x){var k=x[1],av=oneMetric(a,k),bv=oneMetric(b,k),p=percent(av,bv,k);return '<div class="kpi"><span>'+esc(x[0]+" YoY · "+range)+'</span><strong>'+esc(p.value)+'</strong><small>'+esc(fmt(bv,k)+" · 전년 "+fmt(av,k))+'</small></div>'}).join("");}
+ var legacy=document.getElementById("fm-legacy-note");if(legacy)legacy.textContent="전체 KPI "+range+" ("+flag+"). 상품·구매자·가입·채널·Owned는 각 원천의 실제 기간을 별도 표시합니다. 이전 기간을 최신 누적으로 간주하지 않습니다.";
+ var headline=document.getElementById("fm-d3-headline");if(headline&&last){var l=last.current,p=last.previous;headline.setAttribute("aria-label",last.current_date+" 최신 실적");headline.innerHTML='<div class="fm-overline">LATEST DAY · '+esc(last.current_date)+'</div><h2>D'+esc(last.day)+' · 매출 '+esc(NF.format(l.revenue))+'원</h2><p class="meta">전년 동일 요일 '+esc(NF.format(p.revenue))+'원 · '+esc(percent(p.revenue,l.revenue,"revenue").value)+' YoY · 구매 '+esc(fmt(l.orders,"orders"))+' · 세션 '+esc(fmt(l.sessions,"sessions"))+' · '+esc(last.data_finality==="provisional_intraday"?"잠정":"일별 적재 검증")+"</p>";}
+ var watch=document.getElementById("fm-d4-conversion");if(watch&&last&&prior){var x=prior.current,y=last.current,metrics=[["매출",x.revenue,y.revenue,"revenue"],["주문",x.orders,y.orders,"orders"],["세션",x.sessions,y.sessions,"sessions"],["CVR",x.cvr_pct,y.cvr_pct,"cvr"],["객단가",x.orders?x.revenue/x.orders:0,y.orders?y.revenue/y.orders:0,"revenue"]];watch.innerHTML='<div class="fm-overline">LATEST DAY / CONVERSION WATCH</div><h2>D'+esc(last.day)+' 구매전환 진단</h2><p class="meta">'+esc(prior.current_date+" → "+last.current_date+" · 전일 대비 · "+flag)+'</p><div class="kpis">'+metrics.map(function(m){return '<div class="kpi"><span>'+esc(m[0])+'</span><strong>'+esc(percent(m[1],m[2],m[3]).value)+'</strong><small>'+esc(fmt(m[1],m[3])+" → "+fmt(m[2],m[3]))+'</small></div>'}).join("")+'</div><p class="meta">전일 대비 변화는 요일 차이와 데이터 확정 상태의 영향을 받을 수 있습니다. 채널·상품 원인으로 단정하지 않습니다.</p>';}
+ var nav=document.querySelector('a[href="#fm-d4-conversion"]');if(nav)nav.textContent="D"+e.days+" 전환 진단";
+ if(rootEl)rootEl.innerHTML='<div class="fm-live-label">최신 누적 구간 · '+esc(flag)+' · D1~D'+esc(e.days)+
     ' <span>'+esc(e.daily?.[0]?.current_date||"")+" ~ "+esc(e.daily?.at(-1)?.current_date||"")+'</span></div>'+
    '<div class="fm-live-line"><strong>'+esc(fmt(b.revenue,"revenue"))+'</strong>'+
      '<span class="fm-delta '+(rev.down?"down":"")+'">'+esc(rev.value)+' YoY</span></div>'+
@@ -718,7 +725,7 @@ function renderPaidTotal(){
  },{revenue:0,orders:0,sessions:0})}
  var a=totals(prev),b=totals(cur),q=percent(a.revenue,b.revenue,"revenue");
  slot.innerHTML='<div class="fm-paid-summary"><div><span>식별된 Paid 소스/매체 · 행사 D1~D'+
-  (source.period?.["2026"]?.[1]==="2026-11-22"?"3":"2")+
+  (eventDays(source.period)||"?")+
   '</span><strong>'+esc(fmt(b.revenue,"revenue"))+'</strong>'+
   '<small>2025 '+esc(fmt(a.revenue,"revenue"))+' → 2026 · '+esc(fmt(b.orders,"orders"))+' 구매</small></div>'+
   '<em class="'+(q.down?"down":"")+'">'+esc(q.value)+'</em></div>'+
@@ -765,7 +772,7 @@ function render(){
  if(!d){$("#fm-items").innerHTML='<div class="fm-state warn">데이터 집계 원본을 불러오지 못했습니다. 기존 검증된 행사 성과 차트는 그대로 유지됩니다.</div>';return;}
  var period=app.view==="event"?(d.event_media||{}).period:(d.weekly_media||{}).period;
  var labels=app.view==="event"
- ? "같은 행사 D1~D"+(((d.event_media||{}).period||{})["2026"]?.[1]==="2026-11-22"?"3":"2")+" · 2025 vs 2026"
+ ? "같은 행사 D1~D"+(eventDays((d.event_media||{}).period)||"?")+" · 2025 vs 2026"
  : "7일 기준 · 전주 대비 · 행사 단독 기여 아님";
  $("#fm-compare-note").textContent=labels;
  var windowEl=$("#fm-period");
@@ -935,7 +942,7 @@ function openMethod(){
  var d=document.getElementById("fm-drawer");if(!d)return;
  app.lastFocus=document.activeElement;
  d.querySelector("#fm-sheet-content").innerHTML='<div class="fm-overline">EVIDENCE / METHODOLOGY</div><h2>성과 해석 기준</h2>'+
- '<p><b>01 · 본행사 비교</b> 2026년 11월 20~21일과 2025년 11월 21~22일을 동일 경과일과 요일로 맞춥니다. 2026년 11월 22일 데이터가 검증되면 D3를 추가합니다.</p>'+
+ '<p><b>01 · 본행사 비교</b> 2026년 11월 20일부터 최신 원천 기준일까지와 2025년 11월 21일부터 동일 경과일을 비교합니다. 잠정치와 상세 원천 기간을 별도 표시합니다.</p>'+
  '<p><b>02 · 채널별 행사 실측</b> BigQuery 세션-소스/매체를 UTM 분석과 동일한 단일 비용 제한 쿼리에서 함께 산출합니다. 채널별 전년 비교는 같은 행사 경과일 자료를 확보했을 때만 표시합니다.</p>'+
  '<p><b>03 · 보조 비교</b> 최근 7일과 직전 7일의 GA4 소스/매체 차이입니다. 행사 단독 효과나 전년 변화율이 아닙니다.</p>'+
  '<p><b>04 · Meta</b> meta / banner와 META_BD 등의 유입을 따로 표시합니다. GA4 소스/매체와 UTM 캠페인은 Meta Ads 관리자 보고서가 아닙니다.</p>'+
