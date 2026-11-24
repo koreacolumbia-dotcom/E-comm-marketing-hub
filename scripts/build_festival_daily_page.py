@@ -101,7 +101,7 @@ def main():
         start=source.index(START)
         # Consume any previously injected D1-D3 legacy badge as well.
         end=source.index(END,start)+len(END)
-        trailing=re.match(r'\\s*<p id="fm-legacy-note"[^>]*>.*?</p>\\s*',source[end:],re.S)
+        trailing=re.match(r'\s*<p id="fm-legacy-note"[^>]*>.*?</p>\s*',source[end:],re.S)
         if trailing:end+=trailing.end()
         result=source[:start]+widget+source[end:]
     else:
