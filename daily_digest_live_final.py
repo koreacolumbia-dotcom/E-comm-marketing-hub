@@ -3000,7 +3000,9 @@ def product_scope_data(client,w,image_map,best,rising,previous):
             if not d.empty: d[metric]=pd.to_numeric(d[metric],errors="raise")
             report_cache[cache_key]=d
         return report_cache[cache_key].copy()
-    def key(x): return " ".join(str(x).casefold().split())
+    def key(x):
+        # GA4 item names use mixed apostrophe glyphs across view and purchase events.
+        return " ".join(str(x).casefold().translate(str.maketrans({"\`":"'","’":"'","‘":"'"})).split())
     def rows(a,b,metric,exclude=()):
         d=get(a,b,"itemName",metric)
         if d.empty:return []
