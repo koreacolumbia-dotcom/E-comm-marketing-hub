@@ -58,11 +58,17 @@ def safe_name(value, max_length=95) -> str:
 def style_key(value: str) -> str:
     return safe_name(value).replace("’", "'").replace("‘", "'").replace("\x60", "'").casefold()
 
-def sql_for(start: str, end: str) -> str:
+def sql_for(start: str, end: str, suffixes=None) -> str:
     for value in (start, end):
         dt.date.fromisoformat(value)
         if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", value):
             raise ValueError("Date not a verified ISO date")
+    if suffixes is None:
+        predicate = "_TABLE_SUFFIX BETWEEN '"+start.replace("-","")+"' AND '"+end.replace("-","")+"'"
+    else:
+        if not suffixes or any(not re.fullmatch(r"(?:intraday_)?20[0-9]{6}",x) for x in suffixes):
+            raise ValueError("Invalid selected GA4 table suffix")
+        predicate = "_TABLE_SUFFIX IN (" + ",".join("'"+x+"'" for x in suffixes) + ")"
     return f"""
     WITH purchases AS (
       SELECT event_date,event_timestamp,
@@ -75,7 +81,7 @@ def sql_for(start: str, end: str) -> str:
           ORDER BY event_timestamp
         ) AS rn
       FROM {chr(96)}{TABLE}{chr(96)}
-      WHERE _TABLE_SUFFIX BETWEEN '{start.replace("-","")}' AND '{end.replace("-","")}'
+      WHERE {predicate}
         AND event_name='purchase'
     ), deduped AS (
       SELECT * FROM purchases WHERE txn IS NULL OR rn=1
@@ -99,6 +105,24 @@ def sql_for(start: str, end: str) -> str:
       AND i.quantity IS NOT NULL AND i.quantity>=0
     GROUP BY 1,2,3,4
     """
+
+def select_event_suffixes(client, start, end):
+    """Choose exactly one physical GA4 export per calendar day, including intraday."""
+    from google.api_core.exceptions import NotFound
+    names=[]
+    day=dt.date.fromisoformat(start)
+    stop=dt.date.fromisoformat(end)
+    while day<=stop:
+        key=day.strftime("%Y%m%d")
+        base=TABLE[:-1]
+        try:
+            client.get_table(base+key)
+            names.append(key)
+        except NotFound:
+            client.get_table(base+"intraday_"+key)
+            names.append("intraday_"+key)
+        day+=dt.timedelta(days=1)
+    return names
 
 def parse_year(records) -> dict:
     product = {}
@@ -259,7 +283,7 @@ def main():
     ops = read(OPS)
     period = validated_festival_daily_window() or period_from_ops(ops)
     old = read(OUT)
-    if old.get("schema")==2 and old.get("status")=="ga4_measured" and old.get("period")==period:
+    if old.get("schema")==2 and old.get("status")=="ga4_measured" and old.get("period")==period and (old.get("quality") or {}).get("event_partition_kinds"):
         print("[FESTIVAL PRODUCT] same measured window, no new BQ job")
         return
     base={"schema":2,"period":period,"report_date":period["2026"][1],
@@ -282,9 +306,10 @@ def main():
         credentials=service_account.Credentials.from_service_account_info(info)
         client=bigquery.Client(project=info["project_id"],credentials=credentials,
                                location=REGION)
-        queries,estimates={},{}
+        queries,estimates,selected={},{},{}
         for year in ("2025","2026"):
-            queries[year]=sql_for(*period[year])
+            selected[year]=select_event_suffixes(client,*period[year])
+            queries[year]=sql_for(*period[year],suffixes=selected[year])
             dry=client.query(queries[year],location=REGION,
                  job_config=bigquery.QueryJobConfig(dry_run=True,use_query_cache=False))
             estimates[year]=int(dry.total_bytes_processed or 0)
@@ -302,6 +327,8 @@ def main():
             preserve_or_write("insufficient_data")
             return
         result=compare(period,data)
+        result["quality"]["event_partition_kinds"]={y:["intraday" if x.startswith("intraday_") else "daily" for x in selected[y]] for y in selected}
+        result["quality"]["last_day_is_provisional"]=selected["2026"][-1].startswith("intraday_")
         result["cost"]={"dry_run_bytes":estimates,
                         "per_year_cap":PER_YEAR_CAP,"total_dry_cap":TOTAL_DRY_CAP}
         save(result)
