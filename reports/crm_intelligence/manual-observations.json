@@ -3,6 +3,43 @@
   "scope": "Official storefront direct tests; anonymous and signed-in flows distinguished. No order submitted or CRM message verified.",
   "observations": [
     {
+      "brand": "PUMA",
+      "scenario": "checkout",
+      "status": "anonymous_flow",
+      "summary": "2026-11-24 비회원 MagMax NITRO 2 Fresh Water-Emerald Ice 275 1개 PDP 조회→장바구니 1개→비회원 배송정보 주문서 진입. 239,000원 취소선·표시/결제금액 133,840원, 배송 3,000원과 배송할인 -3,000원. 쿠폰 코드 입력란은 보였으나 쿠폰 미입력·미발급. 개인정보·배송정보·결제 미제출. 로그인 화면에서 카카오·네이버·아이디/비밀번호 경로를 확인했으나 로그인 미실행. 실제 오프사이트 발송 미검증.",
+      "source": "https://kr.puma.com/kr/ko/pd/%EB%A7%A4%EA%B7%B8%EB%A7%A5%EC%8A%A4-%EB%82%98%EC%9D%B4%ED%8A%B8%EB%A1%9C-2-%3Cbr%3Emagmax-nitro-2/312125.html?dwvar_312125_color=06",
+      "next_url": "https://kr.puma.com/kr/ko/checkout/start",
+      "observed_at": "2026-11-24",
+      "message_verified": false
+    },
+    {
+      "brand": "ASICS",
+      "scenario": "discovery",
+      "status": "partial_anonymous_flow",
+      "summary": "2026-11-24 공식몰 비회원 Men 목록 729개와 상품가격/사이즈 노출 확인. PDP 카드 클릭이 시간 초과되어 상품 상세·장바구니·주문서 행동은 확인되지 않음. 상단 신규가입 10,000포인트 안내 및 수신동의 이벤트 링크는 노출 혜택일 뿐 실제 지급·메시지 발송 미검증.",
+      "source": "https://www.asics.co.kr/c/men-total",
+      "observed_at": "2026-11-24",
+      "message_verified": false
+    },
+    {
+      "brand": "NEW BALANCE",
+      "scenario": "site_access",
+      "status": "access_denied",
+      "summary": "2026-11-24 공식몰 접속 시 사이트가 CODE:403 화면을 반환하고 한 번 새로고침해도 동일. 제품 행동·회원상태·오프사이트 CRM 모두 미실험.",
+      "source": "https://www.nbkorea.com/",
+      "observed_at": "2026-11-24",
+      "message_verified": false
+    },
+    {
+      "brand": "BROOKS RUNNING",
+      "scenario": "site_access",
+      "status": "browser_error",
+      "summary": "2026-11-24 공식몰 접속 시 이 브라우저에서 HTTP/2 프로토콜 오류로 페이지를 읽지 못함. 이전 공개 카카오 친구 쿠폰 안내와 별개로 상품 행동·회원 CRM 실험 미실행.",
+      "source": "https://www.brooksrunning.co.kr/",
+      "observed_at": "2026-11-24",
+      "message_verified": false
+    },
+    {
       "brand": "MIZUNO",
       "scenario": "checkout",
       "status": "anonymous_flow",
@@ -157,6 +194,23 @@
     }
   ],
   "experiments": [
+    {
+      "brand": "PUMA",
+      "date": "2026-11-24",
+      "time_window_kst": "오전",
+      "session": "anonymous",
+      "product": "매그맥스 나이트로 2 Fresh Water-Emerald Ice 275",
+      "product_url": "https://kr.puma.com/kr/ko/pd/%EB%A7%A4%EA%B7%B8%EB%A7%A5%EC%8A%A4-%EB%82%98%EC%9D%B4%ED%8A%B8%EB%A1%9C-2-%3Cbr%3Emagmax-nitro-2/312125.html?dwvar_312125_color=06",
+      "steps": {
+        "signup": "회원 로그인·가입 미실행. 카카오·네이버·아이디/비밀번호 경로 노출",
+        "view": "비회원 PDP 조회·판매가 133,840원·정가 239,000원",
+        "cart": "275 1개 담기 완료·장바구니 1개·쿠폰 코드 입력란 확인",
+        "checkout": "비회원 배송정보 주문서 진입·상품 133,840원+배송 3,000원-배송할인 3,000원=총 133,840원·개인정보·결제 미제출"
+      },
+      "message": "회원 계정 미인증·이메일/SMS/카카오 수신 미검증",
+      "trigger": "비회원 PDP→카트→주문서 이탈",
+      "confidence": "공식몰 PDP·카트·비회원 주문서 직접 확인"
+    },
     {
       "brand": "MIZUNO",
       "date": "2026-11-24",
@@ -469,6 +523,24 @@
   ],
   "offers": [
     {
+      "brand": "PUMA",
+      "stage": "장바구니→주문서",
+      "offer": "MagMax NITRO 2 239,000원 취소선·133,840원 표시. 배송비 3,000원과 배송할인 -3,000원, 쿠폰 코드 입력란. 푸터 뉴스레터 구독 시 이메일 할인코드 발송 문구 노출.",
+      "result": "비회원 주문서 133,840원 확인. 쿠폰코드 입력·뉴스레터 구독·실제 이메일 수신은 미실행.",
+      "evidence": "공식몰 PDP·카트·주문서 직접 확인 2026-11-24",
+      "url": "https://kr.puma.com/kr/ko/pd/%EB%A7%A4%EA%B7%B8%EB%A7%A5%EC%8A%A4-%EB%82%98%EC%9D%B4%ED%8A%B8%EB%A1%9C-2-%3Cbr%3Emagmax-nitro-2/312125.html?dwvar_312125_color=06",
+      "message_verified": false
+    },
+    {
+      "brand": "ASICS",
+      "stage": "공식몰 공개 혜택",
+      "offer": "상단 신규회원 가입 시 10,000포인트 증정 문구, 수신동의 이벤트 배너 노출.",
+      "result": "가입·동의·포인트 지급 및 실제 CRM 수신 미검증.",
+      "evidence": "공식몰 홈과 Men 목록 직접 확인 2026-11-24",
+      "url": "https://www.asics.co.kr/",
+      "message_verified": false
+    },
+    {
       "brand": "MIZUNO",
       "stage": "상품 조회→카트",
       "offer": "장바구니 상품 18,000원·배송비 3,000원 안내. 기존 공개 멤버십의 신규 1만원 쿠폰은 이 비회원 주문에 발급·적용 확인되지 않음.",
@@ -762,6 +834,27 @@
     }
   ],
   "scenario_results": [
+    {
+      "brand": "PUMA",
+      "scenario": "상품 조회 후 이탈",
+      "action": "2026-11-24 비회원 MagMax NITRO 2 275 PDP·133,840원 확인",
+      "offsite": "회원 미인증·수신 미검증",
+      "channel": "비회원 행동을 회원 CRM 발송 여부로 판정하지 않음"
+    },
+    {
+      "brand": "PUMA",
+      "scenario": "장바구니 이탈",
+      "action": "2026-11-24 비회원 275 1개 담기·카트 1개 확인",
+      "offsite": "회원 미인증·수신 미검증",
+      "channel": "쿠폰 코드 입력란은 실제 쿠폰 발급 아님"
+    },
+    {
+      "brand": "PUMA",
+      "scenario": "결제 이탈",
+      "action": "2026-11-24 비회원 배송정보 주문서 진입·총 133,840원·정보/결제 미제출",
+      "offsite": "회원 미인증·수신 미검증",
+      "channel": "비회원 주문서 행동만 확인"
+    },
     {
       "brand": "MIZUNO",
       "scenario": "장바구니 이탈",
@@ -1260,27 +1353,6 @@
       "note": "2026-11-24 가입 표시, 수신동의 3항목 체크. 크레이프 3.0 PDP→장바구니→주문서 진입, 미결제. 신규회원 쿠폰 12장 중 데상트 15% 보유."
     },
     {
-      "brand": "NEW BALANCE",
-      "url": "https://pay.nbkorea.com/customer/direct.Login.action?returnURL=null",
-      "status": "네이버 계정 불일치로 중단",
-      "need": "본인 계정 인증",
-      "note": "소셜 인증 화면의 프로필이 사용자 계정으로 확인되지 않아 정보 제공 동의 전 중단."
-    },
-    {
-      "brand": "ASICS",
-      "url": "https://www.asics.co.kr/member/login",
-      "status": "카카오 로그인 동작 후 회원 상태 미확인",
-      "need": "카카오 인증 연결 재확인",
-      "note": "공식 로그인 화면에 카카오·Apple 표시. 카카오 클릭 후 원래 로그인 화면에 머물러 회원 실험 미실행."
-    },
-    {
-      "brand": "PUMA",
-      "url": "https://kr.puma.com/kr/ko/myaccount-login.html",
-      "status": "로그인 양식 미표시",
-      "need": "공식몰 로그인 화면 정상 표시",
-      "note": "한국몰 선택 후 프로모션과 푸터는 표시되나 계정 입력 영역 확인 불가. 뉴스레터 이메일 구독 시 할인코드 발송 안내."
-    },
-    {
       "brand": "UNDER ARMOUR",
       "url": "https://www.underarmour.co.kr/ko-kr/",
       "status": "비회원 PDP→장바구니→배송 정보 화면 확인·회원 미인증",
@@ -1330,11 +1402,32 @@
       "note": "계정 상태·휴대폰·마케팅 수신 설정 미확인."
     },
     {
+      "brand": "PUMA",
+      "url": "https://kr.puma.com/on/demandware.store/Sites-KR-Site/ko_KR/Checkout-Login",
+      "status": "비회원 PDP→카트→주문서 완료·회원 로그인 전",
+      "need": "카카오·네이버·아이디 로그인 중 계정 방법 선택/인증 후 마케팅 동의와 동일 행동 재실험",
+      "note": "뉴스레터 할인코드 문구는 노출만 확인. 실제 메일/SMS/카카오 수신 미확인."
+    },
+    {
+      "brand": "ASICS",
+      "url": "https://www.asics.co.kr/member/login",
+      "status": "비회원 상품목록·가입 혜택 확인, PDP 카드 클릭 시간초과",
+      "need": "상세 진입 정상화와 회원 로그인 후 동일 행동 실험",
+      "note": "10,000포인트 및 수신동의 이벤트 안내는 실제 지급·수신 증거 아님."
+    },
+    {
+      "brand": "NEW BALANCE",
+      "url": "https://www.nbkorea.com/",
+      "status": "이 브라우저에서 CODE:403 지속",
+      "need": "접근 가능 시 공식몰 회원 행동 실험",
+      "note": "403 화면 외 행동/CRM 확인 없음."
+    },
+    {
       "brand": "BROOKS RUNNING",
-      "url": "https://www.brooksrunning.co.kr/index.html",
-      "status": "공식몰 공개자료 확인·회원 실험 전",
-      "need": "네이버 간편 로그인 확인 필요",
-      "note": "동일 시나리오(PDP 조회→장바구니→결제 이탈)와 이메일·문자·카카오 수신 미검증."
+      "url": "https://www.brooksrunning.co.kr/",
+      "status": "이 브라우저에서 HTTP/2 연결 오류",
+      "need": "접근 가능 시 공식몰 회원 행동 실험",
+      "note": "이번 회차 상품 행동·메시지 수신 검증 없음."
     }
   ]
 }
