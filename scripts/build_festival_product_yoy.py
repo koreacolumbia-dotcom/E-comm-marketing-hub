@@ -225,9 +225,39 @@ def save(doc: dict):
     OUT.write_text(json.dumps(doc,ensure_ascii=False,indent=2,allow_nan=False)+"\n",
                    encoding="utf-8")
 
+
+def validated_festival_daily_window():
+    """Use only contiguous, matched GA4 daily source periods through yesterday KST."""
+    origin=dt.date(2026,11,20)
+    end=dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).date()-dt.timedelta(days=1)
+    last=None
+    for i in range(31):
+        day=origin+dt.timedelta(days=i)
+        if day>end:break
+        file=ROOT/"reports/daily_digest/data/daily"/(day.isoformat()+".json")
+        try:doc=json.loads(file.read_text(encoding="utf-8"))
+        except (OSError,ValueError):break
+        prev_day=day-dt.timedelta(days=364)
+        anchor=doc.get("yoy") or {}
+        observed=doc.get("overall") or {}
+        cur=observed.get("current") or {}
+        prev=observed.get("yoy") or {}
+        if (doc.get("end_date")!=day.isoformat()
+            or anchor.get("start")!=prev_day.isoformat()
+            or anchor.get("end")!=prev_day.isoformat()
+            or cur.get("source")!="ga4_bigquery_session_key_v1"
+            or prev.get("source")!="ga4_bigquery_session_key_v1"
+            or not isinstance(cur.get("sessions"),(int,float))
+            or not isinstance(prev.get("sessions"),(int,float))
+            or cur["sessions"]<=0 or prev["sessions"]<=0):break
+        last=day
+    if last is None or last < origin+dt.timedelta(days=1):return None
+    return {"2025":["2025-11-21",(last-dt.timedelta(days=364)).isoformat()],
+            "2026":["2026-11-20",last.isoformat()]}
+
 def main():
     ops = read(OPS)
-    period = period_from_ops(ops)
+    period = validated_festival_daily_window() or period_from_ops(ops)
     old = read(OUT)
     if old.get("schema")==2 and old.get("status")=="ga4_measured" and old.get("period")==period:
         print("[FESTIVAL PRODUCT] same measured window, no new BQ job")
