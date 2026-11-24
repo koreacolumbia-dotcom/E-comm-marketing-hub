@@ -336,8 +336,81 @@ def build(ops,source,utm,intel,previous=None):
                        "roas_eligible":paid["roas_eligible"],
                        "caution":"GA4 attribution is descriptive, not causal. Media costs are separately verified. No ad-platform campaign spend is implied."}}
 
+
+# Read the canonical daily GA4 aggregates directly so an earlier Marketing Operations
+# publication time cannot block yesterday's festival KPI. Strict same-weekday YoY.
+FESTIVAL_START=dt.date(2026,11,20)
+FESTIVAL_DAILY=BASE/"daily_digest/data/daily"
+
+def daily_festival_event(previous_event=None, daily_root=FESTIVAL_DAILY):
+    """Rebuild the complete event D1..Dn only from matched current/last-year daily rows."""
+    rows=[]
+    kst=dt.timezone(dt.timedelta(hours=9))
+    yesterday=dt.datetime.now(kst).date()-dt.timedelta(days=1)
+    for offset in range(45):
+        day=FESTIVAL_START+dt.timedelta(days=offset)
+        if day>yesterday:break
+        ly=day-dt.timedelta(days=364)
+        d=read(daily_root/(day.isoformat()+".json"))
+        current=(d.get("overall") or {}).get("current") or {}
+        previous=(d.get("overall") or {}).get("yoy") or {}
+        anchor=d.get("yoy") or {}
+        if (d.get("end_date")!=day.isoformat()
+            or anchor.get("start")!=ly.isoformat() or anchor.get("end")!=ly.isoformat()
+            or current.get("source")!="ga4_bigquery_session_key_v1"
+            or previous.get("source")!="ga4_bigquery_session_key_v1"):
+            break
+        curr=metrics({"sessions":current.get("sessions"),
+                      "transactions":current.get("transactions"),
+                      "revenue":current.get("purchaseRevenue")})
+        prev=metrics({"sessions":previous.get("sessions"),
+                      "transactions":previous.get("transactions"),
+                      "revenue":previous.get("purchaseRevenue")})
+        kpi=d.get("kpis") or {}
+        if (not curr or not prev or prev["sessions"]<=0
+            or curr["orders"]>curr["sessions"]
+            or prev["orders"]>prev["sessions"]
+            or any(not valid(kpi.get(x)) or abs(kpi[x]-curr[y])>1
+                   for x,y in (("sessions","sessions"),("orders","orders"),("revenue","revenue")))):
+            break
+        partitions=d.get("traffic_partition_status") or {}
+        rows.append({"day":offset+1,"current_date":day.isoformat(),
+                     "previous_date":ly.isoformat(),"current":curr,"previous":prev,
+                     "data_finality":"provisional_intraday" if partitions.get(day.isoformat())=="intraday" else "daily_partition"})
+    if len(rows)<2:return None
+    prior=previous_event or {}
+    if prior.get("status")=="verified_ga4" and prior.get("days",0)>len(rows):
+        return None  # Never regress to a shorter verified event report.
+    totals={}
+    for key in ("current","previous"):
+        raw={name:sum(row[key][name] for row in rows)
+             for name in ("sessions","orders","revenue")}
+        totals[key]=metrics(raw)
+    return {"status":"verified_ga4","days":len(rows),"daily":rows,"totals":totals,
+            "comparison":"same_event_day_same_weekday_364_offset",
+            "source_report_date":rows[-1]["current_date"],
+            "source":"daily_digest_ga4_bigquery_session_key_v1",
+            "last_day_finality":rows[-1]["data_finality"],
+            "causal":False}
+
+def extend_festival_from_daily(report, old=None):
+    """Override the fixed D3 ops window only when complete daily proof exists."""
+    measured=daily_festival_event((old or {}).get("event"))
+    if not measured:return report
+    current=report.get("event") or {}
+    if measured["days"]<current.get("days",0):return report
+    report["event"]=measured
+    report["report_date"]=max(str(report.get("report_date") or ""),measured["source_report_date"])
+    report["diagnosis"]=diagnose_drivers(measured,report["event_media"],report["paid_cost"])
+    report["quality"]["reliable_event_days"]=measured["days"]
+    report["quality"]["source_report_date"]=measured["source_report_date"]
+    report["quality"]["latest_day_finality"]=measured["last_day_finality"]
+    report["quality"]["marketing_ops_date"]=report["weekly_media"].get("report_date")
+    report["updated_from"].append("reports/daily_digest/data/daily/YYYY-MM-DD.json")
+    return report
+
 def main():
-    current=build(read(OPS),read(SOURCES),read(UTM),read(INTEL),read(OUT))
+    current=extend_festival_from_daily(build(read(OPS),read(SOURCES),read(UTM),read(INTEL),read(OUT)),read(OUT))
     OUT.parent.mkdir(parents=True,exist_ok=True)
     serialized=json.dumps(current,ensure_ascii=False,allow_nan=False,indent=2)+"\n"
     # Avoid unnecessary commits if only the clock changed and source data did not.
