@@ -3002,7 +3002,7 @@ def product_scope_data(client,w,image_map,best,rising,previous):
         return report_cache[cache_key].copy()
     def key(x):
         # GA4 item names use mixed apostrophe glyphs across view and purchase events.
-        return " ".join(str(x).casefold().translate(str.maketrans({"\`":"'","’":"'","‘":"'"})).split())
+        return " ".join(str(x).casefold().translate(str.maketrans({"`":"'", "’":"'", "‘":"'"})).split())
     def rows(a,b,metric,exclude=()):
         d=get(a,b,"itemName",metric)
         if d.empty:return []
