@@ -1,49 +1,8 @@
 {
   "schema": 1,
-  "report_date": "2026-11-23",
-  "status": "partial_quality",
-  "periods": {
-    "previous": {
-      "orders_with_items": 609,
-      "orders_with_item_coupon": 609,
-      "observed_item_rows": 772,
-      "item_coupon_rows": 772,
-      "coupon_units": 937.0,
-      "units": 937.0,
-      "coupon_item_revenue": 121935200.0,
-      "item_revenue": 121935200.0,
-      "missing_values": 0,
-      "order_coupon_presence_pct": 100.0
-    },
-    "current": {
-      "orders_with_items": 1427,
-      "orders_with_item_coupon": 1427,
-      "observed_item_rows": 1938,
-      "item_coupon_rows": 1938,
-      "coupon_units": 1992.0,
-      "units": 1992.0,
-      "coupon_item_revenue": 254977315.0,
-      "item_revenue": 254977315.0,
-      "missing_values": 0,
-      "order_coupon_presence_pct": 100.0
-    }
-  },
-  "coupon_presence_delta_pp": null,
-  "ga4_purchase_totals_aligned": false,
-  "source": "GA4 items.coupon presence; not coupon discount amount or proven causal impact",
-  "quality_caveat": "An item may have coupon code without an applied monetary discount. Counts are not discount savings.",
-  "quality_checks": {
-    "purchase_events_without_item_rows": {
-      "previous": 16,
-      "current": -223
-    },
-    "coupon_marker_present_in_all_item_rows": true,
-    "can_interpret_coupon_as_applied_discount": false,
-    "reason": "GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
-  },
+  "status": "blocked_metadata",
+  "report_date": "2026-11-24",
   "cost": {
-    "estimated_bytes": 278007661,
-    "billed_bytes": 278921216,
     "maximum_bytes_billed": 536870912,
     "dry_run_required": true
   }
