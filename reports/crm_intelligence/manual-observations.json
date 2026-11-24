@@ -251,6 +251,24 @@
       "source": "https://www.nstationmall.com/join/certification",
       "observed_at": "2026-11-23",
       "message_verified": false
+    },
+    {
+      "brand": "LULULEMON",
+      "scenario": "checkout",
+      "status": "anonymous_flow",
+      "summary": "2026-11-24 비회원 PDP 조회·464,000원 → Black M 1개 담기 완료·장바구니 1개 확인 → 비회원 배송 정보 화면 진입·합계 464,000원·배송비 무료·주문 미제출. 결제 화면 이메일·문자 뉴스레터 동의 기본 해제. 이메일·휴대폰 입력 및 동의 제출하지 않음. 회원 CRM 발송 및 실제 수신은 확인되지 않음.",
+      "source": "https://www.lululemon.co.kr/ko-kr/p/%EB%A9%98%EC%A6%88-%EC%9B%90%EB%8D%94-%ED%8D%BC%ED%94%84-%EC%9E%AC%ED%82%B7/pmi9zqptn8.html?dwvar_pmi9zqptn8_color=0001",
+      "observed_at": "2026-11-24",
+      "message_verified": false
+    },
+    {
+      "brand": "ON RUNNING",
+      "scenario": "checkout",
+      "status": "anonymous_flow",
+      "summary": "2026-11-24 비회원 PDP 조회·249,000원 → Black/Black JP 27.5 1개 담기·장바구니 1개 및 소계 249,000원 확인 → 비회원 결제 정보 화면 진입·합계 249,000원·주문 미제출. 결제 화면 이메일 뉴스레터 선택란 기본 선택 상태. 이메일 입력·동의 제출은 하지 않음. 회원 CRM 발송 및 실제 수신은 확인되지 않음.",
+      "source": "https://www.on.com/ko-kr/products/cloudmonster-1-wp-m-3mg1070/mens/black-black-shoes-3MG10701043",
+      "observed_at": "2026-11-24",
+      "message_verified": false
     }
   ],
   "experiments": [
@@ -648,6 +666,40 @@
       "message": "미확인",
       "trigger": "미검증",
       "confidence": "직접 화면 확인·비회원"
+    },
+    {
+      "brand": "LULULEMON",
+      "date": "2026-11-24",
+      "time_window_kst": "오후",
+      "session": "anonymous",
+      "product": "멘즈 원더 퍼프 재킷 Black M",
+      "product_url": "https://www.lululemon.co.kr/ko-kr/p/%EB%A9%98%EC%A6%88-%EC%9B%90%EB%8D%94-%ED%8D%BC%ED%94%84-%EC%9E%AC%ED%82%B7/pmi9zqptn8.html?dwvar_pmi9zqptn8_color=0001",
+      "steps": {
+        "signup": "회원 로그인·신규가입 미실행",
+        "view": "비회원 PDP 조회·464,000원",
+        "cart": "Black M 1개 담기 완료·장바구니 1개 확인",
+        "checkout": "비회원 배송 정보 화면 진입·합계 464,000원·배송비 무료·주문 미제출 결제 화면 이메일·문자 뉴스레터 동의 기본 해제. 이메일·휴대폰 입력 및 동의 제출하지 않음."
+      },
+      "message": "회원 계정 미인증·이메일/SMS/카카오 실제 수신 미검증",
+      "trigger": "비회원 탐색·카트·결제 화면 관찰",
+      "confidence": "공식몰 PDP·장바구니·결제 화면 직접 확인"
+    },
+    {
+      "brand": "ON RUNNING",
+      "date": "2026-11-24",
+      "time_window_kst": "오후",
+      "session": "anonymous",
+      "product": "Cloudmonster Waterproof Black/Black JP 27.5",
+      "product_url": "https://www.on.com/ko-kr/products/cloudmonster-1-wp-m-3mg1070/mens/black-black-shoes-3MG10701043",
+      "steps": {
+        "signup": "회원 로그인·신규가입 미실행",
+        "view": "비회원 PDP 조회·249,000원",
+        "cart": "Black/Black JP 27.5 1개 담기·장바구니 1개 및 소계 249,000원 확인",
+        "checkout": "비회원 결제 정보 화면 진입·합계 249,000원·주문 미제출 결제 화면 이메일 뉴스레터 선택란 기본 선택 상태. 이메일 입력·동의 제출은 하지 않음."
+      },
+      "message": "회원 계정 미인증·이메일/SMS/카카오 실제 수신 미검증",
+      "trigger": "비회원 탐색·카트·결제 화면 관찰",
+      "confidence": "공식몰 PDP·장바구니·결제 화면 직접 확인"
     }
   ],
   "offers": [
@@ -1570,6 +1622,48 @@
       "action": "미실행",
       "offsite": "수신 미검증",
       "channel": "이메일·문자·카카오 원본 미확보"
+    },
+    {
+      "brand": "LULULEMON",
+      "scenario": "상품 조회 이탈",
+      "action": "2026-11-24 비회원 · 비회원 PDP 조회·464,000원",
+      "offsite": "회원 계정 미인증·수신 미검증",
+      "channel": "비회원 행동은 회원 CRM 발송 여부 판정에 사용하지 않음"
+    },
+    {
+      "brand": "LULULEMON",
+      "scenario": "장바구니 이탈",
+      "action": "2026-11-24 비회원 · Black M 1개 담기 완료·장바구니 1개 확인",
+      "offsite": "회원 계정 미인증·수신 미검증",
+      "channel": "비회원 행동은 회원 CRM 발송 여부 판정에 사용하지 않음"
+    },
+    {
+      "brand": "LULULEMON",
+      "scenario": "결제 이탈",
+      "action": "2026-11-24 비회원 · 비회원 배송 정보 화면 진입·합계 464,000원·배송비 무료·주문 미제출 결제 화면 이메일·문자 뉴스레터 동의 기본 해제. 이메일·휴대폰 입력 및 동의 제출하지 않음.",
+      "offsite": "회원 계정 미인증·수신 미검증",
+      "channel": "비회원 행동은 회원 CRM 발송 여부 판정에 사용하지 않음"
+    },
+    {
+      "brand": "ON RUNNING",
+      "scenario": "상품 조회 이탈",
+      "action": "2026-11-24 비회원 · 비회원 PDP 조회·249,000원",
+      "offsite": "회원 계정 미인증·수신 미검증",
+      "channel": "비회원 행동은 회원 CRM 발송 여부 판정에 사용하지 않음"
+    },
+    {
+      "brand": "ON RUNNING",
+      "scenario": "장바구니 이탈",
+      "action": "2026-11-24 비회원 · Black/Black JP 27.5 1개 담기·장바구니 1개 및 소계 249,000원 확인",
+      "offsite": "회원 계정 미인증·수신 미검증",
+      "channel": "비회원 행동은 회원 CRM 발송 여부 판정에 사용하지 않음"
+    },
+    {
+      "brand": "ON RUNNING",
+      "scenario": "결제 이탈",
+      "action": "2026-11-24 비회원 · 비회원 결제 정보 화면 진입·합계 249,000원·주문 미제출 결제 화면 이메일 뉴스레터 선택란 기본 선택 상태. 이메일 입력·동의 제출은 하지 않음.",
+      "offsite": "회원 계정 미인증·수신 미검증",
+      "channel": "비회원 행동은 회원 CRM 발송 여부 판정에 사용하지 않음"
     }
   ],
   "login_queue": [
@@ -1665,16 +1759,16 @@
     {
       "brand": "LULULEMON",
       "url": "https://www.lululemon.co.kr/ko-kr/login?registerAccount=true",
-      "status": "공식몰 공개자료 확인·회원 실험 전",
+      "status": "비회원 PDP→장바구니→결제 화면 확인·회원 실험 전",
       "need": "가입 화면에서 마케팅 수신 채널 선택",
-      "note": "동일 시나리오(PDP 조회→장바구니→결제 이탈)와 이메일·문자·카카오 수신 미검증."
+      "note": "2026-11-24 공식몰 직접 실험: 결제 화면 이메일·문자 뉴스레터 동의 기본 해제. 이메일·휴대폰 입력 및 동의 제출하지 않음. 회원 로그인·마케팅 수신동의·오프사이트 실제 수신은 미확인."
     },
     {
       "brand": "ON RUNNING",
       "url": "https://www.on.com/ko-kr/login",
-      "status": "공식 로그인 페이지 직접 방문·미인증",
+      "status": "비회원 PDP→장바구니→결제 화면 확인·회원 실험 전",
       "need": "계정 로그인 또는 가입",
-      "note": "계정 상태·휴대폰·마케팅 수신 설정 미확인."
+      "note": "2026-11-24 공식몰 직접 실험: 결제 화면 이메일 뉴스레터 선택란 기본 선택 상태. 이메일 입력·동의 제출은 하지 않음. 회원 로그인·마케팅 수신동의·오프사이트 실제 수신은 미확인."
     },
     {
       "brand": "PUMA",
