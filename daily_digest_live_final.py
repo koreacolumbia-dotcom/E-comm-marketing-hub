@@ -2991,22 +2991,39 @@ def build_trend_svg_map(series: dict) -> Dict[str, str]:
 # Best Sellers + trends per SKU (kept)
 # =========================
 def product_scope_data(client,w,image_map,best,rising,previous):
+    report_cache={}
     def get(a,b,dim,metric,daily=False):
-        dims=(["date"] if daily else ["itemId","itemName"]) if not daily else ["date",dim]
-        d=run_report(client,PROPERTY_ID,ymd(a),ymd(b),dims,[metric],limit=250000)
-        if not d.empty: d[metric]=pd.to_numeric(d[metric],errors="raise")
-        return d
+        cache_key=(a,b,dim,metric,daily)
+        if cache_key not in report_cache:
+            dims=["date",dim] if daily else ["itemId","itemName"]
+            d=run_report(client,PROPERTY_ID,ymd(a),ymd(b),dims,[metric],limit=250000)
+            if not d.empty: d[metric]=pd.to_numeric(d[metric],errors="raise")
+            report_cache[cache_key]=d
+        return report_cache[cache_key].copy()
     def key(x): return " ".join(str(x).casefold().split())
     def rows(a,b,metric,exclude=()):
         d=get(a,b,"itemName",metric)
         if d.empty:return []
         d=d[~d.itemName.map(is_not_set)].copy()
         d["key"]=d.itemName.map(key)
+        # Name cards aggregate every colour/SKU of a style. Fetch the other
+        # metric at the same name grain; a single SKU's value is not the total.
+        other="itemsViewed" if metric=="itemsPurchased" else "itemsPurchased"
+        other_totals=None
+        try:
+            other_df=get(a,b,"itemName",other)
+            if not other_df.empty:
+                other_df=other_df[~other_df.itemName.map(is_not_set)].copy()
+                other_df["key"]=other_df.itemName.map(key)
+                other_totals=other_df.groupby("key")[other].sum()
+        except Exception as exc:
+            print("[WARN] product name secondary metric:",type(exc).__name__,str(exc)[:200],flush=True)
         out=[]
         for k,v in d.groupby("key")[metric].sum().sort_values(ascending=False).items():
             if k in exclude or v<=0:continue
             sub=d[d.key==k].sort_values(metric,ascending=False)
-            out.append(dict(itemName=str(sub.iloc[0].itemName),itemId="",qty=float(v) if metric=="itemsPurchased" else None,views=float(v) if metric=="itemsViewed" else None,image_url=image_map.get(normalize_sku_key(sub.iloc[0].itemId),"")))
+            secondary=(float(other_totals.get(k,0)) if other_totals is not None else None)
+            out.append(dict(itemName=str(sub.iloc[0].itemName),itemId="",qty=float(v) if metric=="itemsPurchased" else secondary,views=float(v) if metric=="itemsViewed" else secondary,image_url=image_map.get(normalize_sku_key(sub.iloc[0].itemId),"")))
             if len(out)==10:break
         return out
     def graph(rs,a,b,p,q,metric,dim):
