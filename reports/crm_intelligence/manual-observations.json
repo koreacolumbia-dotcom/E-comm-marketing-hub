@@ -269,6 +269,15 @@
       "source": "https://www.on.com/ko-kr/products/cloudmonster-1-wp-m-3mg1070/mens/black-black-shoes-3MG10701043",
       "observed_at": "2026-11-24",
       "message_verified": false
+    },
+    {
+      "brand": "KOLON SPORT",
+      "scenario": "checkout",
+      "status": "login_required",
+      "summary": "2026-11-24 비회원 PDP 조회·고어텍스 이어플랩캡 라이트 베이지 98,000원·사이즈 58 선택 → 장바구니 클릭 시 '로그인 후 이용' 확인창·담기 미완료 → 바로구매 클릭 시 동일한 로그인 확인창·비회원 주문서 미진입. 회원 행동과 오프사이트 CRM 수신은 검증되지 않음.",
+      "source": "https://www.kolonsport.com/Product/QEREX26351LBE",
+      "observed_at": "2026-11-24",
+      "message_verified": false
     }
   ],
   "experiments": [
@@ -700,6 +709,23 @@
       "message": "회원 계정 미인증·이메일/SMS/카카오 실제 수신 미검증",
       "trigger": "비회원 탐색·카트·결제 화면 관찰",
       "confidence": "공식몰 PDP·장바구니·결제 화면 직접 확인"
+    },
+    {
+      "brand": "KOLON SPORT",
+      "date": "2026-11-24",
+      "time_window_kst": "오후",
+      "session": "anonymous",
+      "product": "고어텍스 이어플랩캡 라이트 베이지 58",
+      "product_url": "https://www.kolonsport.com/Product/QEREX26351LBE",
+      "steps": {
+        "signup": "회원 로그인·신규가입 미실행",
+        "view": "비회원 PDP 조회·고어텍스 이어플랩캡 라이트 베이지 98,000원·사이즈 58 선택",
+        "cart": "장바구니 클릭 시 '로그인 후 이용' 확인창·담기 미완료",
+        "checkout": "바로구매 클릭 시 동일한 로그인 확인창·비회원 주문서 미진입"
+      },
+      "message": "회원 계정 미인증·이메일/SMS/카카오 실제 수신 미검증",
+      "trigger": "비회원 상품 탐색과 구매 시도에서 로그인 분기 확인",
+      "confidence": "공식몰 PDP·장바구니 및 바로구매 확인창 직접 확인"
     }
   ],
   "offers": [
@@ -944,6 +970,15 @@
       "result": "공개 안내만 확인. 계정 발급·실제 적용 및 오프사이트 메시지 미검증",
       "evidence": "공식몰 공개 페이지",
       "url": "https://brooksrunning.co.kr/article/faq/3/3938/categoryno/2/",
+      "message_verified": false
+    },
+    {
+      "brand": "KOLON SPORT",
+      "stage": "상품 상세",
+      "offer": "10% 쿠폰 모두 받기 버튼·98,000원 → 최대 혜택가 88,200원 표시",
+      "result": "쿠폰 발급·실제 적용·오프사이트 발송 미확인",
+      "evidence": "공식몰 고어텍스 이어플랩캡 PDP 직접 확인 2026-11-24",
+      "url": "https://www.kolonsport.com/Product/QEREX26351LBE",
       "message_verified": false
     }
   ],
@@ -1664,6 +1699,27 @@
       "action": "2026-11-24 비회원 · 비회원 결제 정보 화면 진입·합계 249,000원·주문 미제출 결제 화면 이메일 뉴스레터 선택란 기본 선택 상태. 이메일 입력·동의 제출은 하지 않음.",
       "offsite": "회원 계정 미인증·수신 미검증",
       "channel": "비회원 행동은 회원 CRM 발송 여부 판정에 사용하지 않음"
+    },
+    {
+      "brand": "KOLON SPORT",
+      "scenario": "상품 조회 이탈",
+      "action": "2026-11-24 비회원 · 비회원 PDP 조회·고어텍스 이어플랩캡 라이트 베이지 98,000원·사이즈 58 선택",
+      "offsite": "회원 계정 미인증·수신 미검증",
+      "channel": "장바구니·결제는 로그인 분기에서 중단; 회원 CRM 발송 여부 판정 불가"
+    },
+    {
+      "brand": "KOLON SPORT",
+      "scenario": "장바구니 이탈",
+      "action": "2026-11-24 비회원 · 장바구니 클릭 시 '로그인 후 이용' 확인창·담기 미완료",
+      "offsite": "회원 계정 미인증·수신 미검증",
+      "channel": "장바구니·결제는 로그인 분기에서 중단; 회원 CRM 발송 여부 판정 불가"
+    },
+    {
+      "brand": "KOLON SPORT",
+      "scenario": "결제 이탈",
+      "action": "2026-11-24 비회원 · 바로구매 클릭 시 동일한 로그인 확인창·비회원 주문서 미진입",
+      "offsite": "회원 계정 미인증·수신 미검증",
+      "channel": "장바구니·결제는 로그인 분기에서 중단; 회원 CRM 발송 여부 판정 불가"
     }
   ],
   "login_queue": [
@@ -1695,9 +1751,9 @@
       "brand": "KOLON SPORT",
       "url": "https://www.kolonsport.com/MembershipV2/Sign",
       "login_url": "https://www.kolonsport.com/Login",
-      "status": "로그아웃 확인",
+      "status": "비회원 PDP 확인·장바구니/바로구매 로그인 분기",
       "need": "네이버 로그인 선택지 없음. 카카오 간편가입 또는 아이디 로그인",
-      "note": "공식몰 신규가입 10% 쿠폰 안내."
+      "note": "2026-11-24 사이즈 58 선택 후 두 버튼 모두 로그인 안내. 회원 장바구니·주문서·수신 미확인."
     },
     {
       "brand": "MILLET",
