@@ -2,7 +2,8 @@ name: CSK Winter Festival Pages Refresh
 on:
   workflow_dispatch:
   schedule:
-    # Once daily 12:30 KST, after 10:20 marketing ops, 11:05 UTM, 11:50 report.
+    # 07:55 KST early verified daily dashboard, plus 12:30 midday reconciliation.
+    - cron: '55 22 * * *'
     - cron: '30 3 * * *'
   push:
     branches: [main]
