@@ -16,7 +16,7 @@ let data=null,filter="all",term="";
 function safeLink(p,url,label){try{const u=new URL(url);if(u.protocol!=="https:")return;let a=add(p,"a",label);a.href=u.href;a.target="_blank";a.rel="noopener noreferrer"}catch{}}
 function pill(p,text,cls){return add(p,"span",text,"badge "+cls)}
 function latest(a){return a.slice().sort((x,y)=>String(y.date||"").localeCompare(String(x.date||"")))[0]}
-function cartState(s){if(!s||/미실행|버튼 없음/.test(s))return ["—",""];if(/성공 미확인|카트 0개|선택 요구|담기 불가/.test(s))return ["미완료","wait"];if(/담기.*(완료|확인|성공)|장바구니.*(1개|확인|추가)|카트.*(1개|확인)|1개 추가|1개 담기|수량.*1개/.test(s))return ["확인","done"];return ["미확인","wait"]}
+function cartState(s){if(!s||/미실행|버튼 없음/.test(s))return ["—",""];if(/로그인.*(요구|분기|후 이용|확인창)/.test(s))return ["로그인 분기","wait"];if(/성공 미확인|카트 0개|선택 요구|담기 불가|담기 미완료/.test(s))return ["미완료","wait"];if(/담기.*(완료|확인|성공)|장바구니.*(1개|확인|추가)|카트.*(1개|확인)|1개 추가|1개 담기|수량.*1개/.test(s))return ["확인","done"];return ["미확인","wait"]}
 function checkState(s){if(!s||s==="미실행"||/미실행|미진입|카트 미확인/.test(s))return ["—",""];if(/주문서|주문\/결제|체크아웃|배송 정보|배송정보|결제 정보|결제정보/.test(s))return ["진입","done"];if(/로그인|분기/.test(s))return ["로그인 분기","wait"];return ["미확인","wait"]}
 function cell(row,label){let td=add(row,"td");td.dataset.label=label;return td}
 function render(){const ex=data.experiments||[],offs=data.offers||[],queue=data.login_queue||[],obs=data.observations||[],received=data.offsite_audit?.verified_messages||[];
