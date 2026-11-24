@@ -5,7 +5,8 @@ on:
     workflows: ["CSK Marketing Operations 3.0"]
     types: [completed]
   schedule:
-    # Every day at 11:05 KST, only refresh when a new event-day GA4 snapshot is ready.
+    # 07:35 KST verified daily snapshot first; 11:05 KST fallback for late GA4 data.
+    - cron: '35 22 * * *'
     - cron: '5 2 * * *'
   push:
     branches: [main]
