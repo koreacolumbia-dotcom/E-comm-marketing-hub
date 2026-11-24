@@ -5,7 +5,8 @@ on:
     workflows: ["CSK Winter Festival UTM Owned Comparison"]
     types: [completed]
   schedule:
-    # 11:20 KST daily, after event source snapshots.
+    # 07:50 KST ahead of morning dashboard; 11:20 KST reconciliation fallback.
+    - cron: '50 22 * * *'
     - cron: '20 2 * * *'
   push:
     branches: [main]
