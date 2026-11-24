@@ -92,10 +92,32 @@ export function analyze(feed){
  const describe=x=>({...x,strategy_signals:rules.filter(r=>match(x,r)).map(r=>r[0]),purpose:classifyPurpose(x)});
  const items=c.items.map(describe);
  const historyItems=h.items.map(describe);
+ // Classify the retained archive independently of the current crawl batch.
+ const archiveClassification=historyItems.map(x=>{
+  const local=x.evidence_scope==="local_block"||x.evidence_scope==="editorial_root";
+  const text=[x.title,local?x.summary:"",...(x.type_tags||[]),...(x.selling_points||[])].join(" ");
+  const formats=[
+   ["STYLE_GUIDE",/스타일링|코디|룩북|lookbook|styling|outfit/i],
+   ["SIZE_GUIDE",/사이즈\s*(?:가이드|선택|추천)|size\s*(?:guide|chart)|핏\s*가이드/i],
+   ["PRODUCT_GUIDE",/제품\s*가이드|구매\s*가이드|gear\s*guide|사용법|관리법/i],
+   ["TECHNOLOGY",/방수|발수|보온|투습|경량|고어텍스|technology|waterproof/i],
+   ["SOCIAL_CANDIDATE",/인스타그램|instagram|\bugc\b|크리에이터|인플루언서/i],
+   ["BRAND_STORY",/브랜드\s*스토리|헤리티지|heritage|brand\s*story|인터뷰/i]
+  ].filter(([,re])=>re.test(text)).map(([code,re])=>({code,evidence:text.match(re)[0],confidence:"text_candidate"}));
+  return {id:x.id,brand:x.brand,title:x.title,url:x.source_url||x.url,thumbnail:x.thumbnail||null,
+   page_kind:x.page_kind||"unknown",module_verified:x.module_verified===true,
+   module_kind:x.module_verified===true?x.module_kind:null,purpose:x.purpose,
+   formats,composition:x.content_composition?.status==="dom_observed"?x.content_composition:null,
+   product_links:x.page_metrics?.source==="rendered_dom"?x.page_metrics.product_links??null:null};
+ });
+ const archiveClassificationByBrand=Object.fromEntries((feed.brands||[]).map(b=>{
+  const rows=archiveClassification.filter(x=>x.brand===b.brand);
+  return [b.brand,{total:rows.length,purpose_counts:Object.fromEntries(PURPOSES.map(([k])=>[k,rows.filter(x=>x.purpose.code===k).length])),format_counts:Object.fromEntries(["STYLE_GUIDE","SIZE_GUIDE","PRODUCT_GUIDE","TECHNOLOGY","SOCIAL_CANDIDATE","BRAND_STORY"].map(k=>[k,rows.filter(x=>x.formats.some(f=>f.code===k)).length])),module_verified:rows.filter(x=>x.module_verified).length,dom_composition:rows.filter(x=>x.composition).length}];
+ }));
  const visualReview=visualPairs(historyItems);
  const brands=(feed.brands||[]).map(b=>{const xs=items.filter(x=>x.brand===b.brand),n=xs.length,retained=historyItems.filter(x=>x.brand===b.brand).length;const signals=Object.fromEntries(rules.map(r=>[r[0],n?xs.filter(x=>x.strategy_signals.includes(r[0])).length:null]));return {brand:b.brand,pages_checked:b.pages_checked,raw_count:b.candidate_count,unique_count:n,retained_unique_count:retained,retained_scope:"recent_30d_observations",pending_urls:b.pending_urls??null,sitemap_urls:b.sitemap_urls??null,url_coverage:b.url_coverage??null,archive_entries_retained:b.archive_entries_retained??null,recent_skip_count:b.recent_skip_count??null,coverage_plan:b.coverage_plan??null,collection_status:b.status,signals,dominant_signals:rules.filter(r=>signals[r[0]]>0).sort((a,b)=>signals[b[0]]-signals[a[0]]).slice(0,2).map(r=>r[1]),sample_status:n<3?"thin_sample":"observed_sample",examples:xs.slice(0,2).map(x=>ref(x,"observed"))}});
  const market=items.filter(x=>x.brand!=="COLUMBIA"),owned=items.filter(x=>x.brand==="COLUMBIA"),insights=[];
  for(const r of rules){const ms=market.filter(x=>x.strategy_signals.includes(r[0])),os=owned.filter(x=>x.strategy_signals.includes(r[0])),bs=[...new Set(ms.map(x=>x.brand))];if(!ms.length)continue;const gap=market.length&&owned.length?Math.round((ms.length/market.length-os.length/owned.length)*1000)/10:null;insights.push({signal:r[0],label:r[1],action:r[3],kpi:r[4],competitor_count:ms.length,competitor_total:market.length,competitor_brands:bs.length,owned_count:os.length,owned_total:owned.length,gap_pp:gap,priority:bs.length>=2&&owned.length>=3&&gap>0?"review":"reference",references:bs.slice(0,3).map(b=>{const x=ms.find(y=>y.brand===b);return ref(x,[x.title,x.summary].join(" ").match(r[2])?.[0]||"분류 태그 또는 연결 근거")})})}
  insights.sort((a,b)=>(b.priority==="review")-(a.priority==="review")||b.competitor_brands-a.competitor_brands||b.competitor_count-a.competitor_count);
- return {source_checked_at:feed.checked_at_kst,schema_version:1,notes:"Observed content candidates, not publication or performance. Multi-label inferred signals. 27SS ideas are hypotheses; uncollected is not zero.",quality:{raw_count:(feed.items||[]).length,unique_count:items.length,retained_unique_count:historyItems.length,visual_signature_count:historyItems.filter(x=>x.visual_signature).length,visual_review_pairs:visualReview.length,rejected_count:c.rejected.length,merged_count:c.merged.length,market_count:market.length,owned_count:owned.length},signals:rules.map(r=>({id:r[0],label:r[1]})),purpose_confidence:Object.fromEntries(["evidence_based","inferred","insufficient"].map(k=>[k,items.filter(x=>x.purpose.confidence===k).length])),purpose_counts:Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.purpose.code===code).length])),purpose_by_brand:Object.fromEntries(brands.map(b=>[b.brand,Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.brand===b.brand&&x.purpose.code===code).length]))])),brands,insights,items,history:historyItems,visual_review:visualReview,dedup_audit:{rejected:c.rejected,merged:c.merged}}
+ return {source_checked_at:feed.checked_at_kst,schema_version:1,notes:"Observed content candidates, not publication or performance. Multi-label inferred signals. 27SS ideas are hypotheses; uncollected is not zero.",quality:{raw_count:(feed.items||[]).length,unique_count:items.length,retained_unique_count:historyItems.length,visual_signature_count:historyItems.filter(x=>x.visual_signature).length,visual_review_pairs:visualReview.length,rejected_count:c.rejected.length,merged_count:c.merged.length,market_count:market.length,owned_count:owned.length},signals:rules.map(r=>({id:r[0],label:r[1]})),purpose_confidence:Object.fromEntries(["evidence_based","inferred","insufficient"].map(k=>[k,items.filter(x=>x.purpose.confidence===k).length])),purpose_counts:Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.purpose.code===code).length])),purpose_by_brand:Object.fromEntries(brands.map(b=>[b.brand,Object.fromEntries(PURPOSES.map(([code])=>[code,items.filter(x=>x.brand===b.brand&&x.purpose.code===code).length]))])),archive_classification:archiveClassification,archive_classification_by_brand:archiveClassificationByBrand,brands,insights,items,history:historyItems,visual_review:visualReview,dedup_audit:{rejected:c.rejected,merged:c.merged}}
 }
