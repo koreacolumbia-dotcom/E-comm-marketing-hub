@@ -1,4 +1,4 @@
-# CSK Marketing Operations 3.0 — 2026-11-23
+# CSK Marketing Operations 3.0 — 2026-11-24
 
 **보고 상태: READY** · 원천 복구 우선
 
@@ -13,15 +13,15 @@
 
 ## 7일 KPI (전주 완결 기간 비교)
 상태: **ready**
-기간: 2026-11-17 ~ 2026-11-23 / 비교: 2026-11-10 ~ 2026-11-16
-- 세션 164,347 · WoW +41.6%
-- 주문 1,429 · WoW +128.6%
-- 매출 ₩224,103,188 · WoW +106.7%
-- 구매 CVR 0.87% · 상대 WoW +61.5%
+기간: 2026-11-18 ~ 2026-11-24 / 비교: 2026-11-11 ~ 2026-11-17
+- 세션 176,731 · WoW +53.7%
+- 주문 1,578 · WoW +158.7%
+- 매출 ₩259,363,244 · WoW +160.0%
+- 구매 CVR 0.89% · 상대 WoW +68.3%
 
 ## 마케팅 캘린더 (기간과 출처 확인)
-올해 2026-11-17 ~ 2026-11-23: records_present
-전년 동요일 대응 기간 2025-11-18 ~ 2025-11-24: available
+올해 2026-11-18 ~ 2026-11-24: records_present
+전년 동요일 대응 기간 2025-11-19 ~ 2025-11-25: available
 ### 전년 확인 활동
 - 2025-11-19 [message] (광고) 컬럼비아 윈터페스티벌 D-2, 매일 100명 한정 최대 20% 할인쿠폰 증정! · 트래픽현황 2026 · 2025 비교기준 71행
 - 2025-11-21 [event] Winter Festival 본행사 · W47 · 4~7p
@@ -36,25 +36,25 @@
 - 2025-11-24 윈터페스티벌 2차
 
 ## 상품/PDP 개선 검토
-- [CRO_HYPOTHESIS] PFG PRO SPORT BOOT (C75BM1935063) · PDP 378 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 251 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] ROC Wide Leg Pant (C73AR3742278) · PDP 246 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 234 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Loneridge Legging (C73AR7506010) · PDP 165 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 157 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] PFG PRO SPORT BOOT (C75BM1935063) · PDP 375 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 249 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] ROC Wide Leg Pant (C73AR3742278) · PDP 242 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 223 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Loneridge Legging (C73AR7506010) · PDP 167 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 154 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
 - [CRO_HYPOTHESIS] RUDDY LEAF SHORT II (C75YU8771010) · PDP 148 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Santuit Falls Glove Ⅱ (C76YU0899439) · PDP 145 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Santuit Falls Glove Ⅱ (C76YU0899439) · PDP 142 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
 
 ## 경쟁사 가격 참고 (동일 SKU 비교 불가)
 수집 상태: reference_fresh
 브랜드 평균 가격은 상품 구성·시즌·판매처가 달라 동일 SKU의 가격 차이를 증명하지 않음
-- DISCOVERY: 수집상품 5,702, 표기 평균가 ₩60,795, 할인 상품 비율 46.1% (수집일 2026-11-24, recent)
-- NEW_BALANCE: 수집상품 5,308, 표기 평균가 ₩113,699, 할인 상품 비율 1.8% (수집일 2026-11-24, recent)
-- THE_NORTH_FACE: 수집상품 3,631, 표기 평균가 ₩144,729, 할인 상품 비율 0.0% (수집일 2026-11-24, recent)
-- NEPA: 수집상품 3,198, 표기 평균가 ₩89,681, 할인 상품 비율 0.0% (수집일 2026-11-24, recent)
-- MILLET: 수집상품 2,283, 표기 평균가 ₩114,996, 할인 상품 비율 92.2% (수집일 2026-11-24, recent)
-- COLUMBIA: 수집상품 1,614, 표기 평균가 ₩129,884, 할인 상품 비율 0.0% (수집일 2026-11-24, recent)
-- ARCTERYX: 수집상품 657, 표기 평균가 ₩220,000, 할인 상품 비율 0.0% (수집일 2026-11-24, recent)
+- DISCOVERY: 수집상품 5,702, 표기 평균가 ₩60,795, 할인 상품 비율 46.1% (수집일 2026-11-25, recent)
+- NEW_BALANCE: 수집상품 5,308, 표기 평균가 ₩113,699, 할인 상품 비율 1.8% (수집일 2026-11-25, recent)
+- THE_NORTH_FACE: 수집상품 3,631, 표기 평균가 ₩144,729, 할인 상품 비율 0.0% (수집일 2026-11-25, recent)
+- NEPA: 수집상품 3,208, 표기 평균가 ₩89,818, 할인 상품 비율 0.0% (수집일 2026-11-25, recent)
+- MILLET: 수집상품 2,283, 표기 평균가 ₩114,996, 할인 상품 비율 92.2% (수집일 2026-11-25, recent)
+- COLUMBIA: 수집상품 1,614, 표기 평균가 ₩129,884, 할인 상품 비율 0.0% (수집일 2026-11-25, recent)
+- ARCTERYX: 수집상품 668, 표기 평균가 ₩220,000, 할인 상품 비율 0.0% (수집일 2026-11-25, recent)
 
 ## 신상품 7·14·30일
 상태: launch_registry_missing
