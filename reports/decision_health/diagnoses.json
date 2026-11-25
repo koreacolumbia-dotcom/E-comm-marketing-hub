@@ -53,13 +53,23 @@
     "source": "KMA Seoul ASOS 108 API, weather.go.kr public daily table fallback; NOAA GSOD secondary only when available; observations never forecasts"
   },
   "ga4_coupon_evidence": {
-    "status": "blocked_metadata",
+    "status": "partial_quality",
     "report_date": "2026-11-24",
     "periods": null,
     "delta_pp": null,
-    "quality_checks": null,
+    "quality_checks": {
+      "purchase_events_without_item_rows": {
+        "previous": 17,
+        "current": -239
+      },
+      "coupon_marker_present_in_all_item_rows": true,
+      "can_interpret_coupon_as_applied_discount": false,
+      "reason": "GA4 item.coupon alone does not establish monetary discount; unmatched purchase events and uniformly populated marker prevent a fully reconciled coupon usage rate."
+    },
     "source": "GA4 items.coupon presence; not discount amount",
     "cost": {
+      "estimated_bytes": 286740164,
+      "billed_bytes": 287309824,
       "maximum_bytes_billed": 536870912,
       "dry_run_required": true
     }
@@ -236,7 +246,7 @@
         "pages_checked_this_run": 0,
         "run_status": "not_scheduled",
         "error_types": {
-          "navigation_race": 8
+          "navigation_race": 10
         },
         "policy_or_access_blockers": [],
         "next_step": "미관측 공식 URL부터 순차 점검하고 기존 관측 자료 중복 제거"
