@@ -1,27 +1,27 @@
-# CSK Marketing Intelligence 2.0 — 2026-11-23
+# CSK Marketing Intelligence 2.0 — 2026-11-24
 
 데이터 상태: **READY**
 
 ## 주요 지표
-- 세션: 25,862 | 전주 +63.0% | 전년 +28.9%
-- 주문: 228 | 전주 +168.2% | 전년 +27.4%
-- 매출: 39,628,523 | 전주 +228.5% | 전년 +51.6%
-- 구매 CVR: 0 | 전주 +64.6% | 전년 -1.2%
+- 세션: 27,041 | 전주 +84.5% | 전년 +33.5%
+- 주문: 241 | 전주 +162.0% | 전년 +28.9%
+- 매출: 48,948,456 | 전주 +257.6% | 전년 +67.5%
+- 구매 CVR: 0 | 전주 +42.0% | 전년 -3.5%
 
 ## QA
 - ADMIN_UNAVAILABLE (info): 어드민 실적이 0으로 내려왔습니다. 실제 매출 0으로 단정하지 않습니다.
 
 ## PDP 상품 분석 (ready)
-- PDP 상품 분석 종료일 2026-11-24은 Daily Digest 기준일 2026-11-23과 다름. 별도 30일 관측으로만 사용하며 당일 매출 감소의 원인으로 단정하지 않음
+- PDP 상품 분석 종료일 2026-11-25은 Daily Digest 기준일 2026-11-24과 다름. 별도 30일 관측으로만 사용하며 당일 매출 감소의 원인으로 단정하지 않음
 - 상품 퍼널 지표는 30일 GA4 상품별 세션 기준. 재고/광고 원인 및 매출 하락 기여도를 직접 증명하지 않음
-- C75BM1935063 PFG PRO SPORT BOOT: 378 세션 · ATC 0.0% · 구매 0.0%
-- C74WE4490235 Sauvie Sky Quad Parka IC Jacket: 251 세션 · ATC 0.0% · 구매 0.0%
-- C73AR3742278 ROC Wide Leg Pant: 246 세션 · ATC 0.0% · 구매 0.0%
-- C76PU7257125 Birdree Lite Drawstring Backpack: 234 세션 · ATC 0.0% · 구매 0.0%
-- C73AR7506010 Loneridge Legging: 165 세션 · ATC 0.0% · 구매 0.0%
-- C71WR6042027 W Saudan Pro 3L Shell: 157 세션 · ATC 0.0% · 구매 0.0%
+- C75BM1935063 PFG PRO SPORT BOOT: 375 세션 · ATC 0.0% · 구매 0.0%
+- C74WE4490235 Sauvie Sky Quad Parka IC Jacket: 249 세션 · ATC 0.0% · 구매 0.0%
+- C73AR3742278 ROC Wide Leg Pant: 242 세션 · ATC 0.0% · 구매 0.0%
+- C76PU7257125 Birdree Lite Drawstring Backpack: 223 세션 · ATC 0.0% · 구매 0.0%
+- C73AR7506010 Loneridge Legging: 167 세션 · ATC 0.0% · 구매 0.0%
+- C71WR6042027 W Saudan Pro 3L Shell: 154 세션 · ATC 0.0% · 구매 0.0%
 - C75YU8771010 RUDDY LEAF SHORT II: 148 세션 · ATC 0.0% · 구매 0.0%
-- C76YU0899439 Santuit Falls Glove Ⅱ: 145 세션 · ATC 0.0% · 구매 0.0%
+- C76YU0899439 Santuit Falls Glove Ⅱ: 142 세션 · ATC 0.0% · 구매 0.0%
 
 ## 광고 대행사 점검 (traffic_only)
 - PMax: 최근 7일 캠페인별 비용·전환가치·주문·상품군·검색어/브랜드 유입 비중을 확인하고, Demand Gen/GDN과 별도 집계되는지 점검해 주세요.
@@ -43,14 +43,14 @@
 - 등록된 개선 실험 없음
 
 ## 미해결 액션
-- [OPEN] P0 · DATA · MSSQL 실재고 조회 접근 문제 해결 (최근 관측 2026-11-23; 담당 인프라/DBA 담당)
-- [OPEN] P0 · PAID · 광고비 원본 자동 수집 재개 (최근 관측 2026-11-23; 담당 퍼포먼스 대행사/매체 담당)
-- [OPEN] P0 · DATA · MSSQL → BigQuery 주문·CRM 적재 갱신 (최근 관측 2026-11-23; 담당 데이터 엔지니어/BigQuery 담당)
-- [OPEN] P1 · PRODUCT · ROC Wide Leg Pant 상세페이지 개선 검토 (최근 관측 2026-11-23; 담당 이커머스/MD)
-- [OPEN] P1 · PRODUCT · Sauvie Sky Quad Parka IC Jacket 상세페이지 개선 검토 (최근 관측 2026-11-23; 담당 이커머스/MD)
-- [OPEN] P1 · PRODUCT · PFG PRO SPORT BOOT 상세페이지 개선 검토 (최근 관측 2026-11-23; 담당 이커머스/MD)
-- [OPEN] P1 · PRODUCT · Birdree Lite Drawstring Backpack 상세페이지 개선 검토 (최근 관측 2026-11-23; 담당 이커머스/MD)
-- [OPEN] P2 · CRM · CRM 세그먼트 집계 연동 (최근 관측 2026-11-23; 담당 CRM/데이터 담당)
+- [OPEN] P0 · DATA · MSSQL 실재고 조회 접근 문제 해결 (최근 관측 2026-11-24; 담당 인프라/DBA 담당)
+- [OPEN] P0 · PAID · 광고비 원본 자동 수집 재개 (최근 관측 2026-11-24; 담당 퍼포먼스 대행사/매체 담당)
+- [OPEN] P0 · DATA · MSSQL → BigQuery 주문·CRM 적재 갱신 (최근 관측 2026-11-24; 담당 데이터 엔지니어/BigQuery 담당)
+- [OPEN] P1 · PRODUCT · ROC Wide Leg Pant 상세페이지 개선 검토 (최근 관측 2026-11-24; 담당 이커머스/MD)
+- [OPEN] P1 · PRODUCT · Sauvie Sky Quad Parka IC Jacket 상세페이지 개선 검토 (최근 관측 2026-11-24; 담당 이커머스/MD)
+- [OPEN] P1 · PRODUCT · PFG PRO SPORT BOOT 상세페이지 개선 검토 (최근 관측 2026-11-24; 담당 이커머스/MD)
+- [OPEN] P1 · PRODUCT · Birdree Lite Drawstring Backpack 상세페이지 개선 검토 (최근 관측 2026-11-24; 담당 이커머스/MD)
+- [OPEN] P2 · CRM · CRM 세그먼트 집계 연동 (최근 관측 2026-11-24; 담당 CRM/데이터 담당)
 - [OPEN] P0 · PAID · 대행사 채널 귀속 데이터 우선 점검 (최근 관측 2026-11-22; 담당 데이터/퍼포먼스 대행사)
 - [OPEN] P0 · DATA · 채널별 성과 분석 보류 (최근 관측 2026-11-22; 담당 데이터/GA4 담당)
 - [OPEN] P0 · DATA · PDP 일별 조회 데이터 복구 (최근 관측 2026-11-14; 담당 데이터/BigQuery 담당)
