@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at_kst": "2026-11-25T01:14:48+09:00",
+  "generated_at_kst": "2026-11-25T13:46:15+09:00",
   "report_date": "2026-11-24",
   "event": {
     "status": "verified_ga4",
@@ -83,10 +83,10 @@
         "current_date": "2026-11-24",
         "previous_date": "2025-11-25",
         "current": {
-          "sessions": 26967,
-          "orders": 237,
-          "revenue": 48407756,
-          "cvr_pct": 0.879
+          "sessions": 27041,
+          "orders": 241,
+          "revenue": 48948456,
+          "cvr_pct": 0.891
         },
         "previous": {
           "sessions": 20256,
@@ -94,15 +94,15 @@
           "revenue": 29218240,
           "cvr_pct": 0.923
         },
-        "data_finality": "provisional_intraday"
+        "data_finality": "daily_partition"
       }
     ],
     "totals": {
       "current": {
-        "sessions": 142869,
-        "orders": 1395,
-        "revenue": 231033634,
-        "cvr_pct": 0.976
+        "sessions": 142943,
+        "orders": 1399,
+        "revenue": 231574334,
+        "cvr_pct": 0.979
       },
       "previous": {
         "sessions": 125895,
@@ -114,24 +114,24 @@
     "comparison": "same_event_day_same_weekday_364_offset",
     "source_report_date": "2026-11-24",
     "source": "daily_digest_ga4_bigquery_session_key_v1",
-    "last_day_finality": "provisional_intraday",
+    "last_day_finality": "daily_partition",
     "causal": false
   },
   "weekly_media": {
     "status": "unavailable",
-    "report_date": "2026-11-22",
+    "report_date": "2026-11-23",
     "period": {
       "previous": {
-        "start": "2026-11-09",
-        "end": "2026-11-15"
+        "start": "2026-11-10",
+        "end": "2026-11-16"
       },
       "current": {
-        "start": "2026-11-16",
-        "end": "2026-11-22"
+        "start": "2026-11-17",
+        "end": "2026-11-23"
       }
     },
     "rows": [],
-    "date_aligned_with_daily_kpi": false,
+    "date_aligned_with_daily_kpi": true,
     "source_type": "ga4_session_source_medium",
     "comparison": "current_7d_vs_previous_7d_NOT_year_over_year",
     "caveat": "GA4 session-attributed metrics. This 7-day period is not a festival-only D1-D3 cohort."
@@ -511,7 +511,7 @@
             "sessions": 754,
             "orders": 0,
             "revenue": 0,
-            "cvr_pct": 0,
+            "cvr_pct": 0.0,
             "top_sources": [
               {
                 "source_medium": "ig / paid",
@@ -1016,25 +1016,25 @@
         "2025-11-25"
       ]
     },
-    "net_revenue_change_krw": 75907844,
-    "net_revenue_yoy_pct": 48.93,
+    "net_revenue_change_krw": 76448544,
+    "net_revenue_yoy_pct": 49.28,
     "funnel": {
       "status": "reconciled",
       "terms": {
         "sessions": {
-          "amount_krw": 24120782,
+          "amount_krw": 24250652,
           "value_before": 125895,
-          "value_after": 142869
+          "value_after": 142943
         },
         "cvr": {
-          "amount_krw": 36633528,
+          "amount_krw": 37124764,
           "value_before": 0.008054330990110806,
-          "value_after": 0.009764189572265502
+          "value_after": 0.009787117942116787
         },
         "aov": {
-          "amount_krw": 15153534,
+          "amount_krw": 15073129,
           "value_before": 152984.01380670612,
-          "value_after": 165615.50824372759
+          "value_after": 165528.47319513938
         }
       },
       "note": "Shapley 6-order arithmetic decomposition, not causal effects."
@@ -1045,9 +1045,9 @@
         "id": "conversion",
         "axis": "funnel",
         "title": "구매전환 효율 변화",
-        "headline": 36633528,
+        "headline": 37124764,
         "subtitle": "CVR 변화의 매출 산술 배분액 (원)",
-        "evidence": "CVR 0.81% → 0.98%; 주문 1014 → 1395; 세션 125,895 → 142,869",
+        "evidence": "CVR 0.81% → 0.98%; 주문 1014 → 1399; 세션 125,895 → 142,943",
         "interpretation": "유입 증가만으로 설명되지 않는 전환율 변화가 관측됐습니다. 판촉 자체의 인과 기여로 단정할 수 없습니다.",
         "verify_next": "제품상세→장바구니→결제 퍼널, 신규·기존 구매자, 가격/쿠폰 및 디바이스별 전환을 전년 동일 구간으로 대조",
         "confidence": "measured_descriptive",
@@ -1064,10 +1064,10 @@
       "id": "aov",
       "axis": "funnel",
       "title": "객단가·구매 구성 점검",
-      "headline": 15153534,
+      "headline": 15073129,
       "subtitle": "객단가 변화의 매출 산술 배분액 (원)",
-      "evidence": "AOV 152,984원 → 165,616원",
-      "interpretation": "주문수 변화와 별개로 객단가가 상승했습니다. 할인율·SKU 믹스·수량 구성이 원인인지는 아직 미검증입니다.",
+      "evidence": "AOV 152,984원 → 165,528원",
+      "interpretation": "주문수 증가와 별개로 객단가가 하락했습니다. 할인율·SKU 믹스·수량 구성이 원인인지는 아직 미검증입니다.",
       "verify_next": "스타일·카테고리·할인율별 구매수량, 주문당 상품수와 객단가 비교",
       "confidence": "measured_descriptive",
       "causal": false
@@ -1146,7 +1146,7 @@
     "roas_eligible": false,
     "caution": "GA4 attribution is descriptive, not causal. Media costs are separately verified. No ad-platform campaign spend is implied.",
     "source_report_date": "2026-11-24",
-    "latest_day_finality": "provisional_intraday",
-    "marketing_ops_date": "2026-11-22"
+    "latest_day_finality": "daily_partition",
+    "marketing_ops_date": "2026-11-23"
   }
 }
