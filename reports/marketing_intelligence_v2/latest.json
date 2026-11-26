@@ -1,7 +1,7 @@
 {
   "version": "2.0",
-  "report_date": "2026-11-24",
-  "generated_at_kst": "2026-11-25T18:43:26+09:00",
+  "report_date": "2026-11-25",
+  "generated_at_kst": "2026-11-26T18:19:07+09:00",
   "status": "READY",
   "quality": {
     "overall": true,
@@ -15,7 +15,7 @@
         "message": "어드민 실적이 0으로 내려왔습니다. 실제 매출 0으로 단정하지 않습니다."
       }
     ],
-    "etc_share": 0.0022928146148441255,
+    "etc_share": 0.0034269738918699553,
     "channel_gap": 0.0,
     "status": "READY"
   },
@@ -23,54 +23,69 @@
     {
       "name": "세션",
       "key": "sessions",
-      "current": 27041.0,
-      "wow_pct": 84.4920515794501,
-      "yoy_pct": 33.496248025276465
+      "current": 22177.0,
+      "wow_pct": 34.495724422342164,
+      "yoy_pct": -4.26918760252094
     },
     {
       "name": "주문",
       "key": "orders",
-      "current": 241.0,
-      "wow_pct": 161.9565217391304,
-      "yoy_pct": 28.877005347593588
+      "current": 230.0,
+      "wow_pct": 144.68085106382978,
+      "yoy_pct": 22.34042553191489
     },
     {
       "name": "매출",
       "key": "revenue",
-      "current": 48948456.0,
-      "wow_pct": 257.5907775927063,
-      "yoy_pct": 67.52705159516795
+      "current": 39392151.0,
+      "wow_pct": 176.79996936324022,
+      "yoy_pct": 14.690587427436096
     },
     {
       "name": "구매 CVR",
       "key": "cvr",
-      "current": 0.008912392293184423,
-      "wow_pct": 41.98797156652616,
-      "yoy_pct": -3.460204122596966
+      "current": 0.010371105199080128,
+      "wow_pct": 81.92463151875768,
+      "yoy_pct": 27.796288852069285
     }
   ],
   "product": {
     "status": "ready",
     "source": "reports/pdp_opportunity/data.json",
-    "data_start": "2026-10-27",
-    "data_end": "2026-11-25",
+    "data_start": "2026-10-28",
+    "data_end": "2026-11-26",
     "notes": [
-      "PDP 상품 분석 종료일 2026-11-25은 Daily Digest 기준일 2026-11-24과 다름. 별도 30일 관측으로만 사용하며 당일 매출 감소의 원인으로 단정하지 않음",
+      "PDP 상품 분석 종료일 2026-11-26은 Daily Digest 기준일 2026-11-25과 다름. 별도 30일 관측으로만 사용하며 당일 매출 감소의 원인으로 단정하지 않음",
       "상품 퍼널 지표는 30일 GA4 상품별 세션 기준. 재고/광고 원인 및 매출 하락 기여도를 직접 증명하지 않음"
     ],
     "candidates": [
       {
+        "code": "C74WR9847309",
+        "name": "Amaze Puff Hooded Jacket",
+        "category": "미분류",
+        "sessions": 704,
+        "cart_sessions": 1,
+        "purchase_sessions": 0,
+        "atc_rate": 0.14,
+        "purchase_rate": 0.0,
+        "priority_score": 100.0,
+        "measurement_watch": true,
+        "source_period": "2026-10-28 ~ 2026-11-26",
+        "reason": "상품별 구매 이벤트/상품코드 매칭 검증 필요",
+        "validation": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조"
+      },
+      {
         "code": "C75BM1935063",
         "name": "PFG PRO SPORT BOOT",
         "category": "미분류",
-        "sessions": 375,
+        "sessions": 379,
         "cart_sessions": 0,
         "purchase_sessions": 0,
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
         "measurement_watch": false,
-        "source_period": "2026-10-27 ~ 2026-11-25",
+        "source_period": "2026-10-28 ~ 2026-11-26",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
       },
@@ -85,7 +100,7 @@
         "purchase_rate": 0.0,
         "priority_score": 100.0,
         "measurement_watch": false,
-        "source_period": "2026-10-27 ~ 2026-11-25",
+        "source_period": "2026-10-28 ~ 2026-11-26",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
       },
@@ -93,14 +108,14 @@
         "code": "C73AR3742278",
         "name": "ROC Wide Leg Pant",
         "category": "미분류",
-        "sessions": 242,
+        "sessions": 238,
         "cart_sessions": 0,
         "purchase_sessions": 0,
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
         "measurement_watch": false,
-        "source_period": "2026-10-27 ~ 2026-11-25",
+        "source_period": "2026-10-28 ~ 2026-11-26",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
       },
@@ -108,14 +123,14 @@
         "code": "C76PU7257125",
         "name": "Birdree Lite Drawstring Backpack",
         "category": "미분류",
-        "sessions": 223,
+        "sessions": 219,
         "cart_sessions": 0,
         "purchase_sessions": 0,
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
         "measurement_watch": false,
-        "source_period": "2026-10-27 ~ 2026-11-25",
+        "source_period": "2026-10-28 ~ 2026-11-26",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
       },
@@ -123,14 +138,14 @@
         "code": "C73AR7506010",
         "name": "Loneridge Legging",
         "category": "미분류",
-        "sessions": 167,
+        "sessions": 163,
         "cart_sessions": 0,
         "purchase_sessions": 0,
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
         "measurement_watch": false,
-        "source_period": "2026-10-27 ~ 2026-11-25",
+        "source_period": "2026-10-28 ~ 2026-11-26",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
       },
@@ -138,14 +153,14 @@
         "code": "C71WR6042027",
         "name": "W Saudan Pro 3L Shell",
         "category": "미분류",
-        "sessions": 154,
+        "sessions": 153,
         "cart_sessions": 0,
         "purchase_sessions": 0,
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
         "measurement_watch": false,
-        "source_period": "2026-10-27 ~ 2026-11-25",
+        "source_period": "2026-10-28 ~ 2026-11-26",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
       },
@@ -153,34 +168,19 @@
         "code": "C75YU8771010",
         "name": "RUDDY LEAF SHORT II",
         "category": "미분류",
-        "sessions": 148,
+        "sessions": 146,
         "cart_sessions": 0,
         "purchase_sessions": 0,
         "atc_rate": 0.0,
         "purchase_rate": 0.0,
         "priority_score": 100.0,
         "measurement_watch": false,
-        "source_period": "2026-10-27 ~ 2026-11-25",
-        "reason": "PDP→Cart 전환 낮음",
-        "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
-      },
-      {
-        "code": "C76YU0899439",
-        "name": "Santuit Falls Glove Ⅱ",
-        "category": "미분류",
-        "sessions": 142,
-        "cart_sessions": 0,
-        "purchase_sessions": 0,
-        "atc_rate": 0.0,
-        "purchase_rate": 0.0,
-        "priority_score": 100.0,
-        "measurement_watch": false,
-        "source_period": "2026-10-27 ~ 2026-11-25",
+        "source_period": "2026-10-28 ~ 2026-11-26",
         "reason": "PDP→Cart 전환 낮음",
         "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능"
       }
     ],
-    "row_count": 830
+    "row_count": 828
   },
   "agency": {
     "status": "traffic_only",
@@ -204,16 +204,7 @@
         "is_finding": false
       }
     ],
-    "flagged_media": [
-      {
-        "media": "criteo",
-        "sessions": 1060,
-        "orders": 2,
-        "session_change_pct": 17.1,
-        "order_change_pct": -50.0,
-        "note": "세션 증가·주문 감소 동시 관측, 캠페인/유입 품질 검증 필요"
-      }
-    ],
+    "flagged_media": [],
     "spend_status": "미연결: 광고비·ROAS 자동 판정 보류"
   },
   "crm": {
@@ -244,7 +235,7 @@
     "paid_cost": {
       "status": "stale",
       "latest_date": "2026-04-06",
-      "lag_days": 232,
+      "lag_days": 233,
       "source": "reports/daily_digest/data/paid_media_spend_history.csv",
       "rows": 1302,
       "providers": [
@@ -255,7 +246,7 @@
       "current_spend": null,
       "roas_eligible": false,
       "issues": [
-        "마지막 광고비 2026-04-06 (보고일 대비 232일 지연) — 광고 효율 자동 판단 중지"
+        "마지막 광고비 2026-04-06 (보고일 대비 233일 지연) — 광고 효율 자동 판단 중지"
       ]
     },
     "warehouse": {
@@ -265,7 +256,7 @@
       "inventory": "connection_error",
       "product_source_valid": false,
       "crm_source_valid": false,
-      "report_date": "2026-11-24",
+      "report_date": "2026-11-25",
       "notes": [
         "상품 어드민 주문 데이터로 매출 하락 원인을 분해할 수 없음",
         "완전한 실재고 원본 미확인 — 품절을 실제 원인으로 단정하지 않음",
@@ -293,9 +284,9 @@
       "owner": "인프라/DBA 담당",
       "status": "OPEN",
       "first_seen": "2026-11-14",
-      "last_seen": "2026-11-24",
+      "last_seen": "2026-11-25",
       "observed_today": true,
-      "observations": 11,
+      "observations": 12,
       "note": ""
     },
     {
@@ -309,10 +300,26 @@
       "owner": "퍼포먼스 대행사/매체 담당",
       "status": "OPEN",
       "first_seen": "2026-11-14",
-      "last_seen": "2026-11-24",
+      "last_seen": "2026-11-25",
       "observed_today": true,
-      "observations": 11,
+      "observations": 12,
       "note": ""
+    },
+    {
+      "id": "PRODUCT_C74WR9847309",
+      "priority": "P0",
+      "domain": "DATA",
+      "title": "Amaze Puff Hooded Jacket 상품별 이벤트 정합성 검증",
+      "observation": "지난 30일 PDP 세션 704, 상품 구매 세션 0 (기준 2026-10-28 ~ 2026-11-26)",
+      "hypothesis": "미판매 가능성과 GA4 item_id 조인·구매 태깅 누락 가능성을 구분해야 함",
+      "validation": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조",
+      "owner": "데이터/이커머스",
+      "status": "OPEN",
+      "first_seen": "2026-11-14",
+      "last_seen": "2026-11-25",
+      "observed_today": true,
+      "observations": 10,
+      "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
     },
     {
       "id": "WAREHOUSE_ETL_FRESHNESS",
@@ -325,9 +332,9 @@
       "owner": "데이터 엔지니어/BigQuery 담당",
       "status": "OPEN",
       "first_seen": "2026-11-14",
-      "last_seen": "2026-11-24",
+      "last_seen": "2026-11-25",
       "observed_today": true,
-      "observations": 11,
+      "observations": 12,
       "note": ""
     },
     {
@@ -335,15 +342,15 @@
       "priority": "P1",
       "domain": "PRODUCT",
       "title": "ROC Wide Leg Pant 상세페이지 개선 검토",
-      "observation": "지난 30일 PDP 세션 242, 장바구니 전환 0.0%, 구매 전환 0.0% (기준 2026-10-27 ~ 2026-11-25)",
+      "observation": "지난 30일 PDP 세션 238, 장바구니 전환 0.0%, 구매 전환 0.0% (기준 2026-10-28 ~ 2026-11-26)",
       "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
       "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
       "owner": "이커머스/MD",
       "status": "OPEN",
       "first_seen": "2026-11-23",
-      "last_seen": "2026-11-24",
+      "last_seen": "2026-11-25",
       "observed_today": true,
-      "observations": 2,
+      "observations": 3,
       "note": ""
     },
     {
@@ -351,15 +358,15 @@
       "priority": "P1",
       "domain": "PRODUCT",
       "title": "Sauvie Sky Quad Parka IC Jacket 상세페이지 개선 검토",
-      "observation": "지난 30일 PDP 세션 249, 장바구니 전환 0.0%, 구매 전환 0.0% (기준 2026-10-27 ~ 2026-11-25)",
+      "observation": "지난 30일 PDP 세션 249, 장바구니 전환 0.0%, 구매 전환 0.0% (기준 2026-10-28 ~ 2026-11-26)",
       "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
       "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
       "owner": "이커머스/MD",
       "status": "OPEN",
       "first_seen": "2026-11-16",
-      "last_seen": "2026-11-24",
+      "last_seen": "2026-11-25",
       "observed_today": true,
-      "observations": 8,
+      "observations": 9,
       "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
     },
     {
@@ -367,32 +374,16 @@
       "priority": "P1",
       "domain": "PRODUCT",
       "title": "PFG PRO SPORT BOOT 상세페이지 개선 검토",
-      "observation": "지난 30일 PDP 세션 375, 장바구니 전환 0.0%, 구매 전환 0.0% (기준 2026-10-27 ~ 2026-11-25)",
+      "observation": "지난 30일 PDP 세션 379, 장바구니 전환 0.0%, 구매 전환 0.0% (기준 2026-10-28 ~ 2026-11-26)",
       "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
       "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
       "owner": "이커머스/MD",
       "status": "OPEN",
       "first_seen": "2026-11-20",
-      "last_seen": "2026-11-24",
+      "last_seen": "2026-11-25",
       "observed_today": true,
-      "observations": 5,
+      "observations": 6,
       "note": ""
-    },
-    {
-      "id": "PRODUCT_C76PU7257125",
-      "priority": "P1",
-      "domain": "PRODUCT",
-      "title": "Birdree Lite Drawstring Backpack 상세페이지 개선 검토",
-      "observation": "지난 30일 PDP 세션 223, 장바구니 전환 0.0%, 구매 전환 0.0% (기준 2026-10-27 ~ 2026-11-25)",
-      "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
-      "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-      "owner": "이커머스/MD",
-      "status": "OPEN",
-      "first_seen": "2026-11-19",
-      "last_seen": "2026-11-24",
-      "observed_today": true,
-      "observations": 3,
-      "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
     },
     {
       "id": "CRM_SEGMENT_SOURCE",
@@ -405,9 +396,9 @@
       "owner": "CRM/데이터 담당",
       "status": "OPEN",
       "first_seen": "2026-11-14",
-      "last_seen": "2026-11-24",
+      "last_seen": "2026-11-25",
       "observed_today": true,
-      "observations": 11,
+      "observations": 12,
       "note": ""
     },
     {
@@ -475,22 +466,6 @@
       "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
     },
     {
-      "id": "PRODUCT_C74WR9847309",
-      "priority": "P0",
-      "domain": "DATA",
-      "title": "Amaze Puff Hooded Jacket 상품별 이벤트 정합성 검증",
-      "observation": "지난 30일 PDP 세션 587, 상품 구매 세션 0 (기준 2026-10-25 ~ 2026-11-23)",
-      "hypothesis": "미판매 가능성과 GA4 item_id 조인·구매 태깅 누락 가능성을 구분해야 함",
-      "validation": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조",
-      "owner": "데이터/이커머스",
-      "status": "OPEN",
-      "first_seen": "2026-11-14",
-      "last_seen": "2026-11-22",
-      "observed_today": false,
-      "observations": 9,
-      "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
-    },
-    {
       "id": "PRODUCT_C74YM3674342",
       "priority": "P0",
       "domain": "DATA",
@@ -555,6 +530,22 @@
       "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
     },
     {
+      "id": "PRODUCT_C76PU7257125",
+      "priority": "P1",
+      "domain": "PRODUCT",
+      "title": "Birdree Lite Drawstring Backpack 상세페이지 개선 검토",
+      "observation": "지난 30일 PDP 세션 223, 장바구니 전환 0.0%, 구매 전환 0.0% (기준 2026-10-27 ~ 2026-11-25)",
+      "hypothesis": "상세페이지 구성·재고·판매가·유입 캠페인 영향 가능성 — 인과관계 미검증",
+      "validation": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+      "owner": "이커머스/MD",
+      "status": "OPEN",
+      "first_seen": "2026-11-19",
+      "last_seen": "2026-11-24",
+      "observed_today": false,
+      "observations": 3,
+      "note": "최근 집계에서 재관측되지 않음. 미발견은 문제 해결의 증거가 아닙니다."
+    },
+    {
       "id": "AOV",
       "priority": "P2",
       "domain": "COMMERCE",
@@ -579,7 +570,7 @@
   },
   "governance": {
     "source_systems": [
-      "reports/daily_digest/data/daily/2026-11-24.json",
+      "reports/daily_digest/data/daily/2026-11-25.json",
       "reports/pdp_opportunity/data.json",
       "reports/pdp_opportunity/meta.json"
     ],
