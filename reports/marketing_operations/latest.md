@@ -1,4 +1,4 @@
-# CSK Marketing Operations 3.0 — 2026-11-24
+# CSK Marketing Operations 3.0 — 2026-11-25
 
 **보고 상태: READY** · 원천 복구 우선
 
@@ -13,37 +13,33 @@
 
 ## 7일 KPI (전주 완결 기간 비교)
 상태: **ready**
-기간: 2026-11-18 ~ 2026-11-24 / 비교: 2026-11-11 ~ 2026-11-17
-- 세션 176,731 · WoW +53.7%
-- 주문 1,578 · WoW +158.7%
-- 매출 ₩259,363,244 · WoW +160.0%
-- 구매 CVR 0.89% · 상대 WoW +68.3%
+기간: 2026-11-19 ~ 2026-11-25 / 비교: 2026-11-12 ~ 2026-11-18
+- 세션 182,419 · WoW +57.1%
+- 주문 1,714 · WoW +179.2%
+- 매출 ₩284,524,125 · WoW +209.5%
+- 구매 CVR 0.94% · 상대 WoW +77.7%
 
 ## 마케팅 캘린더 (기간과 출처 확인)
-올해 2026-11-18 ~ 2026-11-24: records_present
-전년 동요일 대응 기간 2025-11-19 ~ 2025-11-25: available
+올해 2026-11-19 ~ 2026-11-25: records_present
+전년 동요일 대응 기간 2025-11-20 ~ 2025-11-26: available
 ### 전년 확인 활동
-- 2025-11-19 [message] (광고) 컬럼비아 윈터페스티벌 D-2, 매일 100명 한정 최대 20% 할인쿠폰 증정! · 트래픽현황 2026 · 2025 비교기준 71행
 - 2025-11-21 [event] Winter Festival 본행사 · W47 · 4~7p
 - 2025-11-21 [message] 카카오 · Winter Festival · W47 · 3p
 ### 전년 계획만 확인된 활동 (실행 미확인)
-- 2025-11-19 LMS · Winter Festival 티징
-- 2025-11-19 Winter Festival 티저
-- 2025-11-19 윈터페스티벌 티징
 - 2025-11-21 윈터페스티벌 1차
 - 2025-11-21 윈터페스티벌 2차
 - 2025-11-24 LMS · Winter Festival
 - 2025-11-24 윈터페스티벌 2차
 
 ## 상품/PDP 개선 검토
-- [CRO_HYPOTHESIS] PFG PRO SPORT BOOT (C75BM1935063) · PDP 375 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [MEASUREMENT_QA] Amaze Puff Hooded Jacket (C74WR9847309) · PDP 704 · Cart 0.14% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
+- [CRO_HYPOTHESIS] PFG PRO SPORT BOOT (C75BM1935063) · PDP 379 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
 - [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 249 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] ROC Wide Leg Pant (C73AR3742278) · PDP 242 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 223 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Loneridge Legging (C73AR7506010) · PDP 167 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 154 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] RUDDY LEAF SHORT II (C75YU8771010) · PDP 148 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Santuit Falls Glove Ⅱ (C76YU0899439) · PDP 142 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] ROC Wide Leg Pant (C73AR3742278) · PDP 238 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 219 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Loneridge Legging (C73AR7506010) · PDP 163 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 153 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] RUDDY LEAF SHORT II (C75YU8771010) · PDP 146 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
 
 ## 경쟁사 가격 참고 (동일 SKU 비교 불가)
 수집 상태: reference_fresh
