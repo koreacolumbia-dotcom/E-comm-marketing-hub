@@ -1,18 +1,19 @@
 {
   "version": "3.0",
-  "report_date": "2026-11-25",
-  "generated_at_kst": "2026-11-26T18:35:52+09:00",
-  "status": "READY",
+  "report_date": "2026-11-26",
+  "generated_at_kst": "2026-11-27T18:34:57+09:00",
+  "status": "PARTIAL",
   "executive": {
     "headline": "원천 복구 우선",
-    "business_status": "READY",
+    "business_status": "PARTIAL",
     "priority_blockers": [
       "PAID_COST_FRESHNESS",
       "WAREHOUSE_ETL_FRESHNESS",
-      "MSSQL_STOCK_ACCESS"
+      "MSSQL_STOCK_ACCESS",
+      "CHANNEL_QA"
     ],
     "current_7d_status": "ready",
-    "actions_open": 18,
+    "actions_open": 19,
     "data_readiness": {
       "paid_cost": "stale",
       "order_mart": "stale",
@@ -22,73 +23,58 @@
     "decision": "복구 및 원천 정합성 확인이 최우선. Paid 예산 재배분이나 상품 예상 매출액은 데이터 검증 전 실행하지 않음."
   },
   "weekly": {
-    "period": "2026-11-19 ~ 2026-11-25",
-    "comparison_period": "2026-11-12 ~ 2026-11-18",
+    "period": "2026-11-20 ~ 2026-11-26",
+    "comparison_period": "2026-11-13 ~ 2026-11-19",
     "status": "ready",
     "current": {
       "status": "complete",
       "missing_dates": [],
       "total": {
-        "sessions": 182419.0,
-        "orders": 1714.0,
-        "revenue": 284524125.0,
-        "cvr": 0.009395951079657272
+        "sessions": 180705.0,
+        "orders": 1813.0,
+        "revenue": 297863649.0,
+        "cvr": 0.010032926593066047
       }
     },
     "previous": {
       "status": "complete",
       "missing_dates": [],
       "total": {
-        "sessions": 116087.0,
-        "orders": 614.0,
-        "revenue": 91920020.01,
-        "cvr": 0.00528913659582899
+        "sessions": 114822.0,
+        "orders": 598.0,
+        "revenue": 89955040.0,
+        "cvr": 0.005208061172945951
       }
     },
     "wow_pct": {
-      "sessions": 57.14,
-      "orders": 179.15,
-      "revenue": 209.53,
-      "cvr": 77.65
+      "sessions": 57.38,
+      "orders": 203.18,
+      "revenue": 231.13,
+      "cvr": 92.64
     },
     "yoy": {
       "status": "ready",
-      "period": "2025-11-20 ~ 2025-11-26",
+      "period": "2025-11-21 ~ 2025-11-27",
       "alignment": "same_weekday_364_days",
       "source": "ga4_bigquery_session_key_v1",
       "reference": {
         "status": "complete",
         "total": {
-          "sessions": 170485.0,
-          "orders": 1280.0,
-          "revenue": 201666125.0,
-          "cvr": 0.007507991905446227,
-          "aov": 157551.66015625
+          "sessions": 176843.0,
+          "orders": 1448.0,
+          "revenue": 232716435.0,
+          "cvr": 0.00818805381044203,
+          "aov": 160715.7700276243
         }
       },
       "yoy_pct": {
-        "sessions": 7.0,
-        "orders": 33.91,
-        "revenue": 41.09,
-        "cvr": 25.15,
-        "aov": 5.36
+        "sessions": 2.18,
+        "orders": 25.21,
+        "revenue": 27.99,
+        "cvr": 22.53,
+        "aov": 2.23
       },
       "daily_comparison": [
-        {
-          "date": "2026-11-19",
-          "ly_date": "2025-11-20",
-          "current": {
-            "sessions": 17299.0,
-            "orders": 85.0,
-            "revenue": 13557640.0
-          },
-          "last_year": {
-            "sessions": 21424.0,
-            "orders": 78.0,
-            "revenue": 12193880.0
-          },
-          "revenue_yoy_pct": 11.18
-        },
         {
           "date": "2026-11-20",
           "ly_date": "2025-11-21",
@@ -178,6 +164,21 @@
             "revenue": 34346455.0
           },
           "revenue_yoy_pct": 14.69
+        },
+        {
+          "date": "2026-11-26",
+          "ly_date": "2025-11-27",
+          "current": {
+            "sessions": 15585.0,
+            "orders": 184.0,
+            "revenue": 26897164.0
+          },
+          "last_year": {
+            "sessions": 27782.0,
+            "orders": 246.0,
+            "revenue": 43244190.0
+          },
+          "revenue_yoy_pct": -37.8
         }
       ],
       "missing_dates": [],
@@ -188,8 +189,8 @@
   "calendar": {
     "status": "available",
     "current_status": "records_present",
-    "yoy_window": "2025-11-20 ~ 2025-11-26",
-    "current_window": "2026-11-19 ~ 2026-11-25",
+    "yoy_window": "2025-11-21 ~ 2025-11-27",
+    "current_window": "2026-11-20 ~ 2026-11-26",
     "current": [
       {
         "date": "2026-11-20",
@@ -260,6 +261,20 @@
         "year": 2025,
         "sent_count": null,
         "sent_confirmed": null
+      },
+      {
+        "date": "2025-11-27",
+        "end_date": null,
+        "kind": "message",
+        "channel": null,
+        "title": "카카오 · Winter Festival Last Weekend",
+        "detail": "발송 실적: 유입 8,997, 매출 1,120만원",
+        "source": "W48 · 3p",
+        "origin": "marketing_calendar_2025",
+        "status": "confirmed",
+        "year": 2025,
+        "sent_count": null,
+        "sent_confirmed": null
       }
     ],
     "last_year_planned": [
@@ -318,6 +333,20 @@
         "year": 2025,
         "sent_count": null,
         "sent_confirmed": false
+      },
+      {
+        "date": "2025-11-27",
+        "end_date": null,
+        "kind": "message",
+        "channel": "KAKAO",
+        "title": "윈터페스티벌 라스트콜",
+        "detail": null,
+        "source": "트래픽현황 2026 · 2025 비교기준 58행",
+        "origin": "owned_message_2025",
+        "status": "planned",
+        "year": 2025,
+        "sent_count": null,
+        "sent_confirmed": false
       }
     ],
     "interpretation": "일정/발송과 매출의 시간적 일치는 인과 효과나 순증분 매출의 증거가 아님",
@@ -328,7 +357,7 @@
       "online_confirmed": 1,
       "offline_confirmed": 1
     },
-    "reference_total": 6,
+    "reference_total": 8,
     "impact_diagnostics": {
       "status": "insufficient",
       "start_date": null,
@@ -350,13 +379,13 @@
       {
         "code": "C74WR9847309",
         "name": "Amaze Puff Hooded Jacket",
-        "sessions": 704,
+        "sessions": 718,
         "cart_rate_pct": 0.14,
         "purchase_sessions": 0,
         "state": "MEASUREMENT_QA",
         "reason": "구매 이벤트와 어드민 상품코드 일치 여부 검증 필요",
         "verification": "동기간 GA4 purchase.item_id·view_item.item_id·어드민 상품별 주문을 먼저 대조",
-        "period": "2026-10-28 ~ 2026-11-26",
+        "period": "2026-10-29 ~ 2026-11-27",
         "stock_evidence": "unknown",
         "order_reconciliation": "blocked",
         "margin_evidence": "not_connected",
@@ -365,13 +394,28 @@
       {
         "code": "C75BM1935063",
         "name": "PFG PRO SPORT BOOT",
-        "sessions": 379,
+        "sessions": 378,
         "cart_rate_pct": 0.0,
         "purchase_sessions": 0,
         "state": "CRO_HYPOTHESIS",
         "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
         "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-        "period": "2026-10-28 ~ 2026-11-26",
+        "period": "2026-10-29 ~ 2026-11-27",
+        "stock_evidence": "unknown",
+        "order_reconciliation": "blocked",
+        "margin_evidence": "not_connected",
+        "revenue_opportunity_krw": null
+      },
+      {
+        "code": "C71WE8104491",
+        "name": "Cassiar Pro ODX Shell",
+        "sessions": 266,
+        "cart_rate_pct": 0.0,
+        "purchase_sessions": 0,
+        "state": "CRO_HYPOTHESIS",
+        "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
+        "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
+        "period": "2026-10-29 ~ 2026-11-27",
         "stock_evidence": "unknown",
         "order_reconciliation": "blocked",
         "margin_evidence": "not_connected",
@@ -380,13 +424,13 @@
       {
         "code": "C74WE4490235",
         "name": "Sauvie Sky Quad Parka IC Jacket",
-        "sessions": 249,
+        "sessions": 251,
         "cart_rate_pct": 0.0,
         "purchase_sessions": 0,
         "state": "CRO_HYPOTHESIS",
         "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
         "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-        "period": "2026-10-28 ~ 2026-11-26",
+        "period": "2026-10-29 ~ 2026-11-27",
         "stock_evidence": "unknown",
         "order_reconciliation": "blocked",
         "margin_evidence": "not_connected",
@@ -395,13 +439,13 @@
       {
         "code": "C73AR3742278",
         "name": "ROC Wide Leg Pant",
-        "sessions": 238,
+        "sessions": 234,
         "cart_rate_pct": 0.0,
         "purchase_sessions": 0,
         "state": "CRO_HYPOTHESIS",
         "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
         "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-        "period": "2026-10-28 ~ 2026-11-26",
+        "period": "2026-10-29 ~ 2026-11-27",
         "stock_evidence": "unknown",
         "order_reconciliation": "blocked",
         "margin_evidence": "not_connected",
@@ -410,13 +454,13 @@
       {
         "code": "C76PU7257125",
         "name": "Birdree Lite Drawstring Backpack",
-        "sessions": 219,
+        "sessions": 220,
         "cart_rate_pct": 0.0,
         "purchase_sessions": 0,
         "state": "CRO_HYPOTHESIS",
         "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
         "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-        "period": "2026-10-28 ~ 2026-11-26",
+        "period": "2026-10-29 ~ 2026-11-27",
         "stock_evidence": "unknown",
         "order_reconciliation": "blocked",
         "margin_evidence": "not_connected",
@@ -431,7 +475,7 @@
         "state": "CRO_HYPOTHESIS",
         "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
         "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-        "period": "2026-10-28 ~ 2026-11-26",
+        "period": "2026-10-29 ~ 2026-11-27",
         "stock_evidence": "unknown",
         "order_reconciliation": "blocked",
         "margin_evidence": "not_connected",
@@ -440,28 +484,13 @@
       {
         "code": "C71WR6042027",
         "name": "W Saudan Pro 3L Shell",
-        "sessions": 153,
+        "sessions": 155,
         "cart_rate_pct": 0.0,
         "purchase_sessions": 0,
         "state": "CRO_HYPOTHESIS",
         "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
         "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-        "period": "2026-10-28 ~ 2026-11-26",
-        "stock_evidence": "unknown",
-        "order_reconciliation": "blocked",
-        "margin_evidence": "not_connected",
-        "revenue_opportunity_krw": null
-      },
-      {
-        "code": "C75YU8771010",
-        "name": "RUDDY LEAF SHORT II",
-        "sessions": 146,
-        "cart_rate_pct": 0.0,
-        "purchase_sessions": 0,
-        "state": "CRO_HYPOTHESIS",
-        "reason": "PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전",
-        "verification": "동기간 재고·사이즈 품절·가격·프로모션과 유입 매체를 확인해야 원인 판단 가능",
-        "period": "2026-10-28 ~ 2026-11-26",
+        "period": "2026-10-29 ~ 2026-11-27",
         "stock_evidence": "unknown",
         "order_reconciliation": "blocked",
         "margin_evidence": "not_connected",
@@ -587,9 +616,31 @@
       "observed": "MSSQL 재고 접근 상태 connection_error",
       "next_step": "GitHub Actions 러너에서 허용 IP/VPN/DB 포트 1433과 읽기 전용 연결 진단",
       "unsafe_operation": "방화벽 임의 개방·관리자 자격 증명 공개·DB 원본 변경 금지"
+    },
+    {
+      "code": "CHANNEL_QA",
+      "priority": "P0",
+      "owner": "GA4/BigQuery 담당",
+      "observed": "채널 합산과 전체 세션 불일치, ETC 귀속 오류",
+      "next_step": "동일 세션 키/기간/귀속 규칙으로 재집계 후 ETC·Paid·Organic 중복 제거 확인",
+      "unsafe_operation": "채널 데이터 정상화 전 매체별 원인·성과 단정 금지"
     }
   ],
   "actions": [
+    {
+      "id": "AGENCY_ATTRIBUTION",
+      "title": "대행사 채널 귀속 데이터 우선 점검",
+      "owner": "데이터/퍼포먼스 대행사",
+      "priority": "P0",
+      "status": "OPEN"
+    },
+    {
+      "id": "CHANNEL_QA",
+      "title": "채널별 성과 분석 보류",
+      "owner": "데이터/GA4 담당",
+      "priority": "P0",
+      "status": "OPEN"
+    },
     {
       "id": "MSSQL_STOCK_ACCESS",
       "title": "MSSQL 실재고 조회 접근 문제 해결",
@@ -619,8 +670,8 @@
       "status": "OPEN"
     },
     {
-      "id": "PRODUCT_C73AR3742278",
-      "title": "ROC Wide Leg Pant 상세페이지 개선 검토",
+      "id": "PRODUCT_C71WE8104491",
+      "title": "Cassiar Pro ODX Shell 상세페이지 개선 검토",
       "owner": "이커머스/MD",
       "priority": "P1",
       "status": "OPEN"
@@ -644,20 +695,6 @@
       "title": "CRM 세그먼트 집계 연동",
       "owner": "CRM/데이터 담당",
       "priority": "P2",
-      "status": "OPEN"
-    },
-    {
-      "id": "AGENCY_ATTRIBUTION",
-      "title": "대행사 채널 귀속 데이터 우선 점검",
-      "owner": "데이터/퍼포먼스 대행사",
-      "priority": "P0",
-      "status": "OPEN"
-    },
-    {
-      "id": "CHANNEL_QA",
-      "title": "채널별 성과 분석 보류",
-      "owner": "데이터/GA4 담당",
-      "priority": "P0",
       "status": "OPEN"
     },
     {
@@ -685,6 +722,13 @@
       "id": "CONVERSION",
       "title": "유입 대비 구매 전환 급락",
       "owner": "이커머스/분석 담당",
+      "priority": "P1",
+      "status": "OPEN"
+    },
+    {
+      "id": "PRODUCT_C73AR3742278",
+      "title": "ROC Wide Leg Pant 상세페이지 개선 검토",
+      "owner": "이커머스/MD",
       "priority": "P1",
       "status": "OPEN"
     },
