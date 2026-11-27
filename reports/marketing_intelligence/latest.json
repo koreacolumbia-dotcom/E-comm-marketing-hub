@@ -1,52 +1,72 @@
 {
-  "date": "2026-11-25",
-  "status": "READY",
+  "date": "2026-11-26",
+  "status": "PARTIAL",
   "quality": {
     "overall": true,
-    "channel": true,
+    "channel": false,
     "pdp": true,
-    "paid": true,
+    "paid": false,
     "issues": [
+      {
+        "code": "UNASSIGNED_TRAFFIC",
+        "level": "block",
+        "message": "ETC 22.1% — 미귀속 세션 상세 및 GA4 (not set)/(other) 점검 필요"
+      },
+      {
+        "code": "PAID_NOT_VERIFIED",
+        "level": "info",
+        "message": "Paid 상세 성과와 매체별 ROAS 판단을 보류합니다."
+      },
       {
         "code": "ADMIN_UNAVAILABLE",
         "level": "info",
         "message": "어드민 실적이 0으로 내려왔습니다. 실제 매출 0으로 단정하지 않습니다."
       }
     ],
-    "etc_share": 0.0034269738918699553,
+    "etc_share": 0.22066089188322105,
     "channel_gap": 0.0,
-    "status": "READY"
+    "status": "PARTIAL"
   },
   "metrics": [
     {
       "name": "세션",
       "key": "sessions",
-      "current": 22177.0,
-      "wow_pct": 34.495724422342164,
-      "yoy_pct": -4.26918760252094
+      "current": 15585.0,
+      "wow_pct": -9.908087172668944,
+      "yoy_pct": -43.902526815923984
     },
     {
       "name": "주문",
       "key": "orders",
-      "current": 230.0,
-      "wow_pct": 144.68085106382978,
-      "yoy_pct": 22.34042553191489
+      "current": 184.0,
+      "wow_pct": 116.4705882352941,
+      "yoy_pct": -25.20325203252033
     },
     {
       "name": "매출",
       "key": "revenue",
-      "current": 39392151.0,
-      "wow_pct": 176.79996936324022,
-      "yoy_pct": 14.690587427436096
+      "current": 26897164.0,
+      "wow_pct": 98.39119492773078,
+      "yoy_pct": -37.80167000468734
     },
     {
       "name": "구매 CVR",
       "key": "cvr",
-      "current": 0.010371105199080128,
-      "wow_pct": 81.92463151875768,
-      "yoy_pct": 27.796288852069285
+      "current": 0.01180622393326917,
+      "wow_pct": 140.27749155485103,
+      "yoy_pct": 33.33354199759515
     }
   ],
-  "actions": [],
+  "actions": [
+    {
+      "code": "CHANNEL_QA",
+      "title": "채널별 성과 분석 보류",
+      "observation": "채널 합계 또는 ETC 귀속 상태가 기준을 충족하지 않음",
+      "hypothesis": "GA4 집계 시점 지연, session 차원 중복, 귀속 분류 미확정 가능성",
+      "validation": "동일 날짜 GA4 전체 sessions vs sessionDefaultChannelGroup 합계 비교, (not set)/(other) 상세, 조회 API 샘플링·쿼리 차원 확인",
+      "owner": "데이터/GA4 담당",
+      "priority": "P0"
+    }
+  ],
   "note": "데이터 미검증 영역의 원인 설명은 가설이며 광고 예산 조정은 자동 수행하지 않습니다. 매체 ROAS는 신뢰 가능한 비용 데이터 부재 시 계산하지 않습니다."
 }
