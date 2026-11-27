@@ -1,34 +1,39 @@
 {
   "schema": 1,
-  "report_date": "2026-11-25",
-  "period": "2026-11-19 ~ 2026-11-25",
+  "report_date": "2026-11-26",
+  "period": "2026-11-20 ~ 2026-11-26",
   "status": "partial",
   "method": "관측 사실, 산술 분해, 검증 전 가설 구분. 단순 동시 발생을 원인으로 선언하지 않음.",
   "finance": {
     "status": "observed",
-    "period": "2026-11-19 ~ 2026-11-25",
-    "compare_period": "2026-11-12 ~ 2026-11-18",
-    "revenue": 284524125.0,
-    "revenue_prior": 91920020.01,
-    "revenue_pct": 209.53,
-    "orders": 1714.0,
-    "orders_prior": 614.0,
-    "orders_pct": 179.15,
-    "sessions": 182419.0,
-    "sessions_prior": 116087.0,
-    "sessions_pct": 57.14,
-    "aov": 166000.07,
-    "aov_prior": 149706.87,
-    "aov_pct": 10.88,
-    "order_effect_krw": 164677560.28,
-    "aov_effect_krw": 27926544.71,
-    "revenue_delta_krw": 192604104.99,
+    "period": "2026-11-20 ~ 2026-11-26",
+    "compare_period": "2026-11-13 ~ 2026-11-19",
+    "revenue": 297863649.0,
+    "revenue_prior": 89955040.0,
+    "revenue_pct": 231.13,
+    "orders": 1813.0,
+    "orders_prior": 598.0,
+    "orders_pct": 203.18,
+    "sessions": 180705.0,
+    "sessions_prior": 114822.0,
+    "sessions_pct": 57.38,
+    "aov": 164293.24,
+    "aov_prior": 150426.49,
+    "aov_pct": 9.22,
+    "order_effect_krw": 182768183.28,
+    "aov_effect_krw": 25140425.72,
+    "revenue_delta_krw": 207908609.0,
     "source": "reports/marketing_operations/latest.json",
     "note": "R = 주문수 × 객단가의 정확한 산술 분해. 인과관계나 가격·할인 원인 증명이 아님."
   },
   "ga4_evidence": {
     "report_date": "2026-11-26",
-    "period": null,
+    "period": {
+      "previous_start": "2026-11-13",
+      "previous_end": "2026-11-19",
+      "current_start": "2026-11-20",
+      "current_end": "2026-11-26"
+    },
     "status": "ga4_measured",
     "cost": {
       "dry_run_bytes": 761172475,
@@ -36,10 +41,121 @@
       "maximum_bytes_billed_total": 1073741824,
       "dry_run_required": true
     },
-    "item_aov_bridge": null,
-    "sales_revenue_bridge": null,
-    "category_bridge": null,
-    "admin_reconciliation": null,
+    "item_aov_bridge": {
+      "items_per_order_previous": 1.291,
+      "items_per_order_current": 1.475,
+      "realized_item_price_previous": 132997.28,
+      "realized_item_price_current": 126373.5,
+      "item_aov_previous": 171695.48,
+      "item_aov_current": 186428.75,
+      "item_aov_delta": 14733.27,
+      "items_per_order_effect": 23894.58,
+      "realized_item_revenue_effect": -9161.31,
+      "interpretation": "Arithmetic only: realized item revenue includes discount and SKU mix."
+    },
+    "sales_revenue_bridge": {
+      "qty_effect_krw": 247310041.56,
+      "realized_unit_revenue_effect_krw": -11429326.56,
+      "item_to_purchase_gap_effect_krw": -26935056.0,
+      "prior_item_to_purchase_gap_krw": 12718860.0,
+      "current_item_to_purchase_gap_krw": 39653916.0,
+      "purchase_revenue_delta_krw": 208945659.0,
+      "prior_total_units": 772,
+      "current_total_units": 2679,
+      "note": "Accounting identity, not proof of coupon/discount/refund causality."
+    },
+    "category_bridge": {
+      "category_mix_effect_per_item": -2018.82,
+      "within_category_effect_per_item": -4604.95,
+      "realized_item_price_delta": -6623.78,
+      "rows": [
+        {
+          "category": "SALE",
+          "share_previous_pct": 34.84,
+          "share_current_pct": 64.61,
+          "mix_effect_per_item": 41868.2,
+          "within_category_effect_per_item": 4409.81
+        },
+        {
+          "category": "OUTER",
+          "share_previous_pct": 8.94,
+          "share_current_pct": 2.39,
+          "mix_effect_per_item": -23288.08,
+          "within_category_effect_per_item": 189.93
+        },
+        {
+          "category": "FLEECE",
+          "share_previous_pct": 22.41,
+          "share_current_pct": 12.17,
+          "mix_effect_per_item": -8604.49,
+          "within_category_effect_per_item": -5520.47
+        },
+        {
+          "category": "FOOTWEAR",
+          "share_previous_pct": 7.51,
+          "share_current_pct": 4.07,
+          "mix_effect_per_item": -6171.97,
+          "within_category_effect_per_item": -1215.42
+        },
+        {
+          "category": "BAG",
+          "share_previous_pct": 4.4,
+          "share_current_pct": 1.64,
+          "mix_effect_per_item": -2413.16,
+          "within_category_effect_per_item": 232.73
+        },
+        {
+          "category": "Acc",
+          "share_previous_pct": 10.49,
+          "share_current_pct": 4.74,
+          "mix_effect_per_item": -1693.73,
+          "within_category_effect_per_item": -18.31
+        },
+        {
+          "category": "TOPS",
+          "share_previous_pct": 4.53,
+          "share_current_pct": 2.69,
+          "mix_effect_per_item": -1546.86,
+          "within_category_effect_per_item": -1611.24
+        },
+        {
+          "category": "PANTS",
+          "share_previous_pct": 2.46,
+          "share_current_pct": 1.72,
+          "mix_effect_per_item": -863.26,
+          "within_category_effect_per_item": -1334.11
+        },
+        {
+          "category": "CAP",
+          "share_previous_pct": 4.27,
+          "share_current_pct": 5.94,
+          "mix_effect_per_item": 785.82,
+          "within_category_effect_per_item": 178.69
+        },
+        {
+          "category": "SET-UP",
+          "share_previous_pct": 0.13,
+          "share_current_pct": 0.04,
+          "mix_effect_per_item": -91.28,
+          "within_category_effect_per_item": 83.43
+        }
+      ],
+      "caveat": "New/retired categories attributed to mix; within-category price contains discount and mix."
+    },
+    "admin_reconciliation": {
+      "comparable": false,
+      "periods": {
+        "current": {
+          "order_gap_pct": 5.95,
+          "revenue_gap_pct": 5.05
+        },
+        "previous": {
+          "order_gap_pct": 2.61,
+          "revenue_gap_pct": 2.14
+        }
+      },
+      "caveat": "GA4 event and administrative net revenue/order definitions can differ."
+    },
     "independent_admin_verified": false,
     "order_mart_metadata_accessible": true,
     "order_mart_coupon_column_exists": true,
@@ -80,10 +196,87 @@
     "order_mart_accessible": true,
     "coupon_column_present": true,
     "order_mart_last_modified": "2026-06-05T06:07:21.605000+00:00",
-    "order_mart_lag_days": 173,
-    "admin_mart_lag_days": 92
+    "order_mart_lag_days": 174,
+    "admin_mart_lag_days": 93
   },
   "problems": [
+    {
+      "id": "GA4_PURCHASE_COMPONENTS",
+      "priority": "P0",
+      "status": "observed_ga4_components",
+      "title": "구매 객단가의 수량·실현단가 기여도 측정",
+      "finding": "GA4 상품기준 주문당 수량 효과 +23,895원, 상품 실현단가 효과 -9,161원 · GA4 구매 이벤트 기준이며 기존 KPI와 정합성 추가 검증 필요",
+      "cause_component": "GA4 구매 상품의 주문당 수량 변화와 상품 평균 실현매출 변화는 산술적으로 분해 완료. 실현단가에는 할인, 상품구성, 정가 변화가 함께 포함됨.",
+      "cause_hypotheses": [
+        "쿠폰/할인 변화",
+        "SKU별 가격 변화",
+        "상품 구성 및 저가 상품 비중 변화"
+      ],
+      "hypothesis_status": "verified_component_unverified_causal",
+      "causal_confirmed": false,
+      "how_to_verify": "GA4 items 구조에 discount 필드가 없는 것을 확인. 관리자 주문상품마트의 쿠폰·프로모션·실결제가 원천을 조회하고 동일 SKU/주문 기준으로 비교하여 할인·상품 믹스를 분리",
+      "blocked_by": [
+        "독립 관리자 주문마트 연결/정합성 검증"
+      ],
+      "revenue_factors": {
+        "qty_effect_krw": 247310041.56,
+        "realized_price_effect_krw": -11429326.56,
+        "unclassified_item_to_checkout_gap_effect_krw": -26935056.0,
+        "source": "GA4 item revenue and purchase revenue"
+      },
+      "category_mix": {
+        "mix_effect_per_item": -2018.82,
+        "within_category_effect_per_item": -4604.95,
+        "rows": [
+          {
+            "category": "SALE",
+            "share_previous_pct": 34.84,
+            "share_current_pct": 64.61,
+            "mix_effect_per_item": 41868.2,
+            "within_category_effect_per_item": 4409.81
+          },
+          {
+            "category": "OUTER",
+            "share_previous_pct": 8.94,
+            "share_current_pct": 2.39,
+            "mix_effect_per_item": -23288.08,
+            "within_category_effect_per_item": 189.93
+          },
+          {
+            "category": "FLEECE",
+            "share_previous_pct": 22.41,
+            "share_current_pct": 12.17,
+            "mix_effect_per_item": -8604.49,
+            "within_category_effect_per_item": -5520.47
+          },
+          {
+            "category": "FOOTWEAR",
+            "share_previous_pct": 7.51,
+            "share_current_pct": 4.07,
+            "mix_effect_per_item": -6171.97,
+            "within_category_effect_per_item": -1215.42
+          },
+          {
+            "category": "BAG",
+            "share_previous_pct": 4.4,
+            "share_current_pct": 1.64,
+            "mix_effect_per_item": -2413.16,
+            "within_category_effect_per_item": 232.73
+          },
+          {
+            "category": "Acc",
+            "share_previous_pct": 10.49,
+            "share_current_pct": 4.74,
+            "mix_effect_per_item": -1693.73,
+            "within_category_effect_per_item": -18.31
+          }
+        ]
+      },
+      "sources": [
+        "reports/decision_health/ga4_purchase_diagnostics.json",
+        "reports/marketing_operations/latest.json"
+      ]
+    },
     {
       "id": "OWNED_CONTENT_BASELINE",
       "priority": "P0",
@@ -111,8 +304,8 @@
       "priority": "P0",
       "status": "source_error_confirmed",
       "title": "광고비·주문·CRM·재고 원천의 최신성이 부족함",
-      "finding": "paid_cost: stale / order_mart: stale / crm: stale / inventory: connection_error · 주문마트 173일, 관리자마트 92일 갱신 지연",
-      "cause_component": "주문상품마트 마지막 수정 2026-06-05T06:07:21.605000+00:00 (173일 지연); 관리자 일별마트 마지막 수정 2026-08-25T01:23:53.290000+00:00 (92일 지연). BigQuery 테이블 메타데이터로 직접 확인함.",
+      "finding": "paid_cost: stale / order_mart: stale / crm: stale / inventory: connection_error · 주문마트 174일, 관리자마트 93일 갱신 지연",
+      "cause_component": "주문상품마트 마지막 수정 2026-06-05T06:07:21.605000+00:00 (174일 지연); 관리자 일별마트 마지막 수정 2026-08-25T01:23:53.290000+00:00 (93일 지연). BigQuery 테이블 메타데이터로 직접 확인함.",
       "cause_hypotheses": [],
       "hypothesis_status": "confirmed_metadata_staleness",
       "causal_confirmed": false,
@@ -155,11 +348,31 @@
       ]
     },
     {
+      "id": "GA4_COUPON_QUALITY",
+      "priority": "P1",
+      "status": "source_error_confirmed",
+      "title": "GA4 쿠폰코드 지표의 모집단/적용 여부 검증 실패",
+      "finding": "상품행 없는 purchase 이벤트 14건 · 모든 상품행에 coupon 필드 값 존재",
+      "cause_component": "구매 이벤트 중 일부에 상품행이 없고 쿠폰 필드가 일률적으로 채워져 실제 쿠폰 사용률/할인금액을 확정할 수 없음. 결측·스키마 범위 문제는 실측으로 확인.",
+      "cause_hypotheses": [],
+      "hypothesis_status": "confirmed_data_quality_limitation",
+      "causal_confirmed": false,
+      "how_to_verify": "누락된 item 배열의 원인과 coupon 필드 매핑을 GTM/GA4 이벤트 스키마에서 확인. 쿠폰 금액은 최신 관리자 주문마트 적재 이후 별도 재계산",
+      "blocked_by": [
+        "GA4 상품행 완전성",
+        "관리자 주문상품마트 장기 지연"
+      ],
+      "sources": [
+        "reports/decision_health/ga4_coupon_usage.json",
+        "reports/decision_health/source_metadata.json"
+      ]
+    },
+    {
       "id": "PRODUCT_DIVERGENCE_0",
       "priority": "P1",
       "status": "observed_product_divergence",
       "title": "Terwilliger Trail Heat Seal Hdd Jacket · PDP와 구매 흐름 재점검",
-      "finding": "PDP 7일 +191.4%, GA4 판매수량 6 → 26개 (+333.3%)",
+      "finding": "PDP 7일 +180.7%, GA4 판매수량 6 → 31개 (+416.7%)",
       "cause_component": "동일 정규화 상품명에서 7일 PDP·판매수량 변동을 관측함. 하락 추세의 원인은 미확정.",
       "cause_hypotheses": [
         "상세페이지 구매 전환 둔화",
@@ -183,33 +396,8 @@
       "id": "PRODUCT_DIVERGENCE_1",
       "priority": "P1",
       "status": "observed_product_divergence",
-      "title": "M`s Columbia Rock Down Jacket · PDP와 구매 흐름 재점검",
-      "finding": "PDP 7일 +20.7%, GA4 판매수량 1 → 19개 (+1800.0%)",
-      "cause_component": "동일 정규화 상품명에서 7일 PDP·판매수량 변동을 관측함. 하락 추세의 원인은 미확정.",
-      "cause_hypotheses": [
-        "상세페이지 구매 전환 둔화",
-        "가격/프로모션 변화",
-        "상품 옵션별 재고·품절",
-        "유입 트래픽 품질 변화"
-      ],
-      "hypothesis_status": "observed_pattern_unverified_cause",
-      "causal_confirmed": false,
-      "how_to_verify": "해당 상품의 14일 view_item→add_to_cart→purchase 퍼널과 가격·품절·유입 매체를 같은 날짜/스타일코드로 비교",
-      "blocked_by": [
-        "상품별 유입/장바구니 전체 모집단",
-        "최신 옵션 재고"
-      ],
-      "sources": [
-        "reports/daily_intelligence/latest.json",
-        "reports/decision_health/ga4_purchase_diagnostics.json"
-      ]
-    },
-    {
-      "id": "PRODUCT_DIVERGENCE_2",
-      "priority": "P1",
-      "status": "observed_product_divergence",
       "title": "M`s MT.Hood Down Jacket · PDP와 구매 흐름 재점검",
-      "finding": "PDP 7일 +118.9%, GA4 판매수량 1 → 17개 (+1600.0%)",
+      "finding": "PDP 7일 +138.6%, GA4 판매수량 1 → 21개 (+2000.0%)",
       "cause_component": "동일 정규화 상품명에서 7일 PDP·판매수량 변동을 관측함. 하락 추세의 원인은 미확정.",
       "cause_hypotheses": [
         "상세페이지 구매 전환 둔화",
