@@ -27,135 +27,19 @@
     "note": "R = 주문수 × 객단가의 정확한 산술 분해. 인과관계나 가격·할인 원인 증명이 아님."
   },
   "ga4_evidence": {
-    "report_date": "2026-11-26",
-    "period": {
-      "previous_start": "2026-11-13",
-      "previous_end": "2026-11-19",
-      "current_start": "2026-11-20",
-      "current_end": "2026-11-26"
-    },
+    "report_date": "2026-11-27",
+    "period": null,
     "status": "ga4_measured",
     "cost": {
-      "dry_run_bytes": 761172475,
-      "billed_bytes": 762314752,
+      "dry_run_bytes": 764450897,
+      "billed_bytes": 766509056,
       "maximum_bytes_billed_total": 1073741824,
       "dry_run_required": true
     },
-    "item_aov_bridge": {
-      "items_per_order_previous": 1.291,
-      "items_per_order_current": 1.475,
-      "realized_item_price_previous": 132997.28,
-      "realized_item_price_current": 126373.5,
-      "item_aov_previous": 171695.48,
-      "item_aov_current": 186428.75,
-      "item_aov_delta": 14733.27,
-      "items_per_order_effect": 23894.58,
-      "realized_item_revenue_effect": -9161.31,
-      "interpretation": "Arithmetic only: realized item revenue includes discount and SKU mix."
-    },
-    "sales_revenue_bridge": {
-      "qty_effect_krw": 247310041.56,
-      "realized_unit_revenue_effect_krw": -11429326.56,
-      "item_to_purchase_gap_effect_krw": -26935056.0,
-      "prior_item_to_purchase_gap_krw": 12718860.0,
-      "current_item_to_purchase_gap_krw": 39653916.0,
-      "purchase_revenue_delta_krw": 208945659.0,
-      "prior_total_units": 772,
-      "current_total_units": 2679,
-      "note": "Accounting identity, not proof of coupon/discount/refund causality."
-    },
-    "category_bridge": {
-      "category_mix_effect_per_item": -2018.82,
-      "within_category_effect_per_item": -4604.95,
-      "realized_item_price_delta": -6623.78,
-      "rows": [
-        {
-          "category": "SALE",
-          "share_previous_pct": 34.84,
-          "share_current_pct": 64.61,
-          "mix_effect_per_item": 41868.2,
-          "within_category_effect_per_item": 4409.81
-        },
-        {
-          "category": "OUTER",
-          "share_previous_pct": 8.94,
-          "share_current_pct": 2.39,
-          "mix_effect_per_item": -23288.08,
-          "within_category_effect_per_item": 189.93
-        },
-        {
-          "category": "FLEECE",
-          "share_previous_pct": 22.41,
-          "share_current_pct": 12.17,
-          "mix_effect_per_item": -8604.49,
-          "within_category_effect_per_item": -5520.47
-        },
-        {
-          "category": "FOOTWEAR",
-          "share_previous_pct": 7.51,
-          "share_current_pct": 4.07,
-          "mix_effect_per_item": -6171.97,
-          "within_category_effect_per_item": -1215.42
-        },
-        {
-          "category": "BAG",
-          "share_previous_pct": 4.4,
-          "share_current_pct": 1.64,
-          "mix_effect_per_item": -2413.16,
-          "within_category_effect_per_item": 232.73
-        },
-        {
-          "category": "Acc",
-          "share_previous_pct": 10.49,
-          "share_current_pct": 4.74,
-          "mix_effect_per_item": -1693.73,
-          "within_category_effect_per_item": -18.31
-        },
-        {
-          "category": "TOPS",
-          "share_previous_pct": 4.53,
-          "share_current_pct": 2.69,
-          "mix_effect_per_item": -1546.86,
-          "within_category_effect_per_item": -1611.24
-        },
-        {
-          "category": "PANTS",
-          "share_previous_pct": 2.46,
-          "share_current_pct": 1.72,
-          "mix_effect_per_item": -863.26,
-          "within_category_effect_per_item": -1334.11
-        },
-        {
-          "category": "CAP",
-          "share_previous_pct": 4.27,
-          "share_current_pct": 5.94,
-          "mix_effect_per_item": 785.82,
-          "within_category_effect_per_item": 178.69
-        },
-        {
-          "category": "SET-UP",
-          "share_previous_pct": 0.13,
-          "share_current_pct": 0.04,
-          "mix_effect_per_item": -91.28,
-          "within_category_effect_per_item": 83.43
-        }
-      ],
-      "caveat": "New/retired categories attributed to mix; within-category price contains discount and mix."
-    },
-    "admin_reconciliation": {
-      "comparable": false,
-      "periods": {
-        "current": {
-          "order_gap_pct": 5.95,
-          "revenue_gap_pct": 5.05
-        },
-        "previous": {
-          "order_gap_pct": 2.61,
-          "revenue_gap_pct": 2.14
-        }
-      },
-      "caveat": "GA4 event and administrative net revenue/order definitions can differ."
-    },
+    "item_aov_bridge": null,
+    "sales_revenue_bridge": null,
+    "category_bridge": null,
+    "admin_reconciliation": null,
     "independent_admin_verified": false,
     "order_mart_metadata_accessible": true,
     "order_mart_coupon_column_exists": true,
@@ -170,12 +54,12 @@
   },
   "ga4_coupon_evidence": {
     "status": "partial_quality",
-    "report_date": "2026-11-26",
+    "report_date": "2026-11-27",
     "periods": null,
     "delta_pp": null,
     "quality_checks": {
       "purchase_events_without_item_rows": {
-        "previous": 13,
+        "previous": 11,
         "current": 1
       },
       "coupon_marker_present_in_all_item_rows": true,
@@ -184,8 +68,8 @@
     },
     "source": "GA4 items.coupon presence; not discount amount",
     "cost": {
-      "estimated_bytes": 294673129,
-      "billed_bytes": 295698432,
+      "estimated_bytes": 296008688,
+      "billed_bytes": 296747008,
       "maximum_bytes_billed": 536870912,
       "dry_run_required": true
     }
@@ -200,83 +84,6 @@
     "admin_mart_lag_days": 93
   },
   "problems": [
-    {
-      "id": "GA4_PURCHASE_COMPONENTS",
-      "priority": "P0",
-      "status": "observed_ga4_components",
-      "title": "구매 객단가의 수량·실현단가 기여도 측정",
-      "finding": "GA4 상품기준 주문당 수량 효과 +23,895원, 상품 실현단가 효과 -9,161원 · GA4 구매 이벤트 기준이며 기존 KPI와 정합성 추가 검증 필요",
-      "cause_component": "GA4 구매 상품의 주문당 수량 변화와 상품 평균 실현매출 변화는 산술적으로 분해 완료. 실현단가에는 할인, 상품구성, 정가 변화가 함께 포함됨.",
-      "cause_hypotheses": [
-        "쿠폰/할인 변화",
-        "SKU별 가격 변화",
-        "상품 구성 및 저가 상품 비중 변화"
-      ],
-      "hypothesis_status": "verified_component_unverified_causal",
-      "causal_confirmed": false,
-      "how_to_verify": "GA4 items 구조에 discount 필드가 없는 것을 확인. 관리자 주문상품마트의 쿠폰·프로모션·실결제가 원천을 조회하고 동일 SKU/주문 기준으로 비교하여 할인·상품 믹스를 분리",
-      "blocked_by": [
-        "독립 관리자 주문마트 연결/정합성 검증"
-      ],
-      "revenue_factors": {
-        "qty_effect_krw": 247310041.56,
-        "realized_price_effect_krw": -11429326.56,
-        "unclassified_item_to_checkout_gap_effect_krw": -26935056.0,
-        "source": "GA4 item revenue and purchase revenue"
-      },
-      "category_mix": {
-        "mix_effect_per_item": -2018.82,
-        "within_category_effect_per_item": -4604.95,
-        "rows": [
-          {
-            "category": "SALE",
-            "share_previous_pct": 34.84,
-            "share_current_pct": 64.61,
-            "mix_effect_per_item": 41868.2,
-            "within_category_effect_per_item": 4409.81
-          },
-          {
-            "category": "OUTER",
-            "share_previous_pct": 8.94,
-            "share_current_pct": 2.39,
-            "mix_effect_per_item": -23288.08,
-            "within_category_effect_per_item": 189.93
-          },
-          {
-            "category": "FLEECE",
-            "share_previous_pct": 22.41,
-            "share_current_pct": 12.17,
-            "mix_effect_per_item": -8604.49,
-            "within_category_effect_per_item": -5520.47
-          },
-          {
-            "category": "FOOTWEAR",
-            "share_previous_pct": 7.51,
-            "share_current_pct": 4.07,
-            "mix_effect_per_item": -6171.97,
-            "within_category_effect_per_item": -1215.42
-          },
-          {
-            "category": "BAG",
-            "share_previous_pct": 4.4,
-            "share_current_pct": 1.64,
-            "mix_effect_per_item": -2413.16,
-            "within_category_effect_per_item": 232.73
-          },
-          {
-            "category": "Acc",
-            "share_previous_pct": 10.49,
-            "share_current_pct": 4.74,
-            "mix_effect_per_item": -1693.73,
-            "within_category_effect_per_item": -18.31
-          }
-        ]
-      },
-      "sources": [
-        "reports/decision_health/ga4_purchase_diagnostics.json",
-        "reports/marketing_operations/latest.json"
-      ]
-    },
     {
       "id": "OWNED_CONTENT_BASELINE",
       "priority": "P0",
@@ -345,26 +152,6 @@
       "sources": [
         "reports/competitor_content/strategy-summary.json",
         "reports/competitor_intelligence/latest-quality.json"
-      ]
-    },
-    {
-      "id": "GA4_COUPON_QUALITY",
-      "priority": "P1",
-      "status": "source_error_confirmed",
-      "title": "GA4 쿠폰코드 지표의 모집단/적용 여부 검증 실패",
-      "finding": "상품행 없는 purchase 이벤트 14건 · 모든 상품행에 coupon 필드 값 존재",
-      "cause_component": "구매 이벤트 중 일부에 상품행이 없고 쿠폰 필드가 일률적으로 채워져 실제 쿠폰 사용률/할인금액을 확정할 수 없음. 결측·스키마 범위 문제는 실측으로 확인.",
-      "cause_hypotheses": [],
-      "hypothesis_status": "confirmed_data_quality_limitation",
-      "causal_confirmed": false,
-      "how_to_verify": "누락된 item 배열의 원인과 coupon 필드 매핑을 GTM/GA4 이벤트 스키마에서 확인. 쿠폰 금액은 최신 관리자 주문마트 적재 이후 별도 재계산",
-      "blocked_by": [
-        "GA4 상품행 완전성",
-        "관리자 주문상품마트 장기 지연"
-      ],
-      "sources": [
-        "reports/decision_health/ga4_coupon_usage.json",
-        "reports/decision_health/source_metadata.json"
       ]
     },
     {
