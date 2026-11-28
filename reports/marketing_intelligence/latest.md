@@ -1,14 +1,14 @@
-# CSK Marketing Intelligence — 2026-11-26
+# CSK Marketing Intelligence — 2026-11-27
 검증 상태: PARTIAL
 
 ## KPI (전주 동요일 / 전년 동요일)
-- 세션: 15,585 | WoW -9.9% | YoY -43.9%
-- 주문: 184 | WoW +116.5% | YoY -25.2%
-- 매출: 26,897,164원 | WoW +98.4% | YoY -37.8%
-- 구매 CVR: 1.18% | WoW +140.3% | YoY +33.3%
+- 세션: 14,861 | WoW -59.4% | YoY -25.0%
+- 주문: 166 | WoW -54.8% | YoY -7.8%
+- 매출: 28,761,608원 | WoW -50.4% | YoY -17.2%
+- 구매 CVR: 1.12% | WoW +11.5% | YoY +22.9%
 
 ## 데이터 품질
-- [BLOCK] ETC 22.1% — 미귀속 세션 상세 및 GA4 (not set)/(other) 점검 필요
+- [BLOCK] ETC 21.6% — 미귀속 세션 상세 및 GA4 (not set)/(other) 점검 필요
 - [INFO] Paid 상세 성과와 매체별 ROAS 판단을 보류합니다.
 - [INFO] 어드민 실적이 0으로 내려왔습니다. 실제 매출 0으로 단정하지 않습니다.
 
@@ -22,4 +22,4 @@
 
 데이터 미검증 영역의 원인 설명은 가설이며 광고 예산 조정은 자동 수행하지 않습니다. 매체 ROAS는 신뢰 가능한 비용 데이터 부재 시 계산하지 않습니다.
 
-원본: reports/daily_digest/data/daily/2026-11-26.json
+원본: reports/daily_digest/data/daily/2026-11-27.json
