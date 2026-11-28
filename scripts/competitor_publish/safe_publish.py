@@ -127,6 +127,13 @@ def rebuild_strategy():
         "if(!q.source_checked_at||q.brand_count!==24||!q.quality)"
         "throw Error('Refusing incomplete quality snapshot');"
         "writeFileSync(p+'latest-quality.json',JSON.stringify(q,null,2)+'\\n');"
+        "const rows=r.archive_classification,brands=r.archive_classification_by_brand;"
+        "if(!Array.isArray(rows)||!brands||rows.length!==r.quality.retained_unique_count||"
+        "Object.keys(brands).length!==24||Object.values(brands).reduce((n,b)=>n+b.total,0)!==rows.length)"
+        "throw Error('Archive classification scope mismatch');"
+        "const review_queue=rows.filter(x=>x.purpose.code==='UNCLASSIFIED').map(x=>({id:x.id,brand:x.brand,title:x.title,url:x.url,reason:'콘텐츠 목적을 확정할 개별 본문 또는 DOM 근거 부족',next_action:'공식 원본 페이지의 개별 콘텐츠 영역 재확인'}));"
+        "const archive={source_checked_at:r.source_checked_at,quality:r.quality,brands,rows,review_queue,review_summary:{total:rows.length,classified:rows.length-review_queue.length,pending:review_queue.length}};"
+        "writeFileSync(p+'archive-classification.json',JSON.stringify(archive,null,2)+'\\n');"
         "console.log(JSON.stringify(q));"
     )
     command("node", "--input-type=module", "-e", js)
@@ -198,6 +205,7 @@ def publish():
                     "reports/competitor_content/calendar.json",
                     "reports/competitor_content/strategy-summary.json",
                     "reports/competitor_content/latest-quality.json",
+                    "reports/competitor_content/archive-classification.json",
                     "reports/competitor_content/crawl-health.json")
             if not command("git", "diff", "--cached", "--quiet", check=False).returncode:
                 print("Nothing changed; skip publication")
