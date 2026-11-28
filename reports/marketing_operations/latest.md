@@ -1,4 +1,4 @@
-# CSK Marketing Operations 3.0 — 2026-11-26
+# CSK Marketing Operations 3.0 — 2026-11-27
 
 **보고 상태: PARTIAL** · 원천 복구 우선
 
@@ -13,46 +13,44 @@
 
 ## 7일 KPI (전주 완결 기간 비교)
 상태: **ready**
-기간: 2026-11-20 ~ 2026-11-26 / 비교: 2026-11-13 ~ 2026-11-19
-- 세션 180,705 · WoW +57.4%
-- 주문 1,813 · WoW +203.2%
-- 매출 ₩297,863,649 · WoW +231.1%
-- 구매 CVR 1.00% · 상대 WoW +92.6%
+기간: 2026-11-21 ~ 2026-11-27 / 비교: 2026-11-14 ~ 2026-11-20
+- 세션 158,963 · WoW +18.3%
+- 주문 1,612 · WoW +84.0%
+- 매출 ₩268,659,624 · WoW +100.4%
+- 구매 CVR 1.01% · 상대 WoW +55.6%
 
 ## 마케팅 캘린더 (기간과 출처 확인)
-올해 2026-11-20 ~ 2026-11-26: records_present
-전년 동요일 대응 기간 2025-11-21 ~ 2025-11-27: available
+올해 2026-11-21 ~ 2026-11-27: records_present
+전년 동요일 대응 기간 2025-11-22 ~ 2025-11-28: available
 ### 전년 확인 활동
 - 2025-11-21 [event] Winter Festival 본행사 · W47 · 4~7p
-- 2025-11-21 [message] 카카오 · Winter Festival · W47 · 3p
 - 2025-11-27 [message] 카카오 · Winter Festival Last Weekend · W48 · 3p
 ### 전년 계획만 확인된 활동 (실행 미확인)
-- 2025-11-21 윈터페스티벌 1차
-- 2025-11-21 윈터페스티벌 2차
 - 2025-11-24 LMS · Winter Festival
 - 2025-11-24 윈터페스티벌 2차
 - 2025-11-27 윈터페스티벌 라스트콜
+- 2025-11-28 카카오 · Winter Festival Last Call
 
 ## 상품/PDP 개선 검토
 - [MEASUREMENT_QA] Amaze Puff Hooded Jacket (C74WR9847309) · PDP 718 · Cart 0.14% · 구매 이벤트와 어드민 상품코드 일치 여부 검증 필요
-- [CRO_HYPOTHESIS] PFG PRO SPORT BOOT (C75BM1935063) · PDP 378 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Cassiar Pro ODX Shell (C71WE8104491) · PDP 266 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 251 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] ROC Wide Leg Pant (C73AR3742278) · PDP 234 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 220 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] Loneridge Legging (C73AR7506010) · PDP 163 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
-- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 155 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] PFG PRO SPORT BOOT (C75BM1935063) · PDP 375 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Cassiar Pro ODX Shell (C71WE8104491) · PDP 264 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Sauvie Sky Quad Parka IC Jacket (C74WE4490235) · PDP 254 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] ROC Wide Leg Pant (C73AR3742278) · PDP 232 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Birdree Lite Drawstring Backpack (C76PU7257125) · PDP 217 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] Loneridge Legging (C73AR7506010) · PDP 161 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
+- [CRO_HYPOTHESIS] W Saudan Pro 3L Shell (C71WR6042027) · PDP 154 · Cart 0.00% · PDP→Cart 이탈 후보. 유입 매체·재고·상세페이지 요인 검증 전
 
 ## 경쟁사 가격 참고 (동일 SKU 비교 불가)
 수집 상태: reference_fresh
 브랜드 평균 가격은 상품 구성·시즌·판매처가 달라 동일 SKU의 가격 차이를 증명하지 않음
-- DISCOVERY: 수집상품 5,702, 표기 평균가 ₩60,795, 할인 상품 비율 46.1% (수집일 2026-11-25, recent)
-- NEW_BALANCE: 수집상품 5,308, 표기 평균가 ₩113,699, 할인 상품 비율 1.8% (수집일 2026-11-25, recent)
-- THE_NORTH_FACE: 수집상품 3,631, 표기 평균가 ₩144,729, 할인 상품 비율 0.0% (수집일 2026-11-25, recent)
-- NEPA: 수집상품 3,208, 표기 평균가 ₩89,818, 할인 상품 비율 0.0% (수집일 2026-11-25, recent)
-- MILLET: 수집상품 2,283, 표기 평균가 ₩114,996, 할인 상품 비율 92.2% (수집일 2026-11-25, recent)
-- COLUMBIA: 수집상품 1,614, 표기 평균가 ₩129,884, 할인 상품 비율 0.0% (수집일 2026-11-25, recent)
-- ARCTERYX: 수집상품 668, 표기 평균가 ₩220,000, 할인 상품 비율 0.0% (수집일 2026-11-25, recent)
+- DISCOVERY: 수집상품 5,702, 표기 평균가 ₩60,795, 할인 상품 비율 46.1% (수집일 2026-11-28, recent)
+- NEW_BALANCE: 수집상품 5,308, 표기 평균가 ₩113,699, 할인 상품 비율 1.8% (수집일 2026-11-28, recent)
+- THE_NORTH_FACE: 수집상품 3,631, 표기 평균가 ₩144,729, 할인 상품 비율 0.0% (수집일 2026-11-28, recent)
+- NEPA: 수집상품 3,219, 표기 평균가 ₩90,045, 할인 상품 비율 0.0% (수집일 2026-11-28, recent)
+- MILLET: 수집상품 2,288, 표기 평균가 ₩114,847, 할인 상품 비율 92.3% (수집일 2026-11-28, recent)
+- COLUMBIA: 수집상품 1,615, 표기 평균가 ₩129,973, 할인 상품 비율 0.0% (수집일 2026-11-28, recent)
+- ARCTERYX: 수집상품 668, 표기 평균가 ₩220,000, 할인 상품 비율 0.0% (수집일 2026-11-28, recent)
 
 ## 신상품 7·14·30일
 상태: launch_registry_missing
